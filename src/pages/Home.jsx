@@ -50,6 +50,7 @@ export default function Home() {
       <section className="section container" id="about">
         <p className="section-label">About</p>
         <h2 className="section-title">Chi sono</h2>
+
         <p style={styles.aboutText}>
           Sono un consulente IT senior con oltre 20 anni di esperienza in data architecture
           e business intelligence. Lavoro su piattaforme dati enterprise — ETL/streaming,
@@ -93,15 +94,16 @@ export default function Home() {
       </section>
 
       {/* CONTACT */}
-      <section className="section container" id="contact" style={{ borderTop: '1px solid #1f2b35' }}>
+      <section 
+className="section container" id="contact" style={{ borderTop: '1px solid #1f2b35' }}>
         <p className="section-label">Contact</p>
         <h2 className="section-title">Parliamone</h2>
         <p style={styles.aboutText}>
           Per collaborazioni, consulenze o semplicemente per scambiare due idee su data
           architecture e AI locale, scrivimi.
         </p>
-        <a href="mailto:Dannybydanny@hotmail.com" style={styles.btnPrimary}>
-          Dannybydanny@hotmail.com
+        <a href="mailto:daniele@danielevillanova.com" style={styles.btnPrimary}>
+          daniele@danielevillanova.com
         </a>
       </section>
 
@@ -174,7 +176,8 @@ const styles = {
   },
   aboutText: {
     color: '#b7c5cc',
-    fontSize: '1.05rem',
+    fontSize: '
+1.05rem',
     maxWidth: 720,
   },
   expertiseGrid: {
