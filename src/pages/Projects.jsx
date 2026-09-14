@@ -1,16 +1,19 @@
-import { projects } from '../data/projects.js'
+import { useTranslation } from 'react-i18next'
+import { projectSlugs, projectNames } from '../data/projects.js'
 
 export default function Projects() {
+  const { t } = useTranslation()
+
   return (
     <section className="section container">
-      <p className="section-label">Portfolio</p>
-      <h2 className="section-title">Progetti</h2>
+      <p className="section-label">{t('projects.portfolioLabel')}</p>
+      <h2 className="section-title">{t('projects.portfolioTitle')}</h2>
       <div style={styles.list}>
-        {projects.map((p) => (
-          <article key={p.slug} style={styles.card}>
-            <h3 style={styles.title}>{p.name}</h3>
-            <p style={styles.tag}>{p.tag}</p>
-            <p style={styles.text}>{p.summary}</p>
+        {projectSlugs.map((slug) => (
+          <article key={slug} style={styles.card}>
+            <h3 style={styles.title}>{projectNames[slug]}</h3>
+            <p style={styles.tag}>{t(`projectsData.${slug}.tag`)}</p>
+            <p style={styles.text}>{t(`projectsData.${slug}.summary`)}</p>
           </article>
         ))}
       </div>
