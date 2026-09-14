@@ -109,6 +109,7 @@ const styles = {
     fontFamily: 'var(--serif)',
     fontWeight: 400,
     fontSize: 'clamp(2.2rem, 6vw, 4rem)',
+
     marginBottom: '1rem',
   },
   heroSubtitle: {
