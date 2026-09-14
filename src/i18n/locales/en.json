@@ -26,8 +26,7 @@
     "label": "Selected Projects",
     "title": "Recent Projects",
     "viewAll": "View all projects",
-    "portfolioLab
-el": "Portfolio",
+    "portfolioLabel": "Portfolio",
     "portfolioTitle": "Projects"
   },
   "projectsData": {
