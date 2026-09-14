@@ -36,8 +36,7 @@ export default function Home() {
           <p className="section-label">Data Architect · BI · AI Systems</p>
           <h1 style={styles.heroTitle}>Daniele Villanova</h1>
           <p style={styles.heroSubtitle}>
-            Progetto architetture dati e sistemi AI che funzionano — dalla modellazione
-            Data agli agenti multi-AI locali e cloud.
+            Building advanced data architectures and flexible AI systems — from Data to local and cloud multi-AI agents with persistent memory.
           </p>
           <div style={styles.heroActions}>
             <Link to="/projects" style={styles.btnPrimary}>Guarda i progetti</Link>
