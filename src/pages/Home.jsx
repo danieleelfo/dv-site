@@ -178,9 +178,7 @@ const styles = {
   },
   aboutText: {
     color: '#b7c5cc',
-    f
-ontSize: '
-1.05rem',
+    fontSize: '1.05rem',
     maxWidth: 720,
   },
   expertiseGrid: {
