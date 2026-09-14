@@ -1,0 +1,43 @@
+{
+  "nav": { "home": "Inicio", "projects": "Proyectos", "console": "Consola" },
+  "hero": {
+    "label": "Data Architect · BI · AI Systems",
+    "subtitle": "Construyo arquitecturas de datos avanzadas y sistemas de IA flexibles — desde los datos hasta agentes multi-IA locales y en la nube con memoria persistente.",
+    "viewProjects": "Ver proyectos",
+    "contact": "Contacto"
+  },
+  "about": {
+    "label": "About",
+    "title": "Sobre mí",
+    "text": "Consultor de IT senior con más de 20 años de experiencia en arquitectura de datos e inteligencia de negocio. Trabajo en plataformas de datos empresariales — ETL/ELT, Data Vault 2.0, modelado Kimball y medallion, Power BI, SSAS, Azure — y en los últimos años he orientado mi curiosidad técnica hacia la IA aplicada: sistemas locales, arquitecturas multi-agente con memoria persistente, automatizaciones que orquestan modelos y datos sin depender de infraestructuras cloud de terceros. Hablo italiano, español, francés, catalán, neerlandés e inglés."
+  },
+  "expertise": {
+    "label": "Expertise",
+    "title": "Áreas de especialización",
+    "items": [
+      { "title": "Data Architecture", "text": "Diseño de plataformas de datos escalables, desde la ingesta hasta la capa de servicio, para contextos empresariales y proyectos independientes." },
+      { "title": "Data Modeling: Kimball / DV / Hybrid / Medallion", "text": "Modelado DW/DL & hub-link-satellite para data warehouses resilientes al cambio, historizados y auditables." },
+      { "title": "BI & Analytics", "text": "Power BI, SSAS, dashboards y scorecards para la toma de decisiones — del dato en bruto al insight operativo." },
+      { "title": "AI / Local AI", "text": "Sistemas de IA locales, orquestación de modelos y automatizaciones que funcionan en infraestructura propia, sin depender de la nube de terceros." },
+      { "title": "Multi-Agent Systems", "text": "Arquitecturas de agentes persona-driven con memoria persistente, para asistentes y automatizaciones complejas." }
+    ]
+  },
+  "projects": {
+    "label": "Selected Projects",
+    "title": "Proyectos recientes",
+    "viewAll": "Ver todos los proyectos",
+    "portfolioLabel": "Portfolio",
+    "portfolioTitle": "Proyectos"
+  },
+  "projectsData": {
+    "leles": { "tag": "AI Orchestration", "summary": "Plataforma de IA local que orquesta agentes persona-driven con memoria persistente, pensada para funcionar en infraestructura propia." },
+    "emergence-lab": { "tag": "Multi-Agent Systems", "summary": "Sistema multi-agente experimental para explorar comportamientos emergentes entre agentes de IA cooperantes." },
+    "ai-os-system": { "tag": "AI OS System", "summary": "Sistema de orquestación AI local que gestiona mac, git, airflow, piper y otras herramientas de desarrollo a través de la plataforma Leles." },
+    "bar-ai": { "tag": "Analytics Demo", "summary": "Demo de analytics con IA para un bar/restaurante con interfaz de bot de Telegram, desde la recogida de datos hasta el insight." }
+  },
+  "contact": {
+    "label": "Contact",
+    "title": "Hablemos",
+    "text": "Para colaboraciones, consultoría o simplemente para intercambiar ideas sobre arquitectura de datos e IA local, escríbeme."
+  }
+}
