@@ -8,8 +8,8 @@ const expertise = [
     text: 'Progettazione di piattaforme dati scalabili, da ingestion a serving layer, per contesti enterprise e progetti indipendenti.',
   },
   {
-    title: 'Data Vault 2.0',
-    text: 'Modellazione hub/link/satellite per data warehouse resilienti al cambiamento, storicizzati e auditabili.',
+    title: 'Data modeling Kimball/DV/hybrid/medallion',
+    text: 'Modellazione DW, DL & hub/link/satellite per data warehouse resilienti al cambiamento, storicizzati e auditabili.',
   },
   {
     title: 'BI & Analytics',
@@ -37,7 +37,7 @@ export default function Home() {
           <h1 style={styles.heroTitle}>Daniele Villanova</h1>
           <p style={styles.heroSubtitle}>
             Progetto architetture dati e sistemi AI che funzionano — dalla modellazione
-            Data Vault agli agenti multi-AI locali.
+            Data agli agenti multi-AI locali e cloud.
           </p>
           <div style={styles.heroActions}>
             <Link to="/projects" style={styles.btnPrimary}>Guarda i progetti</Link>
@@ -53,12 +53,9 @@ export default function Home() {
 
 
         <p style={styles.aboutText}>
-          Sono un consulente IT senior con oltre 20 anni di esperienza in data architecture
-          e business intelligence. Lavoro su piattaforme dati enterprise — ETL/streaming,
-          modellazione Data Vault 2.0, Power BI, SSAS, Azure — e negli ultimi anni ho spostato
-          parte della mia curiosità tecnica verso l'AI applicata: sistemi locali, agenti
-          multi-AI con memoria persistente, automazioni che orchestrano modelli e dati senza
-          dipendere da infrastrutture cloud di terzi. Lavoro in italiano, spagnolo e inglese.
+          Data Specialist with 25 years of experience experimenting with AI infinite capabilities and dangers. 
+              I specialize in designing scalable data architectures, BI solutions, and integrating multilanguages AI-driven systems 
+              focused on automation, performance, and efficiency. 
         </p>
       </section>
 
