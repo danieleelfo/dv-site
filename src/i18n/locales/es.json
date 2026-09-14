@@ -19,7 +19,8 @@
       { "title": "Data Modeling: Kimball / DV / Hybrid / Medallion", "text": "Modelado DW/DL & hub-link-satellite para data warehouses resilientes al cambio, historizados y auditables." },
       { "title": "BI & Analytics", "text": "Power BI, SSAS, dashboards y scorecards para la toma de decisiones — del dato en bruto al insight operativo." },
       { "title": "AI / Local AI", "text": "Sistemas de IA locales, orquestación de modelos y automatizaciones que funcionan en infraestructura propia, sin depender de la nube de terceros." },
-      { "title": "Multi-Agent Systems", "text": "Arquitecturas de agentes persona-driven con memoria persistente, para asistentes y automatizaciones complejas." }
+      { "title": "Multi-Agent Systems", "text": "Arquitecturas de agentes persona-driven con memoria persistente, para asistentes y automatizaciones complej
+as." }
     ]
   },
   "projects": {
