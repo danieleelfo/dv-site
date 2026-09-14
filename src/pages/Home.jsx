@@ -1,31 +1,12 @@
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import hero from '../assets/hero.png'
-import { projects } from '../data/projects.js'
-
-const expertise = [
-  {
-    title: 'Data Architecture',
-    text: 'Progettazione di piattaforme dati scalabili, da ingestion a serving layer, per contesti enterprise e progetti indipendenti.',
-  },
-  {
-    title: 'Data modeling Kimball/DV/hybrid/medallion',
-    text: 'Modellazione DW, DL & hub/link/satellite per data warehouse resilienti al cambiamento, storicizzati e auditabili.',
-  },
-  {
-    title: 'BI & Analytics',
-    text: 'Power BI, SSAS, dashboard e scorecard per decision-making — dal dato grezzo all\'insight operativo.',
-  },
-  {
-    title: 'AI / Local AI',
-    text: 'Sistemi AI locali, orchestrazione di modelli e automazioni che girano su infrastruttura propria, senza dipendere da cloud terzi.',
-  },
-  {
-    title: 'Multi-Agent Systems',
-    text: 'Architetture ad agenti persona-driven con memoria persistente, per assistenti e automazioni complesse.',
-  },
-]
+import { projectSlugs, projectNames } from '../data/projects.js'
 
 export default function Home() {
+  const { t } = useTranslation()
+  const expertiseItems = t('expertise.items', { returnObjects: true })
+
   return (
     <div>
       {/* HERO */}
@@ -33,38 +14,30 @@ export default function Home() {
         <img src={hero} alt="" style={styles.heroImg} />
         <div style={styles.heroOverlay} />
         <div className="container" style={styles.heroContent}>
-          <p className="section-label">Data Architect · BI · AI Systems</p>
+          <p className="section-label">{t('hero.label')}</p>
           <h1 style={styles.heroTitle}>Daniele Villanova</h1>
-          <p style={styles.heroSubtitle}>
-            Building advanced data architectures and flexible AI systems — from Data to local and cloud multi-AI agents with persistent memory.
-          </p>
+          <p style={styles.heroSubtitle}>{t('hero.subtitle')}</p>
           <div style={styles.heroActions}>
-            <Link to="/projects" style={styles.btnPrimary}>Guarda i progetti</Link>
-            <a href="#contact" style={styles.btnGhost}>Contatti</a>
+            <Link to="/projects" style={styles.btnPrimary}>{t('hero.viewProjects')}</Link>
+            <a href="#contact" style={styles.btnGhost}>{t('hero.contact')}</a>
           </div>
         </div>
       </section>
 
       {/* ABOUT */}
       <section className="section container" id="about">
-        <p className="section-label">About</p>
-        <h2 className="section-title">Chi sono</h2>
-
-
-        <p style={styles.aboutText}>
-          Data Specialist with 25 years of experience experimenting with AI infinite capabilities and dangers. 
-              I specialize in designing scalable data architectures, BI solutions, and integrating multilanguages AI-driven systems 
-              focused on automation, performance, and efficiency. 
-        </p>
+        <p className="section-label">{t('about.label')}</p>
+        <h2 className="section-title">{t('about.title')}</h2>
+        <p style={styles.aboutText}>{t('about.text')}</p>
       </section>
 
       {/* EXPERTISE */}
       <section className="section container" id="expertise" style={{ borderTop: '1px solid #1f2b35' }}>
-        <p className="section-label">Expertise</p>
-        <h2 className="section-title">Aree di competenza</h2>
+        <p className="section-label">{t('expertise.label')}</p>
+        <h2 className="section-title">{t('expertise.title')}</h2>
         <div style={styles.expertiseGrid}>
-          {expertise.map((e) => (
-            <div key={e.title} style={styles.expertiseCard}>
+          {expertiseItems.map((e, i) => (
+            <div key={i} style={styles.expertiseCard}>
               <h3 style={styles.expertiseTitle}>{e.title}</h3>
               <p style={styles.expertiseText}>{e.text}</p>
             </div>
@@ -74,32 +47,27 @@ export default function Home() {
 
       {/* SELECTED PROJECTS */}
       <section className="section container" id="projects" style={{ borderTop: '1px solid #1f2b35' }}>
-        <p className="section-label">Selected Projects</p>
-        <h2 className="section-title">Progetti recenti</h2>
+        <p className="section-label">{t('projects.label')}</p>
+        <h2 className="section-title">{t('projects.title')}</h2>
         <div style={styles.projectsGrid}>
-          {projects.map((p) => (
-            <div key={p.slug} style={styles.projectCard}>
-              <h3 style={styles.projectTitle}>{p.name}</h3>
-              <p style={styles.projectTag}>{p.tag}</p>
-              <p style={styles.projectText}>{p.summary}</p>
+          {projectSlugs.map((slug) => (
+            <div key={slug} style={styles.projectCard}>
+              <h3 style={styles.projectTitle}>{projectNames[slug]}</h3>
+              <p style={styles.projectTag}>{t(`projectsData.${slug}.tag`)}</p>
+              <p style={styles.projectText}>{t(`projectsData.${slug}.summary`)}</p>
             </div>
           ))}
         </div>
         <div style={{ marginTop: '2.5rem' }}>
-          <Link to="/projects" style={styles.btnGhost}>Vedi tutti i progetti →</Link>
+          <Link to="/projects" style={styles.btnGhost}>{t('projects.viewAll')} →</Link>
         </div>
       </section>
 
       {/* CONTACT */}
-      <section
- 
-className="section container" id="contact" style={{ borderTop: '1px solid #1f2b35' }}>
-        <p className="section-label">Contact</p>
-        <h2 className="section-title">Parliamone</h2>
-        <p style={styles.aboutText}>
-          Per collaborazioni, consulenze o semplicemente per scambiare due idee su data
-          architecture e AI locale, scrivimi.
-        </p>
+      <section className="section container" id="contact" style={{ borderTop: '1px solid #1f2b35' }}>
+        <p className="section-label">{t('contact.label')}</p>
+        <h2 className="section-title">{t('contact.title')}</h2>
+        <p style={styles.aboutText}>{t('contact.text')}</p>
         <a href="mailto:daniele@danielevillanova.com" style={styles.btnPrimary}>
           daniele@danielevillanova.com
         </a>
