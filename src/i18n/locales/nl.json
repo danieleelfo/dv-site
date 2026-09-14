@@ -39,5 +39,10 @@
     "label": "Contact",
     "title": "Laten we praten",
     "text": "Voor samenwerkingen, consultancy of gewoon om ideeën uit te wisselen over data-architectuur en lokale AI, neem contact op."
+  },
+  "console": {
+    "label": "Private",
+    "title": "Leles Console",
+    "text": "Gereserveerd gebied in aanbouw. Binnenkort beschikbaar met dedicatie authenticatie."
   }
 }
