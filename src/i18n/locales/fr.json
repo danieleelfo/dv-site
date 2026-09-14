@@ -39,5 +39,10 @@
     "label": "Contact",
     "title": "Parlons-en",
     "text": "Pour des collaborations, du conseil, ou simplement pour échanger des idées sur l'architecture de données et l'IA locale, contactez-moi."
+  },
+  "console": {
+    "label": "Private",
+    "title": "Leles Console",
+    "text": "Zone réservée en construction. Bientôt disponible avec authentification dédiée."
   }
 }
