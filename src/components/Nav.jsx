@@ -1,17 +1,24 @@
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+import LanguageSwitcher from './LanguageSwitcher.jsx'
 
 export default function Nav() {
+  const { t } = useTranslation()
+
   return (
     <header style={styles.header}>
       <div className="container" style={styles.bar}>
         <Link to="/" style={styles.logo}>
           D. VILLANOVA
         </Link>
-        <nav style={styles.links}>
-          <Link to="/" style={styles.link}>Home</Link>
-          <Link to="/projects" style={styles.link}>Projects</Link>
-          <Link to="/console" style={styles.link}>Console</Link>
-        </nav>
+        <div style={styles.right}>
+          <nav style={styles.links}>
+            <Link to="/" style={styles.link}>{t('nav.home')}</Link>
+            <Link to="/projects" style={styles.link}>{t('nav.projects')}</Link>
+            <Link to="/console" style={styles.link}>{t('nav.console')}</Link>
+          </nav>
+          <LanguageSwitcher />
+        </div>
       </div>
     </header>
   )
@@ -31,6 +38,11 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'space-between',
     height: 64,
+  },
+  right: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '1.5rem',
   },
   logo: {
     fontSize: '0.9rem',
