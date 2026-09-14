@@ -39,5 +39,10 @@
     "label": "Contact",
     "title": "Let's talk",
     "text": "For collaborations, consulting, or just to exchange ideas on data architecture and local AI, get in touch."
+  },
+  "console": {
+    "label": "Private",
+    "title": "Leles Console",
+    "text": "Reserved area under construction. Soon available with dedicated authentication."
   }
 }
