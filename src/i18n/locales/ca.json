@@ -21,6 +21,7 @@
       { "title": "AI / Local AI", "text": "Sistemes d'IA locals, orquestració de models i automatitzacions que funcionen en infraestructura pròpia, sense dependre del núvol de tercers." },
       { "title": "Multi-Agent Systems", "text": "Arquitectures d'agents persona-driven amb memòria persistent, per a assistents i automatitzacions complexes." }
     ]
+
   },
   "projects": {
     "label": "Selected Projects",
