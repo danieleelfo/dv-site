@@ -922,7 +922,7 @@ const homeStyles = {
   btnPrimary: {
     background: '#3fd0c9',
     color: '#0b1015',
-    padding: '0.75rem 1.5rem',
+    padding: '0.95rem 1.5rem',
     borderRadius: 6,
     fontWeight: 600,
     fontSize: '0.9rem',
@@ -932,7 +932,7 @@ const homeStyles = {
   btnGhost: {
     border: '1px solid #3fd0c9',
     color: '#3fd0c9',
-    padding: '0.75rem 1.5rem',
+    padding: '0.95rem 1.5rem',
     borderRadius: 6,
     fontWeight: 600,
     fontSize: '0.9rem',
