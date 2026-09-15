@@ -41,7 +41,8 @@
       }
     ]
   },
-  "projects": {
+  
+"projects": {
     "label": "Selected Projects",
     "title": "Recente projecten",
     "viewAll": "Bekijk alle projecten",
