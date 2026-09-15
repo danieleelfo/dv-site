@@ -9,14 +9,14 @@ export default function Nav() {
   return (
     <header style={styles.header}>
       <div className="container" style={styles.bar}>
-        <Link to={lang ? `/${lang}` : '/' } style={styles.logo}>
+        <Link to={lang ? "/" + lang : "/"} style={styles.logo}>
           D. VILLANOVA
         </Link>
         <div style={styles.right}>
           <nav style={styles.links}>
-            <Link to={lang ? `/${lang}` : '/' } style={styles.link}>{t('nav.home')}</Link>
-            <Link to={lang ? `/${lang}/projects` : '/projects' } style={styles.link}>{t('nav.projects')}</Link>
-            <Link to={lang ? `/${lang}/console` : '/console' } style={styles.link}>{t('nav.console')}</Link>
+            <Link to={lang ? "/" + lang : "/"} style={styles.link}>{t('nav.home')}</Link>
+            <Link to={lang ? "/" + lang + "/projects" : "/projects"} style={styles.link}>{t('nav.projects')}</Link>
+            <Link to={lang ? "/" + lang + "/console" : "/console"} style={styles.link}>{t('nav.console')}</Link>
           </nav>
           <LanguageSwitcher />
         </div>
