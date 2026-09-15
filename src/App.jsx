@@ -6,6 +6,7 @@ import HomeTest from './pages/HomeTest.jsx'
 import Projects from './pages/Projects.jsx'
 import Console from './pages/Console.jsx'
 import Nav from './components/Nav.jsx'
+import HomeTest2 from './pages/HomeTest2.jsx'
 
 const SUPPORTED_LANGS = ['en', 'it', 'es', 'fr', 'ca', 'nl']
 
@@ -67,6 +68,8 @@ export default function App() {
             </>
           }
         />
+        <Route path="/test2" element={<><Nav /><HomeTest2 /></>} />
+        <Route path="/:lang/test2" element={<><Nav /><LangWrapper><HomeTest2 /></LangWrapper></>} />
 
         <Route
           path="/:lang/projects"
