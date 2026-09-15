@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import bgImage from '../assets/DataInFlames.png'
+import bgImage from '../assets/DataInFlames.jpd'
 
 export default function Console() {
   const { t } = useTranslation()
