@@ -2,11 +2,13 @@ import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import Home from './pages/Home.jsx'
-import HomeTest from './pages/HomeTest.jsx'
 import Projects from './pages/Projects.jsx'
 import Console from './pages/Console.jsx'
 import Nav from './components/Nav.jsx'
+
+import HomeTest from './pages/HomeTest.jsx'
 import HomeTest2 from './pages/HomeTest2.jsx'
+import HomeTest3 from './pages/HomeTest3.jsx'
 
 const SUPPORTED_LANGS = ['en', 'it', 'es', 'fr', 'ca', 'nl']
 
