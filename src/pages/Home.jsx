@@ -1,10 +1,11 @@
-import { Link } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import hero from '../assets/hero.png'
 import { projectSlugs, projectNames } from '../data/projects.js'
 
 export default function Home() {
   const { t } = useTranslation()
+  const { lang } = useParams()
   const expertiseItems = t('expertise.items', { returnObjects: true })
 
   return (
@@ -18,7 +19,8 @@ export default function Home() {
           <h1 style={styles.heroTitle}>Daniele Villanova</h1>
           <p style={styles.heroSubtitle}>{t('hero.subtitle')}</p>
           <div style={styles.heroActions}>
-            <Link to="/projects" style={styles.btnPrimary}>{t('hero.viewProjects')}</Link>
+            <Link to={lang ? `/${lang}/projects` : '/projects' } style={styles.btnPrimary}>{t('hero.viewProjects')}</Link>
+            <Link to={lang ? `/${lang}` + '#expertise' : '/#expertise' } style={styles.btnGhost}>{t('nav.expertise')}</Link>
             <a href="#contact" style={styles.btnGhost}>{t('hero.contact')}</a>
           </div>
         </div>
@@ -59,7 +61,7 @@ export default function Home() {
           ))}
         </div>
         <div style={{ marginTop: '2.5rem' }}>
-          <Link to="/projects" style={styles.btnGhost}>{t('projects.viewAll')} →</Link>
+          <Link to={lang ? `/${lang}/projects` : '/projects' } style={styles.btnGhost}>{t('projects.viewAll')} →</Link>
         </div>
       </section>
 
@@ -109,8 +111,6 @@ const styles = {
     fontFamily: 'var(--serif)',
     fontWeight: 400,
     fontSize: 'clamp(2.2rem, 6vw, 4rem)',
-
-
     marginBottom: '1rem',
   },
   heroSubtitle: {
