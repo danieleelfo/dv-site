@@ -315,7 +315,7 @@ export default function HomeTest4() {
                 x="150"
                 y="22"
                 fill="#3fd0c9"
-                fontSize="11"
+                fontSize="13"
                 textAnchor="middle"
                 fontWeight="600"
                 letterSpacing="1"
@@ -387,7 +387,7 @@ export default function HomeTest4() {
                 x="55"
                 y="250"
                 fill="#3fd0c9"
-                fontSize="11"
+                fontSize="13"
                 textAnchor="middle"
                 fontWeight="600"
                 letterSpacing="1"
@@ -459,7 +459,7 @@ export default function HomeTest4() {
                 x="245"
                 y="250"
                 fill="#3fd0c9"
-                fontSize="11"
+                fontSize="13"
                 textAnchor="middle"
                 fontWeight="600"
                 letterSpacing="1"
@@ -555,13 +555,13 @@ const styles = {
   content: {
     position: 'relative',
     zIndex: 2,
-    textAlign: 'center',
+    textAlign: 'left',
     maxWidth: 950,
     width: '100%',
   },
 
   header: {
-    marginBottom: '1rem',
+    marginBottom: '0.5rem',
   },
 
   systemBadge: {
@@ -595,7 +595,7 @@ const styles = {
   },
 
   cardContainer: {
-    marginTop: '1.5rem',
+    marginTop: '0.8rem',
   },
 
   card: {
@@ -604,9 +604,8 @@ const styles = {
     borderRadius: 8,
     overflow: 'hidden',
     backdropFilter: 'blur(10px)',
-    minHeight: 280,
   },
-
+  
   consoleHeader: {
     background: '#121a22',
     padding: '0.5rem 1rem',
@@ -645,7 +644,7 @@ const styles = {
   },
 
   cardBody: {
-    padding: '2rem 2.5rem 2.2rem',
+    padding: '1.2rem 2rem 1.3rem',
   },
 
   cardTitle: {
@@ -665,7 +664,7 @@ const styles = {
   cardDesc: {
     color: '#8fa1ac',
     fontSize: '0.85rem',
-    marginBottom: '1.5rem',
+    marginBottom: '1rem',
     lineHeight: '1.4',
   },
 
