@@ -30,58 +30,91 @@ export default function HomeTest4() {
 
   const nodes = {
     humans: {
-      title: 'HUMANS',
-      subtitle:
-        'Intuition, Emotional Intelligence & Narrative Engines',
-      description:
-        'Exploring human cognition through interactive storytelling and creative emergence.',
+      title: t('homeTest4.humans.title', 'HUMANS'),
+      subtitle: t(
+        'homeTest4.humans.subtitle',
+        'Intuition, Emotional Intelligence & Narrative Engines'
+      ),
+      description: t(
+        'homeTest4.humans.description',
+        'Exploring human cognition through interactive storytelling and creative emergence.'
+      ),
       links: [
         {
-          label: 'Night Stories',
+          label: t(
+            'homeTest4.humans.links.nightStories',
+            'Night Stories'
+          ),
           path: '/night-stories',
         },
         {
-          label: 'Story Teller',
+          label: t(
+            'homeTest4.humans.links.storyTeller',
+            'Story Teller'
+          ),
           path: '/story-teller',
         },
         {
-          label: 'Bar AI',
+          label: t(
+            'homeTest4.humans.links.barAI',
+            'Bar AI'
+          ),
           path: '/bar-ai',
         },
       ],
     },
 
     ai: {
-      title: 'AI Agents',
-      subtitle:
-        'Synthetic Intelligence & Persistent Memory Agents',
-      description:
-        'Autonomous multi-agent architectures running local and cloud inferencing models.',
+      title: t('homeTest4.ai.title', 'AI Agents'),
+      subtitle: t(
+        'homeTest4.ai.subtitle',
+        'Synthetic Intelligence & Persistent Memory Agents'
+      ),
+      description: t(
+        'homeTest4.ai.description',
+        'Autonomous multi-agent architectures running local and cloud inferencing models.'
+      ),
       links: [
         {
-          label: 'Emergence Experiments',
+          label: t(
+            'homeTest4.ai.links.emergence',
+            'Emergence Experiments'
+          ),
           path: '/emergence',
         },
         {
-          label: 'Console Playground',
+          label: t(
+            'homeTest4.ai.links.console',
+            'Console Playground'
+          ),
           path: '/console',
         },
       ],
     },
 
     data: {
-      title: 'DATA',
-      subtitle:
-        'Architectures, Foundations & Distributed Pipelines',
-      description:
-        'Enterprise data engineering, BI systems, and scalable infrastructure.',
+      title: t('homeTest4.data.title', 'DATA'),
+      subtitle: t(
+        'homeTest4.data.subtitle',
+        'Architectures, Foundations & Distributed Pipelines'
+      ),
+      description: t(
+        'homeTest4.data.description',
+        'Enterprise data engineering, BI systems, and scalable infrastructure.'
+      ),
       links: [
         {
-          label: 'Corporate CV & About',
+          label: t(
+            'homeTest4.data.links.about',
+            'Corporate CV & About'
+          ),
           path: '/about',
         },
         {
-          label: 'Data Projects',
+          label: t(
+            'homeTest4.data.links.projects',
+            'Data Projects'
+          ),
           path: '/projects',
         },
       ],
@@ -106,14 +139,6 @@ export default function HomeTest4() {
         <header style={styles.header}>
           <p style={styles.systemBadge}>
             Human -🏴‍☠️- AI Agent -🧜🏻‍♀️- Data
-          </p>
-
-          <h1 style={styles.title}>
-            Daniele Villanova
-          </h1>
-
-          <p style={styles.subtitle}>
-            Data Architecture • AI Systems • Human Experience
           </p>
         </header>
 
@@ -490,6 +515,12 @@ export default function HomeTest4() {
             </div>
           </div>
         </div>
+
+        {/* SIGNATURE */}
+        <div style={styles.signature}>
+          designed and developed by Daniele Villanova
+        </div>
+
       </div>
     </div>
   )
@@ -525,7 +556,7 @@ const styles = {
     position: 'relative',
     zIndex: 2,
     textAlign: 'center',
-    maxWidth: 750,
+    maxWidth: 950,
     width: '100%',
   },
 
@@ -573,6 +604,7 @@ const styles = {
     borderRadius: 8,
     overflow: 'hidden',
     backdropFilter: 'blur(10px)',
+    minHeight: 280,
   },
 
   consoleHeader: {
@@ -613,7 +645,7 @@ const styles = {
   },
 
   cardBody: {
-    padding: '1.2rem',
+    padding: '2rem 2.5rem 2.2rem',
   },
 
   cardTitle: {
@@ -633,7 +665,7 @@ const styles = {
   cardDesc: {
     color: '#8fa1ac',
     fontSize: '0.85rem',
-    marginBottom: '1.2rem',
+    marginBottom: '1.5rem',
     lineHeight: '1.4',
   },
 
@@ -642,5 +674,13 @@ const styles = {
     gap: '0.8rem',
     flexWrap: 'wrap',
     justifyContent: 'center',
+  },
+
+  signature: {
+    marginTop: '1rem',
+    color: '#5c6b74',
+    fontSize: '0.65rem',
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
   },
 }
