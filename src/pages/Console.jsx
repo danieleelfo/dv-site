@@ -26,19 +26,19 @@ const styles = {
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  bgImg: {
+    bgImg: {
     position: 'absolute',
     inset: 0,
     width: '100%',
     height: '100%',
     objectFit: 'cover',
-    opacity: 0.35,
+    opacity: 0.6,
   },
   overlay: {
     position: 'absolute',
     inset: 0,
     background:
-      'linear-gradient(180deg, rgba(11,16,21,0.5) 0%, rgba(11,16,21,0.92) 100%)',
+      'linear-gradient(180deg, rgba(11,16,21,0.25) 0%, rgba(11,16,21,0.85) 100%)',
   },
   content: {
     position: 'relative',

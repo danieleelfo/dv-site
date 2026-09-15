@@ -54,7 +54,7 @@ const styles = {
     gap: '1.75rem',
   },
   card: {
-    background: 'rgba(18,26,34,0.85)',
+    background: '#121a22',
     border: '1px solid #1f2b35',
     borderRadius: 10,
     padding: '1.75rem',
