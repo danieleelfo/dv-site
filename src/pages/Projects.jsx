@@ -37,13 +37,13 @@ const styles = {
     width: '100%',
     height: '100%',
     objectFit: 'cover',
-    opacity: 0.25,
+    opacity: 0.4,
   },
   overlay: {
     position: 'absolute',
     inset: 0,
     background:
-      'linear-gradient(180deg, rgba(11,16,21,0.75) 0%, rgba(11,16,21,0.97) 100%)',
+      'linear-gradient(180deg, rgba(11,16,21,0.55) 0%, rgba(11,16,21,0.9) 100%)',
   },
   content: {
     position: 'relative',
