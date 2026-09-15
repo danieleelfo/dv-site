@@ -1,5 +1,5 @@
 {
-  "nav": { "home": "Home", "projects": "Progetti", "console": "Console" },
+  "nav": { "home": "Home", "projects": "Progetti", "console": "Console" , "expertise": "Competenze"},
   "hero": {
     "label": "Data Architect · BI · AI Systems",
     "subtitle": "Progetto architetture dati avanzate e sistemi AI flessibili — dai dati agli agenti AI locali con memoria persistente.",
@@ -27,7 +27,8 @@
     "title": "Progetti recenti",
     "viewAll": "Vedi tutti i progetti",
     "portfolioLabel": "Portfolio",
-    "portfolioTitle": "Progetti"
+    "portfolioTitle":
+ "Progetti"
   },
   "projectsData": {
     "leles": { "tag": "AI Orchestration", "summary": "Piattaforma AI locale che orchestra AI agenti con memoria persistente, concepita per girare su infrastruttura propria." },
