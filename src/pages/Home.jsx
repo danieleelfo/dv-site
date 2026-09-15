@@ -749,7 +749,7 @@ const pageStyles = {
     position: 'fixed',
     inset: 0,
     background:
-      'linear-gradient(180deg, rgba(11,16,21,0.72) 0%, rgba(11,16,21,0.82) 45%, rgba(11,16,21,0.98) 100%)',
+      'linear-gradient(180deg, rgba(11,16,21,0.45) 0%, rgba(11,16,21,0.60) 45%, rgba(11,16,21,0.78) 100%)',
     zIndex: 1,
   },
 
@@ -804,7 +804,9 @@ const styles = {
   diagramWrapper: {
     width: 260,
     height: 260,
-    margin: '1rem auto',
+    margin: '0.3rem auto 1rem',
+    transform: 'translateX(-15px)',
+
   },
 
   svg: {
