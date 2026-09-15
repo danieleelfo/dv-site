@@ -6,12 +6,19 @@ export default function Projects() {
   const { t } = useTranslation()
 
   return (
-    <section className="section container" style={styles.wrap}>
-      <img src={bgImage} alt="" style={styles.bgImg} />
-      <div style={styles.overlay} />
-      <div style={styles.content}>
-        <p className="section-label">{t('projects.portfolioLabel')}</p>
-        <h2 className="section-title">{t('projects.portfolioTitle')}</h2>
+    <div>
+      {/* Hero section with image */}
+      <section style={styles.wrap}>
+        <img src={bgImage} alt="" style={styles.bgImg} />
+        <div style={styles.overlay} />
+        <div className="container" style={styles.content}>
+          <p className="section-label">{t('projects.portfolioLabel')}</p>
+          <h2 className="section-title">{t('projects.portfolioTitle')}</h2>
+        </div>
+      </section>
+
+      {/* Cards section below image */}
+      <section className="section container" style={{ paddingTop: '2rem' }}>
         <div style={styles.list}>
           {projectSlugs.map((slug) => (
             <article key={slug} style={styles.card}>
@@ -21,14 +28,15 @@ export default function Projects() {
             </article>
           ))}
         </div>
-      </div>
-    </section>
+      </section>
+    </div>
   )
 }
 
 const styles = {
   wrap: {
     position: 'relative',
+    height: '40vh',  // Immagine più piccola
     overflow: 'hidden',
   },
   bgImg: {
@@ -42,11 +50,15 @@ const styles = {
   overlay: {
     position: 'absolute',
     inset: 0,
-    background:
-      'linear-gradient(180deg, rgba(11,16,21,0.55) 0%, rgba(11,16,21,0.9) 100%)',
+    background: 'linear-gradient(180deg, rgba(11,16,21,0.55) 0%, rgba(11,16,21,0.9) 100%)',
   },
   content: {
     position: 'relative',
+    height: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'flex-end',
+    paddingBottom: '2rem',
   },
   list: {
     display: 'grid',
