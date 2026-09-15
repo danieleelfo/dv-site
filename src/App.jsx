@@ -70,6 +70,10 @@ export default function App() {
         />
         <Route path="/test2" element={<><Nav /><HomeTest2 /></>} />
         <Route path="/:lang/test2" element={<><Nav /><LangWrapper><HomeTest2 /></LangWrapper></>} />
+        
+        <Route path="/test3" element={<HomeTest3 />} />
+        <Route path="/:lang/test3" element={<LangWrapper><HomeTest3 /></LangWrapper>} />
+
 
         <Route
           path="/:lang/projects"
