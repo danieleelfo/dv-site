@@ -37,7 +37,7 @@ const styles = {
     width: '100%',
     height: '100%',
     objectFit: 'cover',
-    opacity: 0.7,
+    opacity: 0.85,
   },
   overlay: {
     position: 'absolute',

@@ -1,43 +1,74 @@
 {
-  "nav": { "home": "Home", "projects": "Progetti", "console": "Console" },
+  "nav": {
+    "home": "Inici",
+    "projects": "Projectes",
+    "console": "Consola"
+  },
   "hero": {
     "label": "Data Architect · BI · AI Systems",
-    "subtitle": "Progetto architetture dati avanzate e sistemi AI flessibili — dai dati agli agenti AI locali con memoria persistente.",
-    "viewProjects": "Ultimi progetti",
-    "contact": "Contatti"
+    "subtitle": "Dissanyo arquitectures de dades avançades i sistemes d'IA flexibles — des de la modelització de dades fins a agents multi-IA locals i al núvol amb memòria persistent.",
+    "viewProjects": "Veure projectes",
+    "contact": "Contacte"
   },
   "about": {
-    "label": "About",
-    "title": "Chi sono",
-    "text": "Consulente IT con oltre 25 anni di esperienza in data architecture e business intelligence. Lavoro su piattaforme dati enterprise e negli ultimi tempi ho spostato parte della mia curiosità tecnica verso l'AI applicata: sistemi locali, architetture multi-agente con memoria persistente, automazioni che orchestrano modelli e dati senza dipendere da infrastrutture cloud di terzi. Parlo italiano, inglese, spagnolo, francese, catalano e olandese."
+    "label": "Sobre mi",
+    "title": "Sobre mi",
+    "text": "Consultor IT Sènior amb més de 25 anys d'experiència en arquitectura de dades i business intelligence. Treballo en plataformes de dades enterprise i, en els últims temps, he orientat la meva curiositat tècnica cap a l'IA aplicada: sistemes locals, arquitectures multi-agent amb memòria persistent i automatitzacions que orquestren models i dades sense dependre d'infraestructures al núvol de tercers. Parlo anglès, espanyol, català, francès, italià i neerlandès."
   },
   "expertise": {
-    "label": "Expertise",
-    "title": "Aree di competenza",
+    "label": "Expertesa",
+    "title": "Àrees d'expertesa",
     "items": [
-      { "title": "Data Architecture", "text": "Progettazione di piattaforme dati scalabili, da ingestion a serving layer, per contesti enterprise e progetti indipendenti." },
-      { "title": "Data Modeling: Kimball / DV / Hybrid / Medallion", "text": "Modellazione DW/DL & hub-link-satellite per data warehouse resilienti al cambiamento, storicizzati e auditabili." },
-      { "title": "BI & Analytics", "text": "Power BI, SSAS, dashboard e scorecard per decision-making — dal dato grezzo all'insight operativo." },
-      { "title": "AI / Local AI", "text": "Sistemi AI locali, orchestrazione di modelli e automazioni che girano su infrastruttura propria, senza dipendere da cloud terzi." },
-      { "title": "Multi-Agent Systems", "text": "Architetture ad agenti persona-driven con memoria persistente, per assistenti e automazioni complesse." }
+      {
+        "title": "Data Architecture",
+        "text": "Disseny de plataformes de dades escalables, des de l'ingestió fins a la capa de servei, per a entorns enterprise i projectes independents."
+      },
+      {
+        "title": "Data Modeling: Kimball / DV / Hybrid / Medallion",
+        "text": "Modelització DW/DL i hub-link-satellite per a magatzems de dades històrics, auditables i resilients al canvi."
+      },
+      {
+        "title": "BI & Analytics",
+        "text": "Power BI, SSAS, quadres de comandament i scorecards per a la presa de decisions — de la dada bruta a l'insight operatiu."
+      },
+      {
+        "title": "AI / Local AI",
+        "text": "Sistemes d'IA locals, orquestració de models i automatitzacions que s'executen en infraestructura pròpia, sense dependència del núvol de tercers."
+      },
+      {
+        "title": "Multi-Agent Systems",
+        "text": "Arquitectures multi-agent basades en personatges amb memòria persistent, per a assistents i automatitzacions complexes."
+      }
     ]
   },
   "projects": {
     "label": "Selected Projects",
-    "title": "Progetti recenti",
-    "viewAll": "Vedi tutti i progetti",
+    "title": "Projectes recents",
+    "viewAll": "Veure tots els projectes",
     "portfolioLabel": "Portfolio",
-    "portfolioTitle": "Progetti"
+    "portfolioTitle": "Projectes"
   },
   "projectsData": {
-    "leles": { "tag": "AI Orchestration", "summary": "Piattaforma AI locale che orchestra AI agenti con memoria persistente, concepita per girare su infrastruttura propria." },
-    "emergence-lab": { "tag": "Multi-Agent Systems", "summary": "Sistema multi-agent sperimentale per esplorare comportamenti emergenti tra agenti AI cooperanti." },
-    "stories": { "tag": "Racconta storie", "summary": "Non sai che storia inventare per tuo nipote? Laila sí. Audio, testo o i 2, anche cantato. Hai voglia di una storia per te? Night Story é disponibile in 8 scenari." },
-    "bar-ai": { "tag": "Analytics Demo", "summary": "Demo di analytics AI-powered per bar/ristorante con interfaccia Telegram bot, dalla raccolta dati all'insight." }
+    "leles": {
+      "tag": "AI Orchestration",
+      "summary": "Plataforma d'IA local que orquestra agents basats en personatges amb memòria persistent, dissenyada per executar-se en infraestructura pròpia."
+    },
+    "emergence-lab": {
+      "tag": "Multi-Agent Systems",
+      "summary": "Sistema multi-agent experimental per explorar comportaments emergents entre agents d'IA cooperatius."
+    },
+    "stories": {
+      "tag": "Stories",
+      "summary": "No saps quina història inventar per al teu nét? Laila sí. Àudio, text o tots dos, fins i tot cantat. Et ve de gust una història per a tu? Night Story està disponible en 8 escenaris."
+    },
+    "bar-ai": {
+      "tag": "Analytics Demo",
+      "summary": "Demo d'analytics basada en IA per a bar/restaurant amb interfície de bot de Telegram, des de la recollida de dades fins a l'insight amb recomanacions de màrqueting d'IA."
+    }
   },
   "contact": {
-    "label": "Contact",
-    "title": "Parliamone",
-    "text": "Per collaborazioni, consulenze o semplicemente per scambiare due idee su data architecture e AI locale, scrivimi."
+    "label": "Contacte",
+    "title": "Parlem-ne",
+    "text": "Per a col·laboracions, consultories o simplement per intercanviar idees sobre arquitectura de dades i IA local, escriu-me."
   }
 }

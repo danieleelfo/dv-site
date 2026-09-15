@@ -32,7 +32,7 @@
   "projectsData": {
     "leles": { "tag": "AI Orchestration", "summary": "Local AI platform orchestrating persona-driven agents with persistent memory, built to run on self-hosted infrastructure." },
     "emergence-lab": { "tag": "Multi-Agent Systems", "summary": "Experimental multi-agent system exploring emergent behavior among cooperating AI agents." },
-    "stories": { "tag": "Stories teller", "summary": "Do you want a fantasy story for your kids? Just let Laila do it for you! Or maybe you want exciting stories for you? In Night Story you can choose among 8 personalities." },
+    "stories": { "tag": "Stories", "summary": "Do you want a fantasy story for your kids? Just let Laila do it for you! Or maybe you want exciting stories for you? In Night Story you can choose among 8 personalities." },
     "bar-ai": { "tag": "Analytics Demo", "summary": "AI-powered analytics demo for a bar/restaurant with a Telegram bot interface, from data collection to insight and marketing reccomandation." }
   },
   "contact": {
