@@ -46,8 +46,8 @@ const styles = {
     gap: '1.5rem',
   },
   logo: {
-    fontSize: '0.7rem',
-    letterSpacing: '0.1em',
+    fontSize: '0.6rem',
+    letterSpacing: '0.03em',
     fontWeight: 600,
   },
   links: {
