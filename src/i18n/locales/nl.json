@@ -4,6 +4,36 @@
     "projects": "Projecten",
     "console": "Console"
   },
+  "home": {
+    "humans": {
+      "title": "Humans",
+      "subtitle": "Intuïtie, Emotionele Intelligentie & Narratieve Engines",
+      "description": "Verkenning van menselijke cognitie via interactieve storytelling en creatieve emergentie.",
+      "links": {
+        "nightStories": "Night Stories",
+        "storyTeller": "Story Teller",
+        "barAI": "Bar AI"
+      }
+    },
+    "ai": {
+      "title": "AI Agents",
+      "subtitle": "Synthetische Intelligentie & Agents met Persistent Geheugen",
+      "description": "Autonome multi-agentarchitecturen gebaseerd op lokale en cloud inference-modellen.",
+      "links": {
+        "emergence": "Emergence Experiments",
+        "console": "Console Playground"
+      }
+    },
+    "data": {
+      "title": "DATA",
+      "subtitle": "Architecturen, Fundamenten & Gedistribueerde Pipelines",
+      "description": "Enterprise data-engineering, BI-systemen en schaalbare infrastructuur.",
+      "links": {
+        "about": "CV & About",
+        "projects": "Data Projects"
+      }
+    }
+  },
   "hero": {
     "label": "Data Architect · BI · AI Systems",
     "subtitle": "Ik bouw geavanceerde data-architecturen en flexibele AI-systemen — van data tot lokale multi-AI-agenten met persistent geheugen.",

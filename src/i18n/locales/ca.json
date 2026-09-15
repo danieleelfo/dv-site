@@ -4,6 +4,36 @@
     "projects": "Projectes",
     "console": "Consola"
   },
+  "home": {
+    "humans": {
+      "title": "Humans",
+      "subtitle": "Intuïció, Intel·ligència Emocional & Motors Narratius",
+      "description": "Exploració de la cognició humana a través de l'storytelling interactiu i l'emergència creativa.",
+      "links": {
+        "nightStories": "Night Stories",
+        "storyTeller": "Story Teller",
+        "barAI": "Bar AI"
+      }
+    },
+    "ai": {
+      "title": "AI Agents",
+      "subtitle": "Intel·ligència Sintètica & Agents amb Memòria Persistent",
+      "description": "Arquitectures multi-agent autònomes basades en models d'inferència locals i al núvol.",
+      "links": {
+        "emergence": "Emergence Experiments",
+        "console": "Console Playground"
+      }
+    },
+    "data": {
+      "title": "DATA",
+      "subtitle": "Arquitectures, Fonaments & Pipelines Distribuïts",
+      "description": "Enginyeria de dades enterprise, sistemes BI i infraestructura escalable.",
+      "links": {
+        "about": "CV & About",
+        "projects": "Data Projects"
+      }
+    }
+  },
   "hero": {
     "label": "Data Architect · BI · AI Systems",
     "subtitle": "Dissanyo arquitectures de dades avançades i sistemes d'IA flexibles — des de la modelització de dades fins a agents multi-IA locals i al núvol amb memòria persistent.",

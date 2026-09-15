@@ -1,6 +1,36 @@
 
 {
   "nav": { "home": "Inicio", "projects": "Proyectos", "console": "Consola" , "expertise": "Experiencia"},
+  "home": {
+    "humans": {
+      "title": "Humans",
+      "subtitle": "Intuición, Inteligencia Emocional & Motores Narrativos",
+      "description": "Exploración de la cognición humana a través del storytelling interactivo y la emergencia creativa.",
+      "links": {
+        "nightStories": "Night Stories",
+        "storyTeller": "Story Teller",
+        "barAI": "Bar AI"
+      }
+    },
+    "ai": {
+      "title": "AI Agents",
+      "subtitle": "Inteligencia Sintética & Agentes con Memoria Persistente",
+      "description": "Arquitecturas multi-agente autónomas basadas en modelos de inferencia locales y cloud.",
+      "links": {
+        "emergence": "Emergence Experiments",
+        "console": "Console Playground"
+      }
+    },
+    "data": {
+      "title": "DATA",
+      "subtitle": "Arquitecturas, Fundamentos & Pipelines Distribuidos",
+      "description": "Ingeniería de datos enterprise, sistemas BI e infraestructura escalable.",
+      "links": {
+        "about": "CV & About",
+        "projects": "Data Projects"
+      }
+    }
+  },
   "hero": {
     "label": "Data Architect · BI · AI Systems",
     "subtitle": "Construyo arquitecturas de datos avanzadas y sistemas de IA flexibles — desde los datos hasta agentes multi-IA locales con memoria persistente.",
