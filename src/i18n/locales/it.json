@@ -2,14 +2,14 @@
   "nav": { "home": "Home", "projects": "Progetti", "console": "Console" },
   "hero": {
     "label": "Data Architect · BI · AI Systems",
-    "subtitle": "Progetto architetture dati avanzate e sistemi AI flessibili — dai dati agli agenti multi-AI locali e cloud con memoria persistente.",
-    "viewProjects": "Guarda i progetti",
+    "subtitle": "Progetto architetture dati avanzate e sistemi AI flessibili — dai dati agli agenti AI locali con memoria persistente.",
+    "viewProjects": "Ultimi progetti",
     "contact": "Contatti"
   },
   "about": {
     "label": "About",
     "title": "Chi sono",
-    "text": "Consulente IT senior con oltre 20 anni di esperienza in data architecture e business intelligence. Lavoro su piattaforme dati enterprise — ETL/ELT, Data Vault 2.0, modellazione Kimball e medallion, Power BI, SSAS, Azure — e negli ultimi anni ho spostato parte della mia curiosità tecnica verso l'AI applicata: sistemi locali, architetture multi-agente con memoria persistente, automazioni che orchestrano modelli e dati senza dipendere da infrastrutture cloud di terzi. Parlo italiano, spagnolo, francese, catalano, olandese e inglese."
+    "text": "Consulente IT con oltre 25 anni di esperienza in data architecture e business intelligence. Lavoro su piattaforme dati enterprise e negli ultimi tempi ho spostato parte della mia curiosità tecnica verso l'AI applicata: sistemi locali, architetture multi-agente con memoria persistente, automazioni che orchestrano modelli e dati senza dipendere da infrastrutture cloud di terzi. Parlo italiano, inglese, spagnolo, francese, catalano e olandese."
   },
   "expertise": {
     "label": "Expertise",
@@ -30,19 +30,14 @@
     "portfolioTitle": "Progetti"
   },
   "projectsData": {
-    "leles": { "tag": "AI Orchestration", "summary": "Piattaforma AI locale che orchestra agenti persona-driven con memoria persistente, pensata per girare su infrastruttura propria." },
+    "leles": { "tag": "AI Orchestration", "summary": "Piattaforma AI locale che orchestra AI agenti con memoria persistente, concepita per girare su infrastruttura propria." },
     "emergence-lab": { "tag": "Multi-Agent Systems", "summary": "Sistema multi-agent sperimentale per esplorare comportamenti emergenti tra agenti AI cooperanti." },
-    "ai-os-system": { "tag": "AI OS System", "summary": "Sistema di orchestrazione AI locale che gestisce mac, git, airflow, piper e altri strumenti di sviluppo tramite piattaforma Leles." },
+    "stories": { "tag": "Racconta storie", "summary": "Non sai che storia inventare per tuo nipote? Laila sí. Audio, testo o i 2, anche cantato. Hai voglia di una storia per te? Night Story é disponibile in 8 scenari." },
     "bar-ai": { "tag": "Analytics Demo", "summary": "Demo di analytics AI-powered per bar/ristorante con interfaccia Telegram bot, dalla raccolta dati all'insight." }
   },
   "contact": {
     "label": "Contact",
     "title": "Parliamone",
     "text": "Per collaborazioni, consulenze o semplicemente per scambiare due idee su data architecture e AI locale, scrivimi."
-  },
-  "console": {
-    "label": "Private",
-    "title": "Leles Console",
-    "text": "Area riservata in costruzione. Presto disponibile con autenticazione dedicata."
   }
 }

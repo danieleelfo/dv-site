@@ -1,48 +1,43 @@
 {
-  "nav": { "home": "Accueil", "projects": "Projets", "console": "Console" },
+  "nav": { "home": "Home", "projects": "Progetti", "console": "Console" },
   "hero": {
     "label": "Data Architect · BI · AI Systems",
-    "subtitle": "Je construis des architectures de données avancées et des systèmes d'IA flexibles — des données aux agents multi-IA locaux et cloud à mémoire persistante.",
-    "viewProjects": "Voir les projets",
-    "contact": "Contact"
+    "subtitle": "Progetto architetture dati avanzate e sistemi AI flessibili — dai dati agli agenti AI locali con memoria persistente.",
+    "viewProjects": "Ultimi progetti",
+    "contact": "Contatti"
   },
   "about": {
     "label": "About",
-    "title": "À propos",
-    "text": "Consultant IT senior avec plus de 20 ans d'expérience en architecture de données et business intelligence. Je travaille sur des plateformes de données d'entreprise — ETL/ELT, Data Vault 2.0, modélisation Kimball et medallion, Power BI, SSAS, Azure — et ces dernières années j'ai orienté ma curiosité technique vers l'IA appliquée : systèmes locaux, architectures multi-agents à mémoire persistante, automatisations qui orchestrent modèles et données sans dépendre d'infrastructures cloud tierces. Je parle italien, espagnol, français, catalan, néerlandais et anglais."
+    "title": "Chi sono",
+    "text": "Consulente IT con oltre 25 anni di esperienza in data architecture e business intelligence. Lavoro su piattaforme dati enterprise e negli ultimi tempi ho spostato parte della mia curiosità tecnica verso l'AI applicata: sistemi locali, architetture multi-agente con memoria persistente, automazioni che orchestrano modelli e dati senza dipendere da infrastrutture cloud di terzi. Parlo italiano, inglese, spagnolo, francese, catalano e olandese."
   },
   "expertise": {
     "label": "Expertise",
-    "title": "Domaines d'expertise",
+    "title": "Aree di competenza",
     "items": [
-      { "title": "Data Architecture", "text": "Conception de plateformes de données évolutives, de l'ingestion à la couche de service, pour des contextes d'entreprise et des projets indépendants." },
-      { "title": "Data Modeling: Kimball / DV / Hybrid / Medallion", "text": "Modélisation DW/DL & hub-link-satellite pour des entrepôts de données résilients au changement, historicisés et auditables." },
-      { "title": "BI & Analytics", "text": "Power BI, SSAS, tableaux de bord et scorecards pour la prise de décision — de la donnée brute à l'insight opérationnel." },
-      { "title": "AI / Local AI", "text": "Systèmes d'IA locaux, orchestration de modèles et automatisations fonctionnant sur infrastructure propre, sans dépendre du cloud tiers." },
-      { "title": "Multi-Agent Systems", "text": "Architectures d'agents persona-driven à mémoire persistante, pour assistants et automatisations complexes." }
+      { "title": "Data Architecture", "text": "Progettazione di piattaforme dati scalabili, da ingestion a serving layer, per contesti enterprise e progetti indipendenti." },
+      { "title": "Data Modeling: Kimball / DV / Hybrid / Medallion", "text": "Modellazione DW/DL & hub-link-satellite per data warehouse resilienti al cambiamento, storicizzati e auditabili." },
+      { "title": "BI & Analytics", "text": "Power BI, SSAS, dashboard e scorecard per decision-making — dal dato grezzo all'insight operativo." },
+      { "title": "AI / Local AI", "text": "Sistemi AI locali, orchestrazione di modelli e automazioni che girano su infrastruttura propria, senza dipendere da cloud terzi." },
+      { "title": "Multi-Agent Systems", "text": "Architetture ad agenti persona-driven con memoria persistente, per assistenti e automazioni complesse." }
     ]
   },
   "projects": {
     "label": "Selected Projects",
-    "title": "Projets récents",
-    "viewAll": "Voir tous les projets",
+    "title": "Progetti recenti",
+    "viewAll": "Vedi tutti i progetti",
     "portfolioLabel": "Portfolio",
-    "portfolioTitle": "Projets"
+    "portfolioTitle": "Progetti"
   },
   "projectsData": {
-    "leles": { "tag": "AI Orchestration", "summary": "Plateforme d'IA locale orchestrant des agents persona-driven à mémoire persistante, conçue pour fonctionner sur infrastructure propre." },
-    "emergence-lab": { "tag": "Multi-Agent Systems", "summary": "Système multi-agents expérimental pour explorer les comportements émergents entre agents IA coopérants." },
-    "ai-os-system": { "tag": "AI OS System", "summary": "Système d'orchestration IA local gérant mac, git, airflow, piper et autres outils de développement via la plateforme Leles." },
-    "bar-ai": { "tag": "Analytics Demo", "summary": "Démo d'analytics alimentée par l'IA pour un bar/restaurant avec interface bot Telegram, de la collecte de données à l'insight." }
+    "leles": { "tag": "AI Orchestration", "summary": "Piattaforma AI locale che orchestra AI agenti con memoria persistente, concepita per girare su infrastruttura propria." },
+    "emergence-lab": { "tag": "Multi-Agent Systems", "summary": "Sistema multi-agent sperimentale per esplorare comportamenti emergenti tra agenti AI cooperanti." },
+    "stories": { "tag": "Racconta storie", "summary": "Non sai che storia inventare per tuo nipote? Laila sí. Audio, testo o i 2, anche cantato. Hai voglia di una storia per te? Night Story é disponibile in 8 scenari." },
+    "bar-ai": { "tag": "Analytics Demo", "summary": "Demo di analytics AI-powered per bar/ristorante con interfaccia Telegram bot, dalla raccolta dati all'insight." }
   },
   "contact": {
     "label": "Contact",
-    "title": "Parlons-en",
-    "text": "Pour des collaborations, du conseil, ou simplement pour échanger des idées sur l'architecture de données et l'IA locale, contactez-moi."
-  },
-  "console": {
-    "label": "Private",
-    "title": "Leles Console",
-    "text": "Zone réservée en construction. Bientôt disponible avec authentification dédiée."
+    "title": "Parliamone",
+    "text": "Per collaborazioni, consulenze o semplicemente per scambiare due idee su data architecture e AI locale, scrivimi."
   }
 }

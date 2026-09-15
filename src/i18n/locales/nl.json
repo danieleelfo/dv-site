@@ -1,48 +1,43 @@
 {
-  "nav": { "home": "Home", "projects": "Projecten", "console": "Console" },
+  "nav": { "home": "Home", "projects": "Progetti", "console": "Console" },
   "hero": {
     "label": "Data Architect · BI · AI Systems",
-    "subtitle": "Ik bouw geavanceerde data-architecturen en flexibele AI-systemen — van data tot lokale en cloud multi-AI-agenten met persistent geheugen.",
-    "viewProjects": "Bekijk projecten",
-    "contact": "Contact"
+    "subtitle": "Progetto architetture dati avanzate e sistemi AI flessibili — dai dati agli agenti AI locali con memoria persistente.",
+    "viewProjects": "Ultimi progetti",
+    "contact": "Contatti"
   },
   "about": {
     "label": "About",
-    "title": "Over mij",
-    "text": "Senior IT-consultant met meer dan 20 jaar ervaring in data-architectuur en business intelligence. Ik werk aan enterprise dataplatforms — ETL/ELT, Data Vault 2.0, Kimball- en medallion-modellering, Power BI, SSAS, Azure — en de laatste jaren heb ik mijn technische nieuwsgierigheid gericht op toegepaste AI: lokale systemen, multi-agent architecturen met persistent geheugen, automatiseringen die modellen en data orkestreren zonder afhankelijk te zijn van cloudinfrastructuur van derden. Ik spreek Italiaans, Spaans, Frans, Catalaans, Nederlands en Engels."
+    "title": "Chi sono",
+    "text": "Consulente IT con oltre 25 anni di esperienza in data architecture e business intelligence. Lavoro su piattaforme dati enterprise e negli ultimi tempi ho spostato parte della mia curiosità tecnica verso l'AI applicata: sistemi locali, architetture multi-agente con memoria persistente, automazioni che orchestrano modelli e dati senza dipendere da infrastrutture cloud di terzi. Parlo italiano, inglese, spagnolo, francese, catalano e olandese."
   },
   "expertise": {
     "label": "Expertise",
-    "title": "Expertisegebieden",
+    "title": "Aree di competenza",
     "items": [
-      { "title": "Data Architecture", "text": "Ontwerp van schaalbare dataplatforms, van ingestion tot serving layer, voor enterprise- en onafhankelijke projecten." },
-      { "title": "Data Modeling: Kimball / DV / Hybrid / Medallion", "text": "DW/DL & hub-link-satellite modellering voor veranderingsbestendige, gehistoriseerde, auditeerbare data warehouses." },
-      { "title": "BI & Analytics", "text": "Power BI, SSAS, dashboards en scorecards voor besluitvorming — van ruwe data tot operationele inzichten." },
-      { "title": "AI / Local AI", "text": "Lokale AI-systemen, modelorkestratie en automatiseringen die draaien op eigen infrastructuur, onafhankelijk van cloud van derden." },
-      { "title": "Multi-Agent Systems", "text": "Persona-driven agentarchitecturen met persistent geheugen, voor assistenten en complexe automatiseringen." }
+      { "title": "Data Architecture", "text": "Progettazione di piattaforme dati scalabili, da ingestion a serving layer, per contesti enterprise e progetti indipendenti." },
+      { "title": "Data Modeling: Kimball / DV / Hybrid / Medallion", "text": "Modellazione DW/DL & hub-link-satellite per data warehouse resilienti al cambiamento, storicizzati e auditabili." },
+      { "title": "BI & Analytics", "text": "Power BI, SSAS, dashboard e scorecard per decision-making — dal dato grezzo all'insight operativo." },
+      { "title": "AI / Local AI", "text": "Sistemi AI locali, orchestrazione di modelli e automazioni che girano su infrastruttura propria, senza dipendere da cloud terzi." },
+      { "title": "Multi-Agent Systems", "text": "Architetture ad agenti persona-driven con memoria persistente, per assistenti e automazioni complesse." }
     ]
   },
   "projects": {
     "label": "Selected Projects",
-    "title": "Recente projecten",
-    "viewAll": "Bekijk alle projecten",
+    "title": "Progetti recenti",
+    "viewAll": "Vedi tutti i progetti",
     "portfolioLabel": "Portfolio",
-    "portfolioTitle": "Projecten"
+    "portfolioTitle": "Progetti"
   },
   "projectsData": {
-    "leles": { "tag": "AI Orchestration", "summary": "Lokaal AI-platform dat persona-driven agenten met persistent geheugen orkestreert, gebouwd om op eigen infrastructuur te draaien." },
-    "emergence-lab": { "tag": "Multi-Agent Systems", "summary": "Experimenteel multi-agent systeem om emergent gedrag tussen samenwerkende AI-agenten te onderzoeken." },
-    "ai-os-system": { "tag": "AI OS System", "summary": "Lokaal AI-orchestratiesysteem dat mac, git, airflow, piper en andere ontwikkeltools beheert via het Leles-platform." },
-    "bar-ai": { "tag": "Analytics Demo", "summary": "AI-gedreven analytics-demo voor een bar/restaurant met een Telegram-bot-interface, van dataverzameling tot inzicht." }
+    "leles": { "tag": "AI Orchestration", "summary": "Piattaforma AI locale che orchestra AI agenti con memoria persistente, concepita per girare su infrastruttura propria." },
+    "emergence-lab": { "tag": "Multi-Agent Systems", "summary": "Sistema multi-agent sperimentale per esplorare comportamenti emergenti tra agenti AI cooperanti." },
+    "stories": { "tag": "Racconta storie", "summary": "Non sai che storia inventare per tuo nipote? Laila sí. Audio, testo o i 2, anche cantato. Hai voglia di una storia per te? Night Story é disponibile in 8 scenari." },
+    "bar-ai": { "tag": "Analytics Demo", "summary": "Demo di analytics AI-powered per bar/ristorante con interfaccia Telegram bot, dalla raccolta dati all'insight." }
   },
   "contact": {
     "label": "Contact",
-    "title": "Laten we praten",
-    "text": "Voor samenwerkingen, consultancy of gewoon om ideeën uit te wisselen over data-architectuur en lokale AI, neem contact op."
-  },
-  "console": {
-    "label": "Private",
-    "title": "Leles Console",
-    "text": "Gereserveerd gebied in aanbouw. Binnenkort beschikbaar met dedicatie authenticatie."
+    "title": "Parliamone",
+    "text": "Per collaborazioni, consulenze o semplicemente per scambiare due idee su data architecture e AI locale, scrivimi."
   }
 }

@@ -1,8 +1,9 @@
-export const projectSlugs = ['leles', 'emergence-lab', 'ai-os-system', 'bar-ai']
+// slug e name restano fissi (nomi propri), tag/summary arrivano dalle traduzioni
+export const projectSlugs = ['leles', 'emergence-lab', 'stories', 'bar-ai']
 
 export const projectNames = {
   leles: 'Leles',
   'emergence-lab': 'Emergence Lab',
-  'ai-os-system': 'AI OS System',
-  'bar-ai': 'bar_ai',
+  'stories': 'Stories',
+  'bar-ai': 'AI bar demo',
 }
