@@ -784,7 +784,7 @@ const styles = {
 
   systemBadge: {
     color: '#3fd0c9',
-    fontSize: '1rem',
+    fontSize: '0.95rem',
     letterSpacing: '0.15em',
     marginBottom: '0.5rem',
   },

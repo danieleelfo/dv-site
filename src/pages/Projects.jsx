@@ -19,7 +19,7 @@ export default function Projects() {
 
       {/* Cards section below image */}
       <section className="section container" style={{ paddingTop: '2rem' }}>
-        <div style={styles.list}>
+        <div className="projects-list">
           {projectSlugs.map((slug) => (
             <article key={slug} style={styles.card}>
               <h3 style={styles.title}>{projectNames[slug]}</h3>
@@ -62,8 +62,8 @@ const styles = {
   },
   list: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-    gap: '1.75rem',
+    gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+    gap: '0.75rem',
   },
   card: {
     background: '#121a22',
