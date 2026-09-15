@@ -140,7 +140,7 @@ export default function HomeTest2() {
       <div style={pageStyles.content}>
 
         {/* ============================================================
-            HOMETEST4 — HUMAN / AI / DATA SYSTEM
+            HOMETEST2 — HUMAN / AI / DATA SYSTEM
             ============================================================ */}
 
         <div style={styles.container}>
@@ -784,7 +784,7 @@ const styles = {
 
   systemBadge: {
     color: '#3fd0c9',
-    fontSize: '0.75rem',
+    fontSize: '1rem',
     letterSpacing: '0.15em',
     marginBottom: '0.5rem',
   },
