@@ -9,9 +9,9 @@ export default function Console() {
       <img src={bgImage} alt="" style={styles.bgImg} />
       <div style={styles.overlay} />
       <div style={styles.content}>
-        <p className="section-label">{t('console.label')}</p>
-        <h2 className="section-title">{t('console.title')}</h2>
-        <p style={styles.text}>{t('console.text')}</p>
+        <p className="section-label">{t('Page under construction...🧜🏻‍♀️')}</p>
+        <h2 className="section-title">{t('Restricted access to Lelé 🏴‍☠️ ')}</h2>
+        <p style={styles.text}>{t('The stories will raise here... ❤️‍🔥 🌈 🦄 ☔️ ')}</p>
       </div>
     </section>
   )
