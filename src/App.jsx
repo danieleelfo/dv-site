@@ -9,6 +9,7 @@ import Nav from './components/Nav.jsx'
 import HomeTest from './pages/HomeTest.jsx'
 import HomeTest2 from './pages/HomeTest2.jsx'
 import HomeTest3 from './pages/HomeTest3.jsx'
+import HomeTest3 from './pages/HomeTest4.jsx'
 
 const SUPPORTED_LANGS = ['en', 'it', 'es', 'fr', 'ca', 'nl']
 
