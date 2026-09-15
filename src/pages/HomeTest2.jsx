@@ -126,620 +126,637 @@ export default function HomeTest2() {
   const expertiseItems = t('expertise.items', { returnObjects: true })
 
   return (
-    <div>
-      {/* ============================================================
-          HOMETEST4 — HUMAN / AI / DATA SYSTEM
-          ============================================================ */}
+    <div style={pageStyles.page}>
 
-      <div style={styles.container}>
-        {/* BACKGROUND */}
-        <img
-          src={bgImage}
-          alt="Background"
-          style={styles.bgImg}
-        />
+      {/* FIXED BACKGROUND */}
+      <img
+        src={bgImage}
+        alt=""
+        style={pageStyles.background}
+      />
 
-        <div style={styles.overlay} />
+      <div style={pageStyles.backgroundOverlay} />
 
-        {/* MAIN CONTENT */}
-        <div className="container" style={styles.content}>
+      <div style={pageStyles.content}>
 
-          {/* HEADER */}
-          <header style={styles.header}>
-            <p style={styles.systemBadge}>
-              Human -🏴‍☠️- AI Agent -🧜🏻‍♀️- Data
-            </p>
-          </header>
+        {/* ============================================================
+            HOMETEST4 — HUMAN / AI / DATA SYSTEM
+            ============================================================ */}
 
-          {/* INTERACTIVE TRIANGLE */}
-          <div style={styles.diagramWrapper}>
-            <svg
-              viewBox="0 0 300 300"
-              style={styles.svg}
-              aria-label="Human AI Data system"
-            >
+        <div style={styles.container}>
 
-              {/* BACKGROUND CIRCLES */}
-              <circle
-                cx="150"
-                cy="150"
-                r="110"
-                stroke="#1f2b35"
-                strokeWidth="1.5"
-                fill="none"
-              />
+          {/* MAIN CONTENT */}
+          <div className="container" style={styles.content}>
 
-              <circle
-                cx="150"
-                cy="150"
-                r="125"
-                stroke="#1f2b35"
-                strokeDasharray="4 4"
-                strokeWidth="1"
-                fill="none"
-                opacity="0.5"
-              />
+            {/* HEADER */}
+            <header style={styles.header}>
+              <p style={styles.systemBadge}>
+                Human -🏴‍☠️- AI Agent -🧜🏻‍♀️- Data
+              </p>
+            </header>
 
-              {/* TRIANGLE */}
-              <polygon
-                points="150,50 55,215 245,215"
-                stroke="#1f2b35"
-                strokeWidth="2"
-                fill="none"
-              />
-
-              {/* ACTIVE CONNECTIONS */}
-              {activeNode === 'humans' && (
-                <>
-                  <line
-                    x1="150"
-                    y1="50"
-                    x2="55"
-                    y2="215"
-                    stroke="#3fd0c9"
-                    strokeWidth="3"
-                    opacity="0.8"
-                  />
-
-                  <line
-                    x1="150"
-                    y1="50"
-                    x2="245"
-                    y2="215"
-                    stroke="#3fd0c9"
-                    strokeWidth="3"
-                    opacity="0.8"
-                  />
-                </>
-              )}
-
-              {activeNode === 'ai' && (
-                <>
-                  <line
-                    x1="55"
-                    y1="215"
-                    x2="150"
-                    y2="50"
-                    stroke="#3fd0c9"
-                    strokeWidth="3"
-                    opacity="0.8"
-                  />
-
-                  <line
-                    x1="55"
-                    y1="215"
-                    x2="245"
-                    y2="215"
-                    stroke="#3fd0c9"
-                    strokeWidth="3"
-                    opacity="0.8"
-                  />
-                </>
-              )}
-
-              {activeNode === 'data' && (
-                <>
-                  <line
-                    x1="245"
-                    y1="215"
-                    x2="150"
-                    y2="50"
-                    stroke="#3fd0c9"
-                    strokeWidth="3"
-                    opacity="0.8"
-                  />
-
-                  <line
-                    x1="245"
-                    y1="215"
-                    x2="55"
-                    y2="215"
-                    stroke="#3fd0c9"
-                    strokeWidth="3"
-                    opacity="0.8"
-                  />
-                </>
-              )}
-
-              {/* HUMANS NODE */}
-              <g
-                style={{ cursor: 'pointer' }}
-                onClick={() => setActiveNode('humans')}
-                onMouseEnter={() => setActiveNode('humans')}
+            {/* INTERACTIVE TRIANGLE */}
+            <div style={styles.diagramWrapper}>
+              <svg
+                viewBox="0 0 300 300"
+                style={styles.svg}
+                aria-label="Human AI Data system"
               >
-                <defs>
-                  <filter
-                    id="glow-humans"
-                    x="-30%"
-                    y="-30%"
-                    width="160%"
-                    height="160%"
-                  >
-                    <feGaussianBlur
-                      stdDeviation="4"
-                      result="blur"
-                    />
 
-                    <feMerge>
-                      <feMergeNode in="blur" />
-                      <feMergeNode in="SourceGraphic" />
-                    </feMerge>
-                  </filter>
-                </defs>
+                {/* BACKGROUND CIRCLES */}
+                <circle
+                  cx="150"
+                  cy="150"
+                  r="110"
+                  stroke="#1f2b35"
+                  strokeWidth="1.5"
+                  fill="none"
+                />
 
                 <circle
                   cx="150"
-                  cy="50"
-                  r="20"
-                  fill={
-                    activeNode === 'humans'
-                      ? '#3fd0c9'
-                      : '#0b1015'
-                  }
-                  stroke="#3fd0c9"
-                  strokeWidth="2"
-                  filter={
-                    activeNode === 'humans'
-                      ? 'url(#glow-humans)'
-                      : 'none'
-                  }
+                  cy="150"
+                  r="125"
+                  stroke="#1f2b35"
+                  strokeDasharray="4 4"
+                  strokeWidth="1"
+                  fill="none"
+                  opacity="0.5"
                 />
 
-                <text
-                  x="150"
-                  y="54"
-                  fill={
-                    activeNode === 'humans'
-                      ? '#0b1015'
-                      : '#fff'
-                  }
-                  fontSize="10"
-                  textAnchor="middle"
-                  fontWeight="bold"
-                >
-                  HU
-                </text>
+                {/* TRIANGLE */}
+                <polygon
+                  points="150,50 55,215 245,215"
+                  stroke="#1f2b35"
+                  strokeWidth="2"
+                  fill="none"
+                />
 
-                <text
-                  x="150"
-                  y="22"
-                  fill="#3fd0c9"
-                  fontSize="13"
-                  textAnchor="middle"
-                  fontWeight="600"
-                  letterSpacing="1"
-                >
-                  HUMANS
-                </text>
-              </g>
-
-              {/* AI NODE */}
-              <g
-                style={{ cursor: 'pointer' }}
-                onClick={() => setActiveNode('ai')}
-                onMouseEnter={() => setActiveNode('ai')}
-              >
-                <defs>
-                  <filter
-                    id="glow-ai"
-                    x="-30%"
-                    y="-30%"
-                    width="160%"
-                    height="160%"
-                  >
-                    <feGaussianBlur
-                      stdDeviation="4"
-                      result="blur"
+                {/* ACTIVE CONNECTIONS */}
+                {activeNode === 'humans' && (
+                  <>
+                    <line
+                      x1="150"
+                      y1="50"
+                      x2="55"
+                      y2="215"
+                      stroke="#3fd0c9"
+                      strokeWidth="3"
+                      opacity="0.8"
                     />
 
-                    <feMerge>
-                      <feMergeNode in="blur" />
-                      <feMergeNode in="SourceGraphic" />
-                    </feMerge>
-                  </filter>
-                </defs>
+                    <line
+                      x1="150"
+                      y1="50"
+                      x2="245"
+                      y2="215"
+                      stroke="#3fd0c9"
+                      strokeWidth="3"
+                      opacity="0.8"
+                    />
+                  </>
+                )}
 
-                <circle
-                  cx="55"
-                  cy="215"
-                  r="20"
-                  fill={
-                    activeNode === 'ai'
-                      ? '#3fd0c9'
-                      : '#0b1015'
-                  }
-                  stroke="#3fd0c9"
-                  strokeWidth="2"
-                  filter={
-                    activeNode === 'ai'
-                      ? 'url(#glow-ai)'
-                      : 'none'
-                  }
-                />
-
-                <text
-                  x="55"
-                  y="219"
-                  fill={
-                    activeNode === 'ai'
-                      ? '#0b1015'
-                      : '#fff'
-                  }
-                  fontSize="10"
-                  textAnchor="middle"
-                  fontWeight="bold"
-                >
-                  AI
-                </text>
-
-                <text
-                  x="55"
-                  y="250"
-                  fill="#3fd0c9"
-                  fontSize="13"
-                  textAnchor="middle"
-                  fontWeight="600"
-                  letterSpacing="1"
-                >
-                  AI
-                </text>
-              </g>
-
-              {/* DATA NODE */}
-              <g
-                style={{ cursor: 'pointer' }}
-                onClick={() => setActiveNode('data')}
-                onMouseEnter={() => setActiveNode('data')}
-              >
-                <defs>
-                  <filter
-                    id="glow-data"
-                    x="-30%"
-                    y="-30%"
-                    width="160%"
-                    height="160%"
-                  >
-                    <feGaussianBlur
-                      stdDeviation="4"
-                      result="blur"
+                {activeNode === 'ai' && (
+                  <>
+                    <line
+                      x1="55"
+                      y1="215"
+                      x2="150"
+                      y2="50"
+                      stroke="#3fd0c9"
+                      strokeWidth="3"
+                      opacity="0.8"
                     />
 
-                    <feMerge>
-                      <feMergeNode in="blur" />
-                      <feMergeNode in="SourceGraphic" />
-                    </feMerge>
-                  </filter>
-                </defs>
+                    <line
+                      x1="55"
+                      y1="215"
+                      x2="245"
+                      y2="215"
+                      stroke="#3fd0c9"
+                      strokeWidth="3"
+                      opacity="0.8"
+                    />
+                  </>
+                )}
 
-                <circle
-                  cx="245"
-                  cy="215"
-                  r="20"
-                  fill={
-                    activeNode === 'data'
-                      ? '#3fd0c9'
-                      : '#0b1015'
-                  }
-                  stroke="#3fd0c9"
-                  strokeWidth="2"
-                  filter={
-                    activeNode === 'data'
-                      ? 'url(#glow-data)'
-                      : 'none'
-                  }
-                />
+                {activeNode === 'data' && (
+                  <>
+                    <line
+                      x1="245"
+                      y1="215"
+                      x2="150"
+                      y2="50"
+                      stroke="#3fd0c9"
+                      strokeWidth="3"
+                      opacity="0.8"
+                    />
 
-                <text
-                  x="245"
-                  y="219"
-                  fill={
-                    activeNode === 'data'
-                      ? '#0b1015'
-                      : '#fff'
-                  }
-                  fontSize="10"
-                  textAnchor="middle"
-                  fontWeight="bold"
+                    <line
+                      x1="245"
+                      y1="215"
+                      x2="55"
+                      y2="215"
+                      stroke="#3fd0c9"
+                      strokeWidth="3"
+                      opacity="0.8"
+                    />
+                  </>
+                )}
+
+                {/* HUMANS NODE */}
+                <g
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setActiveNode('humans')}
+                  onMouseEnter={() => setActiveNode('humans')}
                 >
-                  DA
-                </text>
-
-                <text
-                  x="245"
-                  y="250"
-                  fill="#3fd0c9"
-                  fontSize="13"
-                  textAnchor="middle"
-                  fontWeight="600"
-                  letterSpacing="1"
-                >
-                  DATA
-                </text>
-              </g>
-            </svg>
-          </div>
-
-          {/* DYNAMIC CARD */}
-          <div style={styles.cardContainer}>
-            <div style={styles.card}>
-
-              {/* TERMINAL HEADER */}
-              <div style={styles.consoleHeader}>
-                <span style={styles.dotRed} />
-                <span style={styles.dotYellow} />
-                <span style={styles.dotGreen} />
-
-                <span style={styles.consoleTitle}>
-                  terminal // {activeNode.toUpperCase()}
-                </span>
-              </div>
-
-              {/* CARD CONTENT */}
-              <div style={styles.cardBody}>
-
-                <h3 style={styles.cardTitle}>
-                  {nodes[activeNode].title}
-                </h3>
-
-                <p style={styles.cardSubtitle}>
-                  {nodes[activeNode].subtitle}
-                </p>
-
-                <p style={styles.cardDesc}>
-                  {nodes[activeNode].description}
-                </p>
-
-                <div style={styles.linkGroup}>
-                  {nodes[activeNode].links.map((link) => (
-                    <Link
-                      key={link.path}
-                      to={localizedPath(link.path)}
-                      className="home-test4-button"
+                  <defs>
+                    <filter
+                      id="glow-humans"
+                      x="-30%"
+                      y="-30%"
+                      width="160%"
+                      height="160%"
                     >
-                      {link.label} →
-                    </Link>
-                  ))}
+                      <feGaussianBlur
+                        stdDeviation="4"
+                        result="blur"
+                      />
+
+                      <feMerge>
+                        <feMergeNode in="blur" />
+                        <feMergeNode in="SourceGraphic" />
+                      </feMerge>
+                    </filter>
+                  </defs>
+
+                  <circle
+                    cx="150"
+                    cy="50"
+                    r="20"
+                    fill={
+                      activeNode === 'humans'
+                        ? '#3fd0c9'
+                        : '#0b1015'
+                    }
+                    stroke="#3fd0c9"
+                    strokeWidth="2"
+                    filter={
+                      activeNode === 'humans'
+                        ? 'url(#glow-humans)'
+                        : 'none'
+                    }
+                  />
+
+                  <text
+                    x="150"
+                    y="54"
+                    fill={
+                      activeNode === 'humans'
+                        ? '#0b1015'
+                        : '#fff'
+                    }
+                    fontSize="10"
+                    textAnchor="middle"
+                    fontWeight="bold"
+                  >
+                    HU
+                  </text>
+
+                  <text
+                    x="150"
+                    y="22"
+                    fill="#3fd0c9"
+                    fontSize="13"
+                    textAnchor="middle"
+                    fontWeight="600"
+                    letterSpacing="1"
+                  >
+                    HUMANS
+                  </text>
+                </g>
+
+                {/* AI NODE */}
+                <g
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setActiveNode('ai')}
+                  onMouseEnter={() => setActiveNode('ai')}
+                >
+                  <defs>
+                    <filter
+                      id="glow-ai"
+                      x="-30%"
+                      y="-30%"
+                      width="160%"
+                      height="160%"
+                    >
+                      <feGaussianBlur
+                        stdDeviation="4"
+                        result="blur"
+                      />
+
+                      <feMerge>
+                        <feMergeNode in="blur" />
+                        <feMergeNode in="SourceGraphic" />
+                      </feMerge>
+                    </filter>
+                  </defs>
+
+                  <circle
+                    cx="55"
+                    cy="215"
+                    r="20"
+                    fill={
+                      activeNode === 'ai'
+                        ? '#3fd0c9'
+                        : '#0b1015'
+                    }
+                    stroke="#3fd0c9"
+                    strokeWidth="2"
+                    filter={
+                      activeNode === 'ai'
+                        ? 'url(#glow-ai)'
+                        : 'none'
+                    }
+                  />
+
+                  <text
+                    x="55"
+                    y="219"
+                    fill={
+                      activeNode === 'ai'
+                        ? '#0b1015'
+                        : '#fff'
+                    }
+                    fontSize="10"
+                    textAnchor="middle"
+                    fontWeight="bold"
+                  >
+                    AI
+                  </text>
+
+                  <text
+                    x="55"
+                    y="250"
+                    fill="#3fd0c9"
+                    fontSize="13"
+                    textAnchor="middle"
+                    fontWeight="600"
+                    letterSpacing="1"
+                  >
+                    AI
+                  </text>
+                </g>
+
+                {/* DATA NODE */}
+                <g
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setActiveNode('data')}
+                  onMouseEnter={() => setActiveNode('data')}
+                >
+                  <defs>
+                    <filter
+                      id="glow-data"
+                      x="-30%"
+                      y="-30%"
+                      width="160%"
+                      height="160%"
+                    >
+                      <feGaussianBlur
+                        stdDeviation="4"
+                        result="blur"
+                      />
+
+                      <feMerge>
+                        <feMergeNode in="blur" />
+                        <feMergeNode in="SourceGraphic" />
+                      </feMerge>
+                    </filter>
+                  </defs>
+
+                  <circle
+                    cx="245"
+                    cy="215"
+                    r="20"
+                    fill={
+                      activeNode === 'data'
+                        ? '#3fd0c9'
+                        : '#0b1015'
+                    }
+                    stroke="#3fd0c9"
+                    strokeWidth="2"
+                    filter={
+                      activeNode === 'data'
+                        ? 'url(#glow-data)'
+                        : 'none'
+                    }
+                  />
+
+                  <text
+                    x="245"
+                    y="219"
+                    fill={
+                      activeNode === 'data'
+                        ? '#0b1015'
+                        : '#fff'
+                    }
+                    fontSize="10"
+                    textAnchor="middle"
+                    fontWeight="bold"
+                  >
+                    DA
+                  </text>
+
+                  <text
+                    x="245"
+                    y="250"
+                    fill="#3fd0c9"
+                    fontSize="13"
+                    textAnchor="middle"
+                    fontWeight="600"
+                    letterSpacing="1"
+                  >
+                    DATA
+                  </text>
+                </g>
+              </svg>
+            </div>
+
+            {/* DYNAMIC CARD */}
+            <div style={styles.cardContainer}>
+              <div style={styles.card}>
+
+                {/* TERMINAL HEADER */}
+                <div style={styles.consoleHeader}>
+                  <span style={styles.dotRed} />
+                  <span style={styles.dotYellow} />
+                  <span style={styles.dotGreen} />
+
+                  <span style={styles.consoleTitle}>
+                    terminal // {activeNode.toUpperCase()}
+                  </span>
                 </div>
 
+                {/* CARD CONTENT */}
+                <div style={styles.cardBody}>
+
+                  <h3 style={styles.cardTitle}>
+                    {nodes[activeNode].title}
+                  </h3>
+
+                  <p style={styles.cardSubtitle}>
+                    {nodes[activeNode].subtitle}
+                  </p>
+
+                  <p style={styles.cardDesc}>
+                    {nodes[activeNode].description}
+                  </p>
+
+                  <div style={styles.linkGroup}>
+                    {nodes[activeNode].links.map((link) => (
+                      <Link
+                        key={link.path}
+                        to={localizedPath(link.path)}
+                        className="home-test4-button"
+                      >
+                        {link.label} →
+                      </Link>
+                    ))}
+                  </div>
+
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* SIGNATURE */}
-          <div style={styles.signature}>
-            designed and developed by Daniele Villanova
-          </div>
+            {/* SIGNATURE */}
+            <div style={styles.signature}>
+              designed and developed by Daniele Villanova
+            </div>
 
+          </div>
         </div>
-      </div>
 
-      {/* ============================================================
-          ORIGINAL HOME — HERO
-          ============================================================ */}
+        {/* ============================================================
+            ORIGINAL HOME — ACTIONS
+            ============================================================ */}
 
-      <section style={homeStyles.hero}>
-        <img
-          src={bgImage}
-          alt=""
-          style={homeStyles.heroImg}
-        />
+        <section style={homeStyles.hero}>
+          <div
+            className="container"
+            style={homeStyles.heroContent}
+          >
+            <div style={homeStyles.heroActions}>
+              <Link
+                to={lang ? `/${lang}/projects` : '/projects'}
+                style={homeStyles.btnPrimary}
+              >
+                {t('hero.viewProjects')}
+              </Link>
 
-        <div style={homeStyles.heroOverlay} />
+              <Link
+                to={lang ? `/${lang}#expertise` : '/#expertise'}
+                style={homeStyles.btnGhost}
+              >
+                {t('nav.expertise')}
+              </Link>
 
-        <div
-          className="container"
-          style={homeStyles.heroContent}
+              <a
+                href="#contact"
+                style={homeStyles.btnGhost}
+              >
+                {t('hero.contact')}
+              </a>
+            </div>
+          </div>
+        </section>
+
+        {/* ============================================================
+            EXPERTISE
+            ============================================================ */}
+
+        <section
+          className="section container"
+          id="expertise"
+          style={{
+            borderTop: '1px solid #1f2b35',
+          }}
         >
           <p className="section-label">
-            {t('hero.label')}
+            {t('expertise.label')}
           </p>
 
-          <h1 style={homeStyles.heroTitle}>
-            Daniele Villanova
-          </h1>
+          <h2 className="section-title">
+            {t('expertise.title')}
+          </h2>
 
-          <p style={homeStyles.heroSubtitle}>
-            {t('hero.subtitle')}
+          <div style={homeStyles.expertiseGrid}>
+            {expertiseItems.map((e, i) => (
+              <div
+                key={i}
+                style={homeStyles.expertiseCard}
+              >
+                <h3 style={homeStyles.expertiseTitle}>
+                  {e.title}
+                </h3>
+
+                <p style={homeStyles.expertiseText}>
+                  {e.text}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ============================================================
+            SELECTED PROJECTS
+            ============================================================ */}
+
+        <section
+          className="section container"
+          id="projects"
+          style={{
+            borderTop: '1px solid #1f2b35',
+          }}
+        >
+          <p className="section-label">
+            {t('projects.label')}
           </p>
 
-          <div style={homeStyles.heroActions}>
+          <h2 className="section-title">
+            {t('projects.title')}
+          </h2>
+
+          <div style={homeStyles.projectsGrid}>
+            {projectSlugs.map((slug) => (
+              <div
+                key={slug}
+                style={homeStyles.projectCard}
+              >
+                <h3 style={homeStyles.projectTitle}>
+                  {projectNames[slug]}
+                </h3>
+
+                <p style={homeStyles.projectTag}>
+                  {t(`projectsData.${slug}.tag`)}
+                </p>
+
+                <p style={homeStyles.projectText}>
+                  {t(`projectsData.${slug}.summary`)}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ marginTop: '2.5rem' }}>
             <Link
               to={lang ? `/${lang}/projects` : '/projects'}
-              style={homeStyles.btnPrimary}
-            >
-              {t('hero.viewProjects')}
-            </Link>
-
-            <Link
-              to={lang ? `/${lang}#expertise` : '/#expertise'}
               style={homeStyles.btnGhost}
             >
-              {t('nav.expertise')}
+              {t('projects.viewAll')} →
             </Link>
-
-            <a
-              href="#contact"
-              style={homeStyles.btnGhost}
-            >
-              {t('hero.contact')}
-            </a>
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* ============================================================
-          EXPERTISE
-          ============================================================ */}
+        {/* ============================================================
+            ABOUT ME
+            ============================================================ */}
 
-      <section
-        className="section container"
-        id="expertise"
-        style={{
-          borderTop: '1px solid #1f2b35',
-        }}
-      >
-        <p className="section-label">
-          {t('expertise.label')}
-        </p>
-
-        <h2 className="section-title">
-          {t('expertise.title')}
-        </h2>
-
-        <div style={homeStyles.expertiseGrid}>
-          {expertiseItems.map((e, i) => (
-            <div
-              key={i}
-              style={homeStyles.expertiseCard}
-            >
-              <h3 style={homeStyles.expertiseTitle}>
-                {e.title}
-              </h3>
-
-              <p style={homeStyles.expertiseText}>
-                {e.text}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ============================================================
-          SELECTED PROJECTS
-          ============================================================ */}
-
-      <section
-        className="section container"
-        id="projects"
-        style={{
-          borderTop: '1px solid #1f2b35',
-        }}
-      >
-        <p className="section-label">
-          {t('projects.label')}
-        </p>
-
-        <h2 className="section-title">
-          {t('projects.title')}
-        </h2>
-
-        <div style={homeStyles.projectsGrid}>
-          {projectSlugs.map((slug) => (
-            <div
-              key={slug}
-              style={homeStyles.projectCard}
-            >
-              <h3 style={homeStyles.projectTitle}>
-                {projectNames[slug]}
-              </h3>
-
-              <p style={homeStyles.projectTag}>
-                {t(`projectsData.${slug}.tag`)}
-              </p>
-
-              <p style={homeStyles.projectText}>
-                {t(`projectsData.${slug}.summary`)}
-              </p>
-            </div>
-          ))}
-        </div>
-
-        <div style={{ marginTop: '2.5rem' }}>
-          <Link
-            to={lang ? `/${lang}/projects` : '/projects'}
-            style={homeStyles.btnGhost}
-          >
-            {t('projects.viewAll')} →
-          </Link>
-        </div>
-      </section>
-
-      {/* ============================================================
-          ABOUT ME
-          ============================================================ */}
-
-      <section
-        className="section container"
-        id="about"
-        style={{
-          borderTop: '1px solid #1f2b35',
-        }}
-      >
-        <p className="section-label">
-          {t('about.label')}
-        </p>
-
-        <h2 className="section-title">
-          {t('about.title')}
-        </h2>
-
-        <p style={homeStyles.aboutText}>
-          {t('about.text')}
-        </p>
-      </section>
-
-      {/* ============================================================
-          CONTACT
-          ============================================================ */}
-
-      <section
-        className="section container"
-        id="contact"
-        style={{
-          borderTop: '1px solid #1f2b35',
-        }}
-      >
-        <p className="section-label">
-          {t('contact.label')}
-        </p>
-
-        <h2 className="section-title">
-          {t('contact.title')}
-        </h2>
-
-        <p style={homeStyles.aboutText}>
-          {t('contact.text')}
-        </p>
-
-        <a
-          href="mailto:daniele@danielevillanova.com"
-          style={homeStyles.btnPrimary}
+        <section
+          className="section container"
+          id="about"
+          style={{
+            borderTop: '1px solid #1f2b35',
+          }}
         >
-          daniele@danielevillanova.com
-        </a>
-      </section>
+          <p className="section-label">
+            {t('about.label')}
+          </p>
 
-      {/* ============================================================
-          FOOTER
-          ============================================================ */}
+          <h2 className="section-title">
+            {t('about.title')}
+          </h2>
 
-      <footer style={homeStyles.footer}>
-        <div className="container">
-          © {new Date().getFullYear()} Daniele Villanova
-        </div>
-      </footer>
+          <p style={homeStyles.aboutText}>
+            {t('about.text')}
+          </p>
+        </section>
+
+        {/* ============================================================
+            CONTACT
+            ============================================================ */}
+
+        <section
+          className="section container"
+          id="contact"
+          style={{
+            borderTop: '1px solid #1f2b35',
+          }}
+        >
+          <p className="section-label">
+            {t('contact.label')}
+          </p>
+
+          <h2 className="section-title">
+            {t('contact.title')}
+          </h2>
+
+          <p style={homeStyles.aboutText}>
+            {t('contact.text')}
+          </p>
+
+          <a
+            href="mailto:daniele@danielevillanova.com"
+            style={homeStyles.btnPrimary}
+          >
+            daniele@danielevillanova.com
+          </a>
+        </section>
+
+        {/* ============================================================
+            FOOTER
+            ============================================================ */}
+
+        <footer style={homeStyles.footer}>
+          <div className="container">
+            © {new Date().getFullYear()} Daniele Villanova
+          </div>
+        </footer>
+
+      </div>
     </div>
   )
+}
+
+const pageStyles = {
+  page: {
+    position: 'relative',
+    minHeight: '100vh',
+    background: '#0b1015',
+    overflow: 'hidden',
+  },
+
+  background: {
+    position: 'fixed',
+    inset: 0,
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+    zIndex: 0,
+  },
+
+  backgroundOverlay: {
+    position: 'fixed',
+    inset: 0,
+    background:
+      'linear-gradient(180deg, rgba(11,16,21,0.72) 0%, rgba(11,16,21,0.94) 45%, rgba(11,16,21,0.98) 100%)',
+    zIndex: 1,
+  },
+
+  content: {
+    position: 'relative',
+    zIndex: 2,
+  },
 }
 
 const styles = {
@@ -751,21 +768,6 @@ const styles = {
     justifyContent: 'center',
     color: '#fff',
     padding: '2rem 1rem',
-  },
-
-  bgImg: {
-    position: 'absolute',
-    inset: 0,
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover',
-  },
-
-  overlay: {
-    position: 'absolute',
-    inset: 0,
-    background:
-      'linear-gradient(180deg, rgba(11,16,21,0.65) 0%, rgba(11,16,21,0.95) 100%)',
   },
 
   content: {
@@ -902,51 +904,24 @@ const styles = {
 
 const homeStyles = {
   hero: {
-    position: 'relative',
-    minHeight: '85vh',
+    minHeight: '220px',
     display: 'flex',
-    alignItems: 'flex-end',
-    overflow: 'hidden',
-  },
-
-  heroImg: {
-    position: 'absolute',
-    inset: 0,
-    width: '100%',
-    height: '100%',
-    objectFit: 'cover',
-  },
-
-  heroOverlay: {
-    position: 'absolute',
-    inset: 0,
-    background:
-      'linear-gradient(180deg, rgba(11,16,21,0.35) 0%, rgba(11,16,21,0.75) 60%, rgba(11,16,21,0.97) 100%)',
+    alignItems: 'center',
+    borderTop: '1px solid #1f2b35',
+    borderBottom: '1px solid #1f2b35',
   },
 
   heroContent: {
-    position: 'relative',
-    paddingBottom: '4.5rem',
-  },
-
-  heroTitle: {
-    fontFamily: 'var(--serif)',
-    fontWeight: 400,
-    fontSize: 'clamp(2.2rem, 6vw, 4rem)',
-    marginBottom: '1rem',
-  },
-
-  heroSubtitle: {
-    color: '#b7c5cc',
-    fontSize: '1.05rem',
-    maxWidth: 560,
-    marginBottom: '2rem',
+    width: '100%',
+    paddingTop: '3rem',
+    paddingBottom: '3rem',
   },
 
   heroActions: {
     display: 'flex',
     gap: '1rem',
     flexWrap: 'wrap',
+    justifyContent: 'center',
   },
 
   btnPrimary: {
@@ -982,7 +957,7 @@ const homeStyles = {
   },
 
   expertiseCard: {
-    background: '#121a22',
+    background: 'rgba(18, 26, 34, 0.85)',
     border: '1px solid #1f2b35',
     borderRadius: 10,
     padding: '1.5rem',
