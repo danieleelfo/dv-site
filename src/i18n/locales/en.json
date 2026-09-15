@@ -1,5 +1,5 @@
 {
-  "nav": { "home": "Home", "projects": "Projects", "console": "Console" },
+  "nav": { "home": "Home", "projects": "Projects", "console": "Console" , "expertise": "Expertise"},
   "hero": {
     "label": "Data Architect · BI · AI Systems",
     "subtitle": "Building advanced data architectures and flexible AI systems — from Data to local multi-AI agents with persistent memory.",
@@ -30,6 +30,7 @@
     "portfolioTitle": "Projects"
   },
   "projectsData": {
+
     "leles": { "tag": "AI Orchestration", "summary": "Local AI platform orchestrating persona-driven agents with persistent memory, built to run on self-hosted infrastructure." },
     "emergence-lab": { "tag": "Multi-Agent Systems", "summary": "Experimental multi-agent system exploring emergent behavior among cooperating AI agents." },
     "stories": { "tag": "Stories", "summary": "Do you want a fantasy story for your kids? Just let Laila do it for you! Or maybe you want exciting stories for you? In Night Story you can choose among 8 personalities." },
