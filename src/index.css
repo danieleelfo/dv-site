@@ -43,7 +43,7 @@ a {
   padding: 6rem 0;
 }
 
-.home-test4-button {
+.home-button {
   background: transparent;
   border: 1px solid #3fd0c9;
   color: #3fd0c9;
@@ -55,7 +55,7 @@ a {
   transition: all 0.3s ease;
 }
 
-.home-test4-button:hover {
+.home-button:hover {
   background: #3fd0c9;
   color: #0b1015;
 }
@@ -84,11 +84,11 @@ a {
 }
 
 @media (max-width: 900px) {
-  .home-test2-expertise-grid {
+  .home-expertise-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 
-  .home-test2-projects-grid {
+  .home-projects-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 }
@@ -112,16 +112,16 @@ a {
 }
 
 @media (max-width: 560px) {
-  .home-test2-expertise-grid {
+  .home-expertise-grid {
     grid-template-columns: 1fr !important;
   }
 
-  .home-test2-projects-grid {
+  .home-projects-grid {
     grid-template-columns: 1fr !important;
   }
 }
 
-.home-test2-section {
+.home-section {
   padding-top: 4rem;
   padding-bottom: 4rem;
 }
