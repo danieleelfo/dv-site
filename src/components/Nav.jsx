@@ -1,21 +1,22 @@
-import { Link } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import LanguageSwitcher from './LanguageSwitcher.jsx'
 
 export default function Nav() {
   const { t } = useTranslation()
+  const { lang } = useParams()
 
   return (
     <header style={styles.header}>
       <div className="container" style={styles.bar}>
-        <Link to="/" style={styles.logo}>
+        <Link to={lang ? `/${lang}` : '/' } style={styles.logo}>
           D. VILLANOVA
         </Link>
         <div style={styles.right}>
           <nav style={styles.links}>
-            <Link to="/" style={styles.link}>{t('nav.home')}</Link>
-            <Link to="/projects" style={styles.link}>{t('nav.projects')}</Link>
-            <Link to="/console" style={styles.link}>{t('nav.console')}</Link>
+            <Link to={lang ? `/${lang}` : '/' } style={styles.link}>{t('nav.home')}</Link>
+            <Link to={lang ? `/${lang}/projects` : '/projects' } style={styles.link}>{t('nav.projects')}</Link>
+            <Link to={lang ? `/${lang}/console` : '/console' } style={styles.link}>{t('nav.console')}</Link>
           </nav>
           <LanguageSwitcher />
         </div>
