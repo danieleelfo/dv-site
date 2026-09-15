@@ -10,7 +10,7 @@ export default function Nav() {
     <header style={styles.header}>
       <div className="container" style={styles.bar}>
         <Link to={lang ? "/" + lang : "/"} style={styles.logo}>
-          Daniele V.
+          Website under construction...
         </Link>
         <div style={styles.right}>
           <nav style={styles.links}>
