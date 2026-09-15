@@ -1,17 +1,68 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom'
+import { useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import Home from './pages/Home.jsx'
 import Projects from './pages/Projects.jsx'
 import Console from './pages/Console.jsx'
 import Nav from './components/Nav.jsx'
 
+const SUPPORTED_LANGS = ['en', 'it', 'es', 'fr', 'ca', 'nl']
+
+function LangWrapper({ children }) {
+  const { lang } = useParams()
+  const { i18n } = useTranslation()
+
+  useEffect(() => {
+    if (lang && SUPPORTED_LANGS.includes(lang) && i18n.language !== lang) {
+      i18n.changeLanguage(lang)
+    }
+  }, [lang, i18n])
+
+  if (lang && !SUPPORTED_LANGS.includes(lang)) {
+    return <Navigate to="/en" replace />
+  }
+
+  return children
+}
+
 export default function App() {
   return (
     <BrowserRouter>
-      <Nav />
       <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/projects" element={<Projects />} />
-        <Route path="/console" element={<Console />} />
+        <Route path="/" element={<Navigate to="/en" replace />} />
+        <Route
+          path="/:lang"
+          element={
+            <>
+              <Nav />
+              <LangWrapper>
+                <Home />
+              </LangWrapper>
+            </>
+          }
+        />
+        <Route
+          path="/:lang/projects"
+          element={
+            <>
+              <Nav />
+              <LangWrapper>
+                <Projects />
+              </LangWrapper>
+            </>
+          }
+        />
+        <Route
+          path="/:lang/console"
+          element={
+            <>
+              <Nav />
+              <LangWrapper>
+                <Console />
+              </LangWrapper>
+            </>
+          }
+        />
       </Routes>
     </BrowserRouter>
   )
