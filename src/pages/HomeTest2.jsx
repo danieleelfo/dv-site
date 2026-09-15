@@ -518,7 +518,7 @@ export default function HomeTest2() {
                       <Link
                         key={link.path}
                         to={localizedPath(link.path)}
-                        className="home-test4-button"
+                        className="home-test2-button"
                       >
                         {link.label} →
                       </Link>
@@ -576,7 +576,7 @@ export default function HomeTest2() {
             ============================================================ */}
 
         <section
-          className="section container"
+          className="section container home-test2-section"
           id="expertise"
           style={{
             borderTop: '1px solid #1f2b35',
@@ -590,8 +590,10 @@ export default function HomeTest2() {
             {t('expertise.title')}
           </h2>
 
-          <div style={homeStyles.expertiseGrid}>
-            {expertiseItems.map((e, i) => (
+          <div
+            className="home-test2-expertise-grid"
+            style={homeStyles.expertiseGrid}
+          >            {expertiseItems.map((e, i) => (
               <div
                 key={i}
                 style={homeStyles.expertiseCard}
@@ -613,7 +615,7 @@ export default function HomeTest2() {
             ============================================================ */}
 
         <section
-          className="section container"
+          className="section container home-test2-section"
           id="projects"
           style={{
             borderTop: '1px solid #1f2b35',
@@ -627,7 +629,10 @@ export default function HomeTest2() {
             {t('projects.title')}
           </h2>
 
-          <div style={homeStyles.projectsGrid}>
+          <div
+            className="home-test2-projects-grid"
+            style={homeStyles.projectsGrid}
+          >
             {projectSlugs.map((slug) => (
               <div
                 key={slug}
@@ -663,7 +668,7 @@ export default function HomeTest2() {
             ============================================================ */}
 
         <section
-          className="section container"
+          className="section container home-test2-section"
           id="about"
           style={{
             borderTop: '1px solid #1f2b35',
@@ -687,7 +692,7 @@ export default function HomeTest2() {
             ============================================================ */}
 
         <section
-          className="section container"
+          className="section container home-test2-section"
           id="contact"
           style={{
             borderTop: '1px solid #1f2b35',
@@ -742,6 +747,7 @@ const pageStyles = {
     width: '100%',
     height: '100%',
     objectFit: 'cover',
+    objectPosition: 'center 35%',
     zIndex: 0,
   },
 
@@ -913,32 +919,34 @@ const homeStyles = {
 
   heroContent: {
     width: '100%',
-    paddingTop: '3rem',
-    paddingBottom: '3rem',
+    paddingTop: '1.5rem',
+    paddingBottom: '1.5rem',
   },
 
   heroActions: {
     display: 'flex',
-    gap: '1rem',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: '0.6rem',
     flexWrap: 'wrap',
-    justifyContent: 'center',
   },
 
   btnPrimary: {
     background: '#3fd0c9',
     color: '#0b1015',
-    padding: '0.75rem 1.5rem',
-    borderRadius: 6,
+    padding: '0.45rem 0.9rem',
+    border: '1px solid #3fd0c9',
+    borderRadius: '4px',
     fontWeight: 600,
-    fontSize: '0.9rem',
+    fontSize: '0.72rem',
     display: 'inline-block',
   },
 
   btnGhost: {
     border: '1px solid #3fd0c9',
     color: '#3fd0c9',
-    padding: '0.75rem 1.5rem',
-    borderRadius: 6,
+    padding: '0.45rem 0.9rem',
+    borderRadius: '4px',
     fontWeight: 600,
     fontSize: '0.9rem',
     display: 'inline-block',
@@ -952,8 +960,8 @@ const homeStyles = {
 
   expertiseGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-    gap: '1.5rem',
+    gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+    gap: '0.75rem',
   },
 
   expertiseCard: {
@@ -976,8 +984,8 @@ const homeStyles = {
 
   projectsGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-    gap: '1.5rem',
+    gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
+    gap: '0.75rem',
   },
 
   projectCard: {
