@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
+import { useNavigate, useLocation } from 'react-router-dom'
 
 const languages = [
   { code: 'en', label: 'EN' },
@@ -14,6 +15,8 @@ export default function LanguageSwitcher() {
   const { i18n } = useTranslation()
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
+  const navigate = useNavigate()
+  const location = useLocation()
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -28,7 +31,9 @@ export default function LanguageSwitcher() {
     || 'EN'
 
   function selectLang(code) {
-    i18n.changeLanguage(code)
+    const pathParts = location.pathname.split('/').filter(Boolean)
+    pathParts[0] = code
+    navigate('/' + pathParts.join('/'))
     setOpen(false)
   }
 
