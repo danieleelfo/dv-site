@@ -43,6 +43,24 @@ a {
   padding: 6rem 0;
 }
 
+.home-test4-button {
+  background: transparent;
+  border: 1px solid #3fd0c9;
+  color: #3fd0c9;
+  padding: 0.4rem 1rem;
+  border-radius: 4px;
+  text-decoration: none;
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.home-test4-button:hover {
+  background: #3fd0c9;
+  color: #0b1015;
+}
+
+
 .section-label {
   font-size: 0.75rem;
   letter-spacing: 0.15em;
