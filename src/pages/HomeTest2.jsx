@@ -529,47 +529,40 @@ export default function HomeTest2() {
               </div>
             </div>
 
-            {/* SIGNATURE */}
-            <div style={styles.signature}>
-              designed and developed by Daniele Villanova
+            {/* SIGNATURE + ACTIONS */}
+            <div style={styles.signatureRow}>
+
+              <div style={styles.signature}>
+                designed and developed by Daniele Villanova
+              </div>
+
+              <div style={homeStyles.heroActions}>
+                <Link
+                  to={lang ? `/${lang}/projects` : '/projects'}
+                  style={homeStyles.btnPrimary}
+                >
+                  {t('hero.viewProjects')}
+                </Link>
+
+                <Link
+                  to={lang ? `/${lang}#expertise` : '/#expertise'}
+                  style={homeStyles.btnGhost}
+                >
+                  {t('nav.expertise')}
+                </Link>
+
+                <a
+                  href="#contact"
+                  style={homeStyles.btnGhost}
+                >
+                  {t('hero.contact')}
+                </a>
+              </div>
+
             </div>
 
           </div>
         </div>
-
-        {/* ============================================================
-            ORIGINAL HOME — ACTIONS
-            ============================================================ */}
-
-        <section style={homeStyles.hero}>
-          <div
-            className="container"
-            style={homeStyles.heroContent}
-          >
-            <div style={homeStyles.heroActions}>
-              <Link
-                to={lang ? `/${lang}/projects` : '/projects'}
-                style={homeStyles.btnPrimary}
-              >
-                {t('hero.viewProjects')}
-              </Link>
-
-              <Link
-                to={lang ? `/${lang}#expertise` : '/#expertise'}
-                style={homeStyles.btnGhost}
-              >
-                {t('nav.expertise')}
-              </Link>
-
-              <a
-                href="#contact"
-                style={homeStyles.btnGhost}
-              >
-                {t('hero.contact')}
-              </a>
-            </div>
-          </div>
-        </section>
 
         {/* ============================================================
             EXPERTISE
@@ -593,7 +586,8 @@ export default function HomeTest2() {
           <div
             className="home-test2-expertise-grid"
             style={homeStyles.expertiseGrid}
-          >            {expertiseItems.map((e, i) => (
+          >
+            {expertiseItems.map((e, i) => (
               <div
                 key={i}
                 style={homeStyles.expertiseCard}
@@ -899,8 +893,16 @@ const styles = {
     justifyContent: 'center',
   },
 
-  signature: {
+  signatureRow: {
     marginTop: '1rem',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '1rem',
+    flexWrap: 'wrap',
+  },
+
+  signature: {
     color: '#5c6b74',
     fontSize: '0.65rem',
     letterSpacing: '0.08em',
@@ -909,20 +911,6 @@ const styles = {
 }
 
 const homeStyles = {
-  hero: {
-    minHeight: '220px',
-    display: 'flex',
-    alignItems: 'center',
-    borderTop: '1px solid #1f2b35',
-    borderBottom: '1px solid #1f2b35',
-  },
-
-  heroContent: {
-    width: '100%',
-    paddingTop: '1.5rem',
-    paddingBottom: '1.5rem',
-  },
-
   heroActions: {
     display: 'flex',
     justifyContent: 'flex-end',
@@ -948,7 +936,7 @@ const homeStyles = {
     padding: '0.45rem 0.9rem',
     borderRadius: '4px',
     fontWeight: 600,
-    fontSize: '0.9rem',
+    fontSize: '0.72rem',
     display: 'inline-block',
   },
 
