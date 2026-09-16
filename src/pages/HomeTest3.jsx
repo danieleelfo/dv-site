@@ -30,7 +30,7 @@ export default function Home() {
 
   const localizedPath = (path) => {
     const cleanPath = path.startsWith('/') ? path : `/${path}`
-    return `/${language}${cleanPath}`
+    return `/\( {language} \){cleanPath}`
   }
 
   const nodes = {
@@ -75,7 +75,45 @@ export default function Home() {
         <div style={styles.container}>
           <div className="container" style={styles.content}>
             <header style={styles.header}>
-              <p style={styles.systemBadge}>Human -🏴‍☠️- AI Agent -🧜🏻‍♀️- Data</p>
+              <svg
+                width="220"
+                height="70"
+                viewBox="0 0 220 70"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                style={{ display: 'block', marginBottom: '0.4rem' }}
+                aria-label="Human · AI · Data"
+              >
+                {/* Cerchio centrale (testa) */}
+                <circle cx="110" cy="35" r="18" stroke="#3fd0c9" strokeWidth="1.8" fill="#0b1015" />
+                
+                {/* Circuiti sulla testa */}
+                <path d="M102 28 Q110 22 118 28" stroke="#3fd0c9" strokeWidth="1.2" fill="none" opacity="0.7" />
+                <path d="M100 35 H120" stroke="#3fd0c9" strokeWidth="1" opacity="0.5" />
+                
+                {/* Occhio sinistro (benda hi-tech) */}
+                <circle cx="103" cy="33" r="4.5" stroke="#3fd0c9" strokeWidth="1.5" fill="#0b1015" />
+                <circle cx="103" cy="33" r="1.8" fill="#3fd0c9" opacity="0.4" />
+                
+                {/* Occhio destro (glow) */}
+                <circle cx="117" cy="33" r="4.2" fill="#3fd0c9" />
+                <circle cx="117" cy="33" r="2" fill="#0b1015" />
+                
+                {/* Sorriso leggero */}
+                <path d="M105 41 Q110 45 115 41" stroke="#3fd0c9" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+                
+                {/* Gamba in alto */}
+                <path d="M110 17 L110 8 Q110 4 114 4 L118 8 L114 12" stroke="#e0e8ec" strokeWidth="2" fill="none" strokeLinejoin="round" />
+                <circle cx="110" cy="17" r="2.5" fill="#3fd0c9" />
+                
+                {/* Gamba in basso a sinistra */}
+                <path d="M95 48 L82 58 Q78 62 82 66 L90 62 L88 54" stroke="#e0e8ec" strokeWidth="2" fill="none" strokeLinejoin="round" />
+                <circle cx="95" cy="48" r="2.5" fill="#3fd0c9" />
+                
+                {/* Gamba in basso a destra */}
+                <path d="M125 48 L138 58 Q142 62 138 66 L130 62 L132 54" stroke="#e0e8ec" strokeWidth="2" fill="none" strokeLinejoin="round" />
+                <circle cx="125" cy="48" r="2.5" fill="#3fd0c9" />
+              </svg>
             </header>
 
             <div style={styles.diagramWrapper}>
