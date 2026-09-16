@@ -2,8 +2,8 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import bgImage from '../assets/DataInFlames.jpg'
 
-// 👇 URL del Gateway esposto via Cloudflare Tunnel
-const LELE_API_URL = 'https://api.leles.danny80you.com/api/chat';
+// 👇 URL del Gateway esposto via Cloudflare Tunnel - DOMINIO CORRETTO: danielevillanova.com
+const LELE_API_URL = 'https://api.leles.danielevillanova.com/api/chat';
 
 export default function ConsoleTest() {
   const { t } = useTranslation()
