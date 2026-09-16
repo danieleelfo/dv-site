@@ -16,7 +16,7 @@ export default function Nav() {
             viewBox="0 0 110 70"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
-            style={{ display: 'block', marginLeft: '-12px' }}
+            style={{ display: 'block', marginLeft: '-23px' }}
             aria-label="Human · AI · Data"
           >
             {/* Cerchio centrale (testa) */}
