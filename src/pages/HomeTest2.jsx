@@ -246,7 +246,7 @@ const pageStyles = {
 const styles = {
   container: { position: 'relative', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', padding: '2rem 1rem' },
   content: { position: 'relative', zIndex: 2, textAlign: 'left', maxWidth: 950, width: '100%' },
-  header: { textAlign: 'center', marginBottom: '0.5rem' },
+  header: { textAlign: 'left', marginBottom: '0.5rem' },
   systemBadge: { color: '#3fd0c9', fontSize: '0.85rem', letterSpacing: '0.15em', marginBottom: '0.5rem', fontFamily: 'monospace' },
   diagramWrapper: { width: 260, height: 260, margin: '0.3rem auto 1rem' },
   svg: { width: '100%', height: '100%' },
