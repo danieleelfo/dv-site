@@ -39,7 +39,7 @@
   "about": {
     "label": "About",
     "title": "About Me",
-    "text": "Senior IT consultant with 25 years of experience in data architecture and business intelligence. I work on enterprise data platforms and lately I've turned my technical curiosity toward applied AI: local systems, multi-agent architectures with persistent memory, automations that orchestrate models and data without relying on third-party cloud infrastructure. Supported languages: English, Italian, Spanish, French, Catalan and basic Dutch."
+    "text": "Senior IT consultant with 25 years of experience in data architecture and business intelligence. I work on enterprise data platforms and lately I've turned my technical curiosity toward applied AI: local systems, multi-agent architectures with persistent memory, automations that orchestrate models and data without relying on third-party cloud infrastructure. Supported languages: English, Italian, Spanish, French, Catalan and Dutch."
   },
   "expertise": {
     "label": "Expertise",
