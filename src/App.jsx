@@ -35,7 +35,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Navigate to="/en" replace />} />
-        
+
         {/* ROTTA DI TEST SENZA PREFISSO DI LINGUA */}
         <Route
           path="/test"
@@ -73,9 +73,9 @@ export default function App() {
         />
         <Route path="/test2" element={<><Nav /><HomeTest2 /></>} />
         <Route path="/:lang/test2" element={<><Nav /><LangWrapper><HomeTest2 /></LangWrapper></>} />
-        
-        <Route path="/test3" element={<HomeTest3 />} />
-        <Route path="/:lang/test3" element={<LangWrapper><HomeTest3 /></LangWrapper>} />
+
+        <Route path="/test3" element={<><Nav /><HomeTest3 /></>} />
+        <Route path="/:lang/test3" element={<><Nav /><LangWrapper><HomeTest3 /></LangWrapper></>} />
 
         <Route path="/test4" element={<><Nav /><HomeTest4 /></>} />
         <Route path="/:lang/test4" element={<><Nav /><LangWrapper><HomeTest4 /></LangWrapper></>} />
