@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import bgImage from '../assets/hero.png'
@@ -9,14 +9,22 @@ export default function Home() {
   const location = useLocation()
   const { lang } = useParams()
   const [activeNode, setActiveNode] = useState('ai')
+  const [isHoveringCard, setIsHoveringCard] = useState(false)
 
-  // Recupera la lingua dall'URL:
-  // /it       -> it
-  // /en       -> en
-  // /es       -> es
-  // /fr       -> fr
-  // /ca       -> ca
-  // /nl       -> nl
+  // Rotazione automatica tra i nodi ogni 3 secondi (se non si sta facendo hover sulla card)
+  useEffect(() => {
+    if (isHoveringCard) return
+    const interval = setInterval(() => {
+      setActiveNode((prev) => {
+        const nodes = ['humans', 'ai', 'data']
+        const currentIndex = nodes.indexOf(prev)
+        return nodes[(currentIndex + 1) % nodes.length]
+      })
+    }, 3000)
+    return () => clearInterval(interval)
+  }, [isHoveringCard])
+
+  // Recupera la lingua dall'URL
   const pathLanguage = location.pathname.split('/')[1]
 
   const supportedLanguages = ['it', 'en', 'es', 'fr', 'ca', 'nl']
@@ -123,7 +131,7 @@ export default function Home() {
     },
   }
 
-  const expertiseItems = t('expertise.items', { returnObjects: true })
+  const expertiseItems = t('expertise.items', { returnObjects: true }) || []
 
   return (
     <div style={pageStyles.page}>
@@ -485,7 +493,11 @@ export default function Home() {
 
             {/* DYNAMIC CARD */}
             <div style={styles.cardContainer}>
-              <div style={styles.card}>
+              <div
+                style={styles.card}
+                onMouseEnter={() => setIsHoveringCard(true)}
+                onMouseLeave={() => setIsHoveringCard(false)}
+              >
 
                 {/* TERMINAL HEADER */}
                 <div style={styles.consoleHeader}>
@@ -587,7 +599,7 @@ export default function Home() {
             className="home-expertise-grid"
             style={homeStyles.expertiseGrid}
           >
-            {expertiseItems.map((e, i) => (
+            {Array.isArray(expertiseItems) && expertiseItems.map((e, i) => (
               <div
                 key={i}
                 style={homeStyles.expertiseCard}
@@ -780,6 +792,7 @@ const styles = {
 
   header: {
     marginBottom: '0.5rem',
+    textAlign: 'left',
   },
 
   systemBadge: {
@@ -787,6 +800,7 @@ const styles = {
     fontSize: '0.95rem',
     letterSpacing: '0.15em',
     marginBottom: '0.5rem',
+    textAlign: 'left',
   },
 
   title: {
@@ -806,7 +820,6 @@ const styles = {
     height: 260,
     margin: '0.3rem auto 1rem',
     transform: 'translateX(-15px)',
-
   },
 
   svg: {

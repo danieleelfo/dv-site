@@ -1,16 +1,42 @@
-# React + Vite
+# Daniele Villanova — Personal Site
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Personal website of Daniele Villanova — IT consultant and data/BI professional (Power BI, Data Modeling, AI Agentic system), creating knowledge to AI agents, persistent-memory systems, and interactive storytelling.
 
-Currently, two official plugins are available:
+Live at [danielevillanova.com](https://danielevillanova.com)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Structure
 
-## React Compiler
+The site is organized around three areas, reflected in the homepage's interactive diagram:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Humans** — storytelling and creative/emergence projects (Night Stories, Story Teller, Bar AI)
+- **AI Agents** — multi-agent architectures and persistent-memory experiments (Emergence Experiments, Console Playground)
+- **Data** — enterprise data engineering, BI, and professional background (CV, Data Projects)
 
-## Expanding the Oxlint configuration
+## Tech stack
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+- [React](https://react.dev) + [Vite](https://vitejs.dev)
+- [react-router-dom](https://reactrouter.com) for routing, with language-prefixed URLs (`/:lang/...`)
+- [react-i18next](https://react.i18next.com) for localization — supported languages: `it`, `en`, `es`, `fr`, `ca`, `nl`
+- [Oxlint](https://oxc.rs) for linting
+
+## Development
+
+```bash
+npm install
+npm run dev
+```
+
+## Routing notes
+
+- `/` redirects to `/en`
+- All main routes are language-prefixed (`/:lang`, `/:lang/projects`, `/:lang/console`)
+- `LangWrapper` validates the `:lang` param against supported languages and falls back to `/en` if invalid
+- `/testN` and `/:lang/testN` routes are used for staging/previewing homepage variants before promoting one to `Home.jsx`
+
+## Deployment
+
+Deployed via Cloudflare (Pages), with the custom domain `danielevillanova.com`.
+
+## Contact
+
+daniele@danielevillanova.com
