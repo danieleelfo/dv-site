@@ -83,12 +83,13 @@ export default function App() {
         <Route path="/test4" element={<><Nav /><HomeTest4 /></>} />
         <Route path="/:lang/test4" element={<><Nav /><LangWrapper><HomeTest4 /></LangWrapper></>} />
 
-        {/* ROTTE TEST CONSOLE E PROJECTS */}
-        <Route path="/console-test" element={<><Nav /><ConsoleTest /></>} />
-        <Route path="/:lang/console-test" element={<><Nav /><LangWrapper><ConsoleTest /></LangWrapper></>} />
+        {/* TEST 5 -> ConsoleTest */}
+        <Route path="/test5" element={<><Nav /><ConsoleTest /></>} />
+        <Route path="/:lang/test5" element={<><Nav /><LangWrapper><ConsoleTest /></LangWrapper></>} />
 
-        <Route path="/projects-test" element={<><Nav /><ProjectTest /></>} />
-        <Route path="/:lang/projects-test" element={<><Nav /><LangWrapper><ProjectTest /></LangWrapper></>} />
+        {/* TEST 6 -> ProjectTest */}
+        <Route path="/test6" element={<><Nav /><ProjectTest /></>} />
+        <Route path="/:lang/test6" element={<><Nav /><LangWrapper><ProjectTest /></LangWrapper></>} />
 
         <Route
           path="/:lang/projects"
