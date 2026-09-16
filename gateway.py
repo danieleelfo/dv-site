@@ -47,6 +47,7 @@ AGENTS = {
 class ChatRequest(BaseModel):
     agent: str
     prompt: str
+    chat_id: int = 8733881519  # Default al tuo admin ID
 
 
 @app.get("/")
@@ -79,7 +80,7 @@ async def chat_router(req: ChatRequest):
     if req.agent == "Lele Admin":
         payload = {
             "message": req.prompt,
-            "chat_id": "web-console",
+            "chat_id": req.chat_id,
         }
     else:
         payload = {
