@@ -11,6 +11,9 @@ import HomeTest2 from './pages/HomeTest2.jsx'
 import HomeTest3 from './pages/HomeTest3.jsx'
 import HomeTest4 from './pages/HomeTest4.jsx'
 
+import ConsoleTest from './pages/ConsoleTest.jsx'
+import ProjectTest from './pages/ProjectTest.jsx'
+
 const SUPPORTED_LANGS = ['en', 'it', 'es', 'fr', 'ca', 'nl']
 
 function LangWrapper({ children }) {
@@ -79,6 +82,13 @@ export default function App() {
 
         <Route path="/test4" element={<><Nav /><HomeTest4 /></>} />
         <Route path="/:lang/test4" element={<><Nav /><LangWrapper><HomeTest4 /></LangWrapper></>} />
+
+        {/* ROTTE TEST CONSOLE E PROJECTS */}
+        <Route path="/console-test" element={<><Nav /><ConsoleTest /></>} />
+        <Route path="/:lang/console-test" element={<><Nav /><LangWrapper><ConsoleTest /></LangWrapper></>} />
+
+        <Route path="/projects-test" element={<><Nav /><ProjectTest /></>} />
+        <Route path="/:lang/projects-test" element={<><Nav /><LangWrapper><ProjectTest /></LangWrapper></>} />
 
         <Route
           path="/:lang/projects"
