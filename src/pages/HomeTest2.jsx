@@ -11,7 +11,7 @@ export default function Home() {
   const [activeNode, setActiveNode] = useState('ai')
   const [isHoveringCard, setIsHoveringCard] = useState(false)
 
-  // Ciclo automatico ogni 3 secondi
+  // Ciclo automatico ogni 3 secondi tra i nodi
   useEffect(() => {
     if (isHoveringCard) return
     const interval = setInterval(() => {
@@ -24,7 +24,6 @@ export default function Home() {
     return () => clearInterval(interval)
   }, [isHoveringCard])
 
-  // Recupera la lingua dall'URL
   const pathLanguage = location.pathname.split('/')[1]
   const supportedLanguages = ['it', 'en', 'es', 'fr', 'ca', 'nl']
   const language = supportedLanguages.includes(pathLanguage) ? pathLanguage : 'en'
@@ -65,7 +64,7 @@ export default function Home() {
     },
   }
 
-  const expertiseItems = t('expertise.items', { returnObjects: true })
+  const expertiseItems = t('expertise.items', { returnObjects: true }) || []
 
   return (
     <div style={pageStyles.page}>
@@ -75,12 +74,15 @@ export default function Home() {
       <div style={pageStyles.content}>
         <div style={styles.container}>
           <div className="container" style={styles.content}>
+            
+            {/* SUB-HEADER MINIMAL SENZA LOGO IN MEZZO */}
             <header style={styles.header}>
               <p style={styles.systemBadge}>Human -🏴‍☠️- AI Agent -🧜🏻‍♀️- Data</p>
             </header>
 
+            {/* DIAGRAMMA TRIANGOLARE INTERATTIVO */}
             <div style={styles.diagramWrapper}>
-              <svg viewBox="0 0 300 300" style={styles.svg}>
+              <svg viewBox="0 0 300 300" style={styles.svg} aria-label="Human AI Data system">
                 <circle cx="150" cy="150" r="110" stroke="#1f2b35" strokeWidth="1.5" fill="none" />
                 <circle cx="150" cy="150" r="125" stroke="#1f2b35" strokeDasharray="4 4" strokeWidth="1" fill="none" opacity="0.5" />
                 <polygon points="150,50 55,215 245,215" stroke="#1f2b35" strokeWidth="2" fill="none" />
@@ -104,6 +106,7 @@ export default function Home() {
                   </>
                 )}
 
+                {/* NODO HUMANS */}
                 <g style={{ cursor: 'pointer' }} onClick={() => setActiveNode('humans')} onMouseEnter={() => setActiveNode('humans')}>
                   <defs><filter id="glow-humans" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="4" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter></defs>
                   <circle cx="150" cy="50" r="20" fill={activeNode === 'humans' ? '#3fd0c9' : '#0b1015'} stroke="#3fd0c9" strokeWidth="2" filter={activeNode === 'humans' ? 'url(#glow-humans)' : 'none'} />
@@ -111,6 +114,7 @@ export default function Home() {
                   <text x="150" y="22" fill="#3fd0c9" fontSize="13" textAnchor="middle" fontWeight="600" letterSpacing="1">HUMANS</text>
                 </g>
 
+                {/* NODO AI */}
                 <g style={{ cursor: 'pointer' }} onClick={() => setActiveNode('ai')} onMouseEnter={() => setActiveNode('ai')}>
                   <defs><filter id="glow-ai" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="4" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter></defs>
                   <circle cx="55" cy="215" r="20" fill={activeNode === 'ai' ? '#3fd0c9' : '#0b1015'} stroke="#3fd0c9" strokeWidth="2" filter={activeNode === 'ai' ? 'url(#glow-ai)' : 'none'} />
@@ -118,6 +122,7 @@ export default function Home() {
                   <text x="55" y="250" fill="#3fd0c9" fontSize="13" textAnchor="middle" fontWeight="600" letterSpacing="1">AI</text>
                 </g>
 
+                {/* NODO DATA */}
                 <g style={{ cursor: 'pointer' }} onClick={() => setActiveNode('data')} onMouseEnter={() => setActiveNode('data')}>
                   <defs><filter id="glow-data" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="4" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter></defs>
                   <circle cx="245" cy="215" r="20" fill={activeNode === 'data' ? '#3fd0c9' : '#0b1015'} stroke="#3fd0c9" strokeWidth="2" filter={activeNode === 'data' ? 'url(#glow-data)' : 'none'} />
@@ -127,6 +132,7 @@ export default function Home() {
               </svg>
             </div>
 
+            {/* CARD TERMINALE DINAMICA */}
             <div style={styles.cardContainer}>
               <div
                 style={styles.card}
@@ -157,12 +163,12 @@ export default function Home() {
             <div style={styles.signatureRow}>
               <div style={styles.signature}>designed and developed by Daniele Villanova</div>
               <div style={homeStyles.heroActions}>
-                <Link to={lang ? `/${lang}/projects` : '/projects'} style={homeStyles.btnPrimary}>
+                <Link to={localizedPath('/projects')} style={homeStyles.btnPrimary}>
                   {t('hero.viewProjects')}
                 </Link>
-                <Link to={lang ? `/${lang}#expertise` : '/#expertise'} style={homeStyles.btnGhost}>
+                <a href="#expertise" style={homeStyles.btnGhost}>
                   {t('nav.expertise')}
-                </Link>
+                </a>
                 <a href="#contact" style={homeStyles.btnGhost}>
                   {t('hero.contact')}
                 </a>
@@ -171,11 +177,12 @@ export default function Home() {
           </div>
         </div>
 
+        {/* EXPERTISE SECTION */}
         <section className="section container home-section" id="expertise" style={{ borderTop: '1px solid #1f2b35' }}>
           <p className="section-label">{t('expertise.label')}</p>
           <h2 className="section-title">{t('expertise.title')}</h2>
           <div className="home-expertise-grid" style={homeStyles.expertiseGrid}>
-            {expertiseItems.map((e, i) => (
+            {Array.isArray(expertiseItems) && expertiseItems.map((e, i) => (
               <div key={i} style={homeStyles.expertiseCard}>
                 <h3 style={homeStyles.expertiseTitle}>{e.title}</h3>
                 <p style={homeStyles.expertiseText}>{e.text}</p>
@@ -184,6 +191,7 @@ export default function Home() {
           </div>
         </section>
 
+        {/* PROJECTS SECTION */}
         <section className="section container home-section" id="projects" style={{ borderTop: '1px solid #1f2b35' }}>
           <p className="section-label">{t('projects.label')}</p>
           <h2 className="section-title">{t('projects.title')}</h2>
@@ -197,18 +205,20 @@ export default function Home() {
             ))}
           </div>
           <div style={{ marginTop: '2.5rem' }}>
-            <Link to={lang ? `/${lang}/projects` : '/projects'} style={homeStyles.btnGhost}>
+            <Link to={localizedPath('/projects')} style={homeStyles.btnGhost}>
               {t('projects.viewAll')} →
             </Link>
           </div>
         </section>
 
+        {/* ABOUT SECTION */}
         <section className="section container home-section" id="about" style={{ borderTop: '1px solid #1f2b35' }}>
           <p className="section-label">{t('about.label')}</p>
           <h2 className="section-title">{t('about.title')}</h2>
           <p style={homeStyles.aboutText}>{t('about.text')}</p>
         </section>
 
+        {/* CONTACT SECTION */}
         <section className="section container home-section" id="contact" style={{ borderTop: '1px solid #1f2b35' }}>
           <p className="section-label">{t('contact.label')}</p>
           <h2 className="section-title">{t('contact.title')}</h2>
@@ -236,9 +246,9 @@ const pageStyles = {
 const styles = {
   container: { position: 'relative', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', padding: '2rem 1rem' },
   content: { position: 'relative', zIndex: 2, textAlign: 'left', maxWidth: 950, width: '100%' },
-  header: { marginBottom: '0.5rem' },
-  systemBadge: { color: '#3fd0c9', fontSize: '0.95rem', letterSpacing: '0.15em', marginBottom: '0.5rem' },
-  diagramWrapper: { width: 260, height: 260, margin: '0.3rem auto 1rem', transform: 'translateX(-15px)' },
+  header: { textAlign: 'center', marginBottom: '0.5rem' },
+  systemBadge: { color: '#3fd0c9', fontSize: '0.85rem', letterSpacing: '0.15em', marginBottom: '0.5rem', fontFamily: 'monospace' },
+  diagramWrapper: { width: 260, height: 260, margin: '0.3rem auto 1rem' },
   svg: { width: '100%', height: '100%' },
   cardContainer: { marginTop: '0.8rem' },
   card: { background: 'rgba(11, 16, 21, 0.85)', border: '1px solid #1f2b35', borderRadius: 8, overflow: 'hidden', backdropFilter: 'blur(10px)' },
@@ -261,11 +271,11 @@ const homeStyles = {
   btnPrimary: { background: '#3fd0c9', color: '#0b1015', padding: '0.65rem 0.8rem', borderRadius: 6, fontWeight: 600, fontSize: '0.8rem', display: 'inline-block' },
   btnGhost: { border: '1px solid #3fd0c9', color: '#3fd0c9', padding: '0.65rem 0.8rem', borderRadius: 6, fontWeight: 600, fontSize: '0.8rem', display: 'inline-block' },
   aboutText: { color: '#b7c5cc', fontSize: '1.05rem', maxWidth: 720 },
-  expertiseGrid: { display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '0.75rem' },
+  expertiseGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem' },
   expertiseCard: { background: 'rgba(18, 26, 34, 0.85)', border: '1px solid #1f2b35', borderRadius: 10, padding: '1.5rem' },
   expertiseTitle: { fontSize: '1rem', marginBottom: '0.6rem', color: '#3fd0c9' },
   expertiseText: { color: '#8fa1ac', fontSize: '0.9rem' },
-  projectsGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '0.75rem' },
+  projectsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' },
   projectCard: { borderLeft: '2px solid #3fd0c9', paddingLeft: '1.2rem' },
   projectTitle: { fontSize: '1.1rem', marginBottom: '0.2rem' },
   projectTag: { fontSize: '0.75rem', color: '#3fd0c9', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '0.6rem' },
