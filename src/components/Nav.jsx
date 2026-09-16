@@ -11,12 +11,12 @@ export default function Nav() {
       <div className="container" style={styles.bar}>
         <Link to={lang ? "/" + lang : "/"} style={styles.logo}>
           <svg
-            width="52"
-            height="36"
+            width="46"
+            height="32"
             viewBox="0 0 110 70"
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
-            style={{ display: 'block' }}
+            style={{ display: 'block', marginLeft: '-12px' }}
             aria-label="Human · AI · Data"
           >
             {/* Cerchio centrale (testa) */}
