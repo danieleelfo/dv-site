@@ -1,223 +1,273 @@
-import React, { useState } from 'react'
-import { Link } from 'react-router-dom'
+import React, { useState, useEffect } from 'react'
+import { Link, useLocation, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+import bgImage from '../assets/hero.png'
+import { projectSlugs, projectNames } from '../data/projects.js'
 
-export default function HomeTest3() {
+export default function Home() {
+  const { t } = useTranslation()
+  const location = useLocation()
+  const { lang } = useParams()
   const [activeNode, setActiveNode] = useState('ai')
+  const [isHoveringCard, setIsHoveringCard] = useState(false)
+
+  // Ciclo automatico ogni 3 secondi
+  useEffect(() => {
+    if (isHoveringCard) return
+    const interval = setInterval(() => {
+      setActiveNode((prev) => {
+        const nodes = ['humans', 'ai', 'data']
+        const currentIndex = nodes.indexOf(prev)
+        return nodes[(currentIndex + 1) % nodes.length]
+      })
+    }, 3000)
+    return () => clearInterval(interval)
+  }, [isHoveringCard])
+
+  const pathLanguage = location.pathname.split('/')[1]
+  const supportedLanguages = ['it', 'en', 'es', 'fr', 'ca', 'nl']
+  const language = supportedLanguages.includes(pathLanguage) ? pathLanguage : 'en'
+
+  const localizedPath = (path) => {
+    const cleanPath = path.startsWith('/') ? path : `/${path}`
+    return `/${language}${cleanPath}`
+  }
 
   const nodes = {
     humans: {
-      code: 'NODE // 01',
-      title: 'HUMANS',
-      tagline: 'INTUITION & NARRATIVE ENGINES',
-      desc: 'Esplorazione dell’esperienza umana, della coscienza e dello storytelling generativo.',
+      title: t('home.humans.title', 'HUMANS'),
+      subtitle: t('home.humans.subtitle', 'Intuition, Emotional Intelligence & Narrative Engines'),
+      description: t('home.humans.description', 'Exploring human cognition through interactive storytelling and creative emergence.'),
       links: [
-        { label: 'Night Stories', path: '/night-stories' },
-        { label: 'Story Teller', path: '/story-teller' },
+        { label: t('home.humans.links.nightStories', 'Night Stories'), path: '/night-stories' },
+        { label: t('home.humans.links.storyTeller', 'Story Teller'), path: '/story-teller' },
+        { label: t('home.humans.links.barAI', 'Bar AI'), path: '/bar-ai' },
       ],
     },
     ai: {
-      code: 'NODE // 02',
-      title: 'SYNTHETIC AI',
-      tagline: 'PERSISTENT MEMORY & AGENTS',
-      desc: 'Sistemi multi-agente autonomi, inferenza locale e modelli decisionali emergenti.',
+      title: t('home.ai.title', 'AI Agents'),
+      subtitle: t('home.ai.subtitle', 'Synthetic Intelligence & Persistent Memory Agents'),
+      description: t('home.ai.description', 'Autonomous multi-agent architectures running local and cloud inferencing models.'),
       links: [
-        { label: 'Emergence Experiments', path: '/emergence' },
-        { label: 'Console', path: '/console' },
+        { label: t('home.ai.links.emergence', 'Emergence Experiments'), path: '/emergence' },
+        { label: t('home.ai.links.console', 'Console Playground'), path: '/console' },
       ],
     },
     data: {
-      code: 'NODE // 03',
-      title: 'DATA FOUNDATION',
-      tagline: 'DISTRIBUTED ARCHITECTURES',
-      desc: 'Ingegneria dei dati ad alte prestazioni, pipeline complesse e visione aziendale B2B.',
+      title: t('home.data.title', 'DATA'),
+      subtitle: t('home.data.subtitle', 'Architectures, Foundations & Distributed Pipelines'),
+      description: t('home.data.description', 'Enterprise data engineering, BI systems, and scalable infrastructure.'),
       links: [
-        { label: 'About & Corporate CV', path: '/about' },
-        { label: 'Data Projects', path: '/projects' },
+        { label: t('home.data.links.about', 'Corporate CV & About'), path: '/about' },
+        { label: t('home.data.links.projects', 'Data Projects'), path: '/projects' },
       ],
     },
   }
 
+  const expertiseItems = t('expertise.items', { returnObjects: true })
+
   return (
-    <div style={styles.viewport}>
-      {/* BACKGROUND PARTICLES & HUD GRID */}
-      <div style={styles.gridOverlay} />
-      
-      {/* SCENA CENTRALE: STAGE SCENOGRAFICO GIGANTE */}
-      <div style={styles.stage}>
-        
-        {/* SVG HOLOGRAM GIGANTE */}
-        <svg viewBox="0 0 500 500" style={styles.svgHolo}>
-          <defs>
-            {/* Effetti di bagliore Neon (Glow) */}
-            <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
-              <feGaussianBlur stdDeviation="6" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-            
-            <linearGradient id="cyanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#3fd0c9" stopOpacity="0.8" />
-              <stop offset="100%" stopColor="#0055ff" stopOpacity="0.2" />
-            </linearGradient>
-          </defs>
+    <div style={pageStyles.page}>
+      <img src={bgImage} alt="" style={pageStyles.background} />
+      <div style={pageStyles.backgroundOverlay} />
 
-          {/* Anelli esterni d'atmosfera */}
-          <circle cx="250" cy="250" r="210" stroke="#1f2b35" strokeWidth="1" fill="none" strokeDasharray="2 6" />
-          <circle cx="250" cy="250" r="190" stroke="rgba(63, 208, 201, 0.15)" strokeWidth="1.5" fill="none" />
-          <circle cx="250" cy="250" r="180" stroke="url(#cyanGrad)" strokeWidth="1" fill="none" opacity="0.4" />
+      <div style={pageStyles.content}>
+        <div style={styles.container}>
+          <div className="container" style={styles.content}>
+            <header style={styles.header}>
+              <p style={styles.systemBadge}>Human -🏴‍☠️- AI Agent -🧜🏻‍♀️- Data</p>
+            </header>
 
-          {/* Triangolo Geometrico Sacro */}
-          <polygon points="250,70 90,350 410,350" stroke="#1f2b35" strokeWidth="2" fill="none" />
+            <div style={styles.diagramWrapper}>
+              <svg viewBox="0 0 300 300" style={styles.svg} aria-label="Human AI Data system">
+                <circle cx="150" cy="150" r="110" stroke="#1f2b35" strokeWidth="1.5" fill="none" />
+                <circle cx="150" cy="150" r="125" stroke="#1f2b35" strokeDasharray="4 4" strokeWidth="1" fill="none" opacity="0.5" />
+                <polygon points="150,50 55,215 245,215" stroke="#1f2b35" strokeWidth="2" fill="none" />
 
-          {/* FLUSSI DI ENERGIA ATTIVI AL CLICK */}
-          {activeNode === 'humans' && (
-            <>
-              <line x1="250" y1="70" x2="90" y2="350" stroke="#3fd0c9" strokeWidth="3" filter="url(#glow)" />
-              <line x1="250" y1="70" x2="410" y2="350" stroke="#3fd0c9" strokeWidth="3" filter="url(#glow)" />
-              <circle cx="250" cy="70" r="45" stroke="#3fd0c9" strokeWidth="1" fill="none" opacity="0.3" />
-            </>
-          )}
+                {activeNode === 'humans' && (
+                  <>
+                    <line x1="150" y1="50" x2="55" y2="215" stroke="#3fd0c9" strokeWidth="3" opacity="0.8" />
+                    <line x1="150" y1="50" x2="245" y2="215" stroke="#3fd0c9" strokeWidth="3" opacity="0.8" />
+                  </>
+                )}
+                {activeNode === 'ai' && (
+                  <>
+                    <line x1="55" y1="215" x2="150" y2="50" stroke="#3fd0c9" strokeWidth="3" opacity="0.8" />
+                    <line x1="55" y1="215" x2="245" y2="215" stroke="#3fd0c9" strokeWidth="3" opacity="0.8" />
+                  </>
+                )}
+                {activeNode === 'data' && (
+                  <>
+                    <line x1="245" y1="215" x2="150" y2="50" stroke="#3fd0c9" strokeWidth="3" opacity="0.8" />
+                    <line x1="245" y1="215" x2="55" y2="215" stroke="#3fd0c9" strokeWidth="3" opacity="0.8" />
+                  </>
+                )}
 
-          {activeNode === 'ai' && (
-            <>
-              <line x1="90" y1="350" x2="250" y2="70" stroke="#3fd0c9" strokeWidth="3" filter="url(#glow)" />
-              <line x1="90" y1="350" x2="410" y2="350" stroke="#3fd0c9" strokeWidth="3" filter="url(#glow)" />
-              <circle cx="90" cy="350" r="45" stroke="#3fd0c9" strokeWidth="1" fill="none" opacity="0.3" />
-            </>
-          )}
+                <g style={{ cursor: 'pointer' }} onClick={() => setActiveNode('humans')} onMouseEnter={() => setActiveNode('humans')}>
+                  <defs><filter id="glow-humans" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="4" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter></defs>
+                  <circle cx="150" cy="50" r="20" fill={activeNode === 'humans' ? '#3fd0c9' : '#0b1015'} stroke="#3fd0c9" strokeWidth="2" filter={activeNode === 'humans' ? 'url(#glow-humans)' : 'none'} />
+                  <text x="150" y="54" fill={activeNode === 'humans' ? '#0b1015' : '#fff'} fontSize="10" textAnchor="middle" fontWeight="bold">HU</text>
+                  <text x="150" y="22" fill="#3fd0c9" fontSize="13" textAnchor="middle" fontWeight="600" letterSpacing="1">HUMANS</text>
+                </g>
 
-          {activeNode === 'data' && (
-            <>
-              <line x1="410" y1="350" x2="250" y2="70" stroke="#3fd0c9" strokeWidth="3" filter="url(#glow)" />
-              <line x1="410" y1="350" x2="90" y2="350" stroke="#3fd0c9" strokeWidth="3" filter="url(#glow)" />
-              <circle cx="410" cy="350" r="45" stroke="#3fd0c9" strokeWidth="1" fill="none" opacity="0.3" />
-            </>
-          )}
+                <g style={{ cursor: 'pointer' }} onClick={() => setActiveNode('ai')} onMouseEnter={() => setActiveNode('ai')}>
+                  <defs><filter id="glow-ai" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="4" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter></defs>
+                  <circle cx="55" cy="215" r="20" fill={activeNode === 'ai' ? '#3fd0c9' : '#0b1015'} stroke="#3fd0c9" strokeWidth="2" filter={activeNode === 'ai' ? 'url(#glow-ai)' : 'none'} />
+                  <text x="55" y="219" fill={activeNode === 'ai' ? '#0b1015' : '#fff'} fontSize="10" textAnchor="middle" fontWeight="bold">AI</text>
+                  <text x="55" y="250" fill="#3fd0c9" fontSize="13" textAnchor="middle" fontWeight="600" letterSpacing="1">AI</text>
+                </g>
 
-          {/* NODO 1: HUMANS (VERTICE ALTO) */}
-          <g style={{ cursor: 'pointer' }} onClick={() => setActiveNode('humans')}>
-            <circle cx="250" cy="70" r="28" fill="#0b1015" stroke="#3fd0c9" strokeWidth={activeNode === 'humans' ? "3" : "1.5"} filter={activeNode === 'humans' ? "url(#glow)" : ""} />
-            <circle cx="250" cy="70" r="8" fill="#3fd0c9" opacity={activeNode === 'humans' ? "1" : "0.4"} />
-            <text x="250" y="28" fill="#3fd0c9" fontSize="13" textAnchor="middle" fontWeight="800" letterSpacing="3">HUMANS</text>
-          </g>
+                <g style={{ cursor: 'pointer' }} onClick={() => setActiveNode('data')} onMouseEnter={() => setActiveNode('data')}>
+                  <defs><filter id="glow-data" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="4" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter></defs>
+                  <circle cx="245" cy="215" r="20" fill={activeNode === 'data' ? '#3fd0c9' : '#0b1015'} stroke="#3fd0c9" strokeWidth="2" filter={activeNode === 'data' ? 'url(#glow-data)' : 'none'} />
+                  <text x="245" y="219" fill={activeNode === 'data' ? '#0b1015' : '#fff'} fontSize="10" textAnchor="middle" fontWeight="bold">DA</text>
+                  <text x="245" y="250" fill="#3fd0c9" fontSize="13" textAnchor="middle" fontWeight="600" letterSpacing="1">DATA</text>
+                </g>
+              </svg>
+            </div>
 
-          {/* NODO 2: AI (BASSO SINISTRA) */}
-          <g style={{ cursor: 'pointer' }} onClick={() => setActiveNode('ai')}>
-            <circle cx="90" cy="350" r="28" fill="#0b1015" stroke="#3fd0c9" strokeWidth={activeNode === 'ai' ? "3" : "1.5"} filter={activeNode === 'ai' ? "url(#glow)" : ""} />
-            <circle cx="90" cy="350" r="8" fill="#3fd0c9" opacity={activeNode === 'ai' ? "1" : "0.4"} />
-            <text x="90" y="398" fill="#3fd0c9" fontSize="13" textAnchor="middle" fontWeight="800" letterSpacing="3">AI</text>
-          </g>
+            <div style={styles.cardContainer}>
+              <div
+                style={styles.card}
+                onMouseEnter={() => setIsHoveringCard(true)}
+                onMouseLeave={() => setIsHoveringCard(false)}
+              >
+                <div style={styles.consoleHeader}>
+                  <span style={styles.dotRed} />
+                  <span style={styles.dotYellow} />
+                  <span style={styles.dotGreen} />
+                  <span style={styles.consoleTitle}>terminal // {activeNode.toUpperCase()}</span>
+                </div>
+                <div style={styles.cardBody}>
+                  <h3 style={styles.cardTitle}>{nodes[activeNode].title}</h3>
+                  <p style={styles.cardSubtitle}>{nodes[activeNode].subtitle}</p>
+                  <p style={styles.cardDesc}>{nodes[activeNode].description}</p>
+                  <div style={styles.linkGroup}>
+                    {nodes[activeNode].links.map((link) => (
+                      <Link key={link.path} to={localizedPath(link.path)} className="home-button">
+                        {link.label} →
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
 
-          {/* NODO 3: DATA (BASSO DESTRA) */}
-          <g style={{ cursor: 'pointer' }} onClick={() => setActiveNode('data')}>
-            <circle cx="410" cy="350" r="28" fill="#0b1015" stroke="#3fd0c9" strokeWidth={activeNode === 'data' ? "3" : "1.5"} filter={activeNode === 'data' ? "url(#glow)" : ""} />
-            <circle cx="410" cy="350" r="8" fill="#3fd0c9" opacity={activeNode === 'data' ? "1" : "0.4"} />
-            <text x="410" y="398" fill="#3fd0c9" fontSize="13" textAnchor="middle" fontWeight="800" letterSpacing="3">DATA</text>
-          </g>
-        </svg>
-
-        {/* INFO HUD OVERLAY (TESTO SCENOGRAFICO) */}
-        <div style={styles.hudOverlay}>
-          <p style={styles.hudCode}>{nodes[activeNode].code}</p>
-          <h2 style={styles.hudTitle}>{nodes[activeNode].title}</h2>
-          <p style={styles.hudTagline}>{nodes[activeNode].tagline}</p>
-          <p style={styles.hudDesc}>{nodes[activeNode].desc}</p>
-
-          <div style={styles.hudActions}>
-            {nodes[activeNode].links.map((link, idx) => (
-              <Link key={idx} to={link.path} style={styles.hudBtn}>
-                EXPLORE {link.label.toUpperCase()} ➔
-              </Link>
-            ))}
+            <div style={styles.signatureRow}>
+              <div style={styles.signature}>designed and developed by Daniele Villanova</div>
+              <div style={homeStyles.heroActions}>
+                <Link to={lang ? `/${lang}/projects` : '/projects'} style={homeStyles.btnPrimary}>
+                  {t('hero.viewProjects')}
+                </Link>
+                <Link to={lang ? `/${lang}#expertise` : '/#expertise'} style={homeStyles.btnGhost}>
+                  {t('nav.expertise')}
+                </Link>
+                <a href="#contact" style={homeStyles.btnGhost}>
+                  {t('hero.contact')}
+                </a>
+              </div>
+            </div>
           </div>
         </div>
 
-      </div>
+        <section className="section container home-section" id="expertise" style={{ borderTop: '1px solid #1f2b35' }}>
+          <p className="section-label">{t('expertise.label')}</p>
+          <h2 className="section-title">{t('expertise.title')}</h2>
+          <div className="home-expertise-grid" style={homeStyles.expertiseGrid}>
+            {expertiseItems.map((e, i) => (
+              <div key={i} style={homeStyles.expertiseCard}>
+                <h3 style={homeStyles.expertiseTitle}>{e.title}</h3>
+                <p style={homeStyles.expertiseText}>{e.text}</p>
+              </div>
+            ))}
+          </div>
+        </section>
 
-      {/* FOOTER BAR STILE INTERFACCIA VIVO */}
-      <footer style={styles.footerHud}>
-        <span>DANIELE VILLANOVA // ECOSYSTEM</span>
-        <span style={{ color: '#3fd0c9' }}>● SYSTEM LIVE</span>
-      </footer>
+        <section className="section container home-section" id="projects" style={{ borderTop: '1px solid #1f2b35' }}>
+          <p className="section-label">{t('projects.label')}</p>
+          <h2 className="section-title">{t('projects.title')}</h2>
+          <div className="home-projects-grid" style={homeStyles.projectsGrid}>
+            {projectSlugs.map((slug) => (
+              <div key={slug} style={homeStyles.projectCard}>
+                <h3 style={homeStyles.projectTitle}>{projectNames[slug]}</h3>
+                <p style={homeStyles.projectTag}>{t(`projectsData.${slug}.tag`)}</p>
+                <p style={homeStyles.projectText}>{t(`projectsData.${slug}.summary`)}</p>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: '2.5rem' }}>
+            <Link to={lang ? `/${lang}/projects` : '/projects'} style={homeStyles.btnGhost}>
+              {t('projects.viewAll')} →
+            </Link>
+          </div>
+        </section>
+
+        <section className="section container home-section" id="about" style={{ borderTop: '1px solid #1f2b35' }}>
+          <p className="section-label">{t('about.label')}</p>
+          <h2 className="section-title">{t('about.title')}</h2>
+          <p style={homeStyles.aboutText}>{t('about.text')}</p>
+        </section>
+
+        <section className="section container home-section" id="contact" style={{ borderTop: '1px solid #1f2b35' }}>
+          <p className="section-label">{t('contact.label')}</p>
+          <h2 className="section-title">{t('contact.title')}</h2>
+          <p style={homeStyles.aboutText}>{t('contact.text')}</p>
+          <a href="mailto:daniele@danielevillanova.com" style={homeStyles.btnPrimary}>
+            daniele@danielevillanova.com
+          </a>
+        </section>
+
+        <footer style={homeStyles.footer}>
+          <div className="container">© {new Date().getFullYear()} Daniele Villanova</div>
+        </footer>
+      </div>
     </div>
   )
 }
 
+const pageStyles = {
+  page: { position: 'relative', minHeight: '100vh', background: '#0b1015', overflow: 'hidden' },
+  background: { position: 'fixed', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 35%', zIndex: 0 },
+  backgroundOverlay: { position: 'fixed', inset: 0, background: 'linear-gradient(180deg, rgba(11,16,21,0.45) 0%, rgba(11,16,21,0.60) 45%, rgba(11,16,21,0.78) 100%)', zIndex: 1 },
+  content: { position: 'relative', zIndex: 2 },
+}
+
 const styles = {
-  viewport: {
-    position: 'relative',
-    width: '100vw',
-    height: '100vh',
-    background: '#06090c',
-    color: '#fff',
-    overflow: 'hidden',
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'center',
-    alignItems: 'center',
-    fontFamily: '"Courier New", Courier, monospace',
-  },
-  gridOverlay: {
-    position: 'absolute',
-    inset: 0,
-    backgroundImage: 'radial-gradient(rgba(63, 208, 201, 0.08) 1px, transparent 0)',
-    backgroundSize: '30px 30px',
-    pointerEvents: 'none',
-  },
-  stage: {
-    position: 'relative',
-    width: '100%',
-    maxWidth: '700px',
-    height: '600px',
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  svgHolo: {
-    width: '100%',
-    height: '100%',
-    filter: 'drop-shadow(0px 0px 15px rgba(63, 208, 201, 0.15))',
-  },
-  hudOverlay: {
-    position: 'absolute',
-    textAlign: 'center',
-    pointerEvents: 'auto',
-    maxWidth: '380px',
-    background: 'rgba(6, 9, 12, 0.75)',
-    padding: '1.5rem',
-    borderRadius: '12px',
-    backdropFilter: 'blur(12px)',
-    border: '1px solid rgba(63, 208, 201, 0.25)',
-    boxShadow: '0 0 30px rgba(0,0,0,0.8)',
-  },
-  hudCode: { color: '#3fd0c9', fontSize: '0.7rem', letterSpacing: '2px', marginBottom: '0.2rem' },
-  hudTitle: { fontSize: '1.8rem', letterSpacing: '3px', margin: '0.2rem 0', color: '#fff' },
-  hudTagline: { color: '#8fa1ac', fontSize: '0.75rem', letterSpacing: '1px', marginBottom: '0.8rem', fontWeight: 'bold' },
-  hudDesc: { color: '#b7c5cc', fontSize: '0.85rem', lineHeight: '1.4', marginBottom: '1.2rem', fontFamily: 'sans-serif' },
-  hudActions: { display: 'flex', flexDirection: 'column', gap: '0.5rem' },
-  hudBtn: {
-    background: 'rgba(63, 208, 201, 0.1)',
-    border: '1px solid #3fd0c9',
-    color: '#3fd0c9',
-    padding: '0.6rem 1rem',
-    borderRadius: '4px',
-    textDecoration: 'none',
-    fontSize: '0.75rem',
-    fontWeight: 'bold',
-    letterSpacing: '1px',
-  },
-  footerHud: {
-    position: 'absolute',
-    bottom: '20px',
-    width: '90%',
-    display: 'flex',
-    justifyContent: 'space-between',
-    fontSize: '0.7rem',
-    letterSpacing: '2px',
-    color: '#5c6b74',
-    borderTop: '1px solid #1f2b35',
-    paddingTop: '10px',
-  },
+  container: { position: 'relative', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', padding: '2rem 1rem' },
+  content: { position: 'relative', zIndex: 2, textAlign: 'left', maxWidth: 950, width: '100%' },
+  header: { marginBottom: '0.5rem' },
+  systemBadge: { color: '#3fd0c9', fontSize: '0.95rem', letterSpacing: '0.15em', marginBottom: '0.5rem' },
+  diagramWrapper: { width: 260, height: 260, margin: '0.3rem auto 1rem', transform: 'translateX(-15px)' },
+  svg: { width: '100%', height: '100%' },
+  cardContainer: { marginTop: '0.8rem' },
+  card: { background: 'rgba(11, 16, 21, 0.85)', border: '1px solid #1f2b35', borderRadius: 8, overflow: 'hidden', backdropFilter: 'blur(10px)' },
+  consoleHeader: { background: '#121a22', padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '6px', borderBottom: '1px solid #1f2b35' },
+  dotRed: { width: 8, height: 8, borderRadius: '50%', background: '#ff5f56' },
+  dotYellow: { width: 8, height: 8, borderRadius: '50%', background: '#ffbd2e' },
+  dotGreen: { width: 8, height: 8, borderRadius: '50%', background: '#27c93f' },
+  consoleTitle: { color: '#8fa1ac', fontSize: '0.75rem', marginLeft: 'auto', fontFamily: 'monospace' },
+  cardBody: { padding: '1.2rem 2rem 1.3rem' },
+  cardTitle: { color: '#3fd0c9', fontSize: '1.1rem', fontFamily: 'monospace', marginBottom: '0.3rem' },
+  cardSubtitle: { color: '#fff', fontSize: '0.9rem', marginBottom: '0.5rem', fontWeight: 600 },
+  cardDesc: { color: '#8fa1ac', fontSize: '0.85rem', marginBottom: '1rem', lineHeight: '1.4' },
+  linkGroup: { display: 'flex', gap: '0.8rem', flexWrap: 'wrap', justifyContent: 'center' },
+  signatureRow: { marginTop: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' },
+  signature: { color: '#5c6b74', fontSize: '0.65rem', letterSpacing: '0.08em', textTransform: 'uppercase' },
+}
+
+const homeStyles = {
+  heroActions: { display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' },
+  btnPrimary: { background: '#3fd0c9', color: '#0b1015', padding: '0.65rem 0.8rem', borderRadius: 6, fontWeight: 600, fontSize: '0.8rem', display: 'inline-block' },
+  btnGhost: { border: '1px solid #3fd0c9', color: '#3fd0c9', padding: '0.65rem 0.8rem', borderRadius: 6, fontWeight: 600, fontSize: '0.8rem', display: 'inline-block' },
+  aboutText: { color: '#b7c5cc', fontSize: '1.05rem', maxWidth: 720 },
+  expertiseGrid: { display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '0.75rem' },
+  expertiseCard: { background: 'rgba(18, 26, 34, 0.85)', border: '1px solid #1f2b35', borderRadius: 10, padding: '1.5rem' },
+  expertiseTitle: { fontSize: '1rem', marginBottom: '0.6rem', color: '#3fd0c9' },
+  expertiseText: { color: '#8fa1ac', fontSize: '0.9rem' },
+  projectsGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '0.75rem' },
+  projectCard: { borderLeft: '2px solid #3fd0c9', paddingLeft: '1.2rem' },
+  projectTitle: { fontSize: '1.1rem', marginBottom: '0.2rem' },
+  projectTag: { fontSize: '0.75rem', color: '#3fd0c9', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '0.6rem' },
+  projectText: { color: '#8fa1ac', fontSize: '0.9rem' },
+  footer: { borderTop: '1px solid #1f2b35', padding: '2rem 0', color: '#5c6b74', fontSize: '0.85rem' },
 }
