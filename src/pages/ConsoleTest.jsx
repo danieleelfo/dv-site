@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import bgImage from '../assets/DataInFlames.jpg'
 
+const TUNNEL_API_URL = 'https://api.danielevillanova.com/api/chat'
+
 export default function ConsoleTest() {
   const { t } = useTranslation()
   const [selectedLele, setSelectedLele] = useState('Lele Admin')
@@ -14,24 +16,39 @@ export default function ConsoleTest() {
     'Lele I',
     'Story Whisper',
     'Night Story',
-    'Bar_AI demo'
+    'Bar_AI demo',
   ]
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (!prompt.trim()) return
-    
+
     setIsLoading(true)
     setResponse('')
-    
-    // Simula l'invio del prompt al Lele selezionato
-    // In futuro questo sarà sostituito con una chiamata API reale
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    
-    setResponse(`${t('Prompt sent to')} ${selectedLele}: ${prompt}
 
-${t('Response from')} ${selectedLele}: [Simulated response - API integration coming soon]`)
-    setIsLoading(false)
+    try {
+      const res = await fetch(TUNNEL_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          agent: selectedLele,
+          prompt: prompt,
+        }),
+      })
+
+      if (!res.ok) {
+        throw new Error(`Errore HTTP: ${res.status}`)
+      }
+
+      const data = await res.json()
+      setResponse(data.response || JSON.stringify(data, null, 2))
+    } catch (err) {
+      setResponse(`Errore di connessione: ${err.message}`)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -41,7 +58,7 @@ ${t('Response from')} ${selectedLele}: [Simulated response - API integration com
       <div style={styles.content}>
         <p className="section-label">{t('Console - Lele AI Prompt')}</p>
         <h2 className="section-title">{t('Interact with Lele AI Models')}</h2>
-        
+
         <div style={styles.promptContainer}>
           <form onSubmit={handleSubmit} style={styles.form}>
             <div style={styles.selector}>
@@ -61,7 +78,7 @@ ${t('Response from')} ${selectedLele}: [Simulated response - API integration com
                 ))}
               </select>
             </div>
-            
+
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
@@ -69,7 +86,7 @@ ${t('Response from')} ${selectedLele}: [Simulated response - API integration com
               style={styles.textarea}
               rows={4}
             />
-            
+
             <button
               type="submit"
               disabled={isLoading || !prompt.trim()}
@@ -78,7 +95,7 @@ ${t('Response from')} ${selectedLele}: [Simulated response - API integration com
               {isLoading ? t('Sending...') : t('Send Prompt')}
             </button>
           </form>
-          
+
           {response && (
             <div style={styles.response}>
               <h3 style={styles.responseTitle}>{t('Response')}</h3>
