@@ -47,7 +47,7 @@ AGENTS = {
 class ChatRequest(BaseModel):
     agent: str
     prompt: str
-    chat_id: int = 8733881519  # Default al tuo admin ID
+    chat_id: int = 1010101010  # Default al tuo admin ID
 
 
 @app.get("/")
