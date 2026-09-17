@@ -1,5 +1,5 @@
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -15,6 +15,8 @@ app.add_middleware(
 )
 
 # CONFIGURAZIONE AGENTI
+# "audio_path" è presente SOLO per gli agenti che hanno già
+# implementato un endpoint di input audio (per ora: Story Whisper).
 AGENTS = {
     "Lele Admin": {
         "port": 8082,
@@ -35,6 +37,7 @@ AGENTS = {
         "port": 8088,
         "path": "/ask",
         "payload": "message",
+        "audio_path": "/ask/audio",
     },
     "Night Story": {
         "port": 8666,
@@ -124,6 +127,92 @@ async def chat_router(req: ChatRequest):
             raise HTTPException(
                 status_code=502,
                 detail=f"Errore nella risposta di {req.agent}: {str(e)}",
+            )
+
+
+# ============================================================
+# AUDIO — proxy multipart verso l'endpoint /ask/audio del bot
+# ============================================================
+
+@app.post("/api/chat/audio")
+@app.post("/api/chat/audio/")
+async def chat_router_audio(
+    audio: UploadFile = File(...),
+    agent: str = Form(...),
+    chat_id: int = Form(1010101010),
+):
+
+    config = AGENTS.get(agent)
+
+    if not config:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Agente '{agent}' non configurato.",
+        )
+
+    audio_path = config.get("audio_path")
+
+    if not audio_path:
+        raise HTTPException(
+            status_code=400,
+            detail=f"'{agent}' non supporta ancora l'input audio.",
+        )
+
+    port = config["port"]
+    target_url = f"http://127.0.0.1:{port}{audio_path}"
+
+    audio_bytes = await audio.read()
+
+    async with httpx.AsyncClient(timeout=180.0) as client:
+
+        try:
+            files = {
+                "file": (
+                    audio.filename or "recording.webm",
+                    audio_bytes,
+                    audio.content_type,
+                )
+            }
+
+            data = {
+                "chat_id": str(chat_id),
+            }
+
+            response = await client.post(
+                target_url,
+                files=files,
+                data=data,
+            )
+
+            if response.status_code >= 400:
+                raise HTTPException(
+                    status_code=502,
+                    detail={
+                        "agent": agent,
+                        "target": target_url,
+                        "status": response.status_code,
+                        "response": response.text,
+                    },
+                )
+
+            return response.json()
+
+        except HTTPException:
+            raise
+
+        except httpx.RequestError as e:
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    f"Impossibile raggiungere {agent} "
+                    f"sulla porta {port}: {str(e)}"
+                ),
+            )
+
+        except Exception as e:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Errore nella risposta di {agent}: {str(e)}",
             )
 
 
