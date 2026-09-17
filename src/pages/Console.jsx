@@ -16,9 +16,9 @@ export default function TryLele() {
 
   // SOLO agenti pubblici
   const leles = [
-    'Lele I 🏴‍☠️',
-    'Night Story 🌙',
-    'Story Whisper 🌈',
+    { value: 'Lele I', label: 'Lele I 🏴‍☠️' },
+    { value: 'Night Story', label: 'Night Story 🌙' },
+    { value: 'Story Whisper', label: 'Story Whisper 🌈' },
   ]
 
   const handleSubmit = async (e) => {
@@ -135,18 +135,13 @@ export default function TryLele() {
               <select
                 id="lele-select"
                 value={selectedLele}
-                onChange={(e) =>
-                  setSelectedLele(e.target.value)
-                }
+                onChange={(e) => setSelectedLele(e.target.value)}
                 style={styles.select}
               >
                 {leles.map((lele) => (
-                  <option
-                    key={lele}
-                    value={lele}
-                  >
-                    {lele}
-                  </option>
+                    <option key={lele.value} value={lele.value}>
+                        {lele.label}
+                    </option>
                 ))}
               </select>
 
