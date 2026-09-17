@@ -18,7 +18,7 @@ export default function TryLele() {
   const leles = [
     'Lele I 🏴‍☠️',
     'Night Story 🌙',
-    'Story Whisper (Kids)',
+    'Story Whisper 🌈',
   ]
 
   const handleSubmit = async (e) => {
