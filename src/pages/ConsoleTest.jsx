@@ -325,38 +325,46 @@ export default function Console() {
                   ? `⏹ ${formatTime(recordingTime)}`
                   : '🎙️ Record'}
               </button>
+
             </div>
+
           </form>
 
           {/* AUDIO PREVIEW */}
 
           {audioUrl && (
             <div style={styles.audioPreview}>
-            <p style={styles.audioLabel}>
-                🎙️ {t('Recorded audio')}
-            </p>
 
-            <audio
-                controls
-                src={audioUrl}
-                style={styles.audio}
-            />
+              <div style={styles.audioHeader}>
 
-            <button
-                type="button"
-                disabled={isLoading || !audioBlob}
-                style={styles.button}
-                onClick={() => {
+                <p style={styles.audioLabel}>
+                  🎙️ {t('Recorded audio')}
+                </p>
+
+                <button
+                  type="button"
+                  disabled={isLoading || !audioBlob}
+                  style={styles.audioSendButton}
+                  onClick={() => {
                     console.log(
                       'Audio pronto per invio:',
                       audioBlob
                     )
-                }}
-            >
-                🎙️ {t('Send Audio')}
-            </button>
-          </div>
-        )}
+                  }}
+                >
+                  🎙️ {t('Send Audio')}
+                </button>
+
+              </div>
+
+              <audio
+                controls
+                src={audioUrl}
+                style={styles.audio}
+              />
+
+            </div>
+          )}
 
           {/* RISPOSTA */}
 
@@ -508,7 +516,7 @@ const styles = {
     transition: 'all 0.3s ease',
   },
 
-    recordButton: {
+  recordButton: {
     padding: '14px 24px',
     borderRadius: '8px',
     border: 'none',
@@ -535,10 +543,31 @@ const styles = {
     border: '1px solid rgba(255, 255, 255, 0.15)',
   },
 
+  audioHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '12px',
+    marginBottom: '10px',
+  },
+
   audioLabel: {
     color: '#e2e8f0',
     fontWeight: '600',
-    marginBottom: '10px',
+    margin: 0,
+  },
+
+  audioSendButton: {
+    padding: '8px 14px',
+    borderRadius: '6px',
+    border: 'none',
+    background:
+      'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    color: 'white',
+    fontSize: '13px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
   },
 
   audio: {
