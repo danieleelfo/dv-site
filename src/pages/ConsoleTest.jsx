@@ -18,6 +18,7 @@ export default function Console() {
   const [isRecording, setIsRecording] = useState(false)
   const [recordingTime, setRecordingTime] = useState(0)
   const [audioUrl, setAudioUrl] = useState(null)
+  const [audioBlob, setAudioBlob] = useState(null)
 
   const mediaRecorderRef = useRef(null)
   const audioChunksRef = useRef([])
@@ -125,6 +126,7 @@ export default function Console() {
 
         const url = URL.createObjectURL(audioBlob)
 
+        setAudioBlob(audioBlob)
         setAudioUrl(url)
 
         // Per ora NON inviamo ancora l'audio al Gateway.
@@ -323,34 +325,38 @@ export default function Console() {
                   ? `⏹ ${formatTime(recordingTime)}`
                   : '🎙️ Record'}
               </button>
-
             </div>
-
           </form>
 
           {/* AUDIO PREVIEW */}
 
           {audioUrl && (
             <div style={styles.audioPreview}>
-
-              <p style={styles.audioLabel}>
+            <p style={styles.audioLabel}>
                 🎙️ {t('Recorded audio')}
-              </p>
+            </p>
 
-              <audio
+            <audio
                 controls
                 src={audioUrl}
                 style={styles.audio}
-              />
+            />
 
-              <p style={styles.audioInfo}>
-                {t(
-                  'Audio captured successfully. Upload to Lele will be added next.'
-                )}
-              </p>
-
-            </div>
-          )}
+            <button
+                type="button"
+                disabled={isLoading || !audioBlob}
+                style={styles.button}
+                onClick={() => {
+                    console.log(
+                      'Audio pronto per invio:',
+                      audioBlob
+                    )
+                }}
+            >
+                🎙️ {t('Send Audio')}
+            </button>
+          </div>
+        )}
 
           {/* RISPOSTA */}
 
@@ -502,12 +508,13 @@ const styles = {
     transition: 'all 0.3s ease',
   },
 
-  recordButton: {
+    recordButton: {
     padding: '14px 24px',
     borderRadius: '8px',
-    border: '1px solid rgba(255, 255, 255, 0.3)',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    color: '#e2e8f0',
+    border: 'none',
+    background:
+      'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    color: 'white',
     fontSize: '16px',
     fontWeight: '600',
     cursor: 'pointer',
