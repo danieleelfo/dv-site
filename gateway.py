@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 app = FastAPI(title="Lele AI Gateway")
 
-# Permette al frontend React di fare richieste senza blocchi CORS
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -14,27 +14,32 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# MAPPA DEGLI AGENTI
+# CONFIGURAZIONE AGENTI
 AGENTS = {
     "Lele Admin": {
         "port": 8082,
         "path": "/ask",
+        "payload": "message",
     },
     "Lele I": {
         "port": 8080,
         "path": "/chat",
+        "payload": "prompt",
     },
     "Bar_AI demo": {
         "port": 8081,
         "path": "/chat",
+        "payload": "prompt",
     },
     "Story Whisper": {
         "port": 8088,
         "path": "/chat",
+        "payload": "prompt",
     },
     "Night Story": {
         "port": 8666,
         "path": "/chat",
+        "payload": "prompt",
     },
 }
 
@@ -42,6 +47,7 @@ AGENTS = {
 class ChatRequest(BaseModel):
     agent: str
     prompt: str
+    chat_id: int = 8733881519  # Default al tuo admin ID
 
 
 @app.get("/")
@@ -56,28 +62,29 @@ async def root():
 @app.post("/api/chat/")
 async def chat_router(req: ChatRequest):
 
-    agent = AGENTS.get(req.agent)
+    config = AGENTS.get(req.agent)
 
-    if not agent:
+    if not config:
         raise HTTPException(
             status_code=400,
-            detail=f"Agente '{req.agent}' non configurato."
+            detail=f"Agente '{req.agent}' non configurato.",
         )
 
-    port = agent["port"]
-    path = agent["path"]
+    port = config["port"]
+    path = config["path"]
+    payload_field = config["payload"]
 
     target_url = f"http://127.0.0.1:{port}{path}"
 
-    # Payload specifico per Lele Admin
+    # Costruisce il payload in base all'agente
     if req.agent == "Lele Admin":
         payload = {
             "message": req.prompt,
-            "chat_id": "web-console",
+            "chat_id": req.chat_id,
         }
     else:
         payload = {
-            "prompt": req.prompt,
+            payload_field: req.prompt,
         }
 
     async with httpx.AsyncClient(timeout=60.0) as client:
@@ -88,28 +95,35 @@ async def chat_router(req: ChatRequest):
                 json=payload,
             )
 
-            # Se l'agente restituisce un errore HTTP,
-            # lo riportiamo chiaramente al frontend
-            response.raise_for_status()
+            if response.status_code >= 400:
+                raise HTTPException(
+                    status_code=502,
+                    detail={
+                        "agent": req.agent,
+                        "target": target_url,
+                        "status": response.status_code,
+                        "response": response.text,
+                    },
+                )
 
             return response.json()
 
-        except httpx.HTTPStatusError as e:
-            raise HTTPException(
-                status_code=502,
-                detail=(
-                    f"{req.agent} ha risposto con HTTP "
-                    f"{e.response.status_code}: {e.response.text}"
-                ),
-            )
+        except HTTPException:
+            raise
 
-        except Exception as e:
+        except httpx.RequestError as e:
             raise HTTPException(
                 status_code=502,
                 detail=(
                     f"Impossibile raggiungere {req.agent} "
                     f"sulla porta {port}: {str(e)}"
                 ),
+            )
+
+        except Exception as e:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Errore nella risposta di {req.agent}: {str(e)}",
             )
 
 

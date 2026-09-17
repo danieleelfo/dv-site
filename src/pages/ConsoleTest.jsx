@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import bgImage from '../assets/DataInFlames.jpg'
 
-const TUNNEL_API_URL = 'https://api.danielevillanova.com/api/chat'
+// 👇 URL del Gateway esposto via Cloudflare Tunnel - DOMINIO CORRETTO: danielevillanova.com
+const LELE_API_URL = 'https://api.leles.danielevillanova.com/api/chat';
 
 export default function ConsoleTest() {
   const { t } = useTranslation()
@@ -10,13 +11,14 @@ export default function ConsoleTest() {
   const [prompt, setPrompt] = useState('')
   const [response, setResponse] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const leles = [
     'Lele Admin',
     'Lele I',
     'Story Whisper',
     'Night Story',
-    'Bar_AI demo',
+    'Bar_AI demo'
   ]
 
   const handleSubmit = async (e) => {
@@ -25,27 +27,38 @@ export default function ConsoleTest() {
 
     setIsLoading(true)
     setResponse('')
+    setError('')
 
     try {
-      const res = await fetch(TUNNEL_API_URL, {
+      const response = await fetch(LELE_API_URL, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           agent: selectedLele,
           prompt: prompt,
-        }),
+          chat_id: 8733881519
+        })
       })
 
-      if (!res.ok) {
-        throw new Error(`Errore HTTP: ${res.status}`)
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
 
-      const data = await res.json()
-      setResponse(data.response || JSON.stringify(data, null, 2))
+      const data = await response.json()
+      
+      if (data.answer) {
+        setResponse(data.answer)
+      } else if (data.error) {
+        setResponse(data.error)
+      } else if (data.detail) {
+        setResponse(data.detail)
+      } else {
+        setResponse(t('Nessuna risposta ricevuta'))
+      }
+
     } catch (err) {
-      setResponse(`Errore di connessione: ${err.message}`)
+      setError(err.message)
+      setResponse(t('Errore di connessione con Lele Gateway. Il Mac deve essere acceso e il tunnel attivo!'))
     } finally {
       setIsLoading(false)
     }
@@ -58,6 +71,13 @@ export default function ConsoleTest() {
       <div style={styles.content}>
         <p className="section-label">{t('Console - Lele AI Prompt')}</p>
         <h2 className="section-title">{t('Interact with Lele AI Models')}</h2>
+        
+        {error && (
+          <div style={styles.errorBox}>
+            <p>⚠️ {t('Attenzione: Il Mac deve essere acceso e il tunnel Cloudflare attivo!')}</p>
+            <p>{error}</p>
+          </div>
+        )}
 
         <div style={styles.promptContainer}>
           <form onSubmit={handleSubmit} style={styles.form}>
@@ -78,7 +98,7 @@ export default function ConsoleTest() {
                 ))}
               </select>
             </div>
-
+            
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
@@ -86,19 +106,21 @@ export default function ConsoleTest() {
               style={styles.textarea}
               rows={4}
             />
-
+            
             <button
               type="submit"
               disabled={isLoading || !prompt.trim()}
               style={styles.button}
             >
-              {isLoading ? t('Sending...') : t('Send Prompt')}
+              {isLoading ? t('Thinking...') : t('Send to Lele')}
             </button>
           </form>
-
+          
           {response && (
             <div style={styles.response}>
-              <h3 style={styles.responseTitle}>{t('Response')}</h3>
+              <h3 style={styles.responseTitle}>
+                {t('Response from')} {selectedLele}
+              </h3>
               <pre style={styles.responseText}>{response}</pre>
             </div>
           )}
@@ -137,8 +159,13 @@ const styles = {
     maxWidth: '800px',
     margin: '0 auto',
   },
-  text: {
-    color: '#8fa1ac',
+  errorBox: {
+    backgroundColor: 'rgba(255, 100, 100, 0.2)',
+    border: '1px solid #ff6b6b',
+    borderRadius: '8px',
+    padding: '12px',
+    marginBottom: '16px',
+    color: '#ff6b6b',
   },
   promptContainer: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
