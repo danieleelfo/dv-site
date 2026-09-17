@@ -16,9 +16,9 @@ export default function TryLele() {
 
   // SOLO agenti pubblici
   const leles = [
-    'Lele I',
-    'Story Whisper',
-    'Night Story',
+    'Lele I 🏴‍☠️',
+    'Night Story 🧜🏻‍♀️',
+    'Story Whisper' 🌈 🦄,
   ]
 
   const handleSubmit = async (e) => {
