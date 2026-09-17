@@ -71,7 +71,7 @@ export default function TryLele() {
 
       setResponse(
         t(
-          'Errore di connessione con Lele Gateway. Il Mac deve essere acceso e il tunnel attivo!'
+          'Errore di connessione con Lele Gateway. Il Mac deve essere acceso e Lelé avere vento in poppa!'
         )
       )
 
@@ -100,7 +100,7 @@ export default function TryLele() {
         </p>
 
         <h2 className="section-title">
-          {t('Interact with Lele AI Models')}
+          {t('Leles AI Models')}
         </h2>
 
         {error && (
@@ -108,7 +108,7 @@ export default function TryLele() {
             <p>
               ⚠️{' '}
               {t(
-                'Attenzione: Il Mac deve essere acceso e il tunnel Cloudflare attivo!'
+                'Attenzione: Il Mac deve essere acceso Lelé con il vento a poppa!'
               )}
             </p>
 
