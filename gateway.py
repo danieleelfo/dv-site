@@ -14,40 +14,110 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# MAPPA DEGLI AGENTI E PORTE
-AGENT_PORTS = {
-    "Lele Admin": 8082,     # leles (admin/timoniere)
-    "Lele I": 8080,         # lele (pirata)
-    "Bar_AI demo": 8081,    # bar_ai
-    "Story Whisper": 8088,  # porta 8088
-    "Night Story": 8666,    # porta 8666
+# MAPPA DEGLI AGENTI
+AGENTS = {
+    "Lele Admin": {
+        "port": 8082,
+        "path": "/ask",
+    },
+    "Lele I": {
+        "port": 8080,
+        "path": "/chat",
+    },
+    "Bar_AI demo": {
+        "port": 8081,
+        "path": "/chat",
+    },
+    "Story Whisper": {
+        "port": 8088,
+        "path": "/chat",
+    },
+    "Night Story": {
+        "port": 8666,
+        "path": "/chat",
+    },
 }
+
 
 class ChatRequest(BaseModel):
     agent: str
     prompt: str
 
+
+@app.get("/")
+async def root():
+    return {
+        "status": "Gateway Online",
+        "agents": list(AGENTS.keys()),
+    }
+
+
 @app.post("/api/chat")
+@app.post("/api/chat/")
 async def chat_router(req: ChatRequest):
-    port = AGENT_PORTS.get(req.agent)
-    if not port:
+
+    agent = AGENTS.get(req.agent)
+
+    if not agent:
         raise HTTPException(
-            status_code=400, detail=f"Agente '{req.agent}' non configurato."
+            status_code=400,
+            detail=f"Agente '{req.agent}' non configurato."
         )
 
-    # Indirizzo del bot locale specifico
-    target_url = f"http://127.0.0.1:{port}/chat"
+    port = agent["port"]
+    path = agent["path"]
+
+    target_url = f"http://127.0.0.1:{port}{path}"
+
+    # Payload specifico per Lele Admin
+    if req.agent == "Lele Admin":
+        payload = {
+            "message": req.prompt,
+            "chat_id": "web-console",
+        }
+    else:
+        payload = {
+            "prompt": req.prompt,
+        }
 
     async with httpx.AsyncClient(timeout=60.0) as client:
+
         try:
-            response = await client.post(target_url, json={"prompt": req.prompt})
+            response = await client.post(
+                target_url,
+                json=payload,
+            )
+
+            # Se l'agente restituisce un errore HTTP,
+            # lo riportiamo chiaramente al frontend
+            response.raise_for_status()
+
             return response.json()
+
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    f"{req.agent} ha risposto con HTTP "
+                    f"{e.response.status_code}: {e.response.text}"
+                ),
+            )
+
         except Exception as e:
             raise HTTPException(
                 status_code=502,
-                detail=f"Impossibile raggiungere {req.agent} sulla porta {port}: {str(e)}",
+                detail=(
+                    f"Impossibile raggiungere {req.agent} "
+                    f"sulla porta {port}: {str(e)}"
+                ),
             )
+
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="127.0.0.1", port=9090)
+
+    uvicorn.run(
+        app,
+        host="127.0.0.1",
+        port=9090,
+    )
