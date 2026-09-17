@@ -1,28 +1,42 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import bgImage from '../assets/DataInFlames.jpg'
 
-// 👇 URL del Gateway esposto via Cloudflare Tunnel - DOMINIO CORRETTO: danielevillanova.com
-const LELE_API_URL = 'https://api.danielevillanova.com/api/chat';
+// Gateway pubblico Lele
+const LELE_API_URL = 'https://api.danielevillanova.com/api/chat'
 
-export default function ConsoleTest() {
+export default function Console() {
   const { t } = useTranslation()
-  const [selectedLele, setSelectedLele] = useState('Lele Admin')
+
+  const [selectedLele, setSelectedLele] = useState('Lele I')
   const [prompt, setPrompt] = useState('')
   const [response, setResponse] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
 
+  // Audio
+  const [isRecording, setIsRecording] = useState(false)
+  const [recordingTime, setRecordingTime] = useState(0)
+  const [audioUrl, setAudioUrl] = useState(null)
+
+  const mediaRecorderRef = useRef(null)
+  const audioChunksRef = useRef([])
+  const timerRef = useRef(null)
+
+  // SOLO agenti pubblici
   const leles = [
-    'Lele Admin',
     'Lele I',
     'Story Whisper',
     'Night Story',
-    'Bar_AI demo'
   ]
+
+  // --------------------------------------------------
+  // TESTO → GATEWAY
+  // --------------------------------------------------
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+
     if (!prompt.trim()) return
 
     setIsLoading(true)
@@ -32,103 +46,350 @@ export default function ConsoleTest() {
     try {
       const response = await fetch(LELE_API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           agent: selectedLele,
           prompt: prompt,
-          chat_id: 8733881519
-        })
+        }),
       })
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+        throw new Error(
+          `HTTP ${response.status}: ${response.statusText}`
+        )
       }
 
       const data = await response.json()
-      
+
       if (data.answer) {
         setResponse(data.answer)
       } else if (data.error) {
         setResponse(data.error)
       } else if (data.detail) {
-        setResponse(data.detail)
+        setResponse(
+          typeof data.detail === 'string'
+            ? data.detail
+            : JSON.stringify(data.detail, null, 2)
+        )
       } else {
         setResponse(t('Nessuna risposta ricevuta'))
       }
 
     } catch (err) {
+      console.error('Lele Gateway error:', err)
+
       setError(err.message)
-      setResponse(t('Errore di connessione con Lele Gateway. Il Mac deve essere acceso e il tunnel attivo!'))
+
+      setResponse(
+        t(
+          'Errore di connessione con Lele Gateway. Il Mac deve essere acceso e il tunnel attivo!'
+        )
+      )
+
     } finally {
       setIsLoading(false)
     }
   }
 
+  // --------------------------------------------------
+  // REGISTRAZIONE AUDIO
+  // --------------------------------------------------
+
+  const startRecording = async () => {
+    try {
+      setError('')
+      setAudioUrl(null)
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+      })
+
+      const mediaRecorder = new MediaRecorder(stream)
+
+      mediaRecorderRef.current = mediaRecorder
+      audioChunksRef.current = []
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data)
+        }
+      }
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(
+          audioChunksRef.current,
+          { type: mediaRecorder.mimeType }
+        )
+
+        const url = URL.createObjectURL(audioBlob)
+
+        setAudioUrl(url)
+
+        // Per ora NON inviamo ancora l'audio al Gateway.
+        // Questo è solo il test della registrazione.
+
+        stream.getTracks().forEach((track) => {
+          track.stop()
+        })
+      }
+
+      mediaRecorder.start()
+
+      setIsRecording(true)
+      setRecordingTime(0)
+
+      timerRef.current = setInterval(() => {
+        setRecordingTime((time) => time + 1)
+      }, 1000)
+
+    } catch (err) {
+      console.error('Microphone error:', err)
+
+      setError(
+        t(
+          'Impossibile accedere al microfono. Controlla i permessi del browser.'
+        )
+      )
+    }
+  }
+
+  const stopRecording = () => {
+    if (
+      mediaRecorderRef.current &&
+      mediaRecorderRef.current.state !== 'inactive'
+    ) {
+      mediaRecorderRef.current.stop()
+    }
+
+    setIsRecording(false)
+
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
+  }
+
+  // --------------------------------------------------
+  // CLEANUP
+  // --------------------------------------------------
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+      }
+
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl)
+      }
+
+      if (mediaRecorderRef.current) {
+        const tracks =
+          mediaRecorderRef.current.stream?.getTracks?.() || []
+
+        tracks.forEach((track) => track.stop())
+      }
+    }
+  }, [audioUrl])
+
+  // --------------------------------------------------
+  // UI
+  // --------------------------------------------------
+
   return (
-    <section className="section container" style={styles.wrap}>
-      <img src={bgImage} alt="" style={styles.bgImg} />
+    <section
+      className="section container"
+      style={styles.wrap}
+    >
+      <img
+        src={bgImage}
+        alt=""
+        style={styles.bgImg}
+      />
+
       <div style={styles.overlay} />
+
       <div style={styles.content}>
-        <p className="section-label">{t('Console - Lele AI Prompt')}</p>
-        <h2 className="section-title">{t('Interact with Lele AI Models')}</h2>
-        
+
+        <p className="section-label">
+          {t('Try Lele')}
+        </p>
+
+        <h2 className="section-title">
+          {t('Interact with Lele AI Models')}
+        </h2>
+
         {error && (
           <div style={styles.errorBox}>
-            <p>⚠️ {t('Attenzione: Il Mac deve essere acceso e il tunnel Cloudflare attivo!')}</p>
+            <p>
+              ⚠️{' '}
+              {t(
+                'Attenzione: Il Mac deve essere acceso e il tunnel Cloudflare attivo!'
+              )}
+            </p>
+
             <p>{error}</p>
           </div>
         )}
 
         <div style={styles.promptContainer}>
-          <form onSubmit={handleSubmit} style={styles.form}>
+
+          <form
+            onSubmit={handleSubmit}
+            style={styles.form}
+          >
+
+            {/* AGENTE */}
+
             <div style={styles.selector}>
-              <label htmlFor="lele-select" style={styles.label}>
+
+              <label
+                htmlFor="lele-select"
+                style={styles.label}
+              >
                 {t('Select Lele AI:')}
               </label>
+
               <select
                 id="lele-select"
                 value={selectedLele}
-                onChange={(e) => setSelectedLele(e.target.value)}
+                onChange={(e) =>
+                  setSelectedLele(e.target.value)
+                }
                 style={styles.select}
+                disabled={isRecording || isLoading}
               >
                 {leles.map((lele) => (
-                  <option key={lele} value={lele}>
+                  <option
+                    key={lele}
+                    value={lele}
+                  >
                     {lele}
                   </option>
                 ))}
               </select>
+
             </div>
-            
+
+            {/* TESTO */}
+
             <textarea
               value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
+              onChange={(e) =>
+                setPrompt(e.target.value)
+              }
               placeholder={t('Enter your prompt here...')}
               style={styles.textarea}
               rows={4}
+              disabled={isRecording}
             />
-            
-            <button
-              type="submit"
-              disabled={isLoading || !prompt.trim()}
-              style={styles.button}
-            >
-              {isLoading ? t('Thinking...') : t('Send to Lele')}
-            </button>
+
+            {/* BOTTONI */}
+
+            <div style={styles.buttonsRow}>
+
+              <button
+                type="submit"
+                disabled={
+                  isLoading ||
+                  isRecording ||
+                  !prompt.trim()
+                }
+                style={styles.button}
+              >
+                {isLoading
+                  ? t('Thinking...')
+                  : t('Send to Lele')}
+              </button>
+
+              <button
+                type="button"
+                onClick={
+                  isRecording
+                    ? stopRecording
+                    : startRecording
+                }
+                disabled={isLoading}
+                style={{
+                  ...styles.recordButton,
+                  ...(isRecording
+                    ? styles.recordingButton
+                    : {}),
+                }}
+              >
+                {isRecording
+                  ? `⏹ ${formatTime(recordingTime)}`
+                  : '🎙️ Record'}
+              </button>
+
+            </div>
+
           </form>
-          
+
+          {/* AUDIO PREVIEW */}
+
+          {audioUrl && (
+            <div style={styles.audioPreview}>
+
+              <p style={styles.audioLabel}>
+                🎙️ {t('Recorded audio')}
+              </p>
+
+              <audio
+                controls
+                src={audioUrl}
+                style={styles.audio}
+              />
+
+              <p style={styles.audioInfo}>
+                {t(
+                  'Audio captured successfully. Upload to Lele will be added next.'
+                )}
+              </p>
+
+            </div>
+          )}
+
+          {/* RISPOSTA */}
+
           {response && (
             <div style={styles.response}>
+
               <h3 style={styles.responseTitle}>
                 {t('Response from')} {selectedLele}
               </h3>
-              <pre style={styles.responseText}>{response}</pre>
+
+              <pre style={styles.responseText}>
+                {response}
+              </pre>
+
             </div>
           )}
+
         </div>
       </div>
     </section>
   )
 }
+
+// --------------------------------------------------
+// HELPERS
+// --------------------------------------------------
+
+function formatTime(seconds) {
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = seconds % 60
+
+  return `${String(minutes).padStart(2, '0')}:${String(
+    remainingSeconds
+  ).padStart(2, '0')}`
+}
+
+// --------------------------------------------------
+// STYLES
+// --------------------------------------------------
 
 const styles = {
   wrap: {
@@ -139,6 +400,7 @@ const styles = {
     justifyContent: 'center',
     overflow: 'hidden',
   },
+
   bgImg: {
     position: 'absolute',
     inset: 0,
@@ -147,18 +409,21 @@ const styles = {
     objectFit: 'cover',
     opacity: 0.6,
   },
+
   overlay: {
     position: 'absolute',
     inset: 0,
     background:
       'linear-gradient(180deg, rgba(11,16,21,0.25) 0%, rgba(11,16,21,0.85) 100%)',
   },
+
   content: {
     position: 'relative',
     width: '100%',
     maxWidth: '800px',
     margin: '0 auto',
   },
+
   errorBox: {
     backgroundColor: 'rgba(255, 100, 100, 0.2)',
     border: '1px solid #ff6b6b',
@@ -167,6 +432,7 @@ const styles = {
     marginBottom: '16px',
     color: '#ff6b6b',
   },
+
   promptContainer: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: '12px',
@@ -175,20 +441,24 @@ const styles = {
     border: '1px solid rgba(255, 255, 255, 0.2)',
     marginTop: '20px',
   },
+
   form: {
     display: 'flex',
     flexDirection: 'column',
     gap: '16px',
   },
+
   selector: {
     display: 'flex',
     alignItems: 'center',
     gap: '12px',
   },
+
   label: {
     color: '#e2e8f0',
     fontWeight: '600',
   },
+
   select: {
     flex: 1,
     padding: '10px 14px',
@@ -199,6 +469,7 @@ const styles = {
     fontSize: '16px',
     cursor: 'pointer',
   },
+
   textarea: {
     padding: '14px',
     borderRadius: '8px',
@@ -209,18 +480,70 @@ const styles = {
     resize: 'vertical',
     fontFamily: 'inherit',
   },
+
+  buttonsRow: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: '12px',
+    flexWrap: 'wrap',
+  },
+
   button: {
     padding: '14px 24px',
     borderRadius: '8px',
     border: 'none',
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    background:
+      'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     color: 'white',
     fontSize: '16px',
     fontWeight: '600',
     cursor: 'pointer',
     transition: 'all 0.3s ease',
-    alignSelf: 'flex-end',
   },
+
+  recordButton: {
+    padding: '14px 24px',
+    borderRadius: '8px',
+    border: '1px solid rgba(255, 255, 255, 0.3)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    color: '#e2e8f0',
+    fontSize: '16px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    transition: 'all 0.3s ease',
+  },
+
+  recordingButton: {
+    backgroundColor: 'rgba(255, 80, 80, 0.25)',
+    border: '1px solid #ff6b6b',
+    color: '#ffb3b3',
+  },
+
+  audioPreview: {
+    marginTop: '20px',
+    padding: '16px',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: '8px',
+    border: '1px solid rgba(255, 255, 255, 0.15)',
+  },
+
+  audioLabel: {
+    color: '#e2e8f0',
+    fontWeight: '600',
+    marginBottom: '10px',
+  },
+
+  audio: {
+    width: '100%',
+  },
+
+  audioInfo: {
+    color: '#a0aec0',
+    fontSize: '13px',
+    marginTop: '10px',
+  },
+
   response: {
     marginTop: '24px',
     padding: '16px',
@@ -228,11 +551,13 @@ const styles = {
     borderRadius: '8px',
     border: '1px solid rgba(255, 255, 255, 0.2)',
   },
+
   responseTitle: {
     color: '#e2e8f0',
     fontSize: '18px',
     marginBottom: '12px',
   },
+
   responseText: {
     color: '#a0aec0',
     whiteSpace: 'pre-wrap',
