@@ -24,22 +24,22 @@ AGENTS = {
     "Lele I": {
         "port": 8080,
         "path": "/ask",
-        "payload": "prompt",
+        "payload": "message",
     },
     "Bar_AI demo": {
         "port": 8081,
         "path": "/ask",
-        "payload": "prompt",
+        "payload": "message",
     },
     "Story Whisper": {
         "port": 8088,
         "path": "/ask",
-        "payload": "prompt",
+        "payload": "message",
     },
     "Night Story": {
         "port": 8666,
         "path": "/ask",
-        "payload": "prompt",
+        "payload": "message",
     },
 }
 
