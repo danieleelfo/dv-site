@@ -87,7 +87,7 @@ async def chat_router(req: ChatRequest):
             payload_field: req.prompt,
         }
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=180.0) as client:
 
         try:
             response = await client.post(
