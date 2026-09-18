@@ -14,11 +14,21 @@ export default function Console() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
 
+  // Piper TTS reale (solo Night Story, via "audio e testo <prompt>")
+  const [wantsPiperAudio, setWantsPiperAudio] = useState(false)
+  const [responseAudioFilename, setResponseAudioFilename] = useState(null)
+  const PIPER_AGENTS = ['Night Story']
+  const audioPlayerRef = useRef(null)
+
   // Audio (input)
   const [isRecording, setIsRecording] = useState(false)
   const [recordingTime, setRecordingTime] = useState(0)
   const [audioUrl, setAudioUrl] = useState(null)
   const [audioBlob, setAudioBlob] = useState(null)
+  const [isSendingAudio, setIsSendingAudio] = useState(false)
+
+  // Agenti che il gateway sa gestire in input audio (vedi AGENTS in Python: solo chi ha "audio_path")
+  const AUDIO_CAPABLE_AGENTS = ['Story Whisper']
 
   // TTS (output) — Web Speech API, nessun backend coinvolto
   const [isSpeaking, setIsSpeaking] = useState(false)
@@ -50,9 +60,20 @@ export default function Console() {
     // Se stava leggendo una risposta precedente, interrompe
     stopSpeaking()
 
+    // Se stava leggendo una risposta precedente, interrompe
+    stopSpeaking()
+
     setIsLoading(true)
     setResponse('')
+    setResponseAudioFilename(null)
     setError('')
+
+    const usesPiperAudio =
+      wantsPiperAudio && PIPER_AGENTS.includes(selectedLele)
+
+    const promptToSend = usesPiperAudio
+      ? `audio e testo ${prompt}`
+      : prompt
 
     try {
       const response = await fetch(LELE_API_URL, {
@@ -62,7 +83,7 @@ export default function Console() {
         },
         body: JSON.stringify({
           agent: selectedLele,
-          prompt: prompt,
+          prompt: promptToSend,
         }),
       })
 
@@ -86,6 +107,10 @@ export default function Console() {
         )
       } else {
         setResponse(t('Nessuna risposta ricevuta'))
+      }
+
+      if (data.audio_filename) {
+        setResponseAudioFilename(data.audio_filename)
       }
 
     } catch (err) {
@@ -159,9 +184,39 @@ export default function Console() {
   }
 
   const speakResponse = () => {
-    if (!ttsSupported || !response) return
+    if (!response) return
 
-    // Ferma eventuale lettura in corso prima di iniziarne una nuova
+    // Caso 1: abbiamo un audio Piper reale generato dal backend
+    if (responseAudioFilename) {
+      const url = `${LELE_API_URL}/tts/${encodeURIComponent(
+        selectedLele
+      )}/${encodeURIComponent(responseAudioFilename)}`
+
+      if (!audioPlayerRef.current) {
+        audioPlayerRef.current = new Audio()
+      }
+
+      const player = audioPlayerRef.current
+      player.src = url
+      player.onended = () => setIsSpeaking(false)
+      player.onerror = () => {
+        setIsSpeaking(false)
+        setError(
+          t('Impossibile riprodurre l\'audio generato dal server.')
+        )
+      }
+
+      setIsSpeaking(true)
+      player.play().catch(() => {
+        setIsSpeaking(false)
+        setError(t("Riproduzione audio bloccata dal browser."))
+      })
+      return
+    }
+
+    // Caso 2: fallback — voce del browser
+    if (!ttsSupported) return
+
     window.speechSynthesis.cancel()
 
     const utterance = new SpeechSynthesisUtterance(response)
@@ -172,7 +227,6 @@ export default function Console() {
       utterance.voice = voice
       utterance.lang = voice.lang
     } else {
-      // Nessuna voce ancora caricata: proviamo comunque con la lingua richiesta
       utterance.lang = i18n?.language?.startsWith('it')
         ? 'it-IT'
         : i18n?.language || 'it-IT'
@@ -188,7 +242,11 @@ export default function Console() {
   }
 
   const stopSpeaking = () => {
-    if (ttsSupported && window.speechSynthesis.speaking) {
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.pause()
+      audioPlayerRef.current.currentTime = 0
+    }
+    if (ttsSupported && window.speechSynthesis?.speaking) {
       window.speechSynthesis.cancel()
     }
     setIsSpeaking(false)
@@ -257,6 +315,65 @@ export default function Console() {
     }
   }
 
+  const handleSendAudio = async () => {
+    if (!audioBlob) return
+
+    if (!AUDIO_CAPABLE_AGENTS.includes(selectedLele)) {
+      setError(
+        t(
+          `'${selectedLele}' non supporta ancora l'input audio sul gateway. Seleziona Story Whisper.`
+        )
+      )
+      return
+    }
+
+    stopSpeaking()
+    setIsSendingAudio(true)
+    setError('')
+    setResponse('')
+
+    try {
+      const formData = new FormData()
+      formData.append('audio', audioBlob, 'recording.webm')
+      formData.append('agent', selectedLele)
+
+      const res = await fetch(`${LELE_API_URL}/audio`, {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+      }
+
+      const data = await res.json()
+
+      if (data.answer) {
+        setResponse(data.answer)
+      } else if (data.error) {
+        setResponse(data.error)
+      } else if (data.detail) {
+        setResponse(
+          typeof data.detail === 'string'
+            ? data.detail
+            : JSON.stringify(data.detail, null, 2)
+        )
+      } else {
+        setResponse(t('Nessuna risposta ricevuta'))
+      }
+    } catch (err) {
+      console.error('Lele Gateway audio error:', err)
+      setError(err.message)
+      setResponse(
+        t(
+          'Errore di connessione con Lele Gateway. Il Mac deve essere acceso e il tunnel attivo!'
+        )
+      )
+    } finally {
+      setIsSendingAudio(false)
+    }
+  }
+
   const stopRecording = () => {
     if (
       mediaRecorderRef.current &&
@@ -296,6 +413,10 @@ export default function Console() {
 
       if (ttsSupported && window.speechSynthesis?.speaking) {
         window.speechSynthesis.cancel()
+      }
+
+      if (audioPlayerRef.current) {
+        audioPlayerRef.current.pause()
       }
     }
   }, [audioUrl, ttsSupported])
@@ -379,6 +500,21 @@ export default function Console() {
 
             </div>
 
+            {PIPER_AGENTS.includes(selectedLele) && (
+              <label style={styles.piperCheckboxRow}>
+                <input
+                  type="checkbox"
+                  checked={wantsPiperAudio}
+                  onChange={(e) =>
+                    setWantsPiperAudio(e.target.checked)
+                  }
+                  disabled={isRecording || isLoading}
+                />
+                {' '}
+                {t('Genera anche audio (voce Piper)')}
+              </label>
+            )}
+
             {/* TESTO */}
 
             <textarea
@@ -447,16 +583,14 @@ export default function Console() {
 
                 <button
                   type="button"
-                  disabled={isLoading || !audioBlob}
+                  disabled={isLoading || isSendingAudio || !audioBlob}
                   style={styles.audioSendButton}
-                  onClick={() => {
-                    console.log(
-                      'Audio pronto per invio:',
-                      audioBlob
-                    )
-                  }}
+                  onClick={handleSendAudio}
                 >
-                  🎙️ {t('Send Audio')}
+                  🎙️{' '}
+                  {isSendingAudio
+                    ? t('Sending...')
+                    : t('Send Audio')}
                 </button>
 
               </div>
@@ -600,6 +734,15 @@ const styles = {
   label: {
     color: '#e2e8f0',
     fontWeight: '600',
+  },
+
+  piperCheckboxRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    color: '#e2e8f0',
+    fontSize: '14px',
+    cursor: 'pointer',
   },
 
   select: {
