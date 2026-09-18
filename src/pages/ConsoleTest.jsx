@@ -23,7 +23,9 @@ export default function Console() {
   // TTS (output) — Web Speech API, nessun backend coinvolto
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [ttsSupported, setTtsSupported] = useState(true)
+  const [voicesReady, setVoicesReady] = useState(false)
   const utteranceRef = useRef(null)
+  const voicesRef = useRef([])
 
   const mediaRecorderRef = useRef(null)
   const audioChunksRef = useRef([])
@@ -109,8 +111,52 @@ export default function Console() {
   useEffect(() => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
       setTtsSupported(false)
+      return
+    }
+
+    const loadVoices = () => {
+      const voices = window.speechSynthesis.getVoices()
+      if (voices.length > 0) {
+        voicesRef.current = voices
+        setVoicesReady(true)
+      }
+    }
+
+    loadVoices()
+
+    // Chrome popola le voci in modo asincrono al primo utilizzo
+    window.speechSynthesis.onvoiceschanged = loadVoices
+
+    return () => {
+      window.speechSynthesis.onvoiceschanged = null
     }
   }, [])
+
+  const pickVoice = () => {
+    const voices = voicesRef.current
+
+    if (!voices.length) return null
+
+    const wantsItalian = i18n?.language?.startsWith('it') ?? true
+
+    // 1) voce nella lingua desiderata
+    if (wantsItalian) {
+      const it = voices.find((v) => v.lang?.toLowerCase().startsWith('it'))
+      if (it) return it
+    } else {
+      const match = voices.find((v) =>
+        v.lang?.toLowerCase().startsWith(i18n.language.toLowerCase())
+      )
+      if (match) return match
+    }
+
+    // 2) fallback inglese
+    const en = voices.find((v) => v.lang?.toLowerCase().startsWith('en'))
+    if (en) return en
+
+    // 3) fallback: prima voce disponibile sul sistema
+    return voices[0]
+  }
 
   const speakResponse = () => {
     if (!ttsSupported || !response) return
@@ -120,10 +166,17 @@ export default function Console() {
 
     const utterance = new SpeechSynthesisUtterance(response)
 
-    // Lingua coerente con quella attiva nell'interfaccia (fallback italiano)
-    utterance.lang = i18n?.language?.startsWith('it')
-      ? 'it-IT'
-      : i18n?.language || 'it-IT'
+    const voice = pickVoice()
+
+    if (voice) {
+      utterance.voice = voice
+      utterance.lang = voice.lang
+    } else {
+      // Nessuna voce ancora caricata: proviamo comunque con la lingua richiesta
+      utterance.lang = i18n?.language?.startsWith('it')
+        ? 'it-IT'
+        : i18n?.language || 'it-IT'
+    }
 
     utterance.onend = () => setIsSpeaking(false)
     utterance.onerror = () => setIsSpeaking(false)
