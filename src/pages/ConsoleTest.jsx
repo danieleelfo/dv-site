@@ -6,7 +6,7 @@ import bgImage from '../assets/DataInFlames.jpg'
 const LELE_API_URL = 'https://api.danielevillanova.com/api/chat'
 
 export default function Console() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
 
   const [selectedLele, setSelectedLele] = useState('Lele I')
   const [prompt, setPrompt] = useState('')
@@ -14,11 +14,16 @@ export default function Console() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
 
-  // Audio
+  // Audio (input)
   const [isRecording, setIsRecording] = useState(false)
   const [recordingTime, setRecordingTime] = useState(0)
   const [audioUrl, setAudioUrl] = useState(null)
   const [audioBlob, setAudioBlob] = useState(null)
+
+  // TTS (output) — Web Speech API, nessun backend coinvolto
+  const [isSpeaking, setIsSpeaking] = useState(false)
+  const [ttsSupported, setTtsSupported] = useState(true)
+  const utteranceRef = useRef(null)
 
   const mediaRecorderRef = useRef(null)
   const audioChunksRef = useRef([])
@@ -39,6 +44,9 @@ export default function Console() {
     e.preventDefault()
 
     if (!prompt.trim()) return
+
+    // Se stava leggendo una risposta precedente, interrompe
+    stopSpeaking()
 
     setIsLoading(true)
     setResponse('')
@@ -95,7 +103,46 @@ export default function Console() {
   }
 
   // --------------------------------------------------
-  // REGISTRAZIONE AUDIO
+  // TTS — Web Speech API (speechSynthesis)
+  // --------------------------------------------------
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      setTtsSupported(false)
+    }
+  }, [])
+
+  const speakResponse = () => {
+    if (!ttsSupported || !response) return
+
+    // Ferma eventuale lettura in corso prima di iniziarne una nuova
+    window.speechSynthesis.cancel()
+
+    const utterance = new SpeechSynthesisUtterance(response)
+
+    // Lingua coerente con quella attiva nell'interfaccia (fallback italiano)
+    utterance.lang = i18n?.language?.startsWith('it')
+      ? 'it-IT'
+      : i18n?.language || 'it-IT'
+
+    utterance.onend = () => setIsSpeaking(false)
+    utterance.onerror = () => setIsSpeaking(false)
+
+    utteranceRef.current = utterance
+
+    setIsSpeaking(true)
+    window.speechSynthesis.speak(utterance)
+  }
+
+  const stopSpeaking = () => {
+    if (ttsSupported && window.speechSynthesis.speaking) {
+      window.speechSynthesis.cancel()
+    }
+    setIsSpeaking(false)
+  }
+
+  // --------------------------------------------------
+  // REGISTRAZIONE AUDIO (input)
   // --------------------------------------------------
 
   const startRecording = async () => {
@@ -193,8 +240,12 @@ export default function Console() {
 
         tracks.forEach((track) => track.stop())
       }
+
+      if (ttsSupported && window.speechSynthesis?.speaking) {
+        window.speechSynthesis.cancel()
+      }
     }
-  }, [audioUrl])
+  }, [audioUrl, ttsSupported])
 
   // --------------------------------------------------
   // UI
@@ -371,9 +422,34 @@ export default function Console() {
           {response && (
             <div style={styles.response}>
 
-              <h3 style={styles.responseTitle}>
-                {t('Response from')} {selectedLele}
-              </h3>
+              <div style={styles.responseHeader}>
+
+                <h3 style={styles.responseTitle}>
+                  {t('Response from')} {selectedLele}
+                </h3>
+
+                {ttsSupported && (
+                  <button
+                    type="button"
+                    onClick={
+                      isSpeaking
+                        ? stopSpeaking
+                        : speakResponse
+                    }
+                    style={{
+                      ...styles.ttsButton,
+                      ...(isSpeaking
+                        ? styles.ttsButtonActive
+                        : {}),
+                    }}
+                  >
+                    {isSpeaking
+                      ? `⏹ ${t('Stop')}`
+                      : `🔊 ${t('Listen')}`}
+                  </button>
+                )}
+
+              </div>
 
               <pre style={styles.responseText}>
                 {response}
@@ -588,10 +664,37 @@ const styles = {
     border: '1px solid rgba(255, 255, 255, 0.2)',
   },
 
+  responseHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '12px',
+    marginBottom: '12px',
+  },
+
   responseTitle: {
     color: '#e2e8f0',
     fontSize: '18px',
-    marginBottom: '12px',
+    margin: 0,
+  },
+
+  ttsButton: {
+    padding: '8px 14px',
+    borderRadius: '6px',
+    border: '1px solid rgba(255, 255, 255, 0.3)',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    color: '#e2e8f0',
+    fontSize: '13px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    transition: 'all 0.3s ease',
+  },
+
+  ttsButtonActive: {
+    backgroundColor: 'rgba(255, 80, 80, 0.25)',
+    border: '1px solid #ff6b6b',
+    color: '#ffb3b3',
   },
 
   responseText: {
