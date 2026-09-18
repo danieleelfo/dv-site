@@ -60,9 +60,6 @@ export default function Console() {
     // Se stava leggendo una risposta precedente, interrompe
     stopSpeaking()
 
-    // Se stava leggendo una risposta precedente, interrompe
-    stopSpeaking()
-
     setIsLoading(true)
     setResponse('')
     setResponseAudioFilename(null)
@@ -84,6 +81,7 @@ export default function Console() {
         body: JSON.stringify({
           agent: selectedLele,
           prompt: promptToSend,
+          language: i18n.language || 'en',  // <-- MODIFICA 1: Aggiunto language
         }),
       })
 
@@ -109,8 +107,8 @@ export default function Console() {
         setResponse(t('Nessuna risposta ricevuta'))
       }
 
-      if (data.audio_filename) {
-        setResponseAudioFilename(data.audio_filename)
+      if (data.audio_path) {  // <-- MODIFICA 2: Cambiato da audio_filename a audio_path
+        setResponseAudioFilename(data.audio_path)  // <-- MODIFICA 3: Cambiato da audio_filename a audio_path
       }
 
     } catch (err) {
@@ -120,7 +118,7 @@ export default function Console() {
 
       setResponse(
         t(
-          'Errore di connessione con Lele Gateway. Il Mac deve essere acceso e il tunnel attivo!'
+          'Errore di connessione con Lele Gateway. Il Mac deve essere acceso, avvisa Daniele!'
         )
       )
 
@@ -287,9 +285,6 @@ export default function Console() {
         setAudioBlob(audioBlob)
         setAudioUrl(url)
 
-        // Per ora NON inviamo ancora l'audio al Gateway.
-        // Questo è solo il test della registrazione.
-
         stream.getTracks().forEach((track) => {
           track.stop()
         })
@@ -336,6 +331,7 @@ export default function Console() {
       const formData = new FormData()
       formData.append('audio', audioBlob, 'recording.webm')
       formData.append('agent', selectedLele)
+      formData.append('language', i18n.language || 'en')  // <-- MODIFICA 4: Aggiunto language
 
       const res = await fetch(`${LELE_API_URL}/audio`, {
         method: 'POST',
@@ -366,7 +362,7 @@ export default function Console() {
       setError(err.message)
       setResponse(
         t(
-          'Errore di connessione con Lele Gateway. Il Mac deve essere acceso e il tunnel attivo!'
+          'Errore di connessione con Lele Gateway. Il Mac deve essere acceso, avvisa Daniele!'
         )
       )
     } finally {
@@ -453,7 +449,7 @@ export default function Console() {
             <p>
               ⚠️{' '}
               {t(
-                'Attenzione: Il Mac deve essere acceso e il tunnel Cloudflare attivo!'
+                'Attenzione: Il Mac deve essere acceso, avvisa Daniele!'
               )}
             </p>
 
@@ -563,7 +559,7 @@ export default function Console() {
               >
                 {isRecording
                   ? `⏹ ${formatTime(recordingTime)}`
-                  : '🎙️ Record'}
+                  : '🎤 Record'}
               </button>
 
             </div>
@@ -578,7 +574,7 @@ export default function Console() {
               <div style={styles.audioHeader}>
 
                 <p style={styles.audioLabel}>
-                  🎙️ {t('Recorded audio')}
+                  🎤 {t('Recorded audio')}
                 </p>
 
                 <button
@@ -587,7 +583,7 @@ export default function Console() {
                   style={styles.audioSendButton}
                   onClick={handleSendAudio}
                 >
-                  🎙️{' '}
+                  🎤{' '}
                   {isSendingAudio
                     ? t('Sending...')
                     : t('Send Audio')}
@@ -882,23 +878,3 @@ const styles = {
     color: '#e2e8f0',
     fontSize: '13px',
     fontWeight: '600',
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
-    transition: 'all 0.3s ease',
-  },
-
-  ttsButtonActive: {
-    backgroundColor: 'rgba(255, 80, 80, 0.25)',
-    border: '1px solid #ff6b6b',
-    color: '#ffb3b3',
-  },
-
-  responseText: {
-    color: '#a0aec0',
-    whiteSpace: 'pre-wrap',
-    wordWrap: 'break-word',
-    fontFamily: 'monospace',
-    fontSize: '14px',
-    lineHeight: '1.6',
-  },
-}
