@@ -1,6 +1,7 @@
 import httpx
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 app = FastAPI(title="Lele AI Gateway")
@@ -213,6 +214,55 @@ async def chat_router_audio(
             raise HTTPException(
                 status_code=502,
                 detail=f"Errore nella risposta di {agent}: {str(e)}",
+            )
+
+
+# ============================================================
+# TTS — proxy verso l'endpoint /tts/{filename} del bot
+# (serve i file audio Piper già generati, es. da Night Story)
+# ============================================================
+
+@app.get("/api/chat/tts/{agent}/{filename}")
+@app.get("/api/chat/tts/{agent}/{filename}/")
+async def tts_proxy(agent: str, filename: str):
+
+    config = AGENTS.get(agent)
+
+    if not config:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Agente '{agent}' non configurato.",
+        )
+
+    port = config["port"]
+    target_url = f"http://127.0.0.1:{port}/tts/{filename}"
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+
+        try:
+            response = await client.get(target_url)
+
+            if response.status_code >= 400:
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Audio non trovato per '{agent}' ({filename}).",
+                )
+
+            return Response(
+                content=response.content,
+                media_type="audio/ogg",
+            )
+
+        except HTTPException:
+            raise
+
+        except httpx.RequestError as e:
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    f"Impossibile raggiungere {agent} "
+                    f"sulla porta {port}: {str(e)}"
+                ),
             )
 
 
