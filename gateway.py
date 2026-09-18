@@ -16,8 +16,6 @@ app.add_middleware(
 )
 
 # CONFIGURAZIONE AGENTI
-# "audio_path" è presente SOLO per gli agenti che hanno già
-# implementato un endpoint di input audio (per ora: Story Whisper).
 AGENTS = {
     "Lele Admin": {
         "port": 8082,
@@ -47,12 +45,19 @@ AGENTS = {
     },
 }
 
+# MAPPA VOCE (opzionale per Piper)
+VOICE_MAP = {
+    "Night Story": {
+        "it": "it_IT-paola-medium.onnx",
+        "en": "en_US-lessac-medium.onnx",
+    },
+}
 
 class ChatRequest(BaseModel):
     agent: str
     prompt: str
     chat_id: int = 1010101010  # Default al tuo admin ID
-
+    language: str = "en"  # Default inglese per TTS
 
 @app.get("/")
 async def root():
@@ -60,7 +65,6 @@ async def root():
         "status": "Gateway Online",
         "agents": list(AGENTS.keys()),
     }
-
 
 @app.post("/api/chat")
 @app.post("/api/chat/")
@@ -80,16 +84,16 @@ async def chat_router(req: ChatRequest):
 
     target_url = f"http://127.0.0.1:{port}{path}"
 
-    # Costruisce il payload in base all'agente
-    if req.agent == "Lele Admin":
-        payload = {
-            "message": req.prompt,
-            "chat_id": req.chat_id,
-        }
-    else:
-        payload = {
-            payload_field: req.prompt,
-        }
+    # Costruisce il payload base con language
+    payload = {
+        payload_field: req.prompt,
+        "language": req.language,
+        "chat_id": req.chat_id,
+    }
+
+    # Aggiunge voice se disponibile in VOICE_MAP
+    if req.agent in VOICE_MAP and req.language in VOICE_MAP[req.agent]:
+        payload["voice"] = VOICE_MAP[req.agent][req.language]
 
     async with httpx.AsyncClient(timeout=180.0) as client:
 
@@ -130,7 +134,6 @@ async def chat_router(req: ChatRequest):
                 detail=f"Errore nella risposta di {req.agent}: {str(e)}",
             )
 
-
 # ============================================================
 # AUDIO — proxy multipart verso l'endpoint /ask/audio del bot
 # ============================================================
@@ -141,6 +144,7 @@ async def chat_router_audio(
     audio: UploadFile = File(...),
     agent: str = Form(...),
     chat_id: int = Form(1010101010),
+    language: str = Form("en"),
 ):
 
     config = AGENTS.get(agent)
@@ -177,6 +181,7 @@ async def chat_router_audio(
 
             data = {
                 "chat_id": str(chat_id),
+                "language": language,
             }
 
             response = await client.post(
@@ -216,6 +221,52 @@ async def chat_router_audio(
                 detail=f"Errore nella risposta di {agent}: {str(e)}",
             )
 
+# ============================================================
+# TTS — proxy verso l'endpoint /tts/{filename} del bot
+# ============================================================
+
+@app.get("/api/chat/tts/{agent}/{filename}")
+@app.get("/api/chat/tts/{agent}/{filename}/")
+async def tts_proxy(agent: str, filename: str):
+
+    config = AGENTS.get(agent)
+
+    if not config:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Agente '{agent}' non configurato.",
+        )
+
+    port = config["port"]
+    target_url = f"http://127.0.0.1:{port}/tts/{filename}"
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
+
+        try:
+            response = await client.get(target_url)
+
+            if response.status_code >= 400:
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Audio non trovato per '{agent}' ({filename}).",
+                )
+
+            return Response(
+                content=response.content,
+                media_type="audio/ogg",
+            )
+
+        except HTTPException:
+            raise
+
+        except httpx.RequestError as e:
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    f"Impossibile raggiungere {agent} "
+                    f"sulla porta {port}: {str(e)}"
+                ),
+            )
 
 # ============================================================
 # TTS — proxy verso l'endpoint /tts/{filename} del bot
