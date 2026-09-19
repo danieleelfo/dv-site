@@ -103,7 +103,6 @@ export default function Console() {
         extractFilename(data.audio_path)
 
       setResponseAudioFilename(filename)
-
     } catch (err) {
       console.error('Lele Gateway error:', err)
       setError(err.message)
@@ -123,9 +122,12 @@ export default function Console() {
   const speakResponse = () => {
     if (!response || !responseAudioFilename) return
 
-    const url = `\( {LELE_API_URL}/tts/ \){encodeURIComponent(
-      selectedLele
-    )}/${encodeURIComponent(responseAudioFilename)}`
+    const url =
+      LELE_API_URL +
+      '/tts/' +
+      encodeURIComponent(selectedLele) +
+      '/' +
+      encodeURIComponent(responseAudioFilename)
 
     if (!audioPlayerRef.current) {
       audioPlayerRef.current = new Audio()
@@ -237,13 +239,13 @@ export default function Console() {
       formData.append('agent', selectedLele)
       formData.append('language', i18n.language || 'en')
 
-      const res = await fetch(`${LELE_API_URL}/audio`, {
+      const res = await fetch(LELE_API_URL + '/audio', {
         method: 'POST',
         body: formData,
       })
 
       if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+        throw new Error('HTTP ' + res.status + ': ' + res.statusText)
       }
 
       const data = await res.json()
@@ -399,7 +401,7 @@ export default function Console() {
                 }}
               >
                 {isRecording
-                  ? `⏹ ${formatTime(recordingTime)}`
+                  ? '⏹ ' + formatTime(recordingTime)
                   : '🎤 Record'}
               </button>
             </div>
@@ -443,8 +445,8 @@ export default function Console() {
                     }}
                   >
                     {isSpeaking
-                      ? `⏹ ${t('Stop')}`
-                      : `🔊 ${t('Listen')}`}
+                      ? '⏹ ' + t('Stop')
+                      : '🔊 ' + t('Listen')}
                   </button>
                 )}
               </div>
@@ -461,9 +463,9 @@ export default function Console() {
 function formatTime(seconds) {
   const minutes = Math.floor(seconds / 60)
   const remainingSeconds = seconds % 60
-  return `\( {String(minutes).padStart(2, '0')}: \){String(
-    remainingSeconds
-  ).padStart(2, '0')}`
+  const m = String(minutes).padStart(2, '0')
+  const s = String(remainingSeconds).padStart(2, '0')
+  return m + ':' + s
 }
 
 const styles = {
