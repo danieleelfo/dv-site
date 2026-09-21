@@ -16,6 +16,7 @@ app.add_middleware(
 )
 
 # CONFIGURAZIONE AGENTI
+# Note: Lele Admin rimosso per sicurezza dal gateway pubblico
 AGENTS = {
     "Lele I": {
         "port": 8080,
@@ -44,7 +45,7 @@ class ChatRequest(BaseModel):
     agent: str
     prompt: str
     chat_id: int = 1010101010
-    language: str = "en"  # <-- MODIFICA 1: Aggiunto language
+    language: str = "en"
 
 @app.get("/")
 async def root():
@@ -68,19 +69,11 @@ async def chat_router(req: ChatRequest):
     payload_field = config["payload"]
     target_url = f"http://127.0.0.1:{port}{path}"
 
-    # Payload per Lele Admin
-    if req.agent == "Lele Admin":
-        payload = {
-            "message": req.prompt,
-            "language": req.language,  # <-- MODIFICA 2
-            "chat_id": req.chat_id,
-        }
-    # Payload per gli altri agenti
-    else:
-        payload = {
-            payload_field: req.prompt,
-            "language": req.language,  # <-- MODIFICA 3
-        }
+    payload = {
+        payload_field: req.prompt,
+        "language": req.language,
+        "chat_id": req.chat_id,
+    }
 
     async with httpx.AsyncClient(timeout=180.0) as client:
         try:
@@ -113,7 +106,7 @@ async def chat_router_audio(
     audio: UploadFile = File(...),
     agent: str = Form(...),
     chat_id: int = Form(1010101010),
-    language: str = Form("en"),  # <-- MODIFICA 4
+    language: str = Form("en"),
 ):
     config = AGENTS.get(agent)
     if not config:
@@ -142,7 +135,7 @@ async def chat_router_audio(
             }
             data = {
                 "chat_id": str(chat_id),
-                "language": language,  # <-- MODIFICA 5
+                "language": language,
             }
             response = await client.post(
                 target_url,
