@@ -1,3 +1,4 @@
+import os
 import httpx
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,7 +17,6 @@ app.add_middleware(
 )
 
 # CONFIGURAZIONE AGENTI
-# Note: Lele Admin rimosso per sicurezza dal gateway pubblico
 AGENTS = {
     "Lele I": {
         "port": 8080,
@@ -161,8 +161,9 @@ async def chat_router_audio(
                 detail=f"Impossibile raggiungere {agent} sulla porta {port}: {str(e)}"
             )
 
-@app.get("/api/chat/tts/{agent}/{filename}")
-@app.get("/api/chat/tts/{agent}/{filename}/")
+# PROXY TTS CORRETTO CON PULIZIA DEL PATH E SUPPORTO A PERCORSI COMPLETI
+@app.get("/api/chat/tts/{agent}/{filename:path}")
+@app.get("/api/chat/tts/{agent}/{filename:path}/")
 async def tts_proxy(agent: str, filename: str):
     config = AGENTS.get(agent)
     if not config:
@@ -170,15 +171,20 @@ async def tts_proxy(agent: str, filename: str):
             status_code=400,
             detail=f"Agente '{agent}' non configurato.",
         )
+    
+    # Prende solo il nome del file (es: c37959070c2843f39693326647fda00e.ogg)
+    clean_filename = os.path.basename(filename)
+    
     port = config["port"]
-    target_url = f"http://127.0.0.1:{port}/tts/{filename}"
+    target_url = f"http://127.0.0.1:{port}/tts/{clean_filename}"
+    
     async with httpx.AsyncClient(timeout=60.0) as client:
         try:
             response = await client.get(target_url)
             if response.status_code >= 400:
                 raise HTTPException(
                     status_code=502,
-                    detail=f"Audio non trovato per '{agent}' ({filename}).",
+                    detail=f"Audio non trovato su {agent} (porta {port}) per il file '{clean_filename}'. Target: {target_url} - Status: {response.status_code}",
                 )
             return Response(
                 content=response.content,
