@@ -17,11 +17,6 @@ app.add_middleware(
 
 # CONFIGURAZIONE AGENTI
 AGENTS = {
-    "Lele Admin": {
-        "port": 8082,
-        "path": "/ask",
-        "payload": "message",
-    },
     "Lele I": {
         "port": 8080,
         "path": "/ask",
