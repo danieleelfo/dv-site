@@ -43,7 +43,13 @@ export default function Console() {
   const [wantsPiperAudio, setWantsPiperAudio] = useState(false)
   const [responseAudioFilename, setResponseAudioFilename] = useState(null)
   const PIPER_AGENTS = ['Night Story']
+  
+  // Lettore Audio Avanzato
   const audioPlayerRef = useRef(null)
+  const [isSpeaking, setIsSpeaking] = useState(false)
+  const [audioCurrentTime, setAudioCurrentTime] = useState(0)
+  const [audioDuration, setAudioDuration] = useState(0)
+  const [playbackRate, setPlaybackRate] = useState(1)
 
   // Audio (input)
   const [isRecording, setIsRecording] = useState(false)
@@ -53,7 +59,6 @@ export default function Console() {
   const [isSendingAudio, setIsSendingAudio] = useState(false)
 
   const AUDIO_CAPABLE_AGENTS = ['Story Whisper']
-  const [isSpeaking, setIsSpeaking] = useState(false)
 
   const mediaRecorderRef = useRef(null)
   const audioChunksRef = useRef([])
@@ -99,7 +104,7 @@ export default function Console() {
       : prompt
 
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 120000) // Timeout 2 minuti
+    const timeoutId = setTimeout(() => controller.abort(), 120000)
 
     try {
       const res = await fetch(`${LELE_API_URL}/api/chat`, {
@@ -160,36 +165,36 @@ export default function Console() {
   }
 
   // --------------------------------------------------
-  // RIPRODUZIONE AUDIO DA BACKEND (/api/chat/tts/...)
+  // CONTROLLI RIPRODUZIONE AUDIO DA BACKEND
   // --------------------------------------------------
-  const speakResponse = () => {
+  const togglePlayAudio = () => {
     if (!response || !responseAudioFilename) return
+
+    const player = audioPlayerRef.current
+    if (!player) return
 
     const url = `${LELE_API_URL}/api/chat/tts/${encodeURIComponent(
       selectedLele
     )}/${encodeURIComponent(responseAudioFilename)}`
 
-    if (!audioPlayerRef.current) {
-      audioPlayerRef.current = new Audio()
+    // Carica la sorgente se non ancora settata o se diversa
+    if (player.src !== url) {
+      player.src = url
+      player.playbackRate = playbackRate
     }
 
-    const player = audioPlayerRef.current
-    player.pause()
-    player.currentTime = 0
-    player.src = url
-
-    player.onended = () => setIsSpeaking(false)
-    player.onerror = () => {
+    if (isSpeaking) {
+      player.pause()
       setIsSpeaking(false)
-      setError(t("Impossibile riprodurre l'audio generato dal server."))
+    } else {
+      player.play().then(() => {
+        setIsSpeaking(true)
+      }).catch((err) => {
+        console.error('Audio play error:', err)
+        setIsSpeaking(false)
+        setError(t('Riproduzione audio bloccata dal browser.'))
+      })
     }
-
-    setIsSpeaking(true)
-    player.play().catch((err) => {
-      console.error('Audio play error:', err)
-      setIsSpeaking(false)
-      setError(t('Riproduzione audio bloccata dal browser.'))
-    })
   }
 
   const stopSpeaking = () => {
@@ -198,6 +203,22 @@ export default function Console() {
       audioPlayerRef.current.currentTime = 0
     }
     setIsSpeaking(false)
+    setAudioCurrentTime(0)
+  }
+
+  const handleRateChange = (rate) => {
+    setPlaybackRate(rate)
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.playbackRate = rate
+    }
+  }
+
+  const handleSeek = (e) => {
+    const newTime = parseFloat(e.target.value)
+    setAudioCurrentTime(newTime)
+    if (audioPlayerRef.current) {
+      audioPlayerRef.current.currentTime = newTime
+    }
   }
 
   // --------------------------------------------------
@@ -272,7 +293,7 @@ export default function Console() {
     setResponseAudioFilename(null)
 
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 120000) // Timeout 2 minuti
+    const timeoutId = setTimeout(() => controller.abort(), 120000)
 
     try {
       const formData = new FormData()
@@ -371,6 +392,21 @@ export default function Console() {
     <section className="section container" style={styles.wrap}>
       <img src={bgImage} alt="" style={styles.bgImg} />
       <div style={styles.overlay} />
+
+      {/* Elemento audio invisibile per gestire gli eventi di riproduzione */}
+      <audio
+        ref={audioPlayerRef}
+        onTimeUpdate={() => setAudioCurrentTime(audioPlayerRef.current?.currentTime || 0)}
+        onLoadedMetadata={() => setAudioDuration(audioPlayerRef.current?.duration || 0)}
+        onEnded={() => {
+          setIsSpeaking(false)
+          setAudioCurrentTime(0)
+        }}
+        onError={() => {
+          setIsSpeaking(false)
+          setError(t("Impossibile riprodurre l'audio generato dal server."))
+        }}
+      />
 
       <div style={styles.content}>
         <p className="section-label">{t('Try Lele')}</p>
@@ -473,20 +509,56 @@ export default function Console() {
                 <h3 style={styles.responseTitle}>
                   {t('Response from')} {selectedLele}
                 </h3>
-
-                {responseAudioFilename && (
-                  <button
-                    type="button"
-                    onClick={isSpeaking ? stopSpeaking : speakResponse}
-                    style={{
-                      ...styles.ttsButton,
-                      ...(isSpeaking ? styles.ttsButtonActive : {}),
-                    }}
-                  >
-                    {isSpeaking ? `⏹ ${t('Stop')}` : `🔊 ${t('Listen')}`}
-                  </button>
-                )}
               </div>
+
+              {/* LETTORE AUDIO COMPLETO CON SCRUBBER E VELOCITA' */}
+              {responseAudioFilename && (
+                <div style={styles.playerContainer}>
+                  <div style={styles.playerTopRow}>
+                    <button
+                      type="button"
+                      onClick={togglePlayAudio}
+                      style={{
+                        ...styles.playButton,
+                        ...(isSpeaking ? styles.playButtonActive : {}),
+                      }}
+                    >
+                      {isSpeaking ? '⏸ Pausa' : '▶ Ascolta Audio'}
+                    </button>
+
+                    <span style={styles.timeLabel}>
+                      {formatTime(audioCurrentTime)} / {formatTime(audioDuration)}
+                    </span>
+
+                    <input
+                      type="range"
+                      min="0"
+                      max={audioDuration || 0}
+                      step="0.1"
+                      value={audioCurrentTime}
+                      onChange={handleSeek}
+                      style={styles.seekBar}
+                    />
+                  </div>
+
+                  <div style={styles.speedRow}>
+                    <span style={styles.speedLabel}>Velocità:</span>
+                    {[1, 1.25, 1.5, 1.75, 2].map((rate) => (
+                      <button
+                        key={rate}
+                        type="button"
+                        onClick={() => handleRateChange(rate)}
+                        style={{
+                          ...styles.speedButton,
+                          ...(playbackRate === rate ? styles.speedButtonActive : {}),
+                        }}
+                      >
+                        {rate}x
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <pre style={styles.responseText}>{response}</pre>
             </div>
@@ -498,8 +570,9 @@ export default function Console() {
 }
 
 function formatTime(seconds) {
+  if (!seconds || isNaN(seconds)) return "00:00"
   const minutes = Math.floor(seconds / 60)
-  const remainingSeconds = seconds % 60
+  const remainingSeconds = Math.floor(seconds % 60)
   return `${String(minutes).padStart(2, '0')}:${String(
     remainingSeconds
   ).padStart(2, '0')}`
@@ -678,20 +751,69 @@ const styles = {
     fontSize: '18px',
     margin: 0,
   },
-  ttsButton: {
+  // STILI LETTORE AUDIO AVANZATO
+  playerContainer: {
+    marginBottom: '16px',
+    padding: '12px 16px',
+    backgroundColor: 'rgba(0, 0, 0, 0.25)',
+    borderRadius: '8px',
+    border: '1px solid rgba(255, 255, 255, 0.15)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+  },
+  playerTopRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+  },
+  playButton: {
     padding: '8px 14px',
     borderRadius: '6px',
     border: '1px solid rgba(255, 255, 255, 0.3)',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    color: '#e2e8f0',
+    backgroundColor: '#3b82f6',
+    color: '#ffffff',
     fontSize: '13px',
     fontWeight: '600',
     cursor: 'pointer',
+    whiteSpace: 'nowrap',
   },
-  ttsButtonActive: {
-    backgroundColor: 'rgba(255, 100, 100, 0.25)',
-    border: '1px solid #ff6b6b',
-    color: '#ffb3b3',
+  playButtonActive: {
+    backgroundColor: '#ef4444',
+  },
+  timeLabel: {
+    color: '#cbd5e1',
+    fontSize: '12px',
+    fontFamily: 'monospace',
+    whiteSpace: 'nowrap',
+  },
+  seekBar: {
+    flex: 1,
+    cursor: 'pointer',
+    accentColor: '#6366f1',
+  },
+  speedRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  speedLabel: {
+    color: '#94a3b8',
+    fontSize: '12px',
+  },
+  speedButton: {
+    padding: '2px 8px',
+    borderRadius: '4px',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    color: '#94a3b8',
+    fontSize: '11px',
+    cursor: 'pointer',
+  },
+  speedButtonActive: {
+    backgroundColor: '#6366f1',
+    color: '#ffffff',
+    borderColor: '#818cf8',
   },
   responseText: {
     color: '#e2e8f0',
