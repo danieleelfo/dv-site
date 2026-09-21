@@ -39,11 +39,11 @@ export default function Console() {
   // Sessione anonima persistente
   const chatIdRef = useRef(getOrCreateChatId())
 
-  // Piper TTS reale (solo Night Story)
+  // Piper TTS reale (solo Night Story e Story Whisper)
   const [wantsPiperAudio, setWantsPiperAudio] = useState(false)
   const [responseAudioFilename, setResponseAudioFilename] = useState(null)
-  const PIPER_AGENTS = ['Night Story']
-  
+  const PIPER_AGENTS = ['Night Story', 'Story Whisper']  // <-- MODIFICATO: solo NS e SW
+
   // Lettore Audio Avanzato
   const audioPlayerRef = useRef(null)
   const [isSpeaking, setIsSpeaking] = useState(false)
@@ -146,7 +146,7 @@ export default function Console() {
       const filename =
         extractFilename(data.audio_filename) ||
         extractFilename(data.audio_path)
-        
+
       setResponseAudioFilename(filename)
     } catch (err) {
       clearTimeout(timeoutId)
@@ -232,7 +232,7 @@ export default function Console() {
       setAudioUrl(null)
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      
+
       const options = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
         ? { mimeType: 'audio/webm;codecs=opus' }
         : {}
@@ -442,6 +442,7 @@ export default function Console() {
               </select>
             </div>
 
+            {/* Checkbox SOLO per Night Story e Story Whisper */}
             {PIPER_AGENTS.includes(selectedLele) && (
               <label style={styles.piperCheckboxRow}>
                 <input
@@ -450,7 +451,7 @@ export default function Console() {
                   onChange={(e) => setWantsPiperAudio(e.target.checked)}
                   disabled={isRecording || isLoading}
                 />{' '}
-                {t('Genera anche audio (voce Piper)')}
+                {t('Send Audio (TTS)')}
               </label>
             )}
 
@@ -513,7 +514,7 @@ export default function Console() {
                 </h3>
               </div>
 
-              {/* LETTORE AUDIO COMPLETO CON SCRUBBER E VELOCITA' */}
+              {/* LETTORE AUDIO AVANZATO CON SCRUBBER E VELOCITA' */}
               {responseAudioFilename && (
                 <div style={styles.playerContainer}>
                   <div style={styles.playerTopRow}>
