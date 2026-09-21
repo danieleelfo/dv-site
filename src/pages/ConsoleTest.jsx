@@ -26,7 +26,7 @@ export default function Console() {
 
   const [availableAgents, setAvailableAgents] = useState([
     'Lele I',
-    'Bar_AI demo',
+    'Bar AI demo chat',
     'Story Whisper',
     'Night Story',
   ])
@@ -99,8 +99,10 @@ export default function Console() {
     const usesPiperAudio =
       wantsPiperAudio && PIPER_AGENTS.includes(selectedLele)
 
+    const cleanPrompt = prompt.replace(/^(audio e testo|audio)\s*/i, '')
+
     const promptToSend = usesPiperAudio
-      ? `audio e testo ${prompt}`
+      ? `audio e testo ${cleanPrompt}`
       : prompt
 
     const controller = new AbortController()
