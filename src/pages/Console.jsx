@@ -493,27 +493,16 @@ export default function Console() {
               </label>
             )}
 
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder={t('Enter your prompt here...')}
-              style={styles.textarea}
-              rows={4}
-              disabled={isRecording}
-            />
-
-            {/* NUOVO: bottoncini Copia e Clear per il prompt utente */}
+            {/* Utility prompt: solo icone, in alto a destra della textarea */}
             <div style={styles.promptUtilityRow}>
               <button
                 type="button"
                 onClick={() => copyToClipboard(prompt, 'prompt')}
                 disabled={!prompt.trim()}
-                style={{
-                  ...styles.utilityButton,
-                  ...(copiedPrompt ? styles.utilityButtonCopied : {}),
-                }}
+                title={copiedPrompt ? t('Copiato!') : t('Copia prompt')}
+                style={styles.iconButton}
               >
-                {copiedPrompt ? '✓ Copiato' : '📋 Copia prompt'}
+                {copiedPrompt ? '✓' : '📋'}
               </button>
 
               <button
@@ -523,11 +512,21 @@ export default function Console() {
                   setCopiedPrompt(false)
                 }}
                 disabled={!prompt.trim()}
-                style={styles.utilityButtonDanger}
+                title={t('Cancella')}
+                style={styles.iconButtonDanger}
               >
-                🧹 Clear
+                🗑️
               </button>
             </div>
+
+            <textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder={t('Enter your prompt here...')}
+              style={styles.textarea}
+              rows={4}
+              disabled={isRecording}
+            />
 
             <div style={styles.buttonsRow}>
               <button
@@ -578,16 +577,14 @@ export default function Console() {
                   {t('Response from')} {selectedLele}
                 </h3>
 
-                {/* NUOVO: bottoncino copia risposta */}
+                {/* Bottoncino copia risposta (icona) */}
                 <button
                   type="button"
                   onClick={() => copyToClipboard(response, 'response')}
-                  style={{
-                    ...styles.utilityButton,
-                    ...(copiedResponse ? styles.utilityButtonCopied : {}),
-                  }}
+                  title={copiedResponse ? t('Copiato!') : t('Copia risposta')}
+                  style={styles.iconButton}
                 >
-                  {copiedResponse ? '✓ Copiato' : '📋 Copia'}
+                  {copiedResponse ? '✓' : '📋'}
                 </button>
               </div>
 
@@ -745,13 +742,40 @@ const styles = {
     resize: 'vertical',
     fontFamily: 'inherit',
   },
-  // NUOVO: riga utility sotto la textarea (Copia prompt / Clear)
+  // Riga utility prompt (icone, in alto a destra della textarea)
   promptUtilityRow: {
     display: 'flex',
     justifyContent: 'flex-end',
     alignItems: 'center',
-    gap: '10px',
-    marginTop: '-8px',
+    gap: '8px',
+  },
+  iconButton: {
+    width: '32px',
+    height: '32px',
+    borderRadius: '6px',
+    border: '1px solid rgba(255, 255, 255, 0.3)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    color: '#cbd5e1',
+    fontSize: '14px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
+  },
+  iconButtonDanger: {
+    width: '32px',
+    height: '32px',
+    borderRadius: '6px',
+    border: '1px solid rgba(255, 107, 107, 0.4)',
+    backgroundColor: 'rgba(255, 107, 107, 0.12)',
+    color: '#fca5a5',
+    fontSize: '14px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
   },
   utilityButton: {
     padding: '6px 12px',
