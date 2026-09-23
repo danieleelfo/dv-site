@@ -21,15 +21,17 @@ function getOrCreateChatId() {
   }
 }
 
+// Lista fissa lato client — indipendente da cosa espone il gateway in
+// AGENTS. Bar_AI demo escluso di proposito: non è un agente pubblico.
+const AVAILABLE_AGENTS = [
+  { value: 'Lele I', label: 'Lele I 🏴‍☠️' },
+  { value: 'Story Whisper', label: 'Story Whisper 🌈' },
+  { value: 'Night Story', label: 'Night Story 🌙' },
+]
+
 export default function Console() {
   const { t, i18n } = useTranslation()
 
-  const [availableAgents, setAvailableAgents] = useState([
-    'Lele I',
-    'Bar AI demo chat',
-    'Story Whisper',
-    'Night Story',
-  ])
   const [selectedLele, setSelectedLele] = useState('Lele I')
   const [prompt, setPrompt] = useState('')
   const [response, setResponse] = useState('')
@@ -71,20 +73,6 @@ export default function Console() {
   const mediaRecorderRef = useRef(null)
   const audioChunksRef = useRef([])
   const timerRef = useRef(null)
-
-  // Recupera gli agenti disponibili dal Gateway all'avvio
-  useEffect(() => {
-    fetch(`${LELE_API_URL}/`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.agents && Array.isArray(data.agents)) {
-          setAvailableAgents(data.agents)
-        }
-      })
-      .catch(() => {
-        // Mantiene la lista di fallback già configurata nello stato
-      })
-  }, [])
 
   const extractFilename = (value) => {
     if (!value || typeof value !== 'string') return null
@@ -484,9 +472,9 @@ export default function Console() {
                 style={styles.select}
                 disabled={isRecording || isLoading}
               >
-                {availableAgents.map((lele) => (
-                  <option key={lele} value={lele}>
-                    {lele}
+                {AVAILABLE_AGENTS.map((lele) => (
+                  <option key={lele.value} value={lele.value}>
+                    {lele.label}
                   </option>
                 ))}
               </select>
