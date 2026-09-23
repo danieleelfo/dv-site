@@ -1,4 +1,3 @@
-import os
 import httpx
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,7 +15,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# CONFIGURAZIONE AGENTI
+# CONFIGURAZIONE AGENTI (Lele Admin rimosso: non deve essere raggiungibile
+# dal gateway pubblico, resta accessibile solo via Telegram)
 AGENTS = {
     "Lele I": {
         "port": 8080,
@@ -124,7 +124,7 @@ async def chat_router_audio(
     target_url = f"http://127.0.0.1:{port}{audio_path}"
     audio_bytes = await audio.read()
 
-    async with httpx.AsyncClient(timeout=180.0) as client:
+    async with httpx.AsyncClient(timeout=300.0) as client:
         try:
             files = {
                 "file": (
@@ -161,9 +161,8 @@ async def chat_router_audio(
                 detail=f"Impossibile raggiungere {agent} sulla porta {port}: {str(e)}"
             )
 
-# PROXY TTS CORRETTO CON PULIZIA DEL PATH E SUPPORTO A PERCORSI COMPLETI
-@app.get("/api/chat/tts/{agent}/{filename:path}")
-@app.get("/api/chat/tts/{agent}/{filename:path}/")
+@app.get("/api/chat/tts/{agent}/{filename}")
+@app.get("/api/chat/tts/{agent}/{filename}/")
 async def tts_proxy(agent: str, filename: str):
     config = AGENTS.get(agent)
     if not config:
@@ -171,20 +170,15 @@ async def tts_proxy(agent: str, filename: str):
             status_code=400,
             detail=f"Agente '{agent}' non configurato.",
         )
-    
-    # Prende solo il nome del file (es: c37959070c2843f39693326647fda00e.ogg)
-    clean_filename = os.path.basename(filename)
-    
     port = config["port"]
-    target_url = f"http://127.0.0.1:{port}/tts/{clean_filename}"
-    
+    target_url = f"http://127.0.0.1:{port}/tts/{filename}"
     async with httpx.AsyncClient(timeout=60.0) as client:
         try:
             response = await client.get(target_url)
             if response.status_code >= 400:
                 raise HTTPException(
                     status_code=502,
-                    detail=f"Audio non trovato su {agent} (porta {port}) per il file '{clean_filename}'. Target: {target_url} - Status: {response.status_code}",
+                    detail=f"Audio non trovato per '{agent}' ({filename}).",
                 )
             return Response(
                 content=response.content,
