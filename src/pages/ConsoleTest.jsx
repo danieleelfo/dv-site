@@ -21,20 +21,26 @@ function getOrCreateChatId() {
   }
 }
 
+// Lista fissa lato client — indipendente da cosa espone il gateway in
+// AGENTS. Bar_AI demo escluso di proposito: non è un agente pubblico.
+const AVAILABLE_AGENTS = [
+  { value: 'Lele I', label: 'Lele I 🏴‍☠️' },
+  { value: 'Story Whisper', label: 'Story Whisper 🌈' },
+  { value: 'Night Story', label: 'Night Story 🌙' },
+]
+
 export default function Console() {
   const { t, i18n } = useTranslation()
 
-  const [availableAgents, setAvailableAgents] = useState([
-    'Lele I',
-    'Bar AI demo chat',
-    'Story Whisper',
-    'Night Story',
-  ])
   const [selectedLele, setSelectedLele] = useState('Lele I')
   const [prompt, setPrompt] = useState('')
   const [response, setResponse] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+
+  // feedback copia (prompt e risposta)
+  const [copiedPrompt, setCopiedPrompt] = useState(false)
+  const [copiedResponse, setCopiedResponse] = useState(false)
 
   // Sessione anonima persistente
   const chatIdRef = useRef(getOrCreateChatId())
@@ -42,7 +48,11 @@ export default function Console() {
   // Piper TTS reale (solo Night Story e Story Whisper)
   const [wantsPiperAudio, setWantsPiperAudio] = useState(false)
   const [responseAudioFilename, setResponseAudioFilename] = useState(null)
-  const PIPER_AGENTS = ['Night Story', 'Story Whisper']  // <-- MODIFICATO: solo NS e SW
+  const PIPER_AGENTS = ['Night Story', 'Story Whisper']
+
+  // auto-invio dell'audio registrato appena si ferma la registrazione
+  const AUTO_SEND_RECORDING = true
+  const audioBlobRef = useRef(null)
 
   // Lettore Audio Avanzato
   const audioPlayerRef = useRef(null)
@@ -64,23 +74,41 @@ export default function Console() {
   const audioChunksRef = useRef([])
   const timerRef = useRef(null)
 
-  // Recupera gli agenti disponibili dal Gateway all'avvio
-  useEffect(() => {
-    fetch(`${LELE_API_URL}/`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.agents && Array.isArray(data.agents)) {
-          setAvailableAgents(data.agents)
-        }
-      })
-      .catch(() => {
-        // Mantiene la lista di fallback già configurata nello stato
-      })
-  }, [])
-
   const extractFilename = (value) => {
     if (!value || typeof value !== 'string') return null
     return value.split(/[/\\]/).pop() || null
+  }
+
+  // --------------------------------------------------
+  // COPIA NEGLI APPUNTI
+  // --------------------------------------------------
+  const copyToClipboard = async (text, which) => {
+    if (!text) return
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text)
+      } else {
+        const textarea = document.createElement('textarea')
+        textarea.value = text
+        textarea.style.position = 'fixed'
+        textarea.style.opacity = '0'
+        document.body.appendChild(textarea)
+        textarea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textarea)
+      }
+
+      if (which === 'prompt') {
+        setCopiedPrompt(true)
+        setTimeout(() => setCopiedPrompt(false), 2000)
+      } else {
+        setCopiedResponse(true)
+        setTimeout(() => setCopiedResponse(false), 2000)
+      }
+    } catch (err) {
+      console.error('Clipboard error:', err)
+      setError(t('Impossibile copiare negli appunti.'))
+    }
   }
 
   // --------------------------------------------------
@@ -179,7 +207,6 @@ export default function Console() {
       selectedLele
     )}/${encodeURIComponent(responseAudioFilename)}`
 
-    // Carica la sorgente se non ancora settata o se diversa
     if (player.src !== url) {
       player.src = url
       player.playbackRate = playbackRate
@@ -253,9 +280,15 @@ export default function Console() {
           type: mediaRecorder.mimeType || 'audio/webm',
         })
         const url = URL.createObjectURL(blob)
+        audioBlobRef.current = blob
         setAudioBlob(blob)
         setAudioUrl(url)
         stream.getTracks().forEach((track) => track.stop())
+
+        // auto-invio appena la registrazione si ferma
+        if (AUTO_SEND_RECORDING) {
+          handleSendAudio(blob)
+        }
       }
 
       mediaRecorder.start()
@@ -276,8 +309,10 @@ export default function Console() {
   // --------------------------------------------------
   // INVIO AUDIO → GATEWAY (/api/chat/audio)
   // --------------------------------------------------
-  const handleSendAudio = async () => {
-    if (!audioBlob) return
+  const handleSendAudio = async (blobOverride) => {
+    const blob = blobOverride || audioBlobRef.current
+
+    if (!blob) return
 
     if (!AUDIO_CAPABLE_AGENTS.includes(selectedLele)) {
       setError(
@@ -299,7 +334,7 @@ export default function Console() {
 
     try {
       const formData = new FormData()
-      formData.append('audio', audioBlob, 'recording.webm')
+      formData.append('audio', blob, 'recording.webm')
       formData.append('agent', selectedLele)
       formData.append('language', i18n.language || 'en')
       formData.append('chat_id', String(chatIdRef.current))
@@ -395,7 +430,6 @@ export default function Console() {
       <img src={bgImage} alt="" style={styles.bgImg} />
       <div style={styles.overlay} />
 
-      {/* Elemento audio invisibile per gestire gli eventi di riproduzione */}
       <audio
         ref={audioPlayerRef}
         onTimeUpdate={() => setAudioCurrentTime(audioPlayerRef.current?.currentTime || 0)}
@@ -434,15 +468,14 @@ export default function Console() {
                 style={styles.select}
                 disabled={isRecording || isLoading}
               >
-                {availableAgents.map((lele) => (
-                  <option key={lele} value={lele}>
-                    {lele}
+                {AVAILABLE_AGENTS.map((lele) => (
+                  <option key={lele.value} value={lele.value}>
+                    {lele.label}
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* Checkbox SOLO per Night Story e Story Whisper */}
             {PIPER_AGENTS.includes(selectedLele) && (
               <label style={styles.piperCheckboxRow}>
                 <input
@@ -463,6 +496,32 @@ export default function Console() {
               rows={4}
               disabled={isRecording}
             />
+
+            <div style={styles.promptUtilityRow}>
+              <button
+                type="button"
+                onClick={() => copyToClipboard(prompt, 'prompt')}
+                disabled={!prompt.trim()}
+                style={{
+                  ...styles.utilityButton,
+                  ...(copiedPrompt ? styles.utilityButtonCopied : {}),
+                }}
+              >
+                {copiedPrompt ? '✓ Copiato' : '📋 Copia prompt'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setPrompt('')
+                  setCopiedPrompt(false)
+                }}
+                disabled={!prompt.trim()}
+                style={styles.utilityButtonDanger}
+              >
+                🧹 Clear
+              </button>
+            </div>
 
             <div style={styles.buttonsRow}>
               <button
@@ -497,7 +556,7 @@ export default function Console() {
                   type="button"
                   disabled={isLoading || isSendingAudio || !audioBlob}
                   style={styles.audioSendButton}
-                  onClick={handleSendAudio}
+                  onClick={() => handleSendAudio()}
                 >
                   🎤 {isSendingAudio ? t('Sending...') : t('Send Audio')}
                 </button>
@@ -512,9 +571,19 @@ export default function Console() {
                 <h3 style={styles.responseTitle}>
                   {t('Response from')} {selectedLele}
                 </h3>
+
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard(response, 'response')}
+                  style={{
+                    ...styles.utilityButton,
+                    ...(copiedResponse ? styles.utilityButtonCopied : {}),
+                  }}
+                >
+                  {copiedResponse ? '✓ Copiato' : '📋 Copia'}
+                </button>
               </div>
 
-              {/* LETTORE AUDIO AVANZATO CON SCRUBBER E VELOCITA' */}
               {responseAudioFilename && (
                 <div style={styles.playerContainer}>
                   <div style={styles.playerTopRow}>
@@ -668,6 +737,42 @@ const styles = {
     resize: 'vertical',
     fontFamily: 'inherit',
   },
+  promptUtilityRow: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: '10px',
+    marginTop: '-8px',
+  },
+  utilityButton: {
+    padding: '6px 12px',
+    borderRadius: '6px',
+    border: '1px solid rgba(255, 255, 255, 0.3)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    color: '#cbd5e1',
+    fontSize: '12px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    transition: 'all 0.2s ease',
+  },
+  utilityButtonCopied: {
+    backgroundColor: 'rgba(52, 211, 153, 0.2)',
+    borderColor: '#34d399',
+    color: '#6ee7b7',
+  },
+  utilityButtonDanger: {
+    padding: '6px 12px',
+    borderRadius: '6px',
+    border: '1px solid rgba(255, 107, 107, 0.4)',
+    backgroundColor: 'rgba(255, 107, 107, 0.12)',
+    color: '#fca5a5',
+    fontSize: '12px',
+    fontWeight: '600',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+    transition: 'all 0.2s ease',
+  },
   buttonsRow: {
     display: 'flex',
     justifyContent: 'flex-end',
@@ -754,7 +859,6 @@ const styles = {
     fontSize: '18px',
     margin: 0,
   },
-  // STILI LETTORE AUDIO AVANZATO
   playerContainer: {
     marginBottom: '16px',
     padding: '12px 16px',
