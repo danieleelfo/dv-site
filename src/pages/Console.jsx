@@ -25,10 +25,10 @@ export default function Console() {
   const { t, i18n } = useTranslation()
 
   const [availableAgents, setAvailableAgents] = useState([
-    'Lele I 🏴‍☠️',
+    'Lele I',
     'Bar AI demo chat',
-    'Story Whisper 🌈',
-    'Night Story 🌙',
+    'Story Whisper',
+    'Night Story',
   ])
   const [selectedLele, setSelectedLele] = useState('Lele I')
   const [prompt, setPrompt] = useState('')
