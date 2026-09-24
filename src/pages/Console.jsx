@@ -187,7 +187,7 @@ export default function Console() {
       }
       setResponse(
         t(
-          'Errore di connessione con Lele Gateway. Il Mac deve essere acceso, avvisa Daniele!'
+          'Errore di connessione con Lele Gateway. L'agente deve essere attivo, avvisa Daniele!'
         )
       )
     } finally {
@@ -320,7 +320,7 @@ export default function Console() {
     if (!AUDIO_CAPABLE_AGENTS.includes(selectedLele)) {
       setError(
         t(
-          `'${selectedLele}' non supporta l'input audio. Usa Story Whisper.`
+          `'${selectedLele}' non supporta l'input audio ancora, prova con Story Whisper.`
         )
       )
       return
@@ -385,7 +385,7 @@ export default function Console() {
       }
       setResponse(
         t(
-          'Errore di connessione con Lele Gateway. Il Mac deve essere acceso, avvisa Daniele!'
+          'Errore di connessione con Lele Gateway. L'agente deve essere attivo e Lelé con il vento in poppa, avvisa Daniele!'
         )
       )
     } finally {
@@ -454,7 +454,7 @@ export default function Console() {
 
         {error && (
           <div style={styles.errorBox}>
-            <p>⚠️ {t('Attenzione: Il Mac deve essere acceso, avvisa Daniele!')}</p>
+            <p>⚠️ {t('Attenzione: L'agente deve essere attivo, avvisa Daniele!')}</p>
             <p>{error}</p>
           </div>
         )}
