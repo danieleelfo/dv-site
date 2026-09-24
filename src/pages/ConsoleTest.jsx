@@ -1,156 +1,178 @@
 import { useEffect, useRef, useState } from 'react'
-import { useTranslation } from 'react-i18next'
 import bgImage from '../assets/DataInFlames.jpg'
 
-// Base URL del Gateway pubblico Lele (SENZA /api/chat)
+// Base URL del Gateway pubblico Lele (SENZA /api/admin)
 const LELE_API_URL = 'https://api.danielevillanova.com'
 
-const CHAT_ID_STORAGE_KEY = 'lele_chat_id'
+// Client ID Google, da .env (Vite): VITE_GOOGLE_CLIENT_ID=xxxx.apps.googleusercontent.com
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
+
+const TOKEN_STORAGE_KEY = 'leles_admin_id_token'
+const CHAT_ID_STORAGE_KEY = 'leles_admin_chat_id'
 
 function getOrCreateChatId() {
   try {
-    const stored = window.localStorage.getItem(CHAT_ID_STORAGE_KEY)
+    const stored = window.sessionStorage.getItem(CHAT_ID_STORAGE_KEY)
     if (stored) return parseInt(stored, 10)
-
     const newId = Math.floor(Math.random() * 9_000_000_000) + 1_000_000_000
-    window.localStorage.setItem(CHAT_ID_STORAGE_KEY, String(newId))
+    window.sessionStorage.setItem(CHAT_ID_STORAGE_KEY, String(newId))
     return newId
   } catch (e) {
-    console.warn('localStorage non disponibile, chat_id non persistente:', e)
     return Math.floor(Math.random() * 9_000_000_000) + 1_000_000_000
   }
 }
 
-// Lista fissa lato client — indipendente da cosa espone il gateway in
-// AGENTS. Bar_AI demo escluso di proposito: non è un agente pubblico.
-const AVAILABLE_AGENTS = [
-  { value: 'Lele I', label: 'Lele I 🏴‍☠️' },
-  { value: 'Story Whisper', label: 'Story Whisper 🌈' },
-  { value: 'Night Story', label: 'Night Story 🌙' },
-]
+// Decodifica minimale del payload JWT (solo per mostrare nome/email in UI,
+// NON è verifica: la verifica vera è lato server sul gateway).
+function decodeJwtPayload(token) {
+  try {
+    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+    return JSON.parse(decodeURIComponent(escape(window.atob(base64))))
+  } catch (e) {
+    return null
+  }
+}
 
-export default function Console() {
-  const { t, i18n } = useTranslation()
+export default function LeleAdmin() {
+  const [idToken, setIdToken] = useState(() => {
+    try {
+      return window.sessionStorage.getItem(TOKEN_STORAGE_KEY) || null
+    } catch (e) {
+      return null
+    }
+  })
+  const [profile, setProfile] = useState(() =>
+    idToken ? decodeJwtPayload(idToken) : null
+  )
+  const [authError, setAuthError] = useState('')
+  const [gsiReady, setGsiReady] = useState(false)
 
-  const [selectedLele, setSelectedLele] = useState('Lele I')
   const [prompt, setPrompt] = useState('')
   const [response, setResponse] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
 
-  // feedback copia (prompt e risposta)
-  const [copiedPrompt, setCopiedPrompt] = useState(false)
-  const [copiedResponse, setCopiedResponse] = useState(false)
-
-  // Sessione anonima persistente
+  const buttonRef = useRef(null)
   const chatIdRef = useRef(getOrCreateChatId())
 
-  // Piper TTS reale (solo Night Story e Story Whisper)
-  const [wantsPiperAudio, setWantsPiperAudio] = useState(false)
-  const [responseAudioFilename, setResponseAudioFilename] = useState(null)
-  const PIPER_AGENTS = ['Night Story', 'Story Whisper']
+  // --------------------------------------------------
+  // GOOGLE IDENTITY SERVICES — init + render bottone
+  // --------------------------------------------------
+  useEffect(() => {
+    if (idToken) return // già loggato, non serve il bottone
 
-  // auto-invio dell'audio registrato appena si ferma la registrazione
-  const AUTO_SEND_RECORDING = true
-  const audioBlobRef = useRef(null)
+    let cancelled = false
 
-  // Lettore Audio Avanzato
-  const audioPlayerRef = useRef(null)
-  const [isSpeaking, setIsSpeaking] = useState(false)
-  const [audioCurrentTime, setAudioCurrentTime] = useState(0)
-  const [audioDuration, setAudioDuration] = useState(0)
-  const [playbackRate, setPlaybackRate] = useState(1)
+    function tryInit() {
+      if (cancelled) return
+      if (!window.google || !window.google.accounts || !window.google.accounts.id) {
+        setTimeout(tryInit, 150)
+        return
+      }
+      if (!GOOGLE_CLIENT_ID) {
+        setAuthError(
+          'GOOGLE_CLIENT_ID non configurato nel frontend (VITE_GOOGLE_CLIENT_ID mancante).'
+        )
+        return
+      }
 
-  // Audio (input)
-  const [isRecording, setIsRecording] = useState(false)
-  const [recordingTime, setRecordingTime] = useState(0)
-  const [audioUrl, setAudioUrl] = useState(null)
-  const [audioBlob, setAudioBlob] = useState(null)
-  const [isSendingAudio, setIsSendingAudio] = useState(false)
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleCredentialResponse,
+      })
 
-  const AUDIO_CAPABLE_AGENTS = ['Story Whisper']
+      if (buttonRef.current) {
+        window.google.accounts.id.renderButton(buttonRef.current, {
+          type: 'standard',
+          theme: 'filled_black',
+          size: 'large',
+          text: 'signin_with',
+          shape: 'pill',
+        })
+      }
+      setGsiReady(true)
+    }
 
-  const mediaRecorderRef = useRef(null)
-  const audioChunksRef = useRef([])
-  const timerRef = useRef(null)
+    tryInit()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idToken])
 
-  const extractFilename = (value) => {
-    if (!value || typeof value !== 'string') return null
-    return value.split(/[/\\]/).pop() || null
+  function handleCredentialResponse(credentialResponse) {
+    const token = credentialResponse?.credential
+    if (!token) {
+      setAuthError('Login Google fallito: nessun token ricevuto.')
+      return
+    }
+    setAuthError('')
+    setProfile(decodeJwtPayload(token))
+    setIdToken(token)
+    try {
+      window.sessionStorage.setItem(TOKEN_STORAGE_KEY, token)
+    } catch (e) {
+      // sessionStorage non disponibile: la sessione non sopravvive al refresh
+    }
   }
 
-  // --------------------------------------------------
-  // COPIA NEGLI APPUNTI
-  // --------------------------------------------------
-  const copyToClipboard = async (text, which) => {
-    if (!text) return
+  function logout() {
+    setIdToken(null)
+    setProfile(null)
+    setResponse('')
+    setError('')
     try {
-      if (navigator.clipboard && window.isSecureContext) {
-        await navigator.clipboard.writeText(text)
-      } else {
-        const textarea = document.createElement('textarea')
-        textarea.value = text
-        textarea.style.position = 'fixed'
-        textarea.style.opacity = '0'
-        document.body.appendChild(textarea)
-        textarea.select()
-        document.execCommand('copy')
-        document.body.removeChild(textarea)
+      window.sessionStorage.removeItem(TOKEN_STORAGE_KEY)
+      if (window.google?.accounts?.id) {
+        window.google.accounts.id.disableAutoSelect()
       }
-
-      if (which === 'prompt') {
-        setCopiedPrompt(true)
-        setTimeout(() => setCopiedPrompt(false), 2000)
-      } else {
-        setCopiedResponse(true)
-        setTimeout(() => setCopiedResponse(false), 2000)
-      }
-    } catch (err) {
-      console.error('Clipboard error:', err)
-      setError(t('Impossibile copiare negli appunti.'))
+    } catch (e) {
+      // no-op
     }
   }
 
   // --------------------------------------------------
-  // TESTO → GATEWAY (/api/chat)
+  // INVIO PROMPT → /api/admin/chat
   // --------------------------------------------------
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!prompt.trim()) return
+    if (!prompt.trim() || !idToken) return
 
-    stopSpeaking()
     setIsLoading(true)
     setResponse('')
-    setResponseAudioFilename(null)
     setError('')
-
-    const usesPiperAudio =
-      wantsPiperAudio && PIPER_AGENTS.includes(selectedLele)
-
-    const cleanPrompt = prompt.replace(/^(audio e testo|audio)\s*/i, '')
-
-    const promptToSend = usesPiperAudio
-      ? `audio e testo ${cleanPrompt}`
-      : prompt
 
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 120000)
 
     try {
-      const res = await fetch(`${LELE_API_URL}/api/chat`, {
+      const res = await fetch(`${LELE_API_URL}/api/admin/chat`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
         signal: controller.signal,
         body: JSON.stringify({
-          agent: selectedLele,
-          prompt: promptToSend,
-          language: i18n.language || 'en',
+          prompt,
+          language: 'en',
           chat_id: chatIdRef.current,
         }),
       })
 
       clearTimeout(timeoutId)
 
+      if (res.status === 401 || res.status === 403) {
+        // Token scaduto o email non autorizzata: forza nuovo login
+        logout()
+        setError(
+          res.status === 401
+            ? 'Sessione scaduta, effettua di nuovo il login.'
+            : 'Accesso non autorizzato per questo account Google.'
+        )
+        return
+      }
+
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}: ${res.statusText}`)
       }
@@ -168,259 +190,19 @@ export default function Console() {
             : JSON.stringify(data.detail, null, 2)
         )
       } else {
-        setResponse(t('Nessuna risposta ricevuta'))
+        setResponse('Nessuna risposta ricevuta')
       }
-
-      const filename =
-        extractFilename(data.audio_filename) ||
-        extractFilename(data.audio_path)
-
-      setResponseAudioFilename(filename)
     } catch (err) {
       clearTimeout(timeoutId)
-      console.error('Lele Gateway error:', err)
       if (err.name === 'AbortError') {
-        setError(t('Timeout: il server non ha risposto in tempo.'))
+        setError('Timeout: il server non ha risposto in tempo.')
       } else {
         setError(err.message)
       }
-      setResponse(
-        t(
-          'Errore di connessione con Lele Gateway. Il Mac deve essere acceso, avvisa Daniele!'
-        )
-      )
     } finally {
       setIsLoading(false)
     }
   }
-
-  // --------------------------------------------------
-  // CONTROLLI RIPRODUZIONE AUDIO DA BACKEND
-  // --------------------------------------------------
-  const togglePlayAudio = () => {
-    if (!response || !responseAudioFilename) return
-
-    const player = audioPlayerRef.current
-    if (!player) return
-
-    const url = `${LELE_API_URL}/api/chat/tts/${encodeURIComponent(
-      selectedLele
-    )}/${encodeURIComponent(responseAudioFilename)}`
-
-    if (player.src !== url) {
-      player.src = url
-      player.playbackRate = playbackRate
-    }
-
-    if (isSpeaking) {
-      player.pause()
-      setIsSpeaking(false)
-    } else {
-      player.play().then(() => {
-        setIsSpeaking(true)
-      }).catch((err) => {
-        console.error('Audio play error:', err)
-        setIsSpeaking(false)
-        setError(t('Riproduzione audio bloccata dal browser.'))
-      })
-    }
-  }
-
-  const stopSpeaking = () => {
-    if (audioPlayerRef.current) {
-      audioPlayerRef.current.pause()
-      audioPlayerRef.current.currentTime = 0
-    }
-    setIsSpeaking(false)
-    setAudioCurrentTime(0)
-  }
-
-  const handleRateChange = (rate) => {
-    setPlaybackRate(rate)
-    if (audioPlayerRef.current) {
-      audioPlayerRef.current.playbackRate = rate
-    }
-  }
-
-  const handleSeek = (e) => {
-    const newTime = parseFloat(e.target.value)
-    setAudioCurrentTime(newTime)
-    if (audioPlayerRef.current) {
-      audioPlayerRef.current.currentTime = newTime
-    }
-  }
-
-  // --------------------------------------------------
-  // REGISTRAZIONE AUDIO (input)
-  // --------------------------------------------------
-  const startRecording = async () => {
-    try {
-      setError('')
-      setAudioUrl(null)
-
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-
-      const options = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? { mimeType: 'audio/webm;codecs=opus' }
-        : {}
-
-      const mediaRecorder = new MediaRecorder(stream, options)
-
-      mediaRecorderRef.current = mediaRecorder
-      audioChunksRef.current = []
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data)
-        }
-      }
-
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(audioChunksRef.current, {
-          type: mediaRecorder.mimeType || 'audio/webm',
-        })
-        const url = URL.createObjectURL(blob)
-        audioBlobRef.current = blob
-        setAudioBlob(blob)
-        setAudioUrl(url)
-        stream.getTracks().forEach((track) => track.stop())
-
-        // auto-invio appena la registrazione si ferma
-        if (AUTO_SEND_RECORDING) {
-          handleSendAudio(blob)
-        }
-      }
-
-      mediaRecorder.start()
-      setIsRecording(true)
-      setRecordingTime(0)
-
-      timerRef.current = setInterval(() => {
-        setRecordingTime((time) => time + 1)
-      }, 1000)
-    } catch (err) {
-      console.error('Microphone error:', err)
-      setError(
-        t('Impossibile accedere al microfono. Controlla i permessi del browser.')
-      )
-    }
-  }
-
-  // --------------------------------------------------
-  // INVIO AUDIO → GATEWAY (/api/chat/audio)
-  // --------------------------------------------------
-  const handleSendAudio = async (blobOverride) => {
-    const blob = blobOverride || audioBlobRef.current
-
-    if (!blob) return
-
-    if (!AUDIO_CAPABLE_AGENTS.includes(selectedLele)) {
-      setError(
-        t(
-          `'${selectedLele}' non supporta l'input audio. Usa Story Whisper.`
-        )
-      )
-      return
-    }
-
-    stopSpeaking()
-    setIsSendingAudio(true)
-    setError('')
-    setResponse('')
-    setResponseAudioFilename(null)
-
-    const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 120000)
-
-    try {
-      const formData = new FormData()
-      formData.append('audio', blob, 'recording.webm')
-      formData.append('agent', selectedLele)
-      formData.append('language', i18n.language || 'en')
-      formData.append('chat_id', String(chatIdRef.current))
-
-      const res = await fetch(`${LELE_API_URL}/api/chat/audio`, {
-        method: 'POST',
-        signal: controller.signal,
-        body: formData,
-      })
-
-      clearTimeout(timeoutId)
-
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText}`)
-      }
-
-      const data = await res.json()
-
-      if (data.answer) {
-        setResponse(data.answer)
-      } else if (data.error) {
-        setResponse(data.error)
-      } else if (data.detail) {
-        setResponse(
-          typeof data.detail === 'string'
-            ? data.detail
-            : JSON.stringify(data.detail, null, 2)
-        )
-      } else {
-        setResponse(t('Nessuna risposta ricevuta'))
-      }
-
-      const filename =
-        extractFilename(data.audio_filename) ||
-        extractFilename(data.audio_path)
-
-      setResponseAudioFilename(filename)
-    } catch (err) {
-      clearTimeout(timeoutId)
-      console.error('Lele Gateway audio error:', err)
-      if (err.name === 'AbortError') {
-        setError(t('Timeout: il server non ha risposto in tempo.'))
-      } else {
-        setError(err.message)
-      }
-      setResponse(
-        t(
-          'Errore di connessione con Lele Gateway. Il Mac deve essere acceso, avvisa Daniele!'
-        )
-      )
-    } finally {
-      setIsSendingAudio(false)
-    }
-  }
-
-  const stopRecording = () => {
-    if (
-      mediaRecorderRef.current &&
-      mediaRecorderRef.current.state !== 'inactive'
-    ) {
-      mediaRecorderRef.current.stop()
-    }
-    setIsRecording(false)
-
-    if (timerRef.current) {
-      clearInterval(timerRef.current)
-      timerRef.current = null
-    }
-  }
-
-  // --------------------------------------------------
-  // CLEANUP
-  // --------------------------------------------------
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current)
-      if (audioUrl) URL.revokeObjectURL(audioUrl)
-      if (mediaRecorderRef.current) {
-        const tracks = mediaRecorderRef.current.stream?.getTracks?.() || []
-        tracks.forEach((track) => track.stop())
-      }
-      if (audioPlayerRef.current) {
-        audioPlayerRef.current.pause()
-      }
-    }
-  }, [audioUrl])
 
   // --------------------------------------------------
   // UI
@@ -430,224 +212,69 @@ export default function Console() {
       <img src={bgImage} alt="" style={styles.bgImg} />
       <div style={styles.overlay} />
 
-      <audio
-        ref={audioPlayerRef}
-        onTimeUpdate={() => setAudioCurrentTime(audioPlayerRef.current?.currentTime || 0)}
-        onLoadedMetadata={() => setAudioDuration(audioPlayerRef.current?.duration || 0)}
-        onEnded={() => {
-          setIsSpeaking(false)
-          setAudioCurrentTime(0)
-        }}
-        onError={() => {
-          setIsSpeaking(false)
-          setError(t("Impossibile riprodurre l'audio generato dal server."))
-        }}
-      />
-
       <div style={styles.content}>
-        <p className="section-label">{t('Try Lele')}</p>
-        <h2 className="section-title">{t('Interact with Lele AI Models')}</h2>
+        <p className="section-label">Leles</p>
+        <h2 className="section-title">Lele Admin Console</h2>
 
-        {error && (
-          <div style={styles.errorBox}>
-            <p>⚠️ {t('Attenzione: Il Mac deve essere acceso, avvisa Daniele!')}</p>
-            <p>{error}</p>
+        {!idToken ? (
+          <div style={styles.loginBox}>
+            <p style={styles.loginText}>
+              Accesso riservato. Effettua il login con l'account Google
+              autorizzato.
+            </p>
+            {authError && <p style={styles.authErrorText}>⚠️ {authError}</p>}
+            <div ref={buttonRef} style={styles.googleButtonSlot} />
+            {!gsiReady && !authError && (
+              <p style={styles.loadingText}>Caricamento login Google…</p>
+            )}
           </div>
-        )}
-
-        <div style={styles.promptContainer}>
-          <form onSubmit={handleSubmit} style={styles.form}>
-            <div style={styles.selector}>
-              <label htmlFor="lele-select" style={styles.label}>
-                {t('Select Lele AI:')}
-              </label>
-              <select
-                id="lele-select"
-                value={selectedLele}
-                onChange={(e) => setSelectedLele(e.target.value)}
-                style={styles.select}
-                disabled={isRecording || isLoading}
-              >
-                {AVAILABLE_AGENTS.map((lele) => (
-                  <option key={lele.value} value={lele.value}>
-                    {lele.label}
-                  </option>
-                ))}
-              </select>
+        ) : (
+          <div style={styles.promptContainer}>
+            <div style={styles.sessionRow}>
+              <span style={styles.sessionLabel}>
+                Connesso come {profile?.email || 'account Google'}
+              </span>
+              <button type="button" onClick={logout} style={styles.logoutButton}>
+                Logout
+              </button>
             </div>
 
-            {PIPER_AGENTS.includes(selectedLele) && (
-              <label style={styles.piperCheckboxRow}>
-                <input
-                  type="checkbox"
-                  checked={wantsPiperAudio}
-                  onChange={(e) => setWantsPiperAudio(e.target.checked)}
-                  disabled={isRecording || isLoading}
-                />{' '}
-                {t('Send Audio (TTS)')}
-              </label>
+            {error && (
+              <div style={styles.errorBox}>
+                <p>{error}</p>
+              </div>
             )}
 
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              placeholder={t('Enter your prompt here...')}
-              style={styles.textarea}
-              rows={4}
-              disabled={isRecording}
-            />
-
-            <div style={styles.promptUtilityRow}>
-              <button
-                type="button"
-                onClick={() => copyToClipboard(prompt, 'prompt')}
-                disabled={!prompt.trim()}
-                style={{
-                  ...styles.utilityButton,
-                  ...(copiedPrompt ? styles.utilityButtonCopied : {}),
-                }}
-              >
-                {copiedPrompt ? '✓ Copiato' : '📋 Copia prompt'}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setPrompt('')
-                  setCopiedPrompt(false)
-                }}
-                disabled={!prompt.trim()}
-                style={styles.utilityButtonDanger}
-              >
-                🧹 Clear
-              </button>
-            </div>
-
-            <div style={styles.buttonsRow}>
-              <button
-                type="submit"
-                disabled={isLoading || isRecording || !prompt.trim()}
-                style={styles.button}
-              >
-                {isLoading ? t('Thinking...') : t('Send to Lele')}
-              </button>
-
-              <button
-                type="button"
-                onClick={isRecording ? stopRecording : startRecording}
-                disabled={isLoading}
-                style={{
-                  ...styles.recordButton,
-                  ...(isRecording ? styles.recordingButton : {}),
-                }}
-              >
-                {isRecording
-                  ? `⏹ ${formatTime(recordingTime)}`
-                  : '🎤 Record'}
-              </button>
-            </div>
-          </form>
-
-          {audioUrl && (
-            <div style={styles.audioPreview}>
-              <div style={styles.audioHeader}>
-                <p style={styles.audioLabel}>🎤 {t('Recorded audio')}</p>
+            <form onSubmit={handleSubmit} style={styles.form}>
+              <textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder="Comando o domanda per Lele Admin..."
+                style={styles.textarea}
+                rows={4}
+              />
+              <div style={styles.buttonsRow}>
                 <button
-                  type="button"
-                  disabled={isLoading || isSendingAudio || !audioBlob}
-                  style={styles.audioSendButton}
-                  onClick={() => handleSendAudio()}
+                  type="submit"
+                  disabled={isLoading || !prompt.trim()}
+                  style={styles.button}
                 >
-                  🎤 {isSendingAudio ? t('Sending...') : t('Send Audio')}
+                  {isLoading ? 'Thinking...' : 'Invia'}
                 </button>
               </div>
-              <audio controls src={audioUrl} style={styles.audio} />
-            </div>
-          )}
+            </form>
 
-          {response && (
-            <div style={styles.response}>
-              <div style={styles.responseHeader}>
-                <h3 style={styles.responseTitle}>
-                  {t('Response from')} {selectedLele}
-                </h3>
-
-                <button
-                  type="button"
-                  onClick={() => copyToClipboard(response, 'response')}
-                  style={{
-                    ...styles.utilityButton,
-                    ...(copiedResponse ? styles.utilityButtonCopied : {}),
-                  }}
-                >
-                  {copiedResponse ? '✓ Copiato' : '📋 Copia'}
-                </button>
+            {response && (
+              <div style={styles.response}>
+                <h3 style={styles.responseTitle}>Risposta</h3>
+                <pre style={styles.responseText}>{response}</pre>
               </div>
-
-              {responseAudioFilename && (
-                <div style={styles.playerContainer}>
-                  <div style={styles.playerTopRow}>
-                    <button
-                      type="button"
-                      onClick={togglePlayAudio}
-                      style={{
-                        ...styles.playButton,
-                        ...(isSpeaking ? styles.playButtonActive : {}),
-                      }}
-                    >
-                      {isSpeaking ? '⏸ Pausa' : '▶ Ascolta Audio'}
-                    </button>
-
-                    <span style={styles.timeLabel}>
-                      {formatTime(audioCurrentTime)} / {formatTime(audioDuration)}
-                    </span>
-
-                    <input
-                      type="range"
-                      min="0"
-                      max={audioDuration || 0}
-                      step="0.1"
-                      value={audioCurrentTime}
-                      onChange={handleSeek}
-                      style={styles.seekBar}
-                    />
-                  </div>
-
-                  <div style={styles.speedRow}>
-                    <span style={styles.speedLabel}>Velocità:</span>
-                    {[1, 1.25, 1.5, 1.75, 2].map((rate) => (
-                      <button
-                        key={rate}
-                        type="button"
-                        onClick={() => handleRateChange(rate)}
-                        style={{
-                          ...styles.speedButton,
-                          ...(playbackRate === rate ? styles.speedButtonActive : {}),
-                        }}
-                      >
-                        {rate}x
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <pre style={styles.responseText}>{response}</pre>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
     </section>
   )
-}
-
-function formatTime(seconds) {
-  if (!seconds || isNaN(seconds)) return "00:00"
-  const minutes = Math.floor(seconds / 60)
-  const remainingSeconds = Math.floor(seconds % 60)
-  return `${String(minutes).padStart(2, '0')}:${String(
-    remainingSeconds
-  ).padStart(2, '0')}`
 }
 
 const styles = {
@@ -665,27 +292,50 @@ const styles = {
     width: '100%',
     height: '100%',
     objectFit: 'cover',
-    opacity: 0.6,
+    opacity: 0.5,
   },
   overlay: {
     position: 'absolute',
     inset: 0,
     background:
-      'linear-gradient(180deg, rgba(11,16,21,0.25) 0%, rgba(11,16,21,0.85) 100%)',
+      'linear-gradient(180deg, rgba(11,16,21,0.35) 0%, rgba(11,16,21,0.9) 100%)',
   },
   content: {
     position: 'relative',
     width: '100%',
-    maxWidth: '800px',
+    maxWidth: '700px',
     margin: '0 auto',
   },
-  errorBox: {
-    backgroundColor: 'rgba(255, 100, 100, 0.2)',
-    border: '1px solid #ff6b6b',
-    borderRadius: '8px',
-    padding: '12px',
-    marginBottom: '16px',
+  loginBox: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: '12px',
+    padding: '32px 24px',
+    backdropFilter: 'blur(10px)',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    marginTop: '20px',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: '16px',
+    textAlign: 'center',
+  },
+  loginText: {
+    color: '#cbd5e1',
+    fontSize: '15px',
+    margin: 0,
+  },
+  authErrorText: {
     color: '#ff6b6b',
+    fontSize: '14px',
+    margin: 0,
+  },
+  loadingText: {
+    color: '#8fa1ac',
+    fontSize: '13px',
+    margin: 0,
+  },
+  googleButtonSlot: {
+    minHeight: '44px',
   },
   promptContainer: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
@@ -695,37 +345,37 @@ const styles = {
     border: '1px solid rgba(255, 255, 255, 0.2)',
     marginTop: '20px',
   },
+  sessionRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '16px',
+  },
+  sessionLabel: {
+    color: '#8fa1ac',
+    fontSize: '13px',
+  },
+  logoutButton: {
+    padding: '6px 12px',
+    borderRadius: '6px',
+    border: '1px solid rgba(255, 255, 255, 0.3)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    color: '#cbd5e1',
+    fontSize: '12px',
+    cursor: 'pointer',
+  },
+  errorBox: {
+    backgroundColor: 'rgba(255, 100, 100, 0.2)',
+    border: '1px solid #ff6b6b',
+    borderRadius: '8px',
+    padding: '12px',
+    marginBottom: '16px',
+    color: '#ff6b6b',
+  },
   form: {
     display: 'flex',
     flexDirection: 'column',
     gap: '16px',
-  },
-  selector: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-  },
-  label: {
-    color: '#e2e8f0',
-    fontWeight: '600',
-  },
-  piperCheckboxRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    color: '#e2e8f0',
-    fontSize: '14px',
-    cursor: 'pointer',
-  },
-  select: {
-    flex: 1,
-    padding: '10px 14px',
-    borderRadius: '8px',
-    border: '1px solid rgba(255, 255, 255, 0.3)',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    color: '#e2e8f0',
-    fontSize: '16px',
-    cursor: 'pointer',
   },
   textarea: {
     padding: '14px',
@@ -737,48 +387,9 @@ const styles = {
     resize: 'vertical',
     fontFamily: 'inherit',
   },
-  promptUtilityRow: {
-    display: 'flex',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    gap: '10px',
-    marginTop: '-8px',
-  },
-  utilityButton: {
-    padding: '6px 12px',
-    borderRadius: '6px',
-    border: '1px solid rgba(255, 255, 255, 0.3)',
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    color: '#cbd5e1',
-    fontSize: '12px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
-    transition: 'all 0.2s ease',
-  },
-  utilityButtonCopied: {
-    backgroundColor: 'rgba(52, 211, 153, 0.2)',
-    borderColor: '#34d399',
-    color: '#6ee7b7',
-  },
-  utilityButtonDanger: {
-    padding: '6px 12px',
-    borderRadius: '6px',
-    border: '1px solid rgba(255, 107, 107, 0.4)',
-    backgroundColor: 'rgba(255, 107, 107, 0.12)',
-    color: '#fca5a5',
-    fontSize: '12px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
-    transition: 'all 0.2s ease',
-  },
   buttonsRow: {
     display: 'flex',
     justifyContent: 'flex-end',
-    alignItems: 'center',
-    gap: '12px',
-    flexWrap: 'wrap',
   },
   button: {
     padding: '14px 24px',
@@ -789,56 +400,6 @@ const styles = {
     fontSize: '16px',
     fontWeight: '600',
     cursor: 'pointer',
-    transition: 'all 0.3s ease',
-  },
-  recordButton: {
-    padding: '14px 24px',
-    borderRadius: '8px',
-    border: 'none',
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    color: 'white',
-    fontSize: '16px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    transition: 'all 0.3s ease',
-  },
-  recordingButton: {
-    backgroundColor: 'rgba(255, 80, 80, 0.25)',
-    border: '1px solid #ff6b6b',
-    color: '#ffb3b3',
-  },
-  audioPreview: {
-    marginTop: '20px',
-    padding: '16px',
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: '8px',
-    border: '1px solid rgba(255, 255, 255, 0.15)',
-  },
-  audioHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: '12px',
-    marginBottom: '10px',
-  },
-  audioLabel: {
-    color: '#e2e8f0',
-    fontWeight: '600',
-    margin: 0,
-  },
-  audioSendButton: {
-    padding: '8px 14px',
-    borderRadius: '6px',
-    border: 'none',
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-    color: 'white',
-    fontSize: '13px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
-  },
-  audio: {
-    width: '100%',
   },
   response: {
     marginTop: '24px',
@@ -847,80 +408,10 @@ const styles = {
     borderRadius: '8px',
     border: '1px solid rgba(255, 255, 255, 0.2)',
   },
-  responseHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: '12px',
-    marginBottom: '12px',
-  },
   responseTitle: {
     color: '#e2e8f0',
     fontSize: '18px',
-    margin: 0,
-  },
-  playerContainer: {
-    marginBottom: '16px',
-    padding: '12px 16px',
-    backgroundColor: 'rgba(0, 0, 0, 0.25)',
-    borderRadius: '8px',
-    border: '1px solid rgba(255, 255, 255, 0.15)',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '10px',
-  },
-  playerTopRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-  },
-  playButton: {
-    padding: '8px 14px',
-    borderRadius: '6px',
-    border: '1px solid rgba(255, 255, 255, 0.3)',
-    backgroundColor: '#3b82f6',
-    color: '#ffffff',
-    fontSize: '13px',
-    fontWeight: '600',
-    cursor: 'pointer',
-    whiteSpace: 'nowrap',
-  },
-  playButtonActive: {
-    backgroundColor: '#ef4444',
-  },
-  timeLabel: {
-    color: '#cbd5e1',
-    fontSize: '12px',
-    fontFamily: 'monospace',
-    whiteSpace: 'nowrap',
-  },
-  seekBar: {
-    flex: 1,
-    cursor: 'pointer',
-    accentColor: '#6366f1',
-  },
-  speedRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-  },
-  speedLabel: {
-    color: '#94a3b8',
-    fontSize: '12px',
-  },
-  speedButton: {
-    padding: '2px 8px',
-    borderRadius: '4px',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    color: '#94a3b8',
-    fontSize: '11px',
-    cursor: 'pointer',
-  },
-  speedButtonActive: {
-    backgroundColor: '#6366f1',
-    color: '#ffffff',
-    borderColor: '#818cf8',
+    margin: '0 0 12px 0',
   },
   responseText: {
     color: '#e2e8f0',
