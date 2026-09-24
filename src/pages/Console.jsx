@@ -187,7 +187,7 @@ export default function Console() {
       }
       setResponse(
         t(
-          'Errore di connessione con Lele Gateway. L'agente deve essere attivo, avvisa Daniele!'
+          'Errore di connessione con Lele Gateway. AI agent deve essere attivo, avvisa Daniele!'
         )
       )
     } finally {
@@ -385,7 +385,7 @@ export default function Console() {
       }
       setResponse(
         t(
-          'Errore di connessione con Lele Gateway. L'agente deve essere attivo e Lelé con il vento in poppa, avvisa Daniele!'
+          'Errore di connessione con Lele Gateway. AI agent deve essere attivo e Lelé con il vento in poppa, avvisa Daniele!'
         )
       )
     } finally {
@@ -454,7 +454,7 @@ export default function Console() {
 
         {error && (
           <div style={styles.errorBox}>
-            <p>⚠️ {t('Attenzione: L'agente deve essere attivo, avvisa Daniele!')}</p>
+            <p>⚠️ {t('Attenzione: AI agent deve essere attivo, avvisa Daniele!')}</p>
             <p>{error}</p>
           </div>
         )}
