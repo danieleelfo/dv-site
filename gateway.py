@@ -1,10 +1,97 @@
+import os
+
 import httpx
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, Header, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
 from pydantic import BaseModel
 
 app = FastAPI(title="Lele AI Gateway")
+
+# --------------------------------------------------------------------------
+# GOOGLE AUTH (solo per /api/admin/*) — richiesto da env, niente default
+# in chiaro nel codice.
+# --------------------------------------------------------------------------
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+ADMIN_ALLOWED_EMAIL = os.environ.get("ADMIN_ALLOWED_EMAIL", "").strip().lower()
+_google_request = google_requests.Request()
+
+
+def verify_admin_token(authorization: str | None) -> str:
+    """Verifica l'ID token Google passato come 'Authorization: Bearer <token>'.
+    Ritorna l'email verificata, oppure solleva HTTPException 401/403."""
+    if not GOOGLE_CLIENT_ID or not ADMIN_ALLOWED_EMAIL:
+        raise HTTPException(
+            status_code=500,
+            detail="Admin auth non configurata sul server (GOOGLE_CLIENT_ID / ADMIN_ALLOWED_EMAIL mancanti).",
+        )
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Token mancante.")
+
+    token = authorization.split(" ", 1)[1]
+    try:
+        idinfo = id_token.verify_oauth2_token(
+            token, _google_request, GOOGLE_CLIENT_ID
+        )
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Token non valido o scaduto.")
+
+    if not idinfo.get("email_verified"):
+        raise HTTPException(status_code=401, detail="Email Google non verificata.")
+
+    email = (idinfo.get("email") or "").strip().lower()
+    if email != ADMIN_ALLOWED_EMAIL:
+        raise HTTPException(status_code=403, detail="Accesso non autorizzato.")
+
+    return email
+
+
+# Config dell'agente Admin: NON entra nel dict AGENTS pubblico apposta,
+# così resta irraggiungibile da /api/chat qualunque cosa passi il client.
+ADMIN_AGENT = {
+    "port": 8082,
+    "path": "/ask",
+    "payload": "message",
+}
+
+
+async def forward_to_agent(config: dict, prompt: str, chat_id: int, language: str, agent_label: str):
+    """Logica di forward condivisa tra /api/chat e /api/admin/chat."""
+    port = config["port"]
+    path = config["path"]
+    payload_field = config["payload"]
+    target_url = f"http://127.0.0.1:{port}{path}"
+
+    payload = {
+        payload_field: prompt,
+        "language": language,
+        "chat_id": chat_id,
+    }
+
+    async with httpx.AsyncClient(timeout=300.0) as client:
+        try:
+            response = await client.post(target_url, json=payload)
+            if response.status_code >= 400:
+                raise HTTPException(
+                    status_code=502,
+                    detail={
+                        "agent": agent_label,
+                        "target": target_url,
+                        "status": response.status_code,
+                        "response": response.text,
+                    },
+                )
+            return response.json()
+        except HTTPException:
+            raise
+        except httpx.RequestError as e:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Impossibile raggiungere {agent_label} sulla porta {port}: {str(e)}",
+            )
+
 
 # CORS
 app.add_middleware(
@@ -16,7 +103,7 @@ app.add_middleware(
 )
 
 # CONFIGURAZIONE AGENTI (Lele Admin rimosso: non deve essere raggiungibile
-# dal gateway pubblico, resta accessibile solo via Telegram)
+# dal gateway pubblico, resta accessibile solo via Telegram / /api/admin/chat)
 AGENTS = {
     "Lele I": {
         "port": 8080,
@@ -75,7 +162,7 @@ async def chat_router(req: ChatRequest):
         "chat_id": req.chat_id,
     }
 
-    async with httpx.AsyncClient(timeout=180.0) as client:
+    async with httpx.AsyncClient(timeout=300.0) as client:
         try:
             response = await client.post(
                 target_url,
@@ -191,6 +278,25 @@ async def tts_proxy(agent: str, filename: str):
                 status_code=502,
                 detail=f"Impossibile raggiungere {agent} sulla porta {port}: {str(e)}"
             )
+
+
+class AdminChatRequest(BaseModel):
+    prompt: str
+    chat_id: int = 1010101010
+    language: str = "en"
+
+
+@app.post("/api/admin/chat")
+@app.post("/api/admin/chat/")
+async def admin_chat_router(
+    req: AdminChatRequest,
+    authorization: str | None = Header(None),
+):
+    verify_admin_token(authorization)
+    return await forward_to_agent(
+        ADMIN_AGENT, req.prompt, req.chat_id, req.language, "Lele Admin"
+    )
+
 
 if __name__ == "__main__":
     import uvicorn

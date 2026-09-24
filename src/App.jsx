@@ -13,6 +13,7 @@ import HomeTest4 from './pages/HomeTest4.jsx'
 
 import ConsoleTest from './pages/ConsoleTest.jsx'
 import ProjectTest from './pages/ProjectTest.jsx'
+import LeleAdmin from './pages/LeleAdmin.jsx'
 
 const SUPPORTED_LANGS = ['en', 'it', 'es', 'fr', 'ca', 'nl']
 
@@ -90,6 +91,17 @@ export default function App() {
         {/* TEST 6 -> ProjectTest */}
         <Route path="/test6" element={<><Nav /><ProjectTest /></>} />
         <Route path="/:lang/test6" element={<><Nav /><LangWrapper><ProjectTest /></LangWrapper></>} />
+
+        {/* LELE ADMIN — accesso diretto, nessun prefisso lingua, protetto da Google auth */}
+        <Route
+          path="/leles"
+          element={
+            <>
+              <Nav />
+              <LeleAdmin />
+            </>
+          }
+        />
 
         <Route
           path="/:lang/projects"

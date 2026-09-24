@@ -143,7 +143,8 @@ export default function LeleAdmin() {
     setError('')
 
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 120000)
+    // Allineato al timeout di 300s del gateway (+10s di margine di rete)
+    const timeoutId = setTimeout(() => controller.abort(), 310000)
 
     try {
       const res = await fetch(`${LELE_API_URL}/api/admin/chat`, {
