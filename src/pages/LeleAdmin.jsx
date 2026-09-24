@@ -34,6 +34,8 @@ function decodeJwtPayload(token) {
 }
 
 export default function LeleAdmin() {
+  console.log('🔥 LELE ADMIN MONTATO')
+
   const [idToken, setIdToken] = useState(() => {
     try {
       return window.sessionStorage.getItem(TOKEN_STORAGE_KEY) || null
