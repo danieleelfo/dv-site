@@ -24,6 +24,19 @@ ADMIN_ALLOWED_EMAILS = [
 ]
 _google_request = google_requests.Request()
 
+# Mappa email -> chat_id Telegram personale, per far parlare Leles col
+# contesto giusto quando entra dal sito invece che da Telegram:
+#   ADMIN_USER_CHAT_IDS="dannybydanny@hotmail.com:8733881519"
+# Se l'email verificata e' nella mappa, il suo chat_id SOSTITUISCE quello
+# random generato dal browser. Se non c'e', resta quello del browser.
+ADMIN_USER_CHAT_IDS = {}
+for pair in os.environ.get("ADMIN_USER_CHAT_IDS", "").split(","):
+    if ":" in pair:
+        _mail, _cid = pair.split(":", 1)
+        _mail, _cid = _mail.strip().lower(), _cid.strip()
+        if _mail and _cid.isdigit():
+            ADMIN_USER_CHAT_IDS[_mail] = int(_cid)
+
 
 def verify_admin_token(authorization: str | None) -> str:
     """Verifica l'ID token Google passato come 'Authorization: Bearer <token>'.
@@ -48,7 +61,8 @@ def verify_admin_token(authorization: str | None) -> str:
         raise HTTPException(status_code=401, detail="Email Google non verificata.")
 
     email = (idinfo.get("email") or "").strip().lower()
-    if email not in ADMIN_ALLOWED_EMAILS:
+    if emai
+l not in ADMIN_ALLOWED_EMAILS:
         raise HTTPException(status_code=403, detail="Accesso non autorizzato.")
 
     return email
@@ -111,7 +125,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# CONFIGURAZIONE AGENTI (Lele Admin rimosso: non deve essere raggiungibile
+# CONFIGURAZIONE AGENTI (Lele Admin rimosso: non deve essere rag
+giungibile
 # dal gateway pubblico, resta accessibile solo via Telegram / /api/admin/chat)
 AGENTS = {
     "Lele I": {
@@ -190,7 +205,8 @@ async def chat_router(req: ChatRequest):
             return response.json()
         except HTTPException:
             raise
-        except httpx.RequestError as e:
+        exce
+pt httpx.RequestError as e:
             raise HTTPException(
                 status_code=502,
                 detail=f"Impossibile raggiungere {req.agent} sulla porta {port}: {str(e)}"
@@ -253,7 +269,8 @@ async def chat_router_audio(
             raise
         except httpx.RequestError as e:
             raise HTTPException(
-                status_code=502,
+         
+       status_code=502,
                 detail=f"Impossibile raggiungere {agent} sulla porta {port}: {str(e)}"
             )
 
@@ -302,8 +319,9 @@ async def admin_chat_router(
     authorization: str | None = Header(None),
 ):
     email = verify_admin_token(authorization)
+    chat_id = ADMIN_USER_CHAT_IDS.get(email, req.chat_id)
     return await forward_to_agent(
-        ADMIN_AGENT, req.prompt, req.chat_id, req.language, "Lele Admin", user_email=email
+        ADMIN_AGENT, req.prompt, chat_id, req.language, "Lele Admin", user_email=email
     )
 
 
