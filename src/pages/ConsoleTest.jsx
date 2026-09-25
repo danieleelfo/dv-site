@@ -1,20 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import bgImage from '../assets/DataInFlames.jpg'
 
-// ============================================================
-// CONFIG — IDENTICA A LELE ADMIN
-// ============================================================
-
 const LELE_API_URL = 'https://api.danielevillanova.com'
-
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
 
 const TOKEN_STORAGE_KEY = 'leles_admin_id_token'
 const CHAT_ID_STORAGE_KEY = 'leles_admin_chat_id'
-
-// ============================================================
-// CHAT ID
-// ============================================================
 
 function getOrCreateChatId() {
   try {
@@ -38,10 +29,6 @@ function getOrCreateChatId() {
   }
 }
 
-// ============================================================
-// JWT
-// ============================================================
-
 function decodeJwtPayload(token) {
   try {
     const base64 = token
@@ -59,48 +46,19 @@ function decodeJwtPayload(token) {
   }
 }
 
-// ============================================================
-// COMANDI
-//
-// IMPORTANTE:
-// il click NON esegue il comando.
-// Lo mette semplicemente nel textarea.
-// ============================================================
-
 const COMMAND_GROUPS = [
   {
     id: 'system',
     title: 'SYSTEM',
     icon: '⚙️',
     commands: [
-      {
-        label: 'Status sistema',
-        command: 'status sistema',
-      },
-      {
-        label: 'Status RAM',
-        command: 'status ram',
-      },
-      {
-        label: 'Status OS',
-        command: 'status os',
-      },
-      {
-        label: 'Status IP',
-        command: 'status ip',
-      },
-      {
-        label: 'Uvicorn status',
-        command: 'uvicorn status',
-      },
-      {
-        label: 'Telegram status',
-        command: 'telegram status',
-      },
-      {
-        label: 'Logs Leles',
-        command: 'logs leles',
-      },
+      { label: 'Status sistema', command: 'status sistema' },
+      { label: 'Status RAM', command: 'status ram' },
+      { label: 'Status OS', command: 'status os' },
+      { label: 'Status IP', command: 'status ip' },
+      { label: 'Uvicorn status', command: 'uvicorn status' },
+      { label: 'Telegram status', command: 'telegram status' },
+      { label: 'Logs Leles', command: 'logs leles' },
     ],
   },
 
@@ -109,22 +67,10 @@ const COMMAND_GROUPS = [
     title: 'AGENTI',
     icon: '🤖',
     commands: [
-      {
-        label: 'Start Lele',
-        command: 'start lele',
-      },
-      {
-        label: 'Stop Lele',
-        command: 'stop lele',
-      },
-      {
-        label: 'Restart Lele',
-        command: 'restart lele',
-      },
-      {
-        label: 'Logs Lele',
-        command: 'logs lele',
-      },
+      { label: 'Start Lele', command: 'start lele' },
+      { label: 'Stop Lele', command: 'stop lele' },
+      { label: 'Restart Lele', command: 'restart lele' },
+      { label: 'Logs Lele', command: 'logs lele' },
       {
         label: 'Logs Story Whisper',
         command: 'logs story whisper',
@@ -145,33 +91,27 @@ const COMMAND_GROUPS = [
     title: 'AIRFLOW',
     icon: '🌬️',
     commands: [
-      {
-        label: 'Status Airflow',
-        command: 'status airflow',
-      },
-      {
-        label: 'Status DAG',
-        command: 'status dag',
-      },
+      { label: 'Status Airflow', command: 'status airflow' },
+      { label: 'Status DAG', command: 'status dag' },
       {
         label: 'Log task',
         command: 'log task ',
-        hint: 'Aggiungi DAG/task o i parametri richiesti',
+        hint: 'Aggiungi DAG/task',
       },
       {
         label: 'Pausa DAG',
         command: 'pausa dag ',
-        hint: 'Aggiungi il dag_id',
+        hint: 'Aggiungi dag_id',
       },
       {
         label: 'Attiva DAG',
         command: 'attiva dag ',
-        hint: 'Aggiungi il dag_id',
+        hint: 'Aggiungi dag_id',
       },
       {
         label: 'Lancia DAG',
         command: 'exec airflow lancia ',
-        hint: 'Aggiungi dag_id e, se necessario, conf: {...}',
+        hint: 'Aggiungi dag_id e conf se necessario',
       },
     ],
   },
@@ -181,14 +121,11 @@ const COMMAND_GROUPS = [
     title: 'EMERGENCE / QE',
     icon: '🧠',
     commands: [
-      {
-        label: 'QE last 10',
-        command: 'QE last 10',
-      },
+      { label: 'QE last 10', command: 'QE last 10' },
       {
         label: 'QE status',
         command: 'QE status ',
-        hint: 'Aggiungi run_id se necessario',
+        hint: 'Aggiungi run_id',
       },
       {
         label: 'Decisione',
@@ -210,10 +147,7 @@ const COMMAND_GROUPS = [
         command: 'sintetizza ',
         hint: 'Aggiungi run_id',
       },
-      {
-        label: 'Query worlds',
-        command: 'query worlds',
-      },
+      { label: 'Query worlds', command: 'query worlds' },
       {
         label: 'Query world',
         command: 'query world ',
@@ -222,7 +156,7 @@ const COMMAND_GROUPS = [
       {
         label: 'Save world',
         command: 'save world ',
-        hint: 'Esempio: save world nome as "descrizione"',
+        hint: 'nome as "descrizione"',
       },
     ],
   },
@@ -232,24 +166,18 @@ const COMMAND_GROUPS = [
     title: 'FILES',
     icon: '📁',
     commands: [
-      {
-        label: 'Directory',
-        command: 'directory',
-      },
+      { label: 'Directory', command: 'directory' },
       {
         label: 'LS',
         command: 'ls ',
-        hint: 'Aggiungi percorso se necessario',
+        hint: 'Aggiungi percorso',
       },
       {
         label: 'Invia file',
         command: 'invia file ',
-        hint: 'Aggiungi percorso/nome file',
+        hint: 'Aggiungi file',
       },
-      {
-        label: 'Remote test',
-        command: 'remoto test',
-      },
+      { label: 'Remote test', command: 'remoto test' },
       {
         label: 'Remote LS',
         command: 'remoto ls ',
@@ -311,27 +239,15 @@ const COMMAND_GROUPS = [
     title: 'GIT',
     icon: '🔀',
     commands: [
-      {
-        label: 'Git status',
-        command: 'git status',
-      },
-      {
-        label: 'Git diff',
-        command: 'git diff',
-      },
+      { label: 'Git status', command: 'git status' },
+      { label: 'Git diff', command: 'git diff' },
       {
         label: 'Git commit',
         command: 'git commit ',
         hint: 'Aggiungi messaggio',
       },
-      {
-        label: 'Git pull report',
-        command: 'git pull report',
-      },
-      {
-        label: 'Git pull force',
-        command: 'git pull force',
-      },
+      { label: 'Git pull report', command: 'git pull report' },
+      { label: 'Git pull force', command: 'git pull force' },
     ],
   },
 
@@ -340,18 +256,9 @@ const COMMAND_GROUPS = [
     title: 'LELES',
     icon: '🏴‍☠️',
     commands: [
-      {
-        label: 'Restart Lelé',
-        command: 'restart Lelé',
-      },
-      {
-        label: 'Status sistema',
-        command: 'status sistema',
-      },
-      {
-        label: 'Status Airflow',
-        command: 'status airflow',
-      },
+      { label: 'Restart Lelé', command: 'restart Lelé' },
+      { label: 'Status sistema', command: 'status sistema' },
+      { label: 'Status Airflow', command: 'status airflow' },
       {
         label: 'Export DAG',
         command: 'export dag ',
@@ -360,22 +267,14 @@ const COMMAND_GROUPS = [
       {
         label: 'Crea DAG',
         command: 'crea dag ',
-        hint: 'Descrivi il DAG da creare',
+        hint: 'Descrivi il DAG',
       },
     ],
   },
 ]
 
-// ============================================================
-// COMPONENT
-// ============================================================
-
 export default function ConsoleTest() {
   console.log('🔥 CONSOLE TEST MONTATA')
-
-  // ----------------------------------------------------------
-  // AUTH
-  // ----------------------------------------------------------
 
   const [idToken, setIdToken] = useState(() => {
     try {
@@ -395,10 +294,6 @@ export default function ConsoleTest() {
   const [authError, setAuthError] = useState('')
   const [gsiReady, setGsiReady] = useState(false)
 
-  // ----------------------------------------------------------
-  // PROMPT
-  // ----------------------------------------------------------
-
   const [prompt, setPrompt] = useState('')
   const [response, setResponse] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -408,10 +303,6 @@ export default function ConsoleTest() {
 
   const buttonRef = useRef(null)
   const chatIdRef = useRef(getOrCreateChatId())
-
-  // ----------------------------------------------------------
-  // GOOGLE IDENTITY SERVICES
-  // ----------------------------------------------------------
 
   useEffect(() => {
     if (idToken) return
@@ -467,10 +358,6 @@ export default function ConsoleTest() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idToken])
 
-  // ----------------------------------------------------------
-  // GOOGLE LOGIN
-  // ----------------------------------------------------------
-
   function handleCredentialResponse(credentialResponse) {
     const token = credentialResponse?.credential
 
@@ -495,10 +382,6 @@ export default function ConsoleTest() {
     }
   }
 
-  // ----------------------------------------------------------
-  // LOGOUT
-  // ----------------------------------------------------------
-
   function logout() {
     setIdToken(null)
     setProfile(null)
@@ -518,16 +401,11 @@ export default function ConsoleTest() {
     }
   }
 
-  // ----------------------------------------------------------
-  // PREPARA COMANDO
-  // ----------------------------------------------------------
-
   function selectCommand(command) {
     setPrompt(command.command)
     setResponse('')
     setError('')
 
-    // porta il cursore nel textarea dopo il render
     setTimeout(() => {
       const textarea =
         document.getElementById('leles-command-input')
@@ -541,10 +419,6 @@ export default function ConsoleTest() {
       }
     }, 50)
   }
-
-  // ----------------------------------------------------------
-  // INVIO PROMPT
-  // ----------------------------------------------------------
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -641,9 +515,9 @@ export default function ConsoleTest() {
     }
   }
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // LOGIN
-  // ----------------------------------------------------------
+  // ==========================================================
 
   if (!idToken) {
     return (
@@ -660,19 +534,11 @@ export default function ConsoleTest() {
         <div style={styles.overlay} />
 
         <div style={styles.content}>
-          <p className="section-label">
-            Leles
-          </p>
-
-          <h2 className="section-title">
+          <h2 style={styles.pageTitle}>
             Lele Admin Console
           </h2>
 
           <div style={styles.loginBox}>
-            <div style={styles.testBadge}>
-              TEST 5
-            </div>
-
             <p style={styles.loginText}>
               Accesso riservato. Effettua il
               login con l'account Google
@@ -701,9 +567,9 @@ export default function ConsoleTest() {
     )
   }
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // DASHBOARD
-  // ----------------------------------------------------------
+  // ==========================================================
 
   return (
     <section
@@ -720,26 +586,12 @@ export default function ConsoleTest() {
 
       <div style={styles.contentWide}>
 
-        {/* HEADER */}
+        {/* TITOLO — SUBITO SOTTO LA NAV */}
 
-        <div style={styles.header}>
-          <div>
-            <div style={styles.testBadge}>
-              TEST 5
-            </div>
-
-            <p className="section-label">
-              Leles
-            </p>
-
-            <h2 className="section-title">
-              Lele Admin Console
-            </h2>
-
-            <p style={styles.subtitle}>
-              Command center
-            </p>
-          </div>
+        <div style={styles.titleRow}>
+          <h2 style={styles.pageTitle}>
+            Lele Admin Console
+          </h2>
 
           <div style={styles.sessionBox}>
             <span style={styles.sessionLabel}>
@@ -757,100 +609,11 @@ export default function ConsoleTest() {
           </div>
         </div>
 
-        {/* COMMAND CENTER */}
+        {/* ====================================================
+            PROMPT — PRIMA DEI BOTTONI
+            ==================================================== */}
 
         <div style={styles.dashboard}>
-
-          <div style={styles.dashboardTitle}>
-            <span>
-              🏴‍☠️ Comandi Leles
-            </span>
-
-            <span style={styles.dashboardHint}>
-              Seleziona → modifica → esegui
-            </span>
-          </div>
-
-          {/* MACRO BUTTONS */}
-
-          <div style={styles.groupGrid}>
-            {COMMAND_GROUPS.map((group) => {
-              const isOpen =
-                openGroup === group.id
-
-              return (
-                <button
-                  key={group.id}
-                  type="button"
-                  onClick={() =>
-                    setOpenGroup(
-                      isOpen
-                        ? null
-                        : group.id
-                    )
-                  }
-                  style={{
-                    ...styles.groupButton,
-                    ...(isOpen
-                      ? styles.groupButtonActive
-                      : {}),
-                  }}
-                >
-                  <span style={styles.groupIcon}>
-                    {group.icon}
-                  </span>
-
-                  <span>
-                    {group.title}
-                  </span>
-
-                  <span style={styles.chevron}>
-                    {isOpen ? '▲' : '▼'}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-
-          {/* COMMAND PANEL */}
-
-          {openGroup && (
-            <div style={styles.commandPanel}>
-              {COMMAND_GROUPS
-                .find(
-                  (group) =>
-                    group.id === openGroup
-                )
-                ?.commands.map(
-                  (command, index) => (
-                    <button
-                      key={`${openGroup}-${index}`}
-                      type="button"
-                      onClick={() =>
-                        selectCommand(command)
-                      }
-                      style={styles.commandButton}
-                    >
-                      <span>
-                        {command.label}
-                      </span>
-
-                      {command.hint && (
-                        <small
-                          style={
-                            styles.commandHint
-                          }
-                        >
-                          {command.hint}
-                        </small>
-                      )}
-                    </button>
-                  )
-                )}
-            </div>
-          )}
-
-          {/* PROMPT */}
 
           <form
             onSubmit={handleSubmit}
@@ -910,7 +673,94 @@ export default function ConsoleTest() {
             </div>
           </form>
 
-          {/* ERROR */}
+          {/* ==================================================
+              COMANDI
+              ================================================== */}
+
+          <div style={styles.commandTitle}>
+            <span>
+              🏴‍☠️ Comandi Leles
+            </span>
+
+            <span style={styles.dashboardHint}>
+              Seleziona → modifica → esegui
+            </span>
+          </div>
+
+          <div style={styles.groupGrid}>
+            {COMMAND_GROUPS.map((group) => {
+              const isOpen =
+                openGroup === group.id
+
+              return (
+                <button
+                  key={group.id}
+                  type="button"
+                  onClick={() =>
+                    setOpenGroup(
+                      isOpen
+                        ? null
+                        : group.id
+                    )
+                  }
+                  style={{
+                    ...styles.groupButton,
+                    ...(isOpen
+                      ? styles.groupButtonActive
+                      : {}),
+                  }}
+                >
+                  <span style={styles.groupIcon}>
+                    {group.icon}
+                  </span>
+
+                  <span>
+                    {group.title}
+                  </span>
+
+                  <span style={styles.chevron}>
+                    {isOpen ? '▲' : '▼'}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+
+          {openGroup && (
+            <div style={styles.commandPanel}>
+              {COMMAND_GROUPS
+                .find(
+                  (group) =>
+                    group.id === openGroup
+                )
+                ?.commands.map(
+                  (command, index) => (
+                    <button
+                      key={`${openGroup}-${index}`}
+                      type="button"
+                      onClick={() =>
+                        selectCommand(command)
+                      }
+                      style={styles.commandButton}
+                    >
+                      <span>
+                        {command.label}
+                      </span>
+
+                      {command.hint && (
+                        <small
+                          style={
+                            styles.commandHint
+                          }
+                        >
+                          {command.hint}
+                        </small>
+                      )}
+                    </button>
+                  )
+                )}
+            </div>
+          )}
 
           {error && (
             <div style={styles.errorBox}>
@@ -921,8 +771,6 @@ export default function ConsoleTest() {
               <p>{error}</p>
             </div>
           )}
-
-          {/* RESPONSE */}
 
           {response && (
             <div style={styles.response}>
@@ -965,17 +813,12 @@ export default function ConsoleTest() {
   )
 }
 
-// ============================================================
-// STYLES
-// ============================================================
-
 const styles = {
   wrap: {
     position: 'relative',
     minHeight: '70vh',
     display: 'flex',
     flexDirection: 'column',
-    justifyContent: 'center',
     overflow: 'hidden',
   },
 
@@ -1009,65 +852,56 @@ const styles = {
     margin: '0 auto',
   },
 
-  header: {
+  titleRow: {
+    position: 'relative',
     display: 'flex',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: '20px',
-    marginBottom: '20px',
+    gap: '12px',
+    marginBottom: '16px',
+    flexWrap: 'nowrap',
   },
 
-  subtitle: {
-    color: '#8fa1ac',
-    marginTop: '-8px',
-    fontSize: '14px',
-  },
-
-  testBadge: {
-    display: 'inline-block',
-    padding: '4px 9px',
-    marginBottom: '8px',
-    borderRadius: '999px',
-    background:
-      'rgba(118, 75, 162, 0.35)',
-    border:
-      '1px solid rgba(167, 139, 250, 0.45)',
-    color: '#d8b4fe',
-    fontSize: '10px',
-    fontWeight: '700',
-    letterSpacing: '1px',
+  pageTitle: {
+    margin: 0,
+    color: '#e2e8f0',
+    fontSize: 'clamp(18px, 4.5vw, 28px)',
+    lineHeight: 1.1,
+    whiteSpace: 'nowrap',
+    flexShrink: 1,
   },
 
   sessionBox: {
     display: 'flex',
     alignItems: 'center',
-    gap: '12px',
-    padding: '8px 10px',
+    gap: '8px',
+    padding: '6px 8px',
     background:
       'rgba(255,255,255,0.07)',
     border:
       '1px solid rgba(255,255,255,0.14)',
-    borderRadius: '9px',
+    borderRadius: '8px',
+    flexShrink: 0,
   },
 
   sessionLabel: {
     color: '#8fa1ac',
-    fontSize: '12px',
-    maxWidth: '220px',
+    fontSize: '10px',
+    maxWidth: '150px',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
   },
 
   logoutButton: {
-    padding: '6px 11px',
-    borderRadius: '6px',
+    padding: '5px 8px',
+    borderRadius: '5px',
     border:
       '1px solid rgba(255,255,255,0.25)',
     background:
       'rgba(255,255,255,0.08)',
     color: '#cbd5e1',
-    fontSize: '12px',
+    fontSize: '10px',
     cursor: 'pointer',
   },
 
@@ -1113,109 +947,13 @@ const styles = {
     backgroundColor:
       'rgba(255,255,255,0.08)',
     borderRadius: '14px',
-    padding: '20px',
+    padding: '18px',
     backdropFilter: 'blur(12px)',
     border:
       '1px solid rgba(255,255,255,0.16)',
   },
 
-  dashboardTitle: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: '10px',
-    marginBottom: '14px',
-    color: '#e2e8f0',
-    fontSize: '15px',
-    fontWeight: '600',
-  },
-
-  dashboardHint: {
-    color: '#7f8c96',
-    fontSize: '11px',
-    fontWeight: '400',
-  },
-
-  groupGrid: {
-    display: 'grid',
-    gridTemplateColumns:
-      'repeat(auto-fit, minmax(145px, 1fr))',
-    gap: '8px',
-  },
-
-  groupButton: {
-    minHeight: '58px',
-    padding: '9px 10px',
-    borderRadius: '9px',
-    border:
-      '1px solid rgba(255,255,255,0.13)',
-    background:
-      'rgba(255,255,255,0.06)',
-    color: '#dce5eb',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    fontSize: '12px',
-    fontWeight: '600',
-    textAlign: 'left',
-  },
-
-  groupButtonActive: {
-    background:
-      'rgba(118,75,162,0.30)',
-    border:
-      '1px solid rgba(167,139,250,0.45)',
-  },
-
-  groupIcon: {
-    fontSize: '17px',
-  },
-
-  chevron: {
-    marginLeft: 'auto',
-    color: '#82909a',
-    fontSize: '9px',
-  },
-
-  commandPanel: {
-    marginTop: '12px',
-    padding: '12px',
-    borderRadius: '10px',
-    background:
-      'rgba(0,0,0,0.22)',
-    border:
-      '1px solid rgba(255,255,255,0.1)',
-    display: 'grid',
-    gridTemplateColumns:
-      'repeat(auto-fit, minmax(190px, 1fr))',
-    gap: '7px',
-  },
-
-  commandButton: {
-    padding: '11px 12px',
-    borderRadius: '7px',
-    border:
-      '1px solid rgba(255,255,255,0.12)',
-    background:
-      'rgba(255,255,255,0.055)',
-    color: '#dbe4ea',
-    cursor: 'pointer',
-    textAlign: 'left',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '3px',
-    fontSize: '12px',
-  },
-
-  commandHint: {
-    color: '#75838d',
-    fontSize: '10px',
-    fontWeight: '400',
-  },
-
   form: {
-    marginTop: '18px',
     display: 'flex',
     flexDirection: 'column',
     gap: '10px',
@@ -1283,6 +1021,102 @@ const styles = {
   buttonDisabled: {
     opacity: 0.45,
     cursor: 'not-allowed',
+  },
+
+  commandTitle: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '10px',
+    marginTop: '20px',
+    marginBottom: '12px',
+    color: '#e2e8f0',
+    fontSize: '14px',
+    fontWeight: '600',
+  },
+
+  dashboardHint: {
+    color: '#7f8c96',
+    fontSize: '10px',
+    fontWeight: '400',
+  },
+
+  groupGrid: {
+    display: 'grid',
+    gridTemplateColumns:
+      'repeat(auto-fit, minmax(145px, 1fr))',
+    gap: '8px',
+  },
+
+  groupButton: {
+    minHeight: '56px',
+    padding: '9px 10px',
+    borderRadius: '9px',
+    border:
+      '1px solid rgba(255,255,255,0.13)',
+    background:
+      'rgba(255,255,255,0.06)',
+    color: '#dce5eb',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    fontSize: '12px',
+    fontWeight: '600',
+    textAlign: 'left',
+  },
+
+  groupButtonActive: {
+    background:
+      'rgba(118,75,162,0.30)',
+    border:
+      '1px solid rgba(167,139,250,0.45)',
+  },
+
+  groupIcon: {
+    fontSize: '17px',
+  },
+
+  chevron: {
+    marginLeft: 'auto',
+    color: '#82909a',
+    fontSize: '9px',
+  },
+
+  commandPanel: {
+    marginTop: '10px',
+    padding: '10px',
+    borderRadius: '10px',
+    background:
+      'rgba(0,0,0,0.22)',
+    border:
+      '1px solid rgba(255,255,255,0.1)',
+    display: 'grid',
+    gridTemplateColumns:
+      'repeat(auto-fit, minmax(190px, 1fr))',
+    gap: '7px',
+  },
+
+  commandButton: {
+    padding: '11px 12px',
+    borderRadius: '7px',
+    border:
+      '1px solid rgba(255,255,255,0.12)',
+    background:
+      'rgba(255,255,255,0.055)',
+    color: '#dbe4ea',
+    cursor: 'pointer',
+    textAlign: 'left',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '3px',
+    fontSize: '12px',
+  },
+
+  commandHint: {
+    color: '#75838d',
+    fontSize: '10px',
+    fontWeight: '400',
   },
 
   errorBox: {
