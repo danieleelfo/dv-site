@@ -204,8 +204,7 @@ async def chat_router(req: ChatRequest):
             return response.json()
         except HTTPException:
             raise
-        exce
-pt httpx.RequestError as e:
+        except httpx.RequestError as e:
             raise HTTPException(
                 status_code=502,
                 detail=f"Impossibile raggiungere {req.agent} sulla porta {port}: {str(e)}"
