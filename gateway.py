@@ -15,14 +15,20 @@ app = FastAPI(title="Lele AI Gateway")
 # in chiaro nel codice.
 # --------------------------------------------------------------------------
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
-ADMIN_ALLOWED_EMAIL = os.environ.get("ADMIN_ALLOWED_EMAIL", "").strip().lower()
+# Lista di email autorizzate, separate da virgole:
+#   ADMIN_ALLOWED_EMAIL="a@example.com,b@example.com"
+ADMIN_ALLOWED_EMAILS = [
+    e.strip().lower()
+    for e in os.environ.get("ADMIN_ALLOWED_EMAIL", "").split(",")
+    if e.strip()
+]
 _google_request = google_requests.Request()
 
 
 def verify_admin_token(authorization: str | None) -> str:
     """Verifica l'ID token Google passato come 'Authorization: Bearer <token>'.
     Ritorna l'email verificata, oppure solleva HTTPException 401/403."""
-    if not GOOGLE_CLIENT_ID or not ADMIN_ALLOWED_EMAIL:
+    if not GOOGLE_CLIENT_ID or not ADMIN_ALLOWED_EMAILS:
         raise HTTPException(
             status_code=500,
             detail="Admin auth non configurata sul server (GOOGLE_CLIENT_ID / ADMIN_ALLOWED_EMAIL mancanti).",
@@ -42,7 +48,7 @@ def verify_admin_token(authorization: str | None) -> str:
         raise HTTPException(status_code=401, detail="Email Google non verificata.")
 
     email = (idinfo.get("email") or "").strip().lower()
-    if email != ADMIN_ALLOWED_EMAIL:
+    if email not in ADMIN_ALLOWED_EMAILS:
         raise HTTPException(status_code=403, detail="Accesso non autorizzato.")
 
     return email
@@ -57,7 +63,7 @@ ADMIN_AGENT = {
 }
 
 
-async def forward_to_agent(config: dict, prompt: str, chat_id: int, language: str, agent_label: str):
+async def forward_to_agent(config: dict, prompt: str, chat_id: int, language: str, agent_label: str, user_email: str | None = None):
     """Logica di forward condivisa tra /api/chat e /api/admin/chat."""
     port = config["port"]
     path = config["path"]
@@ -69,6 +75,9 @@ async def forward_to_agent(config: dict, prompt: str, chat_id: int, language: st
         "language": language,
         "chat_id": chat_id,
     }
+    if user_email:
+        # L'agente può usarlo per registrare CHI ha parlato (log su Postgres)
+        payload["user_email"] = user_email
 
     async with httpx.AsyncClient(timeout=300.0) as client:
         try:
@@ -292,9 +301,9 @@ async def admin_chat_router(
     req: AdminChatRequest,
     authorization: str | None = Header(None),
 ):
-    verify_admin_token(authorization)
+    email = verify_admin_token(authorization)
     return await forward_to_agent(
-        ADMIN_AGENT, req.prompt, req.chat_id, req.language, "Lele Admin"
+        ADMIN_AGENT, req.prompt, req.chat_id, req.language, "Lele Admin", user_email=email
     )
 
 
