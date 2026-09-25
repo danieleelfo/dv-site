@@ -61,8 +61,7 @@ def verify_admin_token(authorization: str | None) -> str:
         raise HTTPException(status_code=401, detail="Email Google non verificata.")
 
     email = (idinfo.get("email") or "").strip().lower()
-    if emai
-l not in ADMIN_ALLOWED_EMAILS:
+    if email not in ADMIN_ALLOWED_EMAILS:
         raise HTTPException(status_code=403, detail="Accesso non autorizzato.")
 
     return email
