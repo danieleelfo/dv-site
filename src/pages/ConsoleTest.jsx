@@ -7,6 +7,12 @@ const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
 const TOKEN_STORAGE_KEY = 'leles_admin_id_token'
 const CHAT_ID_STORAGE_KEY = 'leles_admin_chat_id'
 
+// --- TEST TEMPORANEO: whitelist email per accesso alla console -----------
+// TODO: rimuovere/estendere quando arriva il login Telegram con ADMIN_IDS
+// (8733881519, 8249666123), gestiti separatamente lato Leles.
+const ALLOWED_EMAILS = ['dannybydanny@hotmail.com']
+// ---------------------------------------------------------------------------
+
 function getOrCreateChatId() {
   try {
     const stored = window.sessionStorage.getItem(CHAT_ID_STORAGE_KEY)
@@ -304,6 +310,22 @@ export default function ConsoleTest() {
   const buttonRef = useRef(null)
   const chatIdRef = useRef(getOrCreateChatId())
 
+  // Se al mount risulta già un token salvato ma l'email non è (più)
+  // in whitelist, buttalo fuori subito.
+  useEffect(() => {
+    if (!idToken) return
+
+    const decoded = decodeJwtPayload(idToken)
+    const email = decoded?.email?.toLowerCase()
+
+    if (!email || !ALLOWED_EMAILS.includes(email)) {
+      logout()
+      setAuthError('Accesso non autorizzato per questo account Google.')
+    }
+
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => {
     if (idToken) return
 
@@ -368,8 +390,29 @@ export default function ConsoleTest() {
       return
     }
 
+    const decoded = decodeJwtPayload(token)
+    const email = decoded?.email?.toLowerCase()
+
+    // --- TEST TEMPORANEO: solo email in whitelist può entrare ---
+    if (!email || !ALLOWED_EMAILS.includes(email)) {
+      setAuthError(
+        'Accesso non autorizzato per questo account Google.'
+      )
+
+      try {
+        if (window.google?.accounts?.id) {
+          window.google.accounts.id.disableAutoSelect()
+        }
+      } catch (e) {
+        // no-op
+      }
+
+      return
+    }
+    // --------------------------------------------------------------
+
     setAuthError('')
-    setProfile(decodeJwtPayload(token))
+    setProfile(decoded)
     setIdToken(token)
 
     try {
