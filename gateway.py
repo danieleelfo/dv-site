@@ -124,8 +124,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# CONFIGURAZIONE AGENTI (Lele Admin rimosso: non deve essere rag
-giungibile
+# CONFIGURAZIONE AGENTI (Lele Admin rimosso: non deve essere raggiungibile
 # dal gateway pubblico, resta accessibile solo via Telegram / /api/admin/chat)
 AGENTS = {
     "Lele I": {
