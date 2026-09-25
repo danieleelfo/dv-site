@@ -11,7 +11,6 @@ import HomeTest2 from './pages/HomeTest2.jsx'
 import HomeTest3 from './pages/HomeTest3.jsx'
 import HomeTest4 from './pages/HomeTest4.jsx'
 
-import ConsoleTest from './pages/ConsoleTest.jsx'
 import ProjectTest from './pages/ProjectTest.jsx'
 import LeleAdmin from './pages/LeleAdmin.jsx'
 
@@ -84,24 +83,18 @@ export default function App() {
         <Route path="/test4" element={<><Nav /><HomeTest4 /></>} />
         <Route path="/:lang/test4" element={<><Nav /><LangWrapper><HomeTest4 /></LangWrapper></>} />
 
-        {/* TEST 5 -> ConsoleTest */}
-        <Route path="/test5" element={<><Nav /><ConsoleTest /></>} />
-        <Route path="/:lang/test5" element={<><Nav /><LangWrapper><ConsoleTest /></LangWrapper></>} />
+        {/* TEST 5 -> LeleAdmin (ex ConsoleTest, merge: un solo componente admin) */}
+        <Route path="/test5" element={<><Nav /><LeleAdmin /></>} />
+        <Route path="/:lang/test5" element={<><Nav /><LangWrapper><LeleAdmin /></LangWrapper></>} />
 
         {/* TEST 6 -> ProjectTest */}
         <Route path="/test6" element={<><Nav /><ProjectTest /></>} />
         <Route path="/:lang/test6" element={<><Nav /><LangWrapper><ProjectTest /></LangWrapper></>} />
 
         {/* LELE ADMIN — accesso diretto, nessun prefisso lingua, protetto da Google auth */}
-        <Route
-          path="/leles"
-          element={
-            <>
-              <Nav />
-              <LeleAdmin />
-            </>
-          }
-        />
+        <Route path="/leles" element={<><Nav /><LeleAdmin /></>} />
+        {/* alias per comodità */}
+        <Route path="/LeleAdmin" element={<><Nav /><LeleAdmin /></>} />
 
         <Route
           path="/:lang/projects"
