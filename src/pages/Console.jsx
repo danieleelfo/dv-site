@@ -50,7 +50,8 @@ export default function Console() {
   const [responseAudioFilename, setResponseAudioFilename] = useState(null)
   const PIPER_AGENTS = ['Night Story', 'Story Whisper']
 
-  // NUOVO: auto-invio dell'audio registrato appena si ferma la registrazione
+  // NUOVO: auto-invio dell'audio registrato appena si ferma l
+a registrazione
   const AUTO_SEND_RECORDING = true
   const audioBlobRef = useRef(null)
 
@@ -68,7 +69,7 @@ export default function Console() {
   const [audioBlob, setAudioBlob] = useState(null)
   const [isSendingAudio, setIsSendingAudio] = useState(false)
 
-  const AUDIO_CAPABLE_AGENTS = ['Story Whisper']
+  const AUDIO_CAPABLE_AGENTS = ['Story Whisper', 'Night Story']
 
   const mediaRecorderRef = useRef(null)
   const audioChunksRef = useRef([])
@@ -107,7 +108,8 @@ export default function Console() {
         setTimeout(() => setCopiedResponse(false), 2000)
       }
     } catch (err) {
-      console.error('Clipboard error:', err)
+      console.error('Clipbo
+ard error:', err)
       setError(t('Impossibile copiare negli appunti.'))
     }
   }
@@ -180,7 +182,8 @@ export default function Console() {
     } catch (err) {
       clearTimeout(timeoutId)
       console.error('Lele Gateway error:', err)
-      if (err.name === 'AbortError') {
+      if (err.
+name === 'AbortError') {
         setError(t('Timeout: il server non ha risposto in tempo.'))
       } else {
         setError(err.message)
@@ -254,7 +257,8 @@ export default function Console() {
 
   // --------------------------------------------------
   // REGISTRAZIONE AUDIO (input)
-  // --------------------------------------------------
+  // ------------------------------------------
+--------
   const startRecording = async () => {
     try {
       setError('')
@@ -320,7 +324,8 @@ export default function Console() {
     if (!AUDIO_CAPABLE_AGENTS.includes(selectedLele)) {
       setError(
         t(
-          `'${selectedLele}' non supporta l'input audio ancora, prova con Story Whisper.`
+          `'${selectedLele}' non supporta l'input audio ancora, 
+prova con Story Whisper.`
         )
       )
       return
@@ -396,7 +401,8 @@ export default function Console() {
   const stopRecording = () => {
     if (
       mediaRecorderRef.current &&
-      mediaRecorderRef.current.state !== 'inactive'
+      media
+RecorderRef.current.state !== 'inactive'
     ) {
       mediaRecorderRef.current.stop()
     }
@@ -459,7 +465,8 @@ export default function Console() {
           </div>
         )}
 
-        <div style={styles.promptContainer}>
+    
+    <div style={styles.promptContainer}>
           <form onSubmit={handleSubmit} style={styles.form}>
             <div style={styles.selector}>
               <label htmlFor="lele-select" style={styles.label}>
@@ -512,7 +519,8 @@ export default function Console() {
                   setCopiedPrompt(false)
                 }}
                 disabled={!prompt.trim()}
-                title={t('Cancella')}
+              
+  title={t('Cancella')}
                 style={styles.iconButtonDanger}
               >
                 🗑️
@@ -572,7 +580,8 @@ export default function Console() {
 
           {response && (
             <div style={styles.response}>
-              <div style={styles.responseHeader}>
+              <div style=
+{styles.responseHeader}>
                 <h3 style={styles.responseTitle}>
                   {t('Response from')} {selectedLele}
                 </h3>
@@ -624,7 +633,8 @@ export default function Console() {
                       <button
                         key={rate}
                         type="button"
-                        onClick={() => handleRateChange(rate)}
+ 
+                       onClick={() => handleRateChange(rate)}
                         style={{
                           ...styles.speedButton,
                           ...(playbackRate === rate ? styles.speedButtonActive : {}),
@@ -707,7 +717,8 @@ const styles = {
   },
   selector: {
     display: 'flex',
-    alignItems: 'center',
+    alignItem
+s: 'center',
     gap: '12px',
   },
   label: {
@@ -789,6 +800,7 @@ const styles = {
     whiteSpace: 'nowrap',
     transition: 'all 0.2s ease',
   },
+
   utilityButtonCopied: {
     backgroundColor: 'rgba(52, 211, 153, 0.2)',
     borderColor: '#34d399',
@@ -871,6 +883,7 @@ const styles = {
     whiteSpace: 'nowrap',
   },
   audio: {
+
     width: '100%',
   },
   response: {
@@ -962,6 +975,7 @@ const styles = {
     margin: 0,
     fontFamily: 'inherit',
     fontSize: '15px',
-    lineHeight: 1.5,
+    lineHeig
+ht: 1.5,
   },
 }
