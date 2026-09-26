@@ -11,28 +11,16 @@ const CHAT_ID_STORAGE_KEY = 'leles_admin_chat_id'
 // TODO: rimuovere/estendere quando arriva il login Telegram con ADMIN_IDS
 // (8733881519, 8249666123), gestiti separatamente lato Leles.
 const ALLOWED_EMAILS = ['dannybydanny@hotmail.com']
+
+// Forziamo il chat_id a coincidere con un ADMIN_IDS di Leles, così i comandi
+// riservati al "capitano" funzionano anche dalla console web.
+// TODO: da sostituire con l'id reale assegnato al login Telegram, quando
+// implementato, invece di uno dei due ADMIN_IDS fissi.
+const FORCED_ADMIN_CHAT_ID = 8733881519
 // ---------------------------------------------------------------------------
 
 function getOrCreateChatId() {
-  try {
-    const stored = window.sessionStorage.getItem(CHAT_ID_STORAGE_KEY)
-
-    if (stored) {
-      return parseInt(stored, 10)
-    }
-
-    const newId =
-      Math.floor(Math.random() * 9_000_000_000) + 1_000_000_000
-
-    window.sessionStorage.setItem(
-      CHAT_ID_STORAGE_KEY,
-      String(newId)
-    )
-
-    return newId
-  } catch (e) {
-    return Math.floor(Math.random() * 9_000_000_000) + 1_000_000_000
-  }
+  return FORCED_ADMIN_CHAT_ID
 }
 
 function decodeJwtPayload(token) {
