@@ -47,36 +47,29 @@ const COMMAND_GROUPS = [
     icon: '⚙️',
     commands: [
       { label: 'Status sistema', command: 'status sistema' },
-      { label: 'Status RAM', command: 'status ram' },
       { label: 'Status OS', command: 'status os' },
+      { label: 'Status RAM', command: 'status ram' },
       { label: 'Status IP', command: 'status ip' },
       { label: 'Uvicorn status', command: 'uvicorn status' },
       { label: 'Telegram status', command: 'telegram status' },
-      { label: 'Logs Leles', command: 'logs leles' },
     ],
   },
 
   {
-    id: 'agents',
-    title: 'AGENTI',
+    id: 'processi',
+    title: 'PROCESSI',
     icon: '🤖',
     commands: [
       { label: 'Start Lele', command: 'start lele' },
       { label: 'Stop Lele', command: 'stop lele' },
       { label: 'Restart Lele', command: 'restart lele' },
+      { label: 'Restart Story Whisper', command: 'restart story whisper' },
+      { label: 'Restart Night Story', command: 'restart night story' },
+      { label: 'Restart Gateway', command: 'restart gateway' },
       { label: 'Logs Lele', command: 'logs lele' },
-      {
-        label: 'Logs Story Whisper',
-        command: 'logs story whisper',
-      },
-      {
-        label: 'Logs Night Story',
-        command: 'logs night story',
-      },
-      {
-        label: 'Telegram status',
-        command: 'telegram status',
-      },
+      { label: 'Logs Story Whisper', command: 'logs story whisper' },
+      { label: 'Logs Night Story', command: 'logs night story' },
+      { label: 'Logs Leles', command: 'logs leles' },
     ],
   },
 
@@ -86,26 +79,30 @@ const COMMAND_GROUPS = [
     icon: '🌬️',
     commands: [
       { label: 'Status Airflow', command: 'status airflow' },
-      { label: 'Status DAG', command: 'status dag' },
+      {
+        label: 'Status DAG',
+        command: 'status dag ',
+        hint: 'Opzionale: dag_id',
+      },
       {
         label: 'Log task',
         command: 'log task ',
-        hint: 'Aggiungi DAG/task',
+        hint: 'dag_id task_id',
       },
       {
         label: 'Pausa DAG',
         command: 'pausa dag ',
-        hint: 'Aggiungi dag_id',
+        hint: 'dag_id',
       },
       {
         label: 'Attiva DAG',
         command: 'attiva dag ',
-        hint: 'Aggiungi dag_id',
+        hint: 'dag_id',
       },
       {
         label: 'Lancia DAG',
         command: 'exec airflow lancia ',
-        hint: 'Aggiungi dag_id e conf se necessario',
+        hint: 'dag_id e conf se necessario',
       },
     ],
   },
@@ -119,33 +116,28 @@ const COMMAND_GROUPS = [
       {
         label: 'QE status',
         command: 'QE status ',
-        hint: 'Aggiungi run_id',
+        hint: 'run_id opzionale',
       },
       {
         label: 'Decisione',
         command: 'decisione ',
-        hint: 'Aggiungi run_id',
+        hint: 'run_id',
       },
       {
         label: 'Decisione run',
         command: 'decisione run ',
-        hint: 'Aggiungi run_id',
-      },
-      {
-        label: 'Decisione DAG',
-        command: 'decisione dag ',
-        hint: 'Aggiungi run_id',
+        hint: 'run_id',
       },
       {
         label: 'Sintetizza',
         command: 'sintetizza ',
-        hint: 'Aggiungi run_id',
+        hint: 'run_id',
       },
       { label: 'Query worlds', command: 'query worlds' },
       {
         label: 'Query world',
         command: 'query world ',
-        hint: 'Aggiungi world id',
+        hint: 'world id',
       },
       {
         label: 'Save world',
@@ -160,32 +152,32 @@ const COMMAND_GROUPS = [
     title: 'FILES',
     icon: '📁',
     commands: [
-      { label: 'Directory', command: 'directory' },
+      { label: 'Directory leles', command: 'directory leles' },
       {
         label: 'LS',
         command: 'ls ',
-        hint: 'Aggiungi percorso',
+        hint: 'progetto [subpath]',
       },
       {
         label: 'Invia file',
         command: 'invia file ',
-        hint: 'Aggiungi file',
+        hint: 'path assoluto',
       },
-      { label: 'Remote test', command: 'remoto test' },
+      { label: 'Remoto test', command: 'remoto test' },
       {
-        label: 'Remote LS',
+        label: 'Remoto LS',
         command: 'remoto ls ',
-        hint: 'Aggiungi percorso',
+        hint: 'path',
       },
       {
-        label: 'Remote download',
+        label: 'Remoto download',
         command: 'remoto download ',
-        hint: 'Aggiungi file',
+        hint: 'file',
       },
       {
-        label: 'Remote upload',
+        label: 'Remoto upload',
         command: 'remoto upload ',
-        hint: 'Aggiungi file',
+        hint: 'file',
       },
     ],
   },
@@ -203,27 +195,27 @@ const COMMAND_GROUPS = [
       {
         label: 'Improve',
         command: 'improve ',
-        hint: 'Aggiungi file o richiesta',
+        hint: 'file o richiesta',
       },
       {
         label: 'Verifica',
         command: 'verifica ',
-        hint: 'Aggiungi file o richiesta',
+        hint: 'file o richiesta',
       },
       {
         label: 'Review',
         command: 'review ',
-        hint: 'Aggiungi file o richiesta',
+        hint: 'file o richiesta',
       },
       {
         label: 'Gemma',
         command: 'gemma ',
-        hint: 'Aggiungi prompt',
+        hint: 'prompt',
       },
       {
         label: 'Llama',
         command: 'llama ',
-        hint: 'Aggiungi prompt',
+        hint: 'prompt',
       },
     ],
   },
@@ -233,15 +225,22 @@ const COMMAND_GROUPS = [
     title: 'GIT',
     icon: '🔀',
     commands: [
-      { label: 'Git status', command: 'git status' },
-      { label: 'Git diff', command: 'git diff' },
+      { label: 'Status leles', command: 'status leles' },
+      { label: 'Status gateway', command: 'status gateway' },
+      { label: 'Diff leles', command: 'diff leles' },
+      { label: 'Diff gateway', command: 'diff gateway' },
+      { label: 'Pull report leles', command: 'pull report leles' },
+      { label: 'Pull force leles', command: 'pull force leles' },
+      { label: 'Pull report gateway', command: 'pull report gateway' },
+      { label: 'Pull force gateway', command: 'pull force gateway' },
       {
-        label: 'Git commit',
-        command: 'git commit ',
-        hint: 'Aggiungi messaggio',
+        label: 'Ultimo commit leles',
+        command: 'commit leles',
       },
-      { label: 'Git pull report', command: 'git pull report' },
-      { label: 'Git pull force', command: 'git pull force' },
+      {
+        label: 'Ultimo commit gateway',
+        command: 'commit gateway',
+      },
     ],
   },
 
@@ -251,12 +250,10 @@ const COMMAND_GROUPS = [
     icon: '🏴‍☠️',
     commands: [
       { label: 'Restart Lelé', command: 'restart Lelé' },
-      { label: 'Status sistema', command: 'status sistema' },
-      { label: 'Status Airflow', command: 'status airflow' },
       {
         label: 'Export DAG',
         command: 'export dag ',
-        hint: 'Aggiungi dag_id',
+        hint: 'filename',
       },
       {
         label: 'Crea DAG',
@@ -268,8 +265,6 @@ const COMMAND_GROUPS = [
 ]
 
 export default function ConsoleTest() {
-  console.log('🔥 CONSOLE TEST MONTATA')
-
   const [idToken, setIdToken] = useState(() => {
     try {
       return (
