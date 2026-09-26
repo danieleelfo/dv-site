@@ -44,7 +44,8 @@ def verify_admin_token(authorization: str | None) -> str:
     if not GOOGLE_CLIENT_ID or not ADMIN_ALLOWED_EMAILS:
         raise HTTPException(
             status_code=500,
-            detail="Admin auth non configurata sul server (GOOGLE_CLIENT_ID / ADMIN_ALLOWED_EMAIL mancanti).",
+            detail="Admin auth non configurata sul server (GOOGLE_CLIENT_ID / ADMIN_
+ALLOWED_EMAIL mancanti).",
         )
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Token mancante.")
@@ -101,7 +102,8 @@ async def forward_to_agent(config: dict, prompt: str, chat_id: int, language: st
                     detail={
                         "agent": agent_label,
                         "target": target_url,
-                        "status": response.status_code,
+                        
+"status": response.status_code,
                         "response": response.text,
                     },
                 )
@@ -147,6 +149,7 @@ AGENTS = {
         "port": 8666,
         "path": "/ask",
         "payload": "message",
+        "audio_path": "/ask/audio",
     },
 }
 
@@ -184,7 +187,8 @@ async def chat_router(req: ChatRequest):
         "chat_id": req.chat_id,
     }
 
-    async with httpx.AsyncClient(timeout=300.0) as client:
+    async with httpx.Async
+Client(timeout=300.0) as client:
         try:
             response = await client.post(
                 target_url,
@@ -247,7 +251,8 @@ async def chat_router_audio(
                 "language": language,
             }
             response = await client.post(
-                target_url,
+    
+            target_url,
                 files=files,
                 data=data,
             )
@@ -309,7 +314,8 @@ class AdminChatRequest(BaseModel):
     language: str = "en"
 
 
-@app.post("/api/admin/chat")
+@app.pos
+t("/api/admin/chat")
 @app.post("/api/admin/chat/")
 async def admin_chat_router(
     req: AdminChatRequest,
