@@ -7,20 +7,6 @@ const LELE_API_URL = 'https://api.danielevillanova.com'
 
 const CHAT_ID_STORAGE_KEY = 'lele_chat_id'
 
-function getOrCreateChatId() {
-  try {
-    const stored = window.localStorage.getItem(CHAT_ID_STORAGE_KEY)
-    if (stored) return parseInt(stored, 10)
-
-    const newId = Math.floor(Math.random() * 9_000_000_000) + 1_000_000_000
-    window.localStorage.setItem(CHAT_ID_STORAGE_KEY, String(newId))
-    return newId
-  } catch (e) {
-    console.warn('localStorage non disponibile, chat_id non persistente:', e)
-    return Math.floor(Math.random() * 9_000_000_000) + 1_000_000_000
-  }
-}
-
 // Lista fissa lato client — indipendente da cosa espone il gateway in
 // AGENTS. Bar_AI demo escluso di proposito: non è un agente pubblico.
 const AVAILABLE_AGENTS = [
@@ -28,6 +14,31 @@ const AVAILABLE_AGENTS = [
   { value: 'Story Whisper', label: 'Story Whisper 🌈' },
   { value: 'Night Story', label: 'Night Story 🌙' },
 ]
+
+const PIPER_AGENTS = ['Night Story', 'Story Whisper']
+const AUDIO_CAPABLE_AGENTS = ['Story Whisper', 'Night Story']
+const AUTO_SEND_RECORDING = true
+
+function getOrCreateChatId() {
+  try {
+    const stored = window.localStorage.getItem(CHAT_ID_STORAGE_KEY)
+
+    if (stored) return parseInt(stored, 10)
+
+    const newId = Math.floor(Math.random() * 9_000_000_000) + 1_000_000_000
+
+    window.localStorage.setItem(CHAT_ID_STORAGE_KEY, String(newId))
+
+    return newId
+  } catch (e) {
+    console.warn(
+      'localStorage non disponibile, chat_id non persistente:',
+      e
+    )
+
+    return Math.floor(Math.random() * 9_000_000_000) + 1_000_000_000
+  }
+}
 
 export default function Console() {
   const { t, i18n } = useTranslation()
@@ -38,7 +49,7 @@ export default function Console() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
 
-  // NUOVO: feedback copia (prompt e risposta)
+  // Feedback copia (prompt e risposta)
   const [copiedPrompt, setCopiedPrompt] = useState(false)
   const [copiedResponse, setCopiedResponse] = useState(false)
 
@@ -48,28 +59,23 @@ export default function Console() {
   // Piper TTS reale (solo Night Story e Story Whisper)
   const [wantsPiperAudio, setWantsPiperAudio] = useState(false)
   const [responseAudioFilename, setResponseAudioFilename] = useState(null)
-  const PIPER_AGENTS = ['Night Story', 'Story Whisper']
 
-  // NUOVO: auto-invio dell'audio registrato appena si ferma l
-a registrazione
-  const AUTO_SEND_RECORDING = true
+  // Audio registrato
   const audioBlobRef = useRef(null)
 
-  // Lettore Audio Avanzato
+  // Lettore audio avanzato
   const audioPlayerRef = useRef(null)
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [audioCurrentTime, setAudioCurrentTime] = useState(0)
   const [audioDuration, setAudioDuration] = useState(0)
   const [playbackRate, setPlaybackRate] = useState(1)
 
-  // Audio (input)
+  // Audio in ingresso
   const [isRecording, setIsRecording] = useState(false)
   const [recordingTime, setRecordingTime] = useState(0)
   const [audioUrl, setAudioUrl] = useState(null)
   const [audioBlob, setAudioBlob] = useState(null)
   const [isSendingAudio, setIsSendingAudio] = useState(false)
-
-  const AUDIO_CAPABLE_AGENTS = ['Story Whisper', 'Night Story']
 
   const mediaRecorderRef = useRef(null)
   const audioChunksRef = useRef([])
@@ -77,23 +83,27 @@ a registrazione
 
   const extractFilename = (value) => {
     if (!value || typeof value !== 'string') return null
+
     return value.split(/[/\\]/).pop() || null
   }
 
   // --------------------------------------------------
-  // NUOVO: COPIA NEGLI APPUNTI
+  // COPIA NEGLI APPUNTI
   // --------------------------------------------------
   const copyToClipboard = async (text, which) => {
     if (!text) return
+
     try {
       if (navigator.clipboard && window.isSecureContext) {
         await navigator.clipboard.writeText(text)
       } else {
-        // Fallback per contesti non-secure (http locale ecc.)
+        // Fallback per contesti non-secure (HTTP locale ecc.)
         const textarea = document.createElement('textarea')
+
         textarea.value = text
         textarea.style.position = 'fixed'
         textarea.style.opacity = '0'
+
         document.body.appendChild(textarea)
         textarea.select()
         document.execCommand('copy')
@@ -108,8 +118,7 @@ a registrazione
         setTimeout(() => setCopiedResponse(false), 2000)
       }
     } catch (err) {
-      console.error('Clipbo
-ard error:', err)
+      console.error('Clipboard error:', err)
       setError(t('Impossibile copiare negli appunti.'))
     }
   }
@@ -119,6 +128,7 @@ ard error:', err)
   // --------------------------------------------------
   const handleSubmit = async (e) => {
     e.preventDefault()
+
     if (!prompt.trim()) return
 
     stopSpeaking()
@@ -181,13 +191,15 @@ ard error:', err)
       setResponseAudioFilename(filename)
     } catch (err) {
       clearTimeout(timeoutId)
+
       console.error('Lele Gateway error:', err)
-      if (err.
-name === 'AbortError') {
+
+      if (err.name === 'AbortError') {
         setError(t('Timeout: il server non ha risposto in tempo.'))
       } else {
         setError(err.message)
       }
+
       setResponse(
         t(
           'Errore di connessione con Lele Gateway. AI agent deve essere attivo, avvisa Daniele!'
@@ -205,6 +217,7 @@ name === 'AbortError') {
     if (!response || !responseAudioFilename) return
 
     const player = audioPlayerRef.current
+
     if (!player) return
 
     const url = `${LELE_API_URL}/api/chat/tts/${encodeURIComponent(
@@ -221,13 +234,16 @@ name === 'AbortError') {
       player.pause()
       setIsSpeaking(false)
     } else {
-      player.play().then(() => {
-        setIsSpeaking(true)
-      }).catch((err) => {
-        console.error('Audio play error:', err)
-        setIsSpeaking(false)
-        setError(t('Riproduzione audio bloccata dal browser.'))
-      })
+      player
+        .play()
+        .then(() => {
+          setIsSpeaking(true)
+        })
+        .catch((err) => {
+          console.error('Audio play error:', err)
+          setIsSpeaking(false)
+          setError(t('Riproduzione audio bloccata dal browser.'))
+        })
     }
   }
 
@@ -236,12 +252,14 @@ name === 'AbortError') {
       audioPlayerRef.current.pause()
       audioPlayerRef.current.currentTime = 0
     }
+
     setIsSpeaking(false)
     setAudioCurrentTime(0)
   }
 
   const handleRateChange = (rate) => {
     setPlaybackRate(rate)
+
     if (audioPlayerRef.current) {
       audioPlayerRef.current.playbackRate = rate
     }
@@ -249,7 +267,9 @@ name === 'AbortError') {
 
   const handleSeek = (e) => {
     const newTime = parseFloat(e.target.value)
+
     setAudioCurrentTime(newTime)
+
     if (audioPlayerRef.current) {
       audioPlayerRef.current.currentTime = newTime
     }
@@ -257,16 +277,21 @@ name === 'AbortError') {
 
   // --------------------------------------------------
   // REGISTRAZIONE AUDIO (input)
-  // ------------------------------------------
---------
+  // --------------------------------------------------
   const startRecording = async () => {
     try {
       setError('')
       setAudioUrl(null)
+      setAudioBlob(null)
+      audioBlobRef.current = null
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+      })
 
-      const options = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+      const options = MediaRecorder.isTypeSupported(
+        'audio/webm;codecs=opus'
+      )
         ? { mimeType: 'audio/webm;codecs=opus' }
         : {}
 
@@ -285,20 +310,24 @@ name === 'AbortError') {
         const blob = new Blob(audioChunksRef.current, {
           type: mediaRecorder.mimeType || 'audio/webm',
         })
+
         const url = URL.createObjectURL(blob)
+
         audioBlobRef.current = blob
         setAudioBlob(blob)
         setAudioUrl(url)
+
         stream.getTracks().forEach((track) => track.stop())
 
-        // NUOVO: auto-invio appena la registrazione si ferma —
-        // Lelé riceve l'audio, lo capisce e risponde Audio&text.
+        // Invio automatico appena termina la registrazione.
+        // L'agente riceve l'audio e risponde.
         if (AUTO_SEND_RECORDING) {
           handleSendAudio(blob)
         }
       }
 
       mediaRecorder.start()
+
       setIsRecording(true)
       setRecordingTime(0)
 
@@ -307,8 +336,11 @@ name === 'AbortError') {
       }, 1000)
     } catch (err) {
       console.error('Microphone error:', err)
+
       setError(
-        t('Impossibile accedere al microfono. Controlla i permessi del browser.')
+        t(
+          'Impossibile accedere al microfono. Controlla i permessi del browser.'
+        )
       )
     }
   }
@@ -321,13 +353,14 @@ name === 'AbortError') {
 
     if (!blob) return
 
+    // Solo Story Whisper e Night Story accettano audio in ingresso.
     if (!AUDIO_CAPABLE_AGENTS.includes(selectedLele)) {
       setError(
         t(
-          `'${selectedLele}' non supporta l'input audio ancora, 
-prova con Story Whisper.`
+          `'${selectedLele}' non supporta ancora l'input audio. Prova con Story Whisper o Night Story.`
         )
       )
+
       return
     }
 
@@ -342,6 +375,7 @@ prova con Story Whisper.`
 
     try {
       const formData = new FormData()
+
       formData.append('audio', blob, 'recording.webm')
       formData.append('agent', selectedLele)
       formData.append('language', i18n.language || 'en')
@@ -382,12 +416,15 @@ prova con Story Whisper.`
       setResponseAudioFilename(filename)
     } catch (err) {
       clearTimeout(timeoutId)
+
       console.error('Lele Gateway audio error:', err)
+
       if (err.name === 'AbortError') {
         setError(t('Timeout: il server non ha risposto in tempo.'))
       } else {
         setError(err.message)
       }
+
       setResponse(
         t(
           'Errore di connessione con Lele Gateway. AI agent deve essere attivo e Lelé con il vento in poppa, avvisa Daniele!'
@@ -401,11 +438,11 @@ prova con Story Whisper.`
   const stopRecording = () => {
     if (
       mediaRecorderRef.current &&
-      media
-RecorderRef.current.state !== 'inactive'
+      mediaRecorderRef.current.state !== 'inactive'
     ) {
       mediaRecorderRef.current.stop()
     }
+
     setIsRecording(false)
 
     if (timerRef.current) {
@@ -419,12 +456,21 @@ RecorderRef.current.state !== 'inactive'
   // --------------------------------------------------
   useEffect(() => {
     return () => {
-      if (timerRef.current) clearInterval(timerRef.current)
-      if (audioUrl) URL.revokeObjectURL(audioUrl)
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+      }
+
+      if (audioUrl) {
+        URL.revokeObjectURL(audioUrl)
+      }
+
       if (mediaRecorderRef.current) {
-        const tracks = mediaRecorderRef.current.stream?.getTracks?.() || []
+        const tracks =
+          mediaRecorderRef.current.stream?.getTracks?.() || []
+
         tracks.forEach((track) => track.stop())
       }
+
       if (audioPlayerRef.current) {
         audioPlayerRef.current.pause()
       }
@@ -442,36 +488,54 @@ RecorderRef.current.state !== 'inactive'
       {/* Elemento audio invisibile per gestire gli eventi di riproduzione */}
       <audio
         ref={audioPlayerRef}
-        onTimeUpdate={() => setAudioCurrentTime(audioPlayerRef.current?.currentTime || 0)}
-        onLoadedMetadata={() => setAudioDuration(audioPlayerRef.current?.duration || 0)}
+        onTimeUpdate={() =>
+          setAudioCurrentTime(
+            audioPlayerRef.current?.currentTime || 0
+          )
+        }
+        onLoadedMetadata={() =>
+          setAudioDuration(
+            audioPlayerRef.current?.duration || 0
+          )
+        }
         onEnded={() => {
           setIsSpeaking(false)
           setAudioCurrentTime(0)
         }}
         onError={() => {
           setIsSpeaking(false)
-          setError(t("Impossibile riprodurre l'audio generato dal server."))
+          setError(
+            t("Impossibile riprodurre l'audio generato dal server.")
+          )
         }}
       />
 
       <div style={styles.content}>
         <p className="section-label">{t('Try Lele')}</p>
-        <h2 className="section-title">{t('Interact with Lele AI Models')}</h2>
+
+        <h2 className="section-title">
+          {t('Interact with Lele AI Models')}
+        </h2>
 
         {error && (
           <div style={styles.errorBox}>
-            <p>⚠️ {t('Attenzione: AI agent deve essere attivo, avvisa Daniele!')}</p>
+            <p>
+              ⚠️{' '}
+              {t(
+                'Attenzione: AI agent deve essere attivo, avvisa Daniele!'
+              )}
+            </p>
             <p>{error}</p>
           </div>
         )}
 
-    
-    <div style={styles.promptContainer}>
+        <div style={styles.promptContainer}>
           <form onSubmit={handleSubmit} style={styles.form}>
             <div style={styles.selector}>
               <label htmlFor="lele-select" style={styles.label}>
                 {t('Select Lele AI:')}
               </label>
+
               <select
                 id="lele-select"
                 value={selectedLele}
@@ -493,20 +557,24 @@ RecorderRef.current.state !== 'inactive'
                 <input
                   type="checkbox"
                   checked={wantsPiperAudio}
-                  onChange={(e) => setWantsPiperAudio(e.target.checked)}
+                  onChange={(e) =>
+                    setWantsPiperAudio(e.target.checked)
+                  }
                   disabled={isRecording || isLoading}
                 />{' '}
                 {t('Send Audio (TTS)')}
               </label>
             )}
 
-            {/* Utility prompt: solo icone, in alto a destra della textarea */}
+            {/* Utility prompt: icone in alto a destra */}
             <div style={styles.promptUtilityRow}>
               <button
                 type="button"
                 onClick={() => copyToClipboard(prompt, 'prompt')}
                 disabled={!prompt.trim()}
-                title={copiedPrompt ? t('Copiato!') : t('Copia prompt')}
+                title={
+                  copiedPrompt ? t('Copiato!') : t('Copia prompt')
+                }
                 style={styles.iconButton}
               >
                 {copiedPrompt ? '✓' : '📋'}
@@ -519,8 +587,7 @@ RecorderRef.current.state !== 'inactive'
                   setCopiedPrompt(false)
                 }}
                 disabled={!prompt.trim()}
-              
-  title={t('Cancella')}
+                title={t('Cancella')}
                 style={styles.iconButtonDanger}
               >
                 🗑️
@@ -539,7 +606,9 @@ RecorderRef.current.state !== 'inactive'
             <div style={styles.buttonsRow}>
               <button
                 type="submit"
-                disabled={isLoading || isRecording || !prompt.trim()}
+                disabled={
+                  isLoading || isRecording || !prompt.trim()
+                }
                 style={styles.button}
               >
                 {isLoading ? t('Thinking...') : t('Send to Lele')}
@@ -547,8 +616,10 @@ RecorderRef.current.state !== 'inactive'
 
               <button
                 type="button"
-                onClick={isRecording ? stopRecording : startRecording}
-                disabled={isLoading}
+                onClick={
+                  isRecording ? stopRecording : startRecording
+                }
+                disabled={isLoading || isSendingAudio}
                 style={{
                   ...styles.recordButton,
                   ...(isRecording ? styles.recordingButton : {}),
@@ -564,40 +635,58 @@ RecorderRef.current.state !== 'inactive'
           {audioUrl && (
             <div style={styles.audioPreview}>
               <div style={styles.audioHeader}>
-                <p style={styles.audioLabel}>🎤 {t('Recorded audio')}</p>
+                <p style={styles.audioLabel}>
+                  🎤 {t('Recorded audio')}
+                </p>
+
                 <button
                   type="button"
-                  disabled={isLoading || isSendingAudio || !audioBlob}
+                  disabled={
+                    isLoading || isSendingAudio || !audioBlob
+                  }
                   style={styles.audioSendButton}
                   onClick={() => handleSendAudio()}
                 >
-                  🎤 {isSendingAudio ? t('Sending...') : t('Send Audio')}
+                  🎤{' '}
+                  {isSendingAudio
+                    ? t('Sending...')
+                    : t('Send Audio')}
                 </button>
               </div>
-              <audio controls src={audioUrl} style={styles.audio} />
+
+              <audio
+                controls
+                src={audioUrl}
+                style={styles.audio}
+              />
             </div>
           )}
 
           {response && (
             <div style={styles.response}>
-              <div style=
-{styles.responseHeader}>
+              <div style={styles.responseHeader}>
                 <h3 style={styles.responseTitle}>
                   {t('Response from')} {selectedLele}
                 </h3>
 
-                {/* Bottoncino copia risposta (icona) */}
+                {/* Copia risposta */}
                 <button
                   type="button"
-                  onClick={() => copyToClipboard(response, 'response')}
-                  title={copiedResponse ? t('Copiato!') : t('Copia risposta')}
+                  onClick={() =>
+                    copyToClipboard(response, 'response')
+                  }
+                  title={
+                    copiedResponse
+                      ? t('Copiato!')
+                      : t('Copia risposta')
+                  }
                   style={styles.iconButton}
                 >
                   {copiedResponse ? '✓' : '📋'}
                 </button>
               </div>
 
-              {/* LETTORE AUDIO AVANZATO CON SCRUBBER E VELOCITA' */}
+              {/* Lettore audio avanzato con scrubber e velocità */}
               {responseAudioFilename && (
                 <div style={styles.playerContainer}>
                   <div style={styles.playerTopRow}>
@@ -606,14 +695,19 @@ RecorderRef.current.state !== 'inactive'
                       onClick={togglePlayAudio}
                       style={{
                         ...styles.playButton,
-                        ...(isSpeaking ? styles.playButtonActive : {}),
+                        ...(isSpeaking
+                          ? styles.playButtonActive
+                          : {}),
                       }}
                     >
-                      {isSpeaking ? '⏸ Pausa' : '▶ Ascolta Audio'}
+                      {isSpeaking
+                        ? '⏸ Pausa'
+                        : '▶ Ascolta Audio'}
                     </button>
 
                     <span style={styles.timeLabel}>
-                      {formatTime(audioCurrentTime)} / {formatTime(audioDuration)}
+                      {formatTime(audioCurrentTime)} /{' '}
+                      {formatTime(audioDuration)}
                     </span>
 
                     <input
@@ -628,16 +722,20 @@ RecorderRef.current.state !== 'inactive'
                   </div>
 
                   <div style={styles.speedRow}>
-                    <span style={styles.speedLabel}>Velocità:</span>
+                    <span style={styles.speedLabel}>
+                      Velocità:
+                    </span>
+
                     {[1, 1.25, 1.5, 1.75, 2].map((rate) => (
                       <button
                         key={rate}
                         type="button"
- 
-                       onClick={() => handleRateChange(rate)}
+                        onClick={() => handleRateChange(rate)}
                         style={{
                           ...styles.speedButton,
-                          ...(playbackRate === rate ? styles.speedButtonActive : {}),
+                          ...(playbackRate === rate
+                            ? styles.speedButtonActive
+                            : {}),
                         }}
                       >
                         {rate}x
@@ -657,9 +755,11 @@ RecorderRef.current.state !== 'inactive'
 }
 
 function formatTime(seconds) {
-  if (!seconds || isNaN(seconds)) return "00:00"
+  if (!seconds || isNaN(seconds)) return '00:00'
+
   const minutes = Math.floor(seconds / 60)
   const remainingSeconds = Math.floor(seconds % 60)
+
   return `${String(minutes).padStart(2, '0')}:${String(
     remainingSeconds
   ).padStart(2, '0')}`
@@ -717,8 +817,7 @@ const styles = {
   },
   selector: {
     display: 'flex',
-    alignItem
-s: 'center',
+    alignItems: 'center',
     gap: '12px',
   },
   label: {
@@ -753,7 +852,6 @@ s: 'center',
     resize: 'vertical',
     fontFamily: 'inherit',
   },
-  // Riga utility prompt (icone, in alto a destra della textarea)
   promptUtilityRow: {
     display: 'flex',
     justifyContent: 'flex-end',
@@ -800,7 +898,6 @@ s: 'center',
     whiteSpace: 'nowrap',
     transition: 'all 0.2s ease',
   },
-
   utilityButtonCopied: {
     backgroundColor: 'rgba(52, 211, 153, 0.2)',
     borderColor: '#34d399',
@@ -829,7 +926,8 @@ s: 'center',
     padding: '14px 24px',
     borderRadius: '8px',
     border: 'none',
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    background:
+      'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     color: 'white',
     fontSize: '16px',
     fontWeight: '600',
@@ -840,7 +938,8 @@ s: 'center',
     padding: '14px 24px',
     borderRadius: '8px',
     border: 'none',
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    background:
+      'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     color: 'white',
     fontSize: '16px',
     fontWeight: '600',
@@ -875,7 +974,8 @@ s: 'center',
     padding: '8px 14px',
     borderRadius: '6px',
     border: 'none',
-    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    background:
+      'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     color: 'white',
     fontSize: '13px',
     fontWeight: '600',
@@ -883,7 +983,6 @@ s: 'center',
     whiteSpace: 'nowrap',
   },
   audio: {
-
     width: '100%',
   },
   response: {
@@ -905,7 +1004,7 @@ s: 'center',
     fontSize: '18px',
     margin: 0,
   },
-  // STILI LETTORE AUDIO AVANZATO
+  // Stili lettore audio avanzato
   playerContainer: {
     marginBottom: '16px',
     padding: '12px 16px',
@@ -975,7 +1074,6 @@ s: 'center',
     margin: 0,
     fontFamily: 'inherit',
     fontSize: '15px',
-    lineHeig
-ht: 1.5,
+    lineHeight: 1.5,
   },
 }
