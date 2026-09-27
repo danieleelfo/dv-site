@@ -1,6 +1,14 @@
 import { useTranslation } from 'react-i18next'
+import { Link } from 'react-router-dom'
 import bgImage from '../assets/Project.jpg'
 import { projectSlugs, projectNames } from '../data/projects.js'
+
+const projectLinks = {
+  leles: '/test5',
+  'emergence-lab': '/test',
+  stories: '/en/console',
+  'bar-ai': null, // TBD, ha vita propria
+}
 
 export default function Projects() {
   const { t } = useTranslation()
@@ -20,13 +28,23 @@ export default function Projects() {
       {/* Cards section below image */}
       <section className="section container" style={{ paddingTop: '2rem' }}>
         <div className="projects-list">
-          {projectSlugs.map((slug) => (
-            <article key={slug} style={styles.card}>
-              <h3 style={styles.title}>{projectNames[slug]}</h3>
-              <p style={styles.tag}>{t(`projectsData.${slug}.tag`)}</p>
-              <p style={styles.text}>{t(`projectsData.${slug}.summary`)}</p>
-            </article>
-          ))}
+          {projectSlugs.map((slug) => {
+            const href = projectLinks[slug]
+            const card = (
+              <article style={styles.card}>
+                <h3 style={styles.title}>{projectNames[slug]}</h3>
+                <p style={styles.tag}>{t(`projectsData.${slug}.tag`)}</p>
+                <p style={styles.text}>{t(`projectsData.${slug}.summary`)}</p>
+              </article>
+            )
+            return href ? (
+              <Link key={slug} to={href} style={{ textDecoration: 'none', color: 'inherit' }}>
+                {card}
+              </Link>
+            ) : (
+              <div key={slug}>{card}</div>
+            )
+          })}
         </div>
       </section>
     </div>
