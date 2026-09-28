@@ -4,11 +4,13 @@ import bgImage from '../assets/Project.jpg'
 import { projectSlugs, projectNames } from '../data/projects.js'
 
 // In sviluppo punta alla demo locale (Vite su :5180).
-// In produzione usa VITE_BAR_AI_URL (es. https://bar.danielevillanova.com);
+// In produzione usa VITE_BAR_AI_URL (es. https://bar.danielevillanova.com--> da verificare);
 // se non è impostata, il box resta non cliccabile.
+
 const BAR_AI_URL = import.meta.env.DEV
   ? 'http://localhost:5180'
-  : import.meta.env.VITE_BAR_AI_URL || null
+  : 'https://bar-ai.pages.dev'
+
 
 const projectLinks = {
   leles: '/test5',
