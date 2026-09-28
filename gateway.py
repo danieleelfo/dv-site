@@ -241,7 +241,6 @@ async def root():
         "status": "Gateway Online",
         "agents": list(AGENTS.keys()),
     }
-
 # --------------------------------------------------------------------------
 # BAR AI PROXY
 # --------------------------------------------------------------------------
@@ -252,16 +251,25 @@ class BarAIRequest(BaseModel):
     user_id: str = "default"
 
 
-@app.post("/api/bar-ai/ask")
-@app.post("/api/bar-ai/ask/")
-async def bar_ai_ask(req: BarAIRequest):
+@app.api_route("/api/bar-ai/ask", methods=["POST", "OPTIONS"])
+@app.api_route("/api/bar-ai/ask/", methods=["POST", "OPTIONS"])
+async def bar_ai_ask(req: BarAIRequest | None = None):
+    # Se è una richiesta preflight CORS OPTIONS, rispondi subito OK 200
+    from fastapi import Request
+    # Nota: se FastAPI riceve OPTIONS con payload vuoto, req sarà None
+    
     target_url = "http://127.0.0.1:8081/ask"
+    
+    if req is None:
+        return {"status": "ok"}
+
     payload = {
         "question": req.question,
         "plan": req.plan,
         "restaurant_id": req.restaurant_id,
         "user_id": req.user_id,
     }
+    
     async with httpx.AsyncClient(timeout=120.0) as client:
         try:
             response = await client.post(target_url, json=payload)
