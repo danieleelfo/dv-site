@@ -242,6 +242,44 @@ async def root():
         "agents": list(AGENTS.keys()),
     }
 
+# --------------------------------------------------------------------------
+# BAR AI PROXY
+# --------------------------------------------------------------------------
+class BarAIRequest(BaseModel):
+    question: str
+    plan: str = "Basic"
+    restaurant_id: int = 1
+    user_id: str = "default"
+
+
+@app.post("/api/bar-ai/ask")
+@app.post("/api/bar-ai/ask/")
+async def bar_ai_ask(req: BarAIRequest):
+    target_url = "http://127.0.0.1:8081/ask"
+    payload = {
+        "question": req.question,
+        "plan": req.plan,
+        "restaurant_id": req.restaurant_id,
+        "user_id": req.user_id,
+    }
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        try:
+            response = await client.post(target_url, json=payload)
+        except Exception as e:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Impossibile raggiungere Bar AI su porta 8081: {str(e)}"
+            )
+
+    if response.status_code >= 400:
+        raise HTTPException(
+            status_code=response.status_code,
+            detail=response.text,
+        )
+
+    return response.json()
+
+
 
 # --------------------------------------------------------------------------
 # CHAT TESTUALE
