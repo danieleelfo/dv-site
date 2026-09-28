@@ -3,12 +3,21 @@ import { Link } from 'react-router-dom'
 import bgImage from '../assets/Project.jpg'
 import { projectSlugs, projectNames } from '../data/projects.js'
 
+// In sviluppo punta alla demo locale (Vite su :5180).
+// In produzione usa VITE_BAR_AI_URL (es. https://bar.danielevillanova.com);
+// se non è impostata, il box resta non cliccabile.
+const BAR_AI_URL = import.meta.env.DEV
+  ? 'http://localhost:5180'
+  : import.meta.env.VITE_BAR_AI_URL || null
+
 const projectLinks = {
   leles: '/test5',
   'emergence-lab': '/test',
   stories: '/en/console',
-  'bar-ai': null, // TBD, ha vita propria
+  'bar-ai': BAR_AI_URL,
 }
+
+const isExternal = (href) => /^https?:\/\//.test(href)
 
 export default function Projects() {
   const { t } = useTranslation()
@@ -30,19 +39,43 @@ export default function Projects() {
         <div className="projects-list">
           {projectSlugs.map((slug) => {
             const href = projectLinks[slug]
+            const external = href && isExternal(href)
+
             const card = (
               <article style={styles.card}>
                 <h3 style={styles.title}>{projectNames[slug]}</h3>
                 <p style={styles.tag}>{t(`projectsData.${slug}.tag`)}</p>
                 <p style={styles.text}>{t(`projectsData.${slug}.summary`)}</p>
+                {external && <p style={styles.cta}>Live demo →</p>}
               </article>
             )
-            return href ? (
-              <Link key={slug} to={href} style={{ textDecoration: 'none', color: 'inherit' }}>
+
+            if (!href) {
+              return <div key={slug}>{card}</div>
+            }
+
+            if (external) {
+              return (
+                <a
+                  key={slug}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ textDecoration: 'none', color: 'inherit' }}
+                >
+                  {card}
+                </a>
+              )
+            }
+
+            return (
+              <Link
+                key={slug}
+                to={href}
+                style={{ textDecoration: 'none', color: 'inherit' }}
+              >
                 {card}
               </Link>
-            ) : (
-              <div key={slug}>{card}</div>
             )
           })}
         </div>
@@ -54,7 +87,7 @@ export default function Projects() {
 const styles = {
   wrap: {
     position: 'relative',
-    height: '40vh',  // Immagine più piccola
+    height: '40vh', // Immagine più piccola
     overflow: 'hidden',
   },
   bgImg: {
@@ -68,7 +101,8 @@ const styles = {
   overlay: {
     position: 'absolute',
     inset: 0,
-    background: 'linear-gradient(180deg, rgba(11,16,21,0.55) 0%, rgba(11,16,21,0.9) 100%)',
+    background:
+      'linear-gradient(180deg, rgba(11,16,21,0.55) 0%, rgba(11,16,21,0.9) 100%)',
   },
   content: {
     position: 'relative',
@@ -103,5 +137,11 @@ const styles = {
   text: {
     color: '#8fa1ac',
     fontSize: '0.9rem',
+  },
+  cta: {
+    marginTop: '0.9rem',
+    color: '#3fd0c9',
+    fontSize: '0.85rem',
+    fontWeight: 600,
   },
 }
