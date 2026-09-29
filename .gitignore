@@ -30,3 +30,4 @@ Nav_tmp.jsx
 .dev.vars*
 !.dev.vars.example
 !.env.example
+gateway.env

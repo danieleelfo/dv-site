@@ -7,6 +7,8 @@ from fastapi.responses import Response
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
 from pydantic import BaseModel
+from dotenv import load_dotenv
+load_dotenv("gateway.env")
 
 app = FastAPI(title="Lele AI Gateway")
 
