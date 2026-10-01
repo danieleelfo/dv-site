@@ -1,311 +1,485 @@
-import React, { useState, useEffect } from 'react'
-import { Link, useLocation, useParams } from 'react-router-dom'
-import { useTranslation } from 'react-i18next'
-import bgImage from '../assets/hero.png'
-import { projectSlugs, projectNames } from '../data/projects.js'
+// ============================================================
+// LAB TEST 3 — arena bot-to-bot LATO BROWSER
+// Usa SOLO le API pubbliche già esistenti:
+//   POST https://api.danielevillanova.com/api/chat
+// Agenti: Night Story, Story Whisper, Lele I
+// Nessuna modifica a gateway.py / lele_api.py richiesta.
+// Il loop A→B→A… gira nel browser (se chiudi il tab si ferma).
+// Rotta: /test3  (ProjectTest/agent-arena resta su /test6)
+// ============================================================
 
-export default function Home() {
-  const { t } = useTranslation()
-  const location = useLocation()
-  const { lang } = useParams()
-  const [activeNode, setActiveNode] = useState('ai')
-  const [isHoveringCard, setIsHoveringCard] = useState(false)
+import { useState, useEffect, useRef } from "react";
 
-  // Ciclo automatico ogni 3 secondi
+const API = "https://api.danielevillanova.com";
+
+// Nomi esatti come in gateway.AGENTS e Console.jsx
+const AGENTS = [
+  { id: "Night Story", label: "Night Story", emoji: "🌙", hasGenre: true },
+  { id: "Story Whisper", label: "Story Whisper", emoji: "🌬️", hasGenre: false },
+  { id: "Lele I", label: "Lele I", emoji: "🏴‍☠️", hasGenre: false },
+];
+
+// Generi NS (file prompts/genre_*.txt) — finché gateway non passa "character",
+// li iniettiamo nel prompt come istruzione di stile.
+const NS_GENRES = [
+  "horror", "drammatica", "comico", "ose",
+  "ricerca", "random", "amore", "culturale",
+];
+
+const GENRE_EMOJI = {
+  horror: "💀", drammatica: "🎭", comico: "😂", ose: "🔥",
+  ricerca: "🔍", random: "🎲", amore: "❤️", culturale: "📚",
+};
+
+const DEFAULT_CFG = {
+  agent_a: "Night Story",
+  genre_a: "horror",
+  agent_b: "Story Whisper",
+  genre_b: "",
+  topic: "Due personaggi si incontrano su una nave fantasma durante una tempesta...",
+  max_turns: 6,
+  language: "it",
+};
+
+function randomChatId() {
+  return Math.floor(Math.random() * 9_000_000_000) + 1_000_000_000;
+}
+
+async function callAgent({ agent, prompt, chatId, language }) {
+  const res = await fetch(`${API}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      agent,
+      prompt,
+      chat_id: chatId,
+      language,
+    }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`HTTP ${res.status} ${agent}: ${text.slice(0, 200)}`);
+  }
+  const data = await res.json();
+  return (
+    data.answer ||
+    data.error ||
+    (typeof data.detail === "string" ? data.detail : null) ||
+    JSON.stringify(data)
+  );
+}
+
+function buildPrompt({ agent, genre, topic, history, isFirst }) {
+  const genreHint =
+    agent === "Night Story" && genre
+      ? `[Stile/genere richiesto: ${genre}.] `
+      : "";
+
+  if (isFirst) {
+    return (
+      genreHint +
+      `Sei in una conversazione improvvisata con un altro agente. ` +
+      `Scenario: ${topic}\n\n` +
+      `Inizia tu. Rispondi in modo naturale, restando nel personaggio. ` +
+      `Non menzionare di essere un'IA.`
+    );
+  }
+
+  const last = history[history.length - 1];
+  return (
+    genreHint +
+    `Continua la conversazione. L'altro ha appena detto:\n\n"${last.text}"\n\n` +
+    `Rispondi in modo naturale, restando nel personaggio. ` +
+    `Non menzionare di essere un'IA. Scenario di partenza: ${topic}`
+  );
+}
+
+export default function HomeTest3() {
+  const [cfg, setCfg] = useState(DEFAULT_CFG);
+  const [turns, setTurns] = useState([]);
+  const [status, setStatus] = useState("IDLE"); // IDLE | RUNNING | STOPPED | ERROR | COMPLETED
+  const [error, setError] = useState("");
+  const convRef = useRef(null);
+  const stopRef = useRef(false);
+  const chatA = useRef(randomChatId());
+  const chatB = useRef(randomChatId());
+
+  const set = (k, v) => setCfg((c) => ({ ...c, [k]: v }));
+
   useEffect(() => {
-    if (isHoveringCard) return
-    const interval = setInterval(() => {
-      setActiveNode((prev) => {
-        const nodes = ['humans', 'ai', 'data']
-        const currentIndex = nodes.indexOf(prev)
-        return nodes[(currentIndex + 1) % nodes.length]
-      })
-    }, 3000)
-    return () => clearInterval(interval)
-  }, [isHoveringCard])
+    if (convRef.current) {
+      convRef.current.scrollTop = convRef.current.scrollHeight;
+    }
+  }, [turns.length]);
 
-  const pathLanguage = location.pathname.split('/')[1]
-  const supportedLanguages = ['it', 'en', 'es', 'fr', 'ca', 'nl']
-  const language = supportedLanguages.includes(pathLanguage) ? pathLanguage : 'en'
+  const stop = () => {
+    stopRef.current = true;
+    setStatus((s) => (s === "RUNNING" ? "STOPPED" : s));
+  };
 
-  const localizedPath = (path) => {
-    const cleanPath = path.startsWith('/') ? path : `/${path}`
-    return `/\( {language} \){cleanPath}`
-  }
+  const reset = () => {
+    stopRef.current = true;
+    setTurns([]);
+    setStatus("IDLE");
+    setError("");
+    chatA.current = randomChatId();
+    chatB.current = randomChatId();
+  };
 
-  const nodes = {
-    humans: {
-      title: t('home.humans.title', 'HUMANS'),
-      subtitle: t('home.humans.subtitle', 'Intuition, Emotional Intelligence & Narrative Engines'),
-      description: t('home.humans.description', 'Exploring human cognition through interactive storytelling and creative emergence.'),
-      links: [
-        { label: t('home.humans.links.nightStories', 'Night Stories'), path: '/night-stories' },
-        { label: t('home.humans.links.storyTeller', 'Story Teller'), path: '/story-teller' },
-        { label: t('home.humans.links.barAI', 'Bar AI'), path: '/bar-ai' },
-      ],
-    },
-    ai: {
-      title: t('home.ai.title', 'AI Agents'),
-      subtitle: t('home.ai.subtitle', 'Synthetic Intelligence & Persistent Memory Agents'),
-      description: t('home.ai.description', 'Autonomous multi-agent architectures running local and cloud inferencing models.'),
-      links: [
-        { label: t('home.ai.links.emergence', 'Emergence Experiments'), path: '/emergence' },
-        { label: t('home.ai.links.console', 'Console Playground'), path: '/console' },
-      ],
-    },
-    data: {
-      title: t('home.data.title', 'DATA'),
-      subtitle: t('home.data.subtitle', 'Architectures, Foundations & Distributed Pipelines'),
-      description: t('home.data.description', 'Enterprise data engineering, BI systems, and scalable infrastructure.'),
-      links: [
-        { label: t('home.data.links.about', 'Corporate CV & About'), path: '/about' },
-        { label: t('home.data.links.projects', 'Data Projects'), path: '/projects' },
-      ],
-    },
-  }
+  const start = async () => {
+    stopRef.current = false;
+    setTurns([]);
+    setError("");
+    setStatus("RUNNING");
 
-  const expertiseItems = t('expertise.items', { returnObjects: true })
+    const history = [];
+    let nextIsA = true;
+
+    try {
+      for (let i = 0; i < cfg.max_turns * 2; i++) {
+        if (stopRef.current) {
+          setStatus("STOPPED");
+          return;
+        }
+
+        const isA = nextIsA;
+        const agent = isA ? cfg.agent_a : cfg.agent_b;
+        const genre = isA ? cfg.genre_a : cfg.genre_b;
+        const chatId = isA ? chatA.current : chatB.current;
+        const isFirst = history.length === 0;
+
+        const prompt = buildPrompt({
+          agent,
+          genre,
+          topic: cfg.topic,
+          history,
+          isFirst,
+        });
+
+        const text = await callAgent({
+          agent,
+          prompt,
+          chatId,
+          language: cfg.language,
+        });
+
+        if (stopRef.current) {
+          setStatus("STOPPED");
+          return;
+        }
+
+        const turn = {
+          id: `${Date.now()}-${i}`,
+          agent,
+          genre: agent === "Night Story" ? genre : null,
+          text,
+          side: isA ? "A" : "B",
+        };
+        history.push(turn);
+        setTurns([...history]);
+        nextIsA = !nextIsA;
+      }
+      setStatus("COMPLETED");
+    } catch (err) {
+      console.error(err);
+      setError(err.message || String(err));
+      setStatus("ERROR");
+    }
+  };
+
+  const running = status === "RUNNING";
 
   return (
-    <div style={pageStyles.page}>
-      <img src={bgImage} alt="" style={pageStyles.background} />
-      <div style={pageStyles.backgroundOverlay} />
+    <div
+      style={{
+        maxWidth: 900,
+        margin: "0 auto",
+        padding: "1rem",
+        fontFamily: "sans-serif",
+        color: "#e0e8ec",
+      }}
+    >
+      <h2 style={{ marginBottom: "0.25rem" }}>
+        🧪 Lab Test 3 — Bot to Bot (client)
+      </h2>
+      <p style={{ color: "#8fa1ac", fontSize: "0.9rem", marginTop: 0 }}>
+        Usa <code>/api/chat</code> pubblico. Nessun patch gateway. Loop nel
+        browser. Leles/QE non disponibili (admin only).
+      </p>
 
-      <div style={pageStyles.content}>
-        <div style={styles.container}>
-          <div className="container" style={styles.content}>
-            <header style={styles.header}>
-              <svg
-                width="220"
-                height="70"
-                viewBox="0 0 220 70"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                style={{ display: 'block', marginBottom: '0.4rem' }}
-                aria-label="Human · AI · Data"
+      {/* ============ CONFIG ============ */}
+      {status === "IDLE" && (
+        <>
+          <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+            <AgentPane
+              title="AGENT A"
+              cfg={cfg}
+              set={set}
+              agentKey="agent_a"
+              genreKey="genre_a"
+            />
+            <div
+              style={{
+                alignSelf: "center",
+                fontWeight: "bold",
+                fontSize: "1.4rem",
+              }}
+            >
+              VS
+            </div>
+            <AgentPane
+              title="AGENT B"
+              cfg={cfg}
+              set={set}
+              agentKey="agent_b"
+              genreKey="genre_b"
+            />
+          </div>
+
+          <fieldset style={{ marginTop: "1rem", borderColor: "#1f2b35" }}>
+            <legend>🌍 Scenario</legend>
+            <textarea
+              style={{
+                width: "100%",
+                minHeight: 70,
+                background: "#121a22",
+                color: "#e0e8ec",
+                border: "1px solid #1f2b35",
+                borderRadius: 6,
+                padding: "0.5rem",
+              }}
+              value={cfg.topic}
+              onChange={(e) => set("topic", e.target.value)}
+            />
+          </fieldset>
+
+          <div
+            style={{
+              marginTop: "1rem",
+              display: "flex",
+              gap: "1rem",
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            <label>
+              Max turni (per lato){" "}
+              <select
+                value={cfg.max_turns}
+                onChange={(e) => set("max_turns", +e.target.value)}
+                style={{
+                  background: "#121a22",
+                  color: "#e0e8ec",
+                  border: "1px solid #1f2b35",
+                }}
               >
-                {/* Cerchio centrale (testa) */}
-                <circle cx="110" cy="35" r="18" stroke="#3fd0c9" strokeWidth="1.8" fill="#0b1015" />
-                
-                {/* Circuiti sulla testa */}
-                <path d="M102 28 Q110 22 118 28" stroke="#3fd0c9" strokeWidth="1.2" fill="none" opacity="0.7" />
-                <path d="M100 35 H120" stroke="#3fd0c9" strokeWidth="1" opacity="0.5" />
-                
-                {/* Occhio sinistro (benda hi-tech) */}
-                <circle cx="103" cy="33" r="4.5" stroke="#3fd0c9" strokeWidth="1.5" fill="#0b1015" />
-                <circle cx="103" cy="33" r="1.8" fill="#3fd0c9" opacity="0.4" />
-                
-                {/* Occhio destro (glow) */}
-                <circle cx="117" cy="33" r="4.2" fill="#3fd0c9" />
-                <circle cx="117" cy="33" r="2" fill="#0b1015" />
-                
-                {/* Sorriso leggero */}
-                <path d="M105 41 Q110 45 115 41" stroke="#3fd0c9" strokeWidth="1.4" fill="none" strokeLinecap="round" />
-                
-                {/* Gamba in alto */}
-                <path d="M110 17 L110 8 Q110 4 114 4 L118 8 L114 12" stroke="#e0e8ec" strokeWidth="2" fill="none" strokeLinejoin="round" />
-                <circle cx="110" cy="17" r="2.5" fill="#3fd0c9" />
-                
-                {/* Gamba in basso a sinistra */}
-                <path d="M95 48 L82 58 Q78 62 82 66 L90 62 L88 54" stroke="#e0e8ec" strokeWidth="2" fill="none" strokeLinejoin="round" />
-                <circle cx="95" cy="48" r="2.5" fill="#3fd0c9" />
-                
-                {/* Gamba in basso a destra */}
-                <path d="M125 48 L138 58 Q142 62 138 66 L130 62 L132 54" stroke="#e0e8ec" strokeWidth="2" fill="none" strokeLinejoin="round" />
-                <circle cx="125" cy="48" r="2.5" fill="#3fd0c9" />
-              </svg>
-            </header>
-
-            <div style={styles.diagramWrapper}>
-              <svg viewBox="0 0 300 300" style={styles.svg} aria-label="Human AI Data system">
-                <circle cx="150" cy="150" r="110" stroke="#1f2b35" strokeWidth="1.5" fill="none" />
-                <circle cx="150" cy="150" r="125" stroke="#1f2b35" strokeDasharray="4 4" strokeWidth="1" fill="none" opacity="0.5" />
-                <polygon points="150,50 55,215 245,215" stroke="#1f2b35" strokeWidth="2" fill="none" />
-
-                {activeNode === 'humans' && (
-                  <>
-                    <line x1="150" y1="50" x2="55" y2="215" stroke="#3fd0c9" strokeWidth="3" opacity="0.8" />
-                    <line x1="150" y1="50" x2="245" y2="215" stroke="#3fd0c9" strokeWidth="3" opacity="0.8" />
-                  </>
-                )}
-                {activeNode === 'ai' && (
-                  <>
-                    <line x1="55" y1="215" x2="150" y2="50" stroke="#3fd0c9" strokeWidth="3" opacity="0.8" />
-                    <line x1="55" y1="215" x2="245" y2="215" stroke="#3fd0c9" strokeWidth="3" opacity="0.8" />
-                  </>
-                )}
-                {activeNode === 'data' && (
-                  <>
-                    <line x1="245" y1="215" x2="150" y2="50" stroke="#3fd0c9" strokeWidth="3" opacity="0.8" />
-                    <line x1="245" y1="215" x2="55" y2="215" stroke="#3fd0c9" strokeWidth="3" opacity="0.8" />
-                  </>
-                )}
-
-                <g style={{ cursor: 'pointer' }} onClick={() => setActiveNode('humans')} onMouseEnter={() => setActiveNode('humans')}>
-                  <defs><filter id="glow-humans" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="4" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter></defs>
-                  <circle cx="150" cy="50" r="20" fill={activeNode === 'humans' ? '#3fd0c9' : '#0b1015'} stroke="#3fd0c9" strokeWidth="2" filter={activeNode === 'humans' ? 'url(#glow-humans)' : 'none'} />
-                  <text x="150" y="54" fill={activeNode === 'humans' ? '#0b1015' : '#fff'} fontSize="10" textAnchor="middle" fontWeight="bold">HU</text>
-                  <text x="150" y="22" fill="#3fd0c9" fontSize="13" textAnchor="middle" fontWeight="600" letterSpacing="1">HUMANS</text>
-                </g>
-
-                <g style={{ cursor: 'pointer' }} onClick={() => setActiveNode('ai')} onMouseEnter={() => setActiveNode('ai')}>
-                  <defs><filter id="glow-ai" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="4" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter></defs>
-                  <circle cx="55" cy="215" r="20" fill={activeNode === 'ai' ? '#3fd0c9' : '#0b1015'} stroke="#3fd0c9" strokeWidth="2" filter={activeNode === 'ai' ? 'url(#glow-ai)' : 'none'} />
-                  <text x="55" y="219" fill={activeNode === 'ai' ? '#0b1015' : '#fff'} fontSize="10" textAnchor="middle" fontWeight="bold">AI</text>
-                  <text x="55" y="250" fill="#3fd0c9" fontSize="13" textAnchor="middle" fontWeight="600" letterSpacing="1">AI</text>
-                </g>
-
-                <g style={{ cursor: 'pointer' }} onClick={() => setActiveNode('data')} onMouseEnter={() => setActiveNode('data')}>
-                  <defs><filter id="glow-data" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="4" result="blur" /><feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge></filter></defs>
-                  <circle cx="245" cy="215" r="20" fill={activeNode === 'data' ? '#3fd0c9' : '#0b1015'} stroke="#3fd0c9" strokeWidth="2" filter={activeNode === 'data' ? 'url(#glow-data)' : 'none'} />
-                  <text x="245" y="219" fill={activeNode === 'data' ? '#0b1015' : '#fff'} fontSize="10" textAnchor="middle" fontWeight="bold">DA</text>
-                  <text x="245" y="250" fill="#3fd0c9" fontSize="13" textAnchor="middle" fontWeight="600" letterSpacing="1">DATA</text>
-                </g>
-              </svg>
-            </div>
-
-            <div style={styles.cardContainer}>
-              <div
-                style={styles.card}
-                onMouseEnter={() => setIsHoveringCard(true)}
-                onMouseLeave={() => setIsHoveringCard(false)}
+                {[3, 4, 6, 8, 10].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Lingua{" "}
+              <select
+                value={cfg.language}
+                onChange={(e) => set("language", e.target.value)}
+                style={{
+                  background: "#121a22",
+                  color: "#e0e8ec",
+                  border: "1px solid #1f2b35",
+                }}
               >
-                <div style={styles.consoleHeader}>
-                  <span style={styles.dotRed} />
-                  <span style={styles.dotYellow} />
-                  <span style={styles.dotGreen} />
-                  <span style={styles.consoleTitle}>terminal // {activeNode.toUpperCase()}</span>
-                </div>
-                <div style={styles.cardBody}>
-                  <h3 style={styles.cardTitle}>{nodes[activeNode].title}</h3>
-                  <p style={styles.cardSubtitle}>{nodes[activeNode].subtitle}</p>
-                  <p style={styles.cardDesc}>{nodes[activeNode].description}</p>
-                  <div style={styles.linkGroup}>
-                    {nodes[activeNode].links.map((link) => (
-                      <Link key={link.path} to={localizedPath(link.path)} className="home-button">
-                        {link.label} →
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              </div>
+                {["it", "en", "es", "fr"].map((l) => (
+                  <option key={l} value={l}>
+                    {l}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              onClick={start}
+              style={{
+                padding: ".5rem 1.5rem",
+                fontWeight: "bold",
+                background: "#3fd0c9",
+                color: "#0b1015",
+                border: "none",
+                borderRadius: 6,
+                cursor: "pointer",
+              }}
+            >
+              ▶ START
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* ============ LIVE ============ */}
+      {status !== "IDLE" && (
+        <>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: "0.5rem",
+            }}
+          >
+            <div>
+              <strong>status:</strong> <em>{status}</em> — {turns.length}{" "}
+              messaggi / {cfg.max_turns * 2}
             </div>
-
-            <div style={styles.signatureRow}>
-              <div style={styles.signature}>designed and developed by Daniele Villanova</div>
-              <div style={homeStyles.heroActions}>
-                <Link to={lang ? `/${lang}/projects` : '/projects'} style={homeStyles.btnPrimary}>
-                  {t('hero.viewProjects')}
-                </Link>
-                <Link to={lang ? `/${lang}#expertise` : '/#expertise'} style={homeStyles.btnGhost}>
-                  {t('nav.expertise')}
-                </Link>
-                <a href="#contact" style={homeStyles.btnGhost}>
-                  {t('hero.contact')}
-                </a>
-              </div>
+            <div style={{ display: "flex", gap: "0.5rem" }}>
+              {running && (
+                <button onClick={stop} style={btnSecondary}>
+                  ⏹ STOP
+                </button>
+              )}
+              <button onClick={reset} style={btnSecondary}>
+                ↺ Nuovo esperimento
+              </button>
             </div>
           </div>
-        </div>
 
-        <section className="section container home-section" id="expertise" style={{ borderTop: '1px solid #1f2b35' }}>
-          <p className="section-label">{t('expertise.label')}</p>
-          <h2 className="section-title">{t('expertise.title')}</h2>
-          <div className="home-expertise-grid" style={homeStyles.expertiseGrid}>
-            {expertiseItems.map((e, i) => (
-              <div key={i} style={homeStyles.expertiseCard}>
-                <h3 style={homeStyles.expertiseTitle}>{e.title}</h3>
-                <p style={homeStyles.expertiseText}>{e.text}</p>
-              </div>
-            ))}
+          <div
+            style={{
+              border: "1px dashed #5c6b74",
+              padding: ".5rem",
+              margin: ".75rem 0",
+              borderRadius: 6,
+            }}
+          >
+            <strong>SCENARIO</strong>
+            <p style={{ whiteSpace: "pre-wrap", margin: ".25rem 0 0" }}>
+              {cfg.topic}
+            </p>
+            <p style={{ color: "#8fa1ac", fontSize: "0.85rem", margin: ".25rem 0 0" }}>
+              {cfg.agent_a}
+              {cfg.agent_a === "Night Story" && cfg.genre_a
+                ? ` (${cfg.genre_a})`
+                : ""}{" "}
+              vs {cfg.agent_b}
+              {cfg.agent_b === "Night Story" && cfg.genre_b
+                ? ` (${cfg.genre_b})`
+                : ""}
+            </p>
           </div>
-        </section>
 
-        <section className="section container home-section" id="projects" style={{ borderTop: '1px solid #1f2b35' }}>
-          <p className="section-label">{t('projects.label')}</p>
-          <h2 className="section-title">{t('projects.title')}</h2>
-          <div className="home-projects-grid" style={homeStyles.projectsGrid}>
-            {projectSlugs.map((slug) => (
-              <div key={slug} style={homeStyles.projectCard}>
-                <h3 style={homeStyles.projectTitle}>{projectNames[slug]}</h3>
-                <p style={homeStyles.projectTag}>{t(`projectsData.${slug}.tag`)}</p>
-                <p style={homeStyles.projectText}>{t(`projectsData.${slug}.summary`)}</p>
-              </div>
-            ))}
+          {error && (
+            <strong style={{ color: "#ff6b6b", display: "block", marginBottom: "0.5rem" }}>
+              {error}
+            </strong>
+          )}
+
+          <div
+            ref={convRef}
+            style={{
+              maxHeight: "55vh",
+              overflowY: "auto",
+              display: "flex",
+              flexDirection: "column",
+              gap: ".75rem",
+            }}
+          >
+            {turns.map((t) => {
+              const meta = AGENTS.find((a) => a.id === t.agent);
+              const emoji = t.genre
+                ? GENRE_EMOJI[t.genre] || meta?.emoji || "🤖"
+                : meta?.emoji || "🤖";
+              const who = t.genre ? `${t.agent} · ${t.genre}` : t.agent;
+              return (
+                <div
+                  key={t.id}
+                  style={{
+                    borderLeft: `4px solid ${t.side === "A" ? "#3fd0c9" : "#6b8afd"}`,
+                    padding: ".5rem .75rem",
+                    background: "#121a22",
+                    borderRadius: 4,
+                  }}
+                >
+                  <strong>
+                    {emoji} {who}
+                  </strong>
+                  <p style={{ whiteSpace: "pre-wrap", margin: ".25rem 0 0" }}>
+                    {t.text}
+                  </p>
+                </div>
+              );
+            })}
+            {running && (
+              <em style={{ color: "#8fa1ac" }}>… in corso</em>
+            )}
           </div>
-          <div style={{ marginTop: '2.5rem' }}>
-            <Link to={lang ? `/${lang}/projects` : '/projects'} style={homeStyles.btnGhost}>
-              {t('projects.viewAll')} →
-            </Link>
-          </div>
-        </section>
-
-        <section className="section container home-section" id="about" style={{ borderTop: '1px solid #1f2b35' }}>
-          <p className="section-label">{t('about.label')}</p>
-          <h2 className="section-title">{t('about.title')}</h2>
-          <p style={homeStyles.aboutText}>{t('about.text')}</p>
-        </section>
-
-        <section className="section container home-section" id="contact" style={{ borderTop: '1px solid #1f2b35' }}>
-          <p className="section-label">{t('contact.label')}</p>
-          <h2 className="section-title">{t('contact.title')}</h2>
-          <p style={homeStyles.aboutText}>{t('contact.text')}</p>
-          <a href="mailto:daniele@danielevillanova.com" style={homeStyles.btnPrimary}>
-            daniele@danielevillanova.com
-          </a>
-        </section>
-
-        <footer style={homeStyles.footer}>
-          <div className="container">© {new Date().getFullYear()} Daniele Villanova</div>
-        </footer>
-      </div>
+        </>
+      )}
     </div>
-  )
+  );
 }
 
-const pageStyles = {
-  page: { position: 'relative', minHeight: '100vh', background: '#0b1015', overflow: 'hidden' },
-  background: { position: 'fixed', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 35%', zIndex: 0 },
-  backgroundOverlay: { position: 'fixed', inset: 0, background: 'linear-gradient(180deg, rgba(11,16,21,0.45) 0%, rgba(11,16,21,0.60) 45%, rgba(11,16,21,0.78) 100%)', zIndex: 1 },
-  content: { position: 'relative', zIndex: 2 },
+function AgentPane({ title, cfg, set, agentKey, genreKey }) {
+  const agent = AGENTS.find((a) => a.id === cfg[agentKey]);
+  return (
+    <fieldset style={{ flex: 1, minWidth: 260, borderColor: "#1f2b35" }}>
+      <legend>{title}</legend>
+
+      <label style={{ display: "block" }}>
+        Agent
+        <select
+          value={cfg[agentKey]}
+          onChange={(e) => {
+            set(agentKey, e.target.value);
+            // reset genre se non è NS
+            if (e.target.value !== "Night Story") set(genreKey, "");
+            else if (!cfg[genreKey]) set(genreKey, "horror");
+          }}
+          style={{
+            width: "100%",
+            background: "#121a22",
+            color: "#e0e8ec",
+            border: "1px solid #1f2b35",
+          }}
+        >
+          {AGENTS.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.emoji} {a.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      {agent?.hasGenre && (
+        <label style={{ display: "block", marginTop: ".5rem" }}>
+          Genere (hint nel prompt)
+          <select
+            value={cfg[genreKey] || "horror"}
+            onChange={(e) => set(genreKey, e.target.value)}
+            style={{
+              width: "100%",
+              background: "#121a22",
+              color: "#e0e8ec",
+              border: "1px solid #1f2b35",
+            }}
+          >
+            {NS_GENRES.map((g) => (
+              <option key={g} value={g}>
+                {GENRE_EMOJI[g]} {g}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+    </fieldset>
+  );
 }
 
-const styles = {
-  container: { position: 'relative', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', padding: '2rem 1rem' },
-  content: { position: 'relative', zIndex: 2, textAlign: 'left', maxWidth: 950, width: '100%' },
-  header: { marginBottom: '0.5rem' },
-  systemBadge: { color: '#3fd0c9', fontSize: '0.95rem', letterSpacing: '0.15em', marginBottom: '0.5rem' },
-  diagramWrapper: { width: 260, height: 260, margin: '0.3rem auto 1rem', transform: 'translateX(-15px)' },
-  svg: { width: '100%', height: '100%' },
-  cardContainer: { marginTop: '0.8rem' },
-  card: { background: 'rgba(11, 16, 21, 0.85)', border: '1px solid #1f2b35', borderRadius: 8, overflow: 'hidden', backdropFilter: 'blur(10px)' },
-  consoleHeader: { background: '#121a22', padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '6px', borderBottom: '1px solid #1f2b35' },
-  dotRed: { width: 8, height: 8, borderRadius: '50%', background: '#ff5f56' },
-  dotYellow: { width: 8, height: 8, borderRadius: '50%', background: '#ffbd2e' },
-  dotGreen: { width: 8, height: 8, borderRadius: '50%', background: '#27c93f' },
-  consoleTitle: { color: '#8fa1ac', fontSize: '0.75rem', marginLeft: 'auto', fontFamily: 'monospace' },
-  cardBody: { padding: '1.2rem 2rem 1.3rem' },
-  cardTitle: { color: '#3fd0c9', fontSize: '1.1rem', fontFamily: 'monospace', marginBottom: '0.3rem' },
-  cardSubtitle: { color: '#fff', fontSize: '0.9rem', marginBottom: '0.5rem', fontWeight: 600 },
-  cardDesc: { color: '#8fa1ac', fontSize: '0.85rem', marginBottom: '1rem', lineHeight: '1.4' },
-  linkGroup: { display: 'flex', gap: '0.8rem', flexWrap: 'wrap', justifyContent: 'center' },
-  signatureRow: { marginTop: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' },
-  signature: { color: '#5c6b74', fontSize: '0.65rem', letterSpacing: '0.08em', textTransform: 'uppercase' },
-}
-
-const homeStyles = {
-  heroActions: { display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' },
-  btnPrimary: { background: '#3fd0c9', color: '#0b1015', padding: '0.65rem 0.8rem', borderRadius: 6, fontWeight: 600, fontSize: '0.8rem', display: 'inline-block' },
-  btnGhost: { border: '1px solid #3fd0c9', color: '#3fd0c9', padding: '0.65rem 0.8rem', borderRadius: 6, fontWeight: 600, fontSize: '0.8rem', display: 'inline-block' },
-  aboutText: { color: '#b7c5cc', fontSize: '1.05rem', maxWidth: 720 },
-  expertiseGrid: { display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '0.75rem' },
-  expertiseCard: { background: 'rgba(18, 26, 34, 0.85)', border: '1px solid #1f2b35', borderRadius: 10, padding: '1.5rem' },
-  expertiseTitle: { fontSize: '1rem', marginBottom: '0.6rem', color: '#3fd0c9' },
-  expertiseText: { color: '#8fa1ac', fontSize: '0.9rem' },
-  projectsGrid: { display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '0.75rem' },
-  projectCard: { borderLeft: '2px solid #3fd0c9', paddingLeft: '1.2rem' },
-  projectTitle: { fontSize: '1.1rem', marginBottom: '0.2rem' },
-  projectTag: { fontSize: '0.75rem', color: '#3fd0c9', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '0.6rem' },
-  projectText: { color: '#8fa1ac', fontSize: '0.9rem' },
-  footer: { borderTop: '1px solid #1f2b35', padding: '2rem 0', color: '#5c6b74', fontSize: '0.85rem' },
-}
+const btnSecondary = {
+  padding: ".4rem .9rem",
+  background: "#121a22",
+  color: "#3fd0c9",
+  border: "1px solid #3fd0c9",
+  borderRadius: 6,
+  cursor: "pointer",
+};
