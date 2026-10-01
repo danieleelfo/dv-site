@@ -109,6 +109,7 @@ const ROLE_EMOJI = {
   Architect: "📐",
   Developer: "👨‍💻",
   Tester: 
+
 "🧪",
   Reviewer: "📝",
   Sheriff: "⭐",
@@ -203,7 +204,8 @@ export default function ProjectTest() {
     }
   };
 
-  // ==========================================================
+  // =========================================================
+=
 
   // STOP
   // ==========================================================
@@ -294,7 +296,8 @@ export default function ProjectTest() {
   // HELPERS
   // ==========================================================
 
-  const getTurnIdentity = (turn) => {
+  
+const getTurnIdentity = (turn) => {
     const emoji = turn.character
       ? CHARACTER_EMOJI[turn.character] || "🤖"
       : turn.role
@@ -372,6 +375,7 @@ export default function ProjectTest() {
                 cfg={cfg}
                 set={set}
                 agentKey="agent_a"
+
    
              characterKey="character_a"
                 roleKey="role_a"
@@ -433,7 +437,8 @@ export default function ProjectTest() {
                     }
                     onChange={() =>
                       set("world_source", "emergence")
-                   
+               
+    
  }
                   />
                   <span>Emergence World</span>
@@ -498,7 +503,8 @@ export default function ProjectTest() {
                 disabled={starting}
                 style={{
                   ...styles.startButton,
-                  opacity: starting ? 0.65 : 1,
+              
+    opacity: starting ? 0.65 : 1,
                   cursor: starting
                     ? "wait"
                     : "pointer",
@@ -570,7 +576,8 @@ export default function ProjectTest() {
               </div>
             </div>
 
-            {/* =====
+            {/* 
+=====
 ============================================
                 RUN CONFIG SUMMARY
             ================================================= */}
@@ -634,6 +641,7 @@ export default function ProjectTest() {
             </section>
 
             {/* =================================================
+
       
           CONVERSATION
             ================================================= */}
@@ -694,7 +702,8 @@ export default function ProjectTest() {
 
                           <span style={styles.messageModel}>
                             {turn.model}
-                          </span>
+                         
+ </span>
                         </div>
 
                         <div style={styles.messageText}>
@@ -776,8 +785,7 @@ function AgentPane({
           : styles.agentCardB),
       }}
     >
-      <div style={styl
-es.agentHeader}>
+      <div style={styles.agentHeader}>
         <div>
           <div style={styles.agentSide}>
             {title}
@@ -861,7 +869,8 @@ es.agentHeader}>
                 value={role}
               >
                 {ROLE_EMOJI[role] || "🌱"}{" "}
-               
+       
+        
  {role}
               </option>
             ))}
@@ -961,7 +970,8 @@ const styles = {
     position: "fixed",
     inset: 0,
     background:
-      "linear-gradient(180deg, rgba(5,10,14,
+      "linear-gradient(180deg, rgba
+(5,10,14,
 .82) 0%, rgba(7,13,18,.91) 48%, rgba(4,8,12,.97) 100%)",
     zIndex: 1,
   },
@@ -1075,7 +1085,8 @@ const styles = {
   fieldLabel: {
     display: "block",
     fontSize: 10,
-    letterSpacing: "1.5px",
+    letterSpacing: "1
+.5px",
    
  fontWeight: 700,
     color: "#82949e",
@@ -1189,7 +1200,8 @@ const styles = {
     minHeight: 100,
     boxSizing: "border-box",
     resize: "vertical",
-    background: "#0d151b"
+    background
+: "#0d151b"
 ,
     color: "#e5ecef",
     border: "1px solid #2b3d47",
@@ -1295,7 +1307,8 @@ const styles = {
 
   statusRunning: {
     background: "#8aaebc",
-    boxShadow: "0 0 10px rgba
+    boxShadow: "0
+ 0 10px rgba
 (138,174,188,.7)",
   },
 
@@ -1411,8 +1424,8 @@ const styles = {
     overflow: "hidden",
   },
 
-  conversati
-onHeader: {
+
+  conversationHeader: {
     padding: "18px 20px",
     display: "flex",
     alignItems: "center",
@@ -1451,6 +1464,6 @@ onHeader: {
     borderRadius: 14,
     border: "1px solid #293b45",
     boxShadow:
-      "0 8px 25px rgba(0,0,0,
+      "0 8px 25
 
 ... [Content truncated]
