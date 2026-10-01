@@ -1,13 +1,12 @@
 // ============================================================
 // LAB TEST 2 — pagina completa bot-to-bot per dv-site
-// Agenti selezionabili: Night Story (8 character), Story Whisper,
-// Leles. Ogni lato ha il suo LLM tra i 5 modelli.
-// Da incollare come nuova pagina (es. src/pages/LabTest2.jsx)
-// + una rotta "/lab-test2" nel router. Nessuna modifica a Console.jsx.
+// Agenti selezionabili: Night Story (8 generi da prompts/genre_*.txt),
+// Story Whisper (nessun carattere), Leles, QE/Emergence (12 ruoli da DB).
+// Ogni lato ha il suo LLM tra i 5 modelli.
 //
 // Dipende SOLO dal gateway (https://api.danielevillanova.com):
 //   POST /api/agent-arena/start   → {run_id}
-//   GET  /api/agent-arena/{run_id} → {status, turns: [{id, agent, character, model, text}]}
+//   GET  /api/agent-arena/{run_id} → {status, turns: [{id, agent, character, role, model, text}]}
 //   POST /api/agent-arena/{run_id}/stop
 // (il piccolo patch del gateway per il routing per agente è in fondo al file)
 // ============================================================
@@ -21,24 +20,38 @@ const AGENTS = [
   { id: "night_story", label: "Night Story", port: 8666, hasCharacters: true },
   { id: "story_whisper", label: "Story Whisper", port: 8088, hasCharacters: false },
   { id: "leles", label: "Leles", port: 8082, hasCharacters: false },
+  { id: "qe", label: "QE (Emergence)", port: 8082, hasCharacters: false, hasRoles: true },
 ];
 
+// Night Story: gli 8 generi = file prompts/genre_*.txt nel repo lele_night_story
 const NS_CHARACTERS = [
-  "pirate", "wizard", "knight", "scientist", "ghost",
-  "detective", "child", "alien",
-]; // <-- sostituisci con i nomi ESATTI degli 8 character di NS (quelli dei bottoni /character)
+  "horror", "drammatica", "comico", "ose",
+  "ricerca", "random", "amore", "culturale",
+];
+
+// QE: i 12 ruoli del DB Emergence (leles/core/db_init_exp.py)
+const QE_ROLES = [
+  "Planner", "Scientist", "Builder", "Critic", "Observer",
+  "Architect", "Developer", "Tester", "Reviewer",
+  "Sheriff", "Outlaw", "Explorer",
+];
 
 const LLM_MODELS = ["gemma4", "llama3", "mistral", "qwen2.5", "deepseek-r1"];
 
 const CHARACTER_EMOJI = {
-  pirate: "🏴‍☠️", wizard: "🧙", knight: "⚔️", scientist: "🔬",
-  ghost: "👻", detective: "🕵️", child: "🧒", alien: "👽",
+  horror: "💀", drammatica: "🎭", comico: "😂", ose: "🔥",
+  ricerca: "🔍", random: "🎲", amore: "❤️", culturale: "📚",
 };
-const AGENT_EMOJI = { night_story: "🌙", story_whisper: "🌬️", leles: "🏴‍☠️" };
+const ROLE_EMOJI = {
+  Planner: "🧭", Scientist: "🔬", Builder: "🔨", Critic: "🧐", Observer: "👁️",
+  Architect: "📐", Developer: "👨‍💻", Tester: "🧪", Reviewer: "📝",
+  Sheriff: "⭐", Outlaw: "🤠", Explorer: "🧭",
+};
+const AGENT_EMOJI = { night_story: "🌙", story_whisper: "🌬️", leles: "🏴‍☠️", qe: "🌱" };
 
 const DEFAULT_CFG = {
-  agent_a: "night_story", character_a: "pirate", model_a: "gemma4",
-  agent_b: "night_story", character_b: "wizard", model_b: "qwen2.5",
+  agent_a: "night_story", character_a: "horror", model_a: "gemma4",
+  agent_b: "qe", character_b: "", role_b: "Critic", model_b: "qwen2.5",
   world_source: "free",        // 'free' | 'emergence'
   world_ref: "",               // run id Emergence se world_source = 'emergence'
   topic: "",
@@ -113,13 +126,13 @@ export default function LabTest2() {
             <AgentPane
               title="AGENT A"
               cfg={cfg} set={set}
-              agentKey="agent_a" characterKey="character_a" modelKey="model_a"
+              agentKey="agent_a" characterKey="character_a" roleKey="role_a" modelKey="model_a"
             />
             <div style={{ alignSelf: "center", fontWeight: "bold", fontSize: "1.4rem" }}>VS</div>
             <AgentPane
               title="AGENT B"
               cfg={cfg} set={set}
-              agentKey="agent_b" characterKey="character_b" modelKey="model_b"
+              agentKey="agent_b" characterKey="character_b" roleKey="role_b" modelKey="model_b"
             />
           </div>
 
@@ -195,8 +208,10 @@ export default function LabTest2() {
             {data.turns.map(t => {
               const emoji = t.character
                 ? (CHARACTER_EMOJI[t.character] || "🤖")
-                : (AGENT_EMOJI[t.agent] || "🤖");
-              const who = t.character || t.agent;
+                : t.role
+                  ? (ROLE_EMOJI[t.role] || "🌱")
+                  : (AGENT_EMOJI[t.agent] || "🤖");
+              const who = t.character || t.role || t.agent;
               return (
                 <div key={t.id}
                   style={{
@@ -222,7 +237,7 @@ export default function LabTest2() {
 // ============================================================
 // Pannello singolo agente (usato per A e B)
 // ============================================================
-function AgentPane({ title, cfg, set, agentKey, characterKey, modelKey }) {
+function AgentPane({ title, cfg, set, agentKey, characterKey, roleKey, modelKey }) {
   const agent = AGENTS.find(a => a.id === cfg[agentKey]);
   return (
     <fieldset style={{ flex: 1, minWidth: 260 }}>
@@ -235,12 +250,22 @@ function AgentPane({ title, cfg, set, agentKey, characterKey, modelKey }) {
         </select>
       </label>
 
-      {/* Character: solo per Night Story */}
+      {/* Genere: solo per Night Story */}
       {agent.hasCharacters && (
-        <label style={{ display: "block", marginTop: ".5rem" }}>Character
+        <label style={{ display: "block", marginTop: ".5rem" }}>Genere
           <select value={cfg[characterKey]} onChange={e => set(characterKey, e.target.value)}
             style={{ width: "100%" }}>
             {NS_CHARACTERS.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </label>
+      )}
+
+      {/* Ruolo: solo per QE (Emergence) */}
+      {agent.hasRoles && (
+        <label style={{ display: "block", marginTop: ".5rem" }}>Ruolo
+          <select value={cfg[roleKey]} onChange={e => set(roleKey, e.target.value)}
+            style={{ width: "100%" }}>
+            {QE_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
           </select>
         </label>
       )}
@@ -267,29 +292,37 @@ function AgentPane({ title, cfg, set, agentKey, characterKey, modelKey }) {
 
 /* ============================================================
    PATCH GATEWAY (gateway.py) — routing per agente.
-   Il loop di agent-arena (canvas gateway-agent-arena) non chiama
-   più solo NS: risolve la porta dall'agente scelto.
+   Il loop di agent-arena non chiama più solo NS: risolve la porta
+   dall'agente scelto.
 
    AGENT_PORTS = {
-       "night_story":  8666,   # /ask  (usa anche character, se passato)
-       "story_whisper": 8088,   # /ask  (ignora character)
-       "leles":         8082,   # /ask  (ignora character)
+       "night_story":   8666,   # /ask  (usa anche character=genere, se passato)
+       "story_whisper": 8088,   # /ask  (ignora character/role)
+       "leles":         8082,   # /ask  (ignora character/role)
+       "qe":            8082,   # /ask  (ruolo Emergence, campo "role")
    }
 
    // dentro run_conversation:
    const port = AGENT_PORTS[cfg[f"agent_{who.lower()}"]]
    url = f"http://127.0.0.1:{port}/ask"
    payload = {"message": last_msg, "chat_id": chat[who]}
+   ag = cfg[f"agent_{who.lower()}"]
    char = cfg.get(f"character_{who.lower()}")
-   if char and cfg[f"agent_{who.lower()}"] == "night_story":
-       payload["character"] = char
+   role = cfg.get(f"role_{who.lower()}")
+   if char and ag == "night_story":
+       payload["character"] = char      # genere: file prompts/genre_*.txt
+   if role and ag == "qe":
+       payload["role"] = role            # ruolo del DB Emergence
    if cfg.get(f"model_{who.lower()}"):
        payload["model"] = cfg[f"model_{who.lower()}"]
-   # NB: model funziona subito su NS dopo la patch; su SW/Leles,
-   # se il campo non esiste FastAPI lo ignora senza errori →
-   # finché non patchi anche loro, lì il modello resta quello di default.
 
-   // inoltre: salvare agent_a/agent_b nel config JSONB della run
-   // e far restituire al GET anche metadata->>'character' come campo
-   // "character" di ogni turno (serve per l'emoji lato frontend).
+   // NB:
+   // - NS legge "character" (genere) → prompts/genre_<nome>.txt
+   // - QE richiede che leles/lele_api.py accetti il campo "role" e
+   //   usi il prompt del ruolo dal DB Emergence (get_prompts(role=...)).
+   //   Finché non lo patchi, il campo viene ignorato da FastAPI.
+   // - salvare agent_a/agent_b/character/role nel config JSONB della run
+   //   e far restituire al GET anche metadata->>'character' e
+   //   metadata->>'role' per i campi "character"/"role" di ogni turno
+   //   (servono per l'emoji lato frontend).
    ============================================================ */
