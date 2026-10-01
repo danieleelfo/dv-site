@@ -112,6 +112,7 @@ const ROLE_EMOJI = {
 
 
 
+
 "🧪",
   Reviewer: "📝",
   Sheriff: "⭐",
@@ -129,6 +130,7 @@ const AGENT_EMOJI = {
 const DEFAULT_CFG = {
   agent_a: "night_story",
   character_a: "horror",
+  role_a: "",
   model_a: "gemma4",
 
   agent_b: "qe",
@@ -206,10 +208,7 @@ export default function ProjectTest() {
     }
   };
 
-  // =======================================================
-===
-
-
+  // ==========================================================
   // STOP
   // ==========================================================
 
@@ -298,6 +297,7 @@ export default function ProjectTest() {
   // ==========================================================
   // HELPERS
   // ==========================================================
+
 
 
 
@@ -442,7 +442,8 @@ const getTurnIdentity = (turn) => {
                     }
                     onChange={() =>
                       set("world_source", "emergence")
-        
+       
+ 
    
     
     
@@ -510,7 +511,8 @@ const getTurnIdentity = (turn) => {
                 disabled={starting}
                 style={{
                   ...styles.startButton,
-     
+   
+  
     
      
     opacity: starting ? 0.65 : 1,
@@ -585,7 +587,8 @@ const getTurnIdentity = (turn) => {
               </div>
             </div>
 
-     
+  
+   
      
   {/* 
 =====
@@ -598,8 +601,10 @@ const getTurnIdentity = (turn) => {
                 label="AGENT A"
                 value={getAgentLabel(cfg.agent_a)}
                 detail={
-                  cfg.character_a ||
-                  cfg.role_a ||
+                  (cfg.agent_a === "night_story" &&
+                    cfg.character_a) ||
+                  (cfg.agent_a === "qe" &&
+                    cfg.role_a) ||
                   cfg.model_a
                 }
               />
@@ -608,8 +613,10 @@ const getTurnIdentity = (turn) => {
                 label="AGENT B"
                 value={getAgentLabel(cfg.agent_b)}
                 detail={
-                  cfg.role_b ||
-                  cfg.character_b ||
+                  (cfg.agent_b === "qe" &&
+                    cfg.role_b) ||
+                  (cfg.agent_b === "night_story" &&
+                    cfg.character_b) ||
                   cfg.model_b
                 }
               />
@@ -651,7 +658,8 @@ const getTurnIdentity = (turn) => {
               </div>
             </section>
 
-            {/* =====================================
+            {/* =================================
+====
 ======
 ======
 
@@ -715,7 +723,8 @@ const getTurnIdentity = (turn) => {
 
                           <span style={styles.messageModel}>
                             {turn.model}
-          
+     
+     
        
         
  </span>
@@ -798,7 +807,8 @@ function AgentPane({
         ...(side === "A"
           ? styles.agentCardA
           : styles.agentCardB),
-      }}
+      }
+}
     
 >
       
@@ -824,9 +834,19 @@ function AgentPane({
       <Field label="AGENT">
         <select
           value={cfg[agentKey]}
-          onChange={(event) =>
-            set(agentKey, event.target.value)
-          }
+          onChange={(event) => {
+            const id = event.target.value;
+            set(agentKey, id);
+            const next = AGENTS.find((item) => item.id === id);
+            set(
+              characterKey,
+              next?.hasCharacters ? NS_CHARACTERS[0] : ""
+            );
+            set(
+              roleKey,
+              next?.hasRoles ? QE_ROLES[0] : ""
+            );
+          }}
           style={styles.select}
         >
           {AGENTS.map((item) => (
@@ -885,7 +905,8 @@ function AgentPane({
                 key={role}
                 value={role}
               >
-                {ROLE_EMOJI[role] || 
+                {ROLE_EMOJI[ro
+le] || 
 "🌱"}{" "}
 
        
@@ -1101,7 +1122,8 @@ const styles = {
 
   fieldLabel: {
     display: "block",
-    fontSize: 10,
+    fontSize:
+ 10,
 
 letterSpacing: "1.5px",
    
@@ -1438,7 +1460,8 @@ boxShadow: "0 0 10px rgba(138,174,188,.7)",
       "rgba(11,18,24,.9)",
     border: "1px solid #273640",
   
-  overflow: "hidden",
+  over
+flow: "hidden",
   },
 
 
