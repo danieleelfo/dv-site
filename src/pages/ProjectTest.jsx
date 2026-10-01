@@ -111,6 +111,7 @@ const ROLE_EMOJI = {
   Tester: 
 
 
+
 "🧪",
   Reviewer: "📝",
   Sheriff: "⭐",
@@ -174,7 +175,7 @@ export default function ProjectTest() {
       const response = await fetch(`${API}/api/agent-arena/start`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/jsonn",
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(cfg),
       });
@@ -205,7 +206,8 @@ export default function ProjectTest() {
     }
   };
 
-  // ==========================================================
+  // =======================================================
+===
 
 
   // STOP
@@ -298,6 +300,7 @@ export default function ProjectTest() {
   // ==========================================================
 
 
+
   
 const getTurnIdentity = (turn) => {
     const emoji = turn.character
@@ -376,8 +379,7 @@ const getTurnIdentity = (turn) => {
                 side="A"
                 cfg={cfg}
                 set={set}
-                agentKey="agent_
-a"
+                agentKey="agent_a"
 
    
              characterKey="character_a"
@@ -440,7 +442,8 @@ a"
                     }
                     onChange={() =>
                       set("world_source", "emergence")
-           
+        
+   
     
     
  }
@@ -507,7 +510,8 @@ a"
                 disabled={starting}
                 style={{
                   ...styles.startButton,
-         
+     
+    
      
     opacity: starting ? 0.65 : 1,
                   cursor: starting
@@ -581,7 +585,8 @@ a"
               </div>
             </div>
 
-          
+     
+     
   {/* 
 =====
 ============================================
@@ -646,7 +651,8 @@ a"
               </div>
             </section>
 
-            {/* ===========================================
+            {/* =====================================
+======
 ======
 
       
@@ -709,7 +715,8 @@ a"
 
                           <span style={styles.messageModel}>
                             {turn.model}
-                 
+          
+       
         
  </span>
                         </div>
@@ -792,7 +799,8 @@ function AgentPane({
           ? styles.agentCardA
           : styles.agentCardB),
       }}
-    >
+    
+>
       
 <div style={styles.agentHeader}>
         <div>
@@ -877,7 +885,8 @@ function AgentPane({
                 key={role}
                 value={role}
               >
-                {ROLE_EMOJI[role] || "🌱"}{" "}
+                {ROLE_EMOJI[role] || 
+"🌱"}{" "}
 
        
         
@@ -980,10 +989,7 @@ const styles = {
     position: "fixed",
     inset: 0,
     background:
-      "linear-gradient(180
-deg, rgba
-(5,10,14,
-.82) 0%, rgba(7,13,18,.91) 48%, rgba(4,8,12,.97) 100%)",
+      "linear-gradient(180deg, rgba(5,10,14,.82) 0%, rgba(7,13,18,.91) 48%, rgba(4,8,12,.97) 100%)",
     zIndex: 1,
   },
 
@@ -1096,9 +1102,8 @@ deg, rgba
   fieldLabel: {
     display: "block",
     fontSize: 10,
-    letterS
-pacing: "1
-.5px",
+
+letterSpacing: "1.5px",
    
  fontWeight: 700,
     color: "#82949e",
@@ -1320,10 +1325,7 @@ pacing: "1
 
   statusRunning: {
     background: "#8aaebc",
-    b
-oxShadow: "0
- 0 10px rgba
-(138,174,188,.7)",
+boxShadow: "0 0 10px rgba(138,174,188,.7)",
   },
 
   statusFinished: {
@@ -1435,8 +1437,8 @@ oxShadow: "0
     background:
       "rgba(11,18,24,.9)",
     border: "1px solid #273640",
-    overflow: "h
-idden",
+  
+  overflow: "hidden",
   },
 
 
@@ -1478,7 +1480,84 @@ idden",
     padding: "13px 15px",
     borderRadius: 14,
     border: "1px solid #293b45",
-    boxShadow:
-  
+    boxShadow: "0 8px 25px rgba(0,0,0,.25)",
+  },
 
-... [Content truncated]
+  messageA: {
+    background:
+      "linear-gradient(145deg, rgba(20,29,37,.95), rgba(15,23,30,.95))",
+    borderBottomLeftRadius: 4,
+  },
+
+  messageB: {
+    background:
+      "linear-gradient(145deg, rgba(24,34,44,.95), rgba(16,25,32,.95))",
+    borderBottomRightRadius: 4,
+  },
+
+  messageMeta: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    marginBottom: 6,
+  },
+
+  messageIdentity: {
+    fontSize: 11,
+    fontWeight: 700,
+    color: "#9db2bd",
+    letterSpacing: ".4px",
+  },
+
+  messageModel: {
+    fontSize: 10,
+    color: "#5f7480",
+  },
+
+  messageText: {
+    color: "#dbe4e9",
+    fontSize: 14,
+    lineHeight: 1.55,
+    whiteSpace: "pre-wrap",
+  },
+
+  thinking: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    color: "#71838d",
+    fontSize: 12,
+    padding: "4px 2px",
+  },
+
+  errorBox: {
+    padding: 14,
+    borderRadius: 12,
+    border: "1px solid #5c3a3a",
+    background: "rgba(35,16,18,.9)",
+    color: "#e5bebe",
+    fontSize: 13,
+    lineHeight: 1.5,
+  },
+
+  completedBox: {
+    padding: 14,
+    borderRadius: 12,
+    border: "1px solid #2f4a3a",
+    background: "rgba(14,26,20,.9)",
+    color: "#a9d3b8",
+    fontSize: 13,
+    textAlign: "center",
+  },
+
+  stoppedBox: {
+    padding: 14,
+    borderRadius: 12,
+    border: "1px solid #3a4a55",
+    background: "rgba(16,24,30,.9)",
+    color: "#9bacb5",
+    fontSize: 13,
+    textAlign: "center",
+  },
+};
