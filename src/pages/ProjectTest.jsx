@@ -3,16 +3,16 @@
 // Layout ispirato a Emergence Lab.
 //
 // Agenti selezionabili:
-//   - Night Story (8 generi)
-//   - Story Whisper
-//   - Leles
-//   - QE / Emergence (12 ruoli)
+//   - Night Story (8 generi da prompts/genre_*.txt)
+//   - Story Whisper (nessun genere)
+//   - Leles (orchestratore)
+//   - QE / Emergence (12 ruoli dal DB)
 //
 // Ogni lato ha il suo LLM.
 //
-// Dipende SOLO dal gateway:
-//   POST /api/agent-arena/start
-//   GET  /api/agent-arena/{run_id}
+// Dipende SOLO dal gateway (https://api.danielevillanova.com):
+//   POST /api/agent-arena/start    -> { run_id }
+//   GET  /api/agent-arena/{run_id} -> { status, turns }
 //   POST /api/agent-arena/{run_id}/stop
 // ============================================================
 
@@ -26,31 +26,10 @@ const API = "https://api.danielevillanova.com";
 // ============================================================
 
 const AGENTS = [
-  {
-    id: "night_story",
-    label: "Night Story",
-    port: 8666,
-    hasCharacters: true,
-  },
-  {
-    id: "story_whisper",
-    label: "Story Whisper",
-    port: 8088,
-    hasCharacters: false,
-  },
-  {
-    id: "leles",
-    label: "Leles",
-    port: 8082,
-    hasCharacters: false,
-  },
-  {
-    id: "qe",
-    label: "QE (Emergence)",
-    port: 8082,
-    hasCharacters: false,
-    hasRoles: true,
-  },
+  { id: "night_story", label: "Night Story", port: 8666, hasCharacters: true },
+  { id: "story_whisper", label: "Story Whisper", port: 8088, hasCharacters: false },
+  { id: "leles", label: "Leles", port: 8082, hasCharacters: false },
+  { id: "qe", label: "QE (Emergence)", port: 8082, hasCharacters: false, hasRoles: true },
 ];
 
 // Night Story: prompts/genre_*.txt
@@ -65,7 +44,7 @@ const NS_CHARACTERS = [
   "culturale",
 ];
 
-// QE: ruoli Emergence
+// QE: ruoli Emergence (leles/core/db_init_exp.py)
 const QE_ROLES = [
   "Planner",
   "Scientist",
@@ -81,13 +60,7 @@ const QE_ROLES = [
   "Explorer",
 ];
 
-const LLM_MODELS = [
-  "gemma4",
-  "llama3",
-  "mistral",
-  "qwen2.5",
-  "deepseek-r1",
-];
+const LLM_MODELS = ["gemma4", "llama3", "mistral", "qwen2.5", "deepseek-r1"];
 
 const CHARACTER_EMOJI = {
   horror: "💀",
@@ -108,12 +81,7 @@ const ROLE_EMOJI = {
   Observer: "👁️",
   Architect: "📐",
   Developer: "👨‍💻",
-  Tester: 
-
-
-
-
-"🧪",
+  Tester: "🧪",
   Reviewer: "📝",
   Sheriff: "⭐",
   Outlaw: "🤠",
@@ -151,53 +119,31 @@ const DEFAULT_CFG = {
 export default function ProjectTest() {
   const [cfg, setCfg] = useState(DEFAULT_CFG);
   const [runId, setRunId] = useState(null);
-  const [data, setData] = useState({
-    status: "IDLE",
-    turns: [],
-  });
+  const [data, setData] = useState({ status: "IDLE", turns: [] });
   const [starting, setStarting] = useState(false);
-
   const convRef = useRef(null);
 
   const set = (key, value) => {
-    setCfg((current) => ({
-      ...current,
-      [key]: value,
-    }));
+    setCfg((current) => ({ ...current, [key]: value }));
   };
 
-  // ==========================================================
-  // START
-  // ==========================================================
-
+  // ---- START ----
   const start = async () => {
     setStarting(true);
-
     try {
       const response = await fetch(`${API}/api/agent-arena/start`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(cfg),
       });
-
       const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result?.detail || "Gateway error");
-      }
-
+      if (!response.ok) throw new Error(result?.detail || "Gateway error");
       if (result.run_id) {
         setRunId(result.run_id);
-        setData({
-          status: "RUNNING",
-          turns: [],
-        });
+        setData({ status: "RUNNING", turns: [] });
       }
     } catch (error) {
       console.error("Agent Arena start error:", error);
-
       setData({
         status: "ERROR",
         turns: [],
@@ -208,171 +154,97 @@ export default function ProjectTest() {
     }
   };
 
-  // ==========================================================
-  // STOP
-  // ==========================================================
-
+  // ---- STOP ----
   const stop = async () => {
     if (!runId) return;
-
     try {
-      await fetch(`${API}/api/agent-arena/${runId}/stop`, {
-        method: "POST",
-      });
+      await fetch(`${API}/api/agent-arena/${runId}/stop`, { method: "POST" });
     } catch (error) {
       console.error("Agent Arena stop error:", error);
     }
   };
 
-  // ==========================================================
-  // POLLING LIVE
-  // ==========================================================
-
+  // ---- POLLING LIVE ----
   useEffect(() => {
     if (!runId) return;
-
     let stopped = false;
-
     const tick = async () => {
       try {
-        const response = await fetch(
-          `${API}/api/agent-arena/${runId}`
-        );
-
+        const response = await fetch(`${API}/api/agent-arena/${runId}`);
         const result = await response.json();
-
-        if (!stopped) {
-          setData(result);
-        }
-
-        if (
-          ["COMPLETED", "STOPPED", "ERROR"].includes(
-            result.status
-          )
-        ) {
+        if (!stopped) setData(result);
+        if (["COMPLETED", "STOPPED", "ERROR"].includes(result.status)) {
           clearInterval(timer);
           stopped = true;
         }
       } catch (error) {
-        // Gateway down: retry at next tick.
         console.warn("Agent Arena polling:", error);
       }
     };
-
     const timer = setInterval(tick, 2000);
-
     tick();
-
     return () => {
       stopped = true;
       clearInterval(timer);
     };
   }, [runId]);
 
-  // ==========================================================
-  // AUTOSCROLL
-  // ==========================================================
-
+  // ---- AUTOSCROLL ----
   useEffect(() => {
-    if (convRef.current) {
-      convRef.current.scrollTop =
-        convRef.current.scrollHeight;
-    }
+    if (convRef.current) convRef.current.scrollTop = convRef.current.scrollHeight;
   }, [data.turns.length]);
 
-  // ==========================================================
-  // RESET
-  // ==========================================================
-
+  // ---- RESET ----
   const reset = () => {
     setRunId(null);
-    setData({
-      status: "IDLE",
-      turns: [],
-    });
+    setData({ status: "IDLE", turns: [] });
   };
 
   const running = data.status === "RUNNING";
 
-  // ==========================================================
-  // HELPERS
-  // ==========================================================
-
-
-
-
-  
-const getTurnIdentity = (turn) => {
+  // ---- HELPERS ----
+  const getTurnIdentity = (turn) => {
     const emoji = turn.character
       ? CHARACTER_EMOJI[turn.character] || "🤖"
       : turn.role
         ? ROLE_EMOJI[turn.role] || "🌱"
         : AGENT_EMOJI[turn.agent] || "🤖";
-
     const identity =
       turn.character ||
       turn.role ||
       AGENTS.find((agent) => agent.id === turn.agent)?.label ||
       turn.agent ||
       "Agent";
-
-    return {
-      emoji,
-      identity,
-    };
+    return { emoji, identity };
   };
 
-  const getAgentLabel = (agentId) => {
-    return (
-      AGENTS.find((agent) => agent.id === agentId)?.label ||
-      agentId
-    );
-  };
+  const getAgentLabel = (agentId) =>
+    AGENTS.find((agent) => agent.id === agentId)?.label || agentId;
 
-  // ==========================================================
-  // RENDER
-  // ==========================================================
-
+  // ---- RENDER ----
   return (
     <div style={styles.page}>
-      {/* Background */}
       <div
         style={{
           ...styles.background,
           backgroundImage: `url(${bgImage})`,
         }}
       />
-
-      {/* Dark overlay */}
       <div style={styles.overlay} />
-
-      {/* Content */}
       <div style={styles.content}>
         {!runId ? (
           <>
-            {/* =================================================
-                HEADER
-            ================================================= */}
-
+            {/* HEADER */}
             <div style={styles.header}>
-              <div style={styles.eyebrow}>
-                AGENT ARENA
-              </div>
-
-              <h1 style={styles.title}>
-                Bot to Bot
-              </h1>
-
+              <div style={styles.eyebrow}>AGENT ARENA</div>
+              <h1 style={styles.title}>Bot to Bot</h1>
               <p style={styles.subtitle}>
-                Configure two autonomous agents and let them
-                interact inside the same world.
+                Configure two autonomous agents and let them interact inside
+                the same world.
               </p>
             </div>
 
-            {/* =================================================
-                AGENTS
-            ================================================= */}
-
+            {/* AGENTS */}
             <div style={styles.agentsGrid}>
               <AgentPane
                 title="AGENT A"
@@ -380,19 +252,15 @@ const getTurnIdentity = (turn) => {
                 cfg={cfg}
                 set={set}
                 agentKey="agent_a"
-
-   
-             characterKey="character_a"
+                characterKey="character_a"
                 roleKey="role_a"
                 modelKey="model_a"
               />
-
               <div style={styles.vsContainer}>
                 <div style={styles.vsLine} />
                 <div style={styles.vs}>VS</div>
                 <div style={styles.vsLine} />
               </div>
-
               <AgentPane
                 title="AGENT B"
                 side="B"
@@ -405,62 +273,41 @@ const getTurnIdentity = (turn) => {
               />
             </div>
 
-            {/* =================================================
-                WORLD
-            ================================================= */}
-
+            {/* WORLD */}
             <section style={styles.card}>
               <div style={styles.sectionHeader}>
                 <span style={styles.sectionIcon}>🌍</span>
                 <div>
-                  <div style={styles.sectionTitle}>
-                    WORLD
-                  </div>
+                  <div style={styles.sectionTitle}>WORLD</div>
                   <div style={styles.sectionSubtitle}>
                     Define the environment for the experiment
                   </div>
                 </div>
               </div>
-
               <div style={styles.radioRow}>
                 <label style={styles.radioLabel}>
                   <input
                     type="radio"
                     checked={cfg.world_source === "free"}
-                    onChange={() =>
-                      set("world_source", "free")
-                    }
+                    onChange={() => set("world_source", "free")}
                   />
                   <span>Free topic</span>
                 </label>
-
                 <label style={styles.radioLabel}>
                   <input
                     type="radio"
-                    checked={
-                      cfg.world_source === "emergence"
-                    }
-                    onChange={() =>
-                      set("world_source", "emergence")
-       
- 
-   
-    
-    
- }
+                    checked={cfg.world_source === "emergence"}
+                    onChange={() => set("world_source", "emergence")}
                   />
                   <span>Emergence World</span>
                 </label>
               </div>
-
               {cfg.world_source === "free" ? (
                 <textarea
                   style={styles.textarea}
                   placeholder="Two characters meet on a ghost ship during a storm..."
                   value={cfg.topic}
-                  onChange={(event) =>
-                    set("topic", event.target.value)
-                  }
+                  onChange={(event) => set("topic", event.target.value)}
                 />
               ) : (
                 <input
@@ -468,81 +315,49 @@ const getTurnIdentity = (turn) => {
                   type="number"
                   placeholder="World # (Emergence run id)"
                   value={cfg.world_ref}
-                  onChange={(event) =>
-                    set("world_ref", event.target.value)
-                  }
+                  onChange={(event) => set("world_ref", event.target.value)}
                 />
               )}
             </section>
 
-            {/* =================================================
-                RUN OPTIONS
-            ================================================= */}
-
+            {/* RUN OPTIONS */}
             <section style={styles.runCard}>
               <div>
-                <div style={styles.optionLabel}>
-                  MAX TURNS
-                </div>
-
+                <div style={styles.optionLabel}>MAX TURNS</div>
                 <select
                   style={styles.smallSelect}
                   value={cfg.max_turns}
                   onChange={(event) =>
-                    set(
-                      "max_turns",
-                      Number(event.target.value)
-                    )
+                    set("max_turns", Number(event.target.value))
                   }
                 >
                   {[5, 10, 20, 50].map((number) => (
-                    <option
-                      key={number}
-                      value={number}
-                    >
+                    <option key={number} value={number}>
                       {number}
                     </option>
                   ))}
                 </select>
               </div>
-
               <button
                 onClick={start}
                 disabled={starting}
                 style={{
                   ...styles.startButton,
-   
-  
-    
-     
-    opacity: starting ? 0.65 : 1,
-                  cursor: starting
-                    ? "wait"
-                    : "pointer",
+                  opacity: starting ? 0.65 : 1,
+                  cursor: starting ? "wait" : "pointer",
                 }}
               >
-                {starting
-                  ? "STARTING..."
-                  : "▶ START EXPERIMENT"}
+                {starting ? "STARTING..." : "▶ START EXPERIMENT"}
               </button>
             </section>
           </>
         ) : (
           <>
-            {/* =================================================
-                LIVE HEADER
-            ================================================= */}
-
+            {/* LIVE HEADER */}
             <div style={styles.liveHeader}>
               <div>
-                <div style={styles.eyebrow}>
-                  AGENT ARENA
-                </div>
-
-                <h1 style={styles.liveTitle}>
-                  Run #{runId}
-                </h1>
-
+                <div style={styles.eyebrow}>AGENT ARENA</div>
+                <h1 style={styles.liveTitle}>Run #{runId}</h1>
                 <div style={styles.statusRow}>
                   <span
                     style={{
@@ -552,75 +367,45 @@ const getTurnIdentity = (turn) => {
                         : styles.statusFinished),
                     }}
                   />
-
+                  <span>{data.status}</span>
+                  <span style={styles.statusSeparator}>·</span>
                   <span>
-                    {data.status}
-                  </span>
-
-                  <span style={styles.statusSeparator}>
-                    ·
-                  </span>
-
-                  <span>
-                    {data.turns.length} /{" "}
-                    {cfg.max_turns * 2} messages
+                    {data.turns.length} / {cfg.max_turns * 2} messages
                   </span>
                 </div>
               </div>
-
               <div style={styles.liveActions}>
                 {running && (
-                  <button
-                    onClick={stop}
-                    style={styles.stopButton}
-                  >
+                  <button onClick={stop} style={styles.stopButton}>
                     ⏹ STOP
                   </button>
                 )}
-
-                <button
-                  onClick={reset}
-                  style={styles.resetButton}
-                >
+                <button onClick={reset} style={styles.resetButton}>
                   ↺ NEW EXPERIMENT
                 </button>
               </div>
             </div>
 
-  
-   
-     
-  {/* 
-=====
-============================================
-                RUN CONFIG SUMMARY
-            ================================================= */}
-
+            {/* RUN CONFIG SUMMARY */}
             <section style={styles.summaryGrid}>
               <SummaryCard
                 label="AGENT A"
                 value={getAgentLabel(cfg.agent_a)}
                 detail={
-                  (cfg.agent_a === "night_story" &&
-                    cfg.character_a) ||
-                  (cfg.agent_a === "qe" &&
-                    cfg.role_a) ||
+                  (cfg.agent_a === "night_story" && cfg.character_a) ||
+                  (cfg.agent_a === "qe" && cfg.role_a) ||
                   cfg.model_a
                 }
               />
-
               <SummaryCard
                 label="AGENT B"
                 value={getAgentLabel(cfg.agent_b)}
                 detail={
-                  (cfg.agent_b === "qe" &&
-                    cfg.role_b) ||
-                  (cfg.agent_b === "night_story" &&
-                    cfg.character_b) ||
+                  (cfg.agent_b === "qe" && cfg.role_b) ||
+                  (cfg.agent_b === "night_story" && cfg.character_b) ||
                   cfg.model_b
                 }
               />
-
               <SummaryCard
                 label="WORLD"
                 value={
@@ -634,7 +419,6 @@ const getTurnIdentity = (turn) => {
                     : "Emergence experiment"
                 }
               />
-
               <SummaryCard
                 label="LLM"
                 value={`${cfg.model_a} ↔ ${cfg.model_b}`}
@@ -642,15 +426,9 @@ const getTurnIdentity = (turn) => {
               />
             </section>
 
-            {/* =================================================
-                WORLD
-            ================================================= */}
-
+            {/* WORLD LIVE */}
             <section style={styles.worldLiveCard}>
-              <div style={styles.worldLiveTitle}>
-                🌍 WORLD
-              </div>
-
+              <div style={styles.worldLiveTitle}>🌍 WORLD</div>
               <div style={styles.worldLiveText}>
                 {cfg.world_source === "emergence"
                   ? `Emergence World #${cfg.world_ref}`
@@ -658,86 +436,46 @@ const getTurnIdentity = (turn) => {
               </div>
             </section>
 
-            {/* =================================
-====
-======
-======
-
-      
-          CONVERSATION
-            ================================================= */}
-
+            {/* CONVERSATION */}
             <section style={styles.conversationCard}>
               <div style={styles.conversationHeader}>
                 <div>
-                  <div style={styles.sectionTitle}>
-                    LIVE CONVERSATION
-                  </div>
+                  <div style={styles.sectionTitle}>LIVE CONVERSATION</div>
                   <div style={styles.sectionSubtitle}>
                     Autonomous agent interaction
                   </div>
                 </div>
-
-                {running && (
-                  <div style={styles.liveBadge}>
-                    ● LIVE
-                  </div>
-                )}
+                {running && <div style={styles.liveBadge}>● LIVE</div>}
               </div>
-
-              <div
-                ref={convRef}
-                style={styles.conversation}
-              >
+              <div ref={convRef} style={styles.conversation}>
                 {data.turns.map((turn, index) => {
-                  const { emoji, identity } =
-                    getTurnIdentity(turn);
-
-                  const isA =
-                    index % 2 === 0;
-
+                  const { emoji, identity } = getTurnIdentity(turn);
+                  const isA = index % 2 === 0;
                   return (
                     <div
                       key={turn.id || index}
                       style={{
                         ...styles.messageRow,
-                        justifyContent: isA
-                          ? "flex-start"
-                          : "flex-end",
+                        justifyContent: isA ? "flex-start" : "flex-end",
                       }}
                     >
                       <div
                         style={{
                           ...styles.message,
-                          ...(isA
-                            ? styles.messageA
-                            : styles.messageB),
+                          ...(isA ? styles.messageA : styles.messageB),
                         }}
                       >
                         <div style={styles.messageMeta}>
-                          <span
-                            style={styles.messageIdentity}
-                          >
+                          <span style={styles.messageIdentity}>
                             {emoji} {identity}
                           </span>
-
-                          <span style={styles.messageModel}>
-                            {turn.model}
-     
-     
-       
-        
- </span>
+                          <span style={styles.messageModel}>{turn.model}</span>
                         </div>
-
-                        <div style={styles.messageText}>
-                          {turn.text}
-                        </div>
+                        <div style={styles.messageText}>{turn.text}</div>
                       </div>
                     </div>
                   );
                 })}
-
                 {running && (
                   <div style={styles.thinking}>
                     <span>●</span>
@@ -746,7 +484,6 @@ const getTurnIdentity = (turn) => {
                     <em>agents are thinking...</em>
                   </div>
                 )}
-
                 {data.status === "ERROR" && (
                   <div style={styles.errorBox}>
                     <strong>⚠ ERROR</strong>
@@ -756,20 +493,12 @@ const getTurnIdentity = (turn) => {
                     </div>
                   </div>
                 )}
-
-                {!running &&
-                  data.status === "COMPLETED" && (
-                    <div style={styles.completedBox}>
-                      ✓ Experiment completed
-                    </div>
-                  )}
-
-                {!running &&
-                  data.status === "STOPPED" && (
-                    <div style={styles.stoppedBox}>
-                      ⏹ Experiment stopped
-                    </div>
-                  )}
+                {!running && data.status === "COMPLETED" && (
+                  <div style={styles.completedBox}>✓ Experiment completed</div>
+                )}
+                {!running && data.status === "STOPPED" && (
+                  <div style={styles.stoppedBox}>⏹ Experiment stopped</div>
+                )}
               </div>
             </section>
           </>
@@ -793,44 +522,27 @@ function AgentPane({
   roleKey,
   modelKey,
 }) {
-  const agent = AGENTS.find(
-    (item) => item.id === cfg[agentKey]
-  );
-
-  const agentEmoji =
-    AGENT_EMOJI[agent?.id] || "🤖";
+  const agent = AGENTS.find((item) => item.id === cfg[agentKey]);
+  const agentEmoji = AGENT_EMOJI[agent?.id] || "🤖";
 
   return (
     <section
       style={{
         ...styles.agentCard,
-        ...(side === "A"
-          ? styles.agentCardA
-          : styles.agentCardB),
-      }
-}
-    
->
-      
-<div style={styles.agentHeader}>
+        ...(side === "A" ? styles.agentCardA : styles.agentCardB),
+      }}
+    >
+      <div style={styles.agentHeader}>
         <div>
-          <div style={styles.agentSide}>
-            {title}
-          </div>
-
+          <div style={styles.agentSide}>{title}</div>
           <div style={styles.agentName}>
-            {agentEmoji}{" "}
-            {agent?.label || "Agent"}
+            {agentEmoji} {agent?.label || "Agent"}
           </div>
         </div>
-
-        <div style={styles.agentBadge}>
-          {side}
-        </div>
+        <div style={styles.agentBadge}>{side}</div>
       </div>
 
       {/* Agent */}
-
       <Field label="AGENT">
         <select
           value={cfg[agentKey]}
@@ -838,51 +550,30 @@ function AgentPane({
             const id = event.target.value;
             set(agentKey, id);
             const next = AGENTS.find((item) => item.id === id);
-            set(
-              characterKey,
-              next?.hasCharacters ? NS_CHARACTERS[0] : ""
-            );
-            set(
-              roleKey,
-              next?.hasRoles ? QE_ROLES[0] : ""
-            );
+            set(characterKey, next?.hasCharacters ? NS_CHARACTERS[0] : "");
+            set(roleKey, next?.hasRoles ? QE_ROLES[0] : "");
           }}
           style={styles.select}
         >
           {AGENTS.map((item) => (
-            <option
-              key={item.id}
-              value={item.id}
-            >
-              {AGENT_EMOJI[item.id] || "🤖"}{" "}
-              {item.label}
+            <option key={item.id} value={item.id}>
+              {AGENT_EMOJI[item.id] || "🤖"} {item.label}
             </option>
           ))}
         </select>
       </Field>
 
       {/* Night Story genre */}
-
       {agent?.hasCharacters && (
         <Field label="GENRE">
           <select
             value={cfg[characterKey]}
-            onChange={(event) =>
-              set(
-                characterKey,
-                event.target.value
-              )
-            }
+            onChange={(event) => set(characterKey, event.target.value)}
             style={styles.select}
           >
             {NS_CHARACTERS.map((character) => (
-              <option
-                key={character}
-                value={character}
-              >
-                {CHARACTER_EMOJI[character] ||
-                  "🎭"}{" "}
-                {character}
+              <option key={character} value={character}>
+                {CHARACTER_EMOJI[character] || "🎭"} {character}
               </option>
             ))}
           </select>
@@ -890,28 +581,16 @@ function AgentPane({
       )}
 
       {/* QE role */}
-
       {agent?.hasRoles && (
         <Field label="EMERGENCE ROLE">
           <select
             value={cfg[roleKey]}
-            onChange={(event) =>
-              set(roleKey, event.target.value)
-            }
+            onChange={(event) => set(roleKey, event.target.value)}
             style={styles.select}
           >
             {QE_ROLES.map((role) => (
-              <option
-                key={role}
-                value={role}
-              >
-                {ROLE_EMOJI[ro
-le] || 
-"🌱"}{" "}
-
-       
-        
- {role}
+              <option key={role} value={role}>
+                {ROLE_EMOJI[role] || "🌱"} {role}
               </option>
             ))}
           </select>
@@ -919,20 +598,14 @@ le] ||
       )}
 
       {/* LLM */}
-
       <Field label="LLM">
         <select
           value={cfg[modelKey]}
-          onChange={(event) =>
-            set(modelKey, event.target.value)
-          }
+          onChange={(event) => set(modelKey, event.target.value)}
           style={styles.select}
         >
           {LLM_MODELS.map((model) => (
-            <option
-              key={model}
-              value={model}
-            >
+            <option key={model} value={model}>
               {model}
             </option>
           ))}
@@ -949,9 +622,7 @@ le] ||
 function Field({ label, children }) {
   return (
     <label style={styles.field}>
-      <span style={styles.fieldLabel}>
-        {label}
-      </span>
+      <span style={styles.fieldLabel}>{label}</span>
       {children}
     </label>
   );
@@ -961,24 +632,12 @@ function Field({ label, children }) {
 // SUMMARY CARD
 // ============================================================
 
-function SummaryCard({
-  label,
-  value,
-  detail,
-}) {
+function SummaryCard({ label, value, detail }) {
   return (
     <div style={styles.summaryCard}>
-      <div style={styles.summaryLabel}>
-        {label}
-      </div>
-
-      <div style={styles.summaryValue}>
-        {value}
-      </div>
-
-      <div style={styles.summaryDetail}>
-        {detail}
-      </div>
+      <div style={styles.summaryLabel}>{label}</div>
+      <div style={styles.summaryValue}>{value}</div>
+      <div style={styles.summaryDetail}>{detail}</div>
     </div>
   );
 }
@@ -1055,8 +714,7 @@ const styles = {
 
   agentsGrid: {
     display: "grid",
-    gridTemplateColumns:
-      "minmax(0, 1fr) 54px minmax(0, 1fr)",
+    gridTemplateColumns: "minmax(0, 1fr) 54px minmax(0, 1fr)",
     alignItems: "stretch",
     gap: 12,
   },
@@ -1068,8 +726,7 @@ const styles = {
     background:
       "linear-gradient(145deg, rgba(20,29,37,.92), rgba(11,17,23,.92))",
     border: "1px solid #273640",
-    boxShadow:
-      "0 18px 50px rgba(0,0,0,.24)",
+    boxShadow: "0 18px 50px rgba(0,0,0,.24)",
   },
 
   agentCardA: {
@@ -1122,12 +779,9 @@ const styles = {
 
   fieldLabel: {
     display: "block",
-    fontSize:
- 10,
-
-letterSpacing: "1.5px",
-   
- fontWeight: 700,
+    fontSize: 10,
+    letterSpacing: "1.5px",
+    fontWeight: 700,
     color: "#82949e",
     marginBottom: 7,
   },
@@ -1179,11 +833,9 @@ letterSpacing: "1.5px",
     marginTop: 18,
     padding: 22,
     borderRadius: 18,
-    background:
-      "rgba(15,23,30,.9)",
+    background: "rgba(15,23,30,.9)",
     border: "1px solid #273640",
-    boxShadow:
-      "0 18px 50px rgba(0,0,0,.2)",
+    boxShadow: "0 18px 50px rgba(0,0,0,.2)",
   },
 
   sectionHeader: {
@@ -1239,10 +891,7 @@ letterSpacing: "1.5px",
     minHeight: 100,
     boxSizing: "border-box",
     resize: "vertical",
-   
- background
-: "#0d151b"
-,
+    background: "#0d151b",
     color: "#e5ecef",
     border: "1px solid #2b3d47",
     borderRadius: 11,
@@ -1274,8 +923,7 @@ letterSpacing: "1.5px",
     justifyContent: "space-between",
     gap: 18,
     borderRadius: 18,
-    background:
-      "rgba(15,23,30,.9)",
+    background: "rgba(15,23,30,.9)",
     border: "1px solid #273640",
   },
 
@@ -1299,16 +947,14 @@ letterSpacing: "1.5px",
 
   startButton: {
     border: "1px solid #4a626e",
-    background:
-      "linear-gradient(135deg, #263943, #17262f)",
+    background: "linear-gradient(135deg, #263943, #17262f)",
     color: "#eef4f6",
     borderRadius: 999,
     padding: "13px 24px",
     fontSize: 12,
     fontWeight: 750,
     letterSpacing: ".7px",
-    boxShadow:
-      "0 8px 25px rgba(0,0,0,.22)",
+    boxShadow: "0 8px 25px rgba(0,0,0,.22)",
   },
 
   liveHeader: {
@@ -1347,7 +993,7 @@ letterSpacing: "1.5px",
 
   statusRunning: {
     background: "#8aaebc",
-boxShadow: "0 0 10px rgba(138,174,188,.7)",
+    boxShadow: "0 0 10px rgba(138,174,188,.7)",
   },
 
   statusFinished: {
@@ -1389,8 +1035,7 @@ boxShadow: "0 0 10px rgba(138,174,188,.7)",
 
   summaryGrid: {
     display: "grid",
-    gridTemplateColumns:
-      "repeat(4, minmax(0, 1fr))",
+    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
     gap: 10,
     marginBottom: 14,
   },
@@ -1399,8 +1044,7 @@ boxShadow: "0 0 10px rgba(138,174,188,.7)",
     minWidth: 0,
     padding: 14,
     borderRadius: 13,
-    background:
-      "rgba(15,23,30,.82)",
+    background: "rgba(15,23,30,.82)",
     border: "1px solid #25353f",
   },
 
@@ -1434,8 +1078,7 @@ boxShadow: "0 0 10px rgba(138,174,188,.7)",
     padding: 18,
     marginBottom: 14,
     borderRadius: 16,
-    background:
-      "rgba(15,23,30,.88)",
+    background: "rgba(15,23,30,.88)",
     border: "1px solid #293b45",
   },
 
@@ -1456,14 +1099,10 @@ boxShadow: "0 0 10px rgba(138,174,188,.7)",
 
   conversationCard: {
     borderRadius: 18,
-    background:
-      "rgba(11,18,24,.9)",
+    background: "rgba(11,18,24,.9)",
     border: "1px solid #273640",
-  
-  over
-flow: "hidden",
+    overflow: "hidden",
   },
-
 
   conversationHeader: {
     padding: "18px 20px",
