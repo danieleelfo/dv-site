@@ -8,7 +8,8 @@
 //   - Leles (orchestratore)
 //   - QE / Emergence (12 ruoli dal DB)
 //
-// Ogni lato ha il suo LLM.
+// Modalità N partecipanti (2..12), round-robin.
+// Ogni partecipante ha il suo LLM.
 //
 // Dipende SOLO dal gateway (https://api.danielevillanova.com):
 //   POST /api/agent-arena/start    -> { run_id }
@@ -95,17 +96,21 @@ const AGENT_EMOJI = {
   qe: "🌱",
 };
 
+const MAX_PARTICIPANTS = 12;
+const MIN_PARTICIPANTS = 2;
+
+const DEFAULT_PARTICIPANT = {
+  agent: "night_story",
+  character: "horror",
+  role: "",
+  model: "gemma4",
+};
+
 const DEFAULT_CFG = {
-  agent_a: "night_story",
-  character_a: "horror",
-  role_a: "",
-  model_a: "gemma4",
-
-  agent_b: "qe",
-  character_b: "",
-  role_b: "Critic",
-  model_b: "qwen2.5",
-
+  participants: [
+    { ...DEFAULT_PARTICIPANT },
+    { agent: "qe", character: "", role: "Critic", model: "qwen2.5" },
+  ],
   world_source: "free",
   world_ref: "",
   topic: "",
@@ -123,8 +128,40 @@ export default function ProjectTest() {
   const [starting, setStarting] = useState(false);
   const convRef = useRef(null);
 
-  const set = (key, value) => {
+  const setField = (key, value) =>
     setCfg((current) => ({ ...current, [key]: value }));
+
+  const setParticipant = (idx, key, value) => {
+    setCfg((current) => {
+      const next = [...current.participants];
+      next[idx] = { ...next[idx], [key]: value };
+      return { ...current, participants: next };
+    });
+  };
+
+  const addParticipant = () => {
+    setCfg((current) =>
+      current.participants.length >= MAX_PARTICIPANTS
+        ? current
+        : {
+            ...current,
+            participants: [
+              ...current.participants,
+              { ...DEFAULT_PARTICIPANT, agent: "leles", character: "", model: "gemma4" },
+            ],
+          }
+    );
+  };
+
+  const removeParticipant = (idx) => {
+    setCfg((current) =>
+      current.participants.length <= MIN_PARTICIPANTS
+        ? current
+        : {
+            ...current,
+            participants: current.participants.filter((_, i) => i !== idx),
+          }
+    );
   };
 
   // ---- START ----
@@ -221,6 +258,8 @@ export default function ProjectTest() {
   const getAgentLabel = (agentId) =>
     AGENTS.find((agent) => agent.id === agentId)?.label || agentId;
 
+  const totalMessages = cfg.max_turns * cfg.participants.length;
+
   // ---- RENDER ----
   return (
     <div style={styles.page}>
@@ -239,38 +278,29 @@ export default function ProjectTest() {
               <div style={styles.eyebrow}>AGENT ARENA</div>
               <h1 style={styles.title}>Bot to Bot</h1>
               <p style={styles.subtitle}>
-                Configure two autonomous agents and let them interact inside
-                the same world.
+                Configure 2 to 12 autonomous agents and let them interact
+                inside the same world.
               </p>
             </div>
 
             {/* AGENTS */}
-            <div style={styles.agentsGrid}>
-              <AgentPane
-                title="AGENT A"
-                side="A"
-                cfg={cfg}
-                set={set}
-                agentKey="agent_a"
-                characterKey="character_a"
-                roleKey="role_a"
-                modelKey="model_a"
-              />
-              <div style={styles.vsContainer}>
-                <div style={styles.vsLine} />
-                <div style={styles.vs}>VS</div>
-                <div style={styles.vsLine} />
-              </div>
-              <AgentPane
-                title="AGENT B"
-                side="B"
-                cfg={cfg}
-                set={set}
-                agentKey="agent_b"
-                characterKey="character_b"
-                roleKey="role_b"
-                modelKey="model_b"
-              />
+            <div style={styles.participantsStack}>
+              {cfg.participants.map((participant, idx) => (
+                <AgentPane
+                  key={idx}
+                  idx={idx}
+                  participant={participant}
+                  setParticipant={setParticipant}
+                  onRemove={() => removeParticipant(idx)}
+                  canRemove={cfg.participants.length > MIN_PARTICIPANTS}
+                />
+              ))}
+
+              {cfg.participants.length < MAX_PARTICIPANTS && (
+                <button onClick={addParticipant} style={styles.addButton}>
+                  + ADD PARTICIPANT ({cfg.participants.length}/{MAX_PARTICIPANTS})
+                </button>
+              )}
             </div>
 
             {/* WORLD */}
@@ -289,7 +319,7 @@ export default function ProjectTest() {
                   <input
                     type="radio"
                     checked={cfg.world_source === "free"}
-                    onChange={() => set("world_source", "free")}
+                    onChange={() => setField("world_source", "free")}
                   />
                   <span>Free topic</span>
                 </label>
@@ -297,7 +327,7 @@ export default function ProjectTest() {
                   <input
                     type="radio"
                     checked={cfg.world_source === "emergence"}
-                    onChange={() => set("world_source", "emergence")}
+                    onChange={() => setField("world_source", "emergence")}
                   />
                   <span>Emergence World</span>
                 </label>
@@ -307,7 +337,7 @@ export default function ProjectTest() {
                   style={styles.textarea}
                   placeholder="Two characters meet on a ghost ship during a storm..."
                   value={cfg.topic}
-                  onChange={(event) => set("topic", event.target.value)}
+                  onChange={(event) => setField("topic", event.target.value)}
                 />
               ) : (
                 <input
@@ -315,7 +345,7 @@ export default function ProjectTest() {
                   type="number"
                   placeholder="World # (Emergence run id)"
                   value={cfg.world_ref}
-                  onChange={(event) => set("world_ref", event.target.value)}
+                  onChange={(event) => setField("world_ref", event.target.value)}
                 />
               )}
             </section>
@@ -323,12 +353,12 @@ export default function ProjectTest() {
             {/* RUN OPTIONS */}
             <section style={styles.runCard}>
               <div>
-                <div style={styles.optionLabel}>MAX TURNS</div>
+                <div style={styles.optionLabel}>MAX TURNS (ROUNDS)</div>
                 <select
                   style={styles.smallSelect}
                   value={cfg.max_turns}
                   onChange={(event) =>
-                    set("max_turns", Number(event.target.value))
+                    setField("max_turns", Number(event.target.value))
                   }
                 >
                   {[5, 10, 20, 50].map((number) => (
@@ -337,6 +367,9 @@ export default function ProjectTest() {
                     </option>
                   ))}
                 </select>
+                <div style={styles.turnsHint}>
+                  {cfg.max_turns * cfg.participants.length} total messages
+                </div>
               </div>
               <button
                 onClick={start}
@@ -347,7 +380,7 @@ export default function ProjectTest() {
                   cursor: starting ? "wait" : "pointer",
                 }}
               >
-                {starting ? "STARTING..." : "▶ START EXPERIMENT"}
+                {starting ? "STARTING..." : "▶️ START EXPERIMENT"}
               </button>
             </section>
           </>
@@ -370,7 +403,7 @@ export default function ProjectTest() {
                   <span>{data.status}</span>
                   <span style={styles.statusSeparator}>·</span>
                   <span>
-                    {data.turns.length} / {cfg.max_turns * 2} messages
+                    {data.turns.length} / {totalMessages} messages
                   </span>
                 </div>
               </div>
@@ -388,24 +421,19 @@ export default function ProjectTest() {
 
             {/* RUN CONFIG SUMMARY */}
             <section style={styles.summaryGrid}>
-              <SummaryCard
-                label="AGENT A"
-                value={getAgentLabel(cfg.agent_a)}
-                detail={
-                  (cfg.agent_a === "night_story" && cfg.character_a) ||
-                  (cfg.agent_a === "qe" && cfg.role_a) ||
-                  cfg.model_a
-                }
-              />
-              <SummaryCard
-                label="AGENT B"
-                value={getAgentLabel(cfg.agent_b)}
-                detail={
-                  (cfg.agent_b === "qe" && cfg.role_b) ||
-                  (cfg.agent_b === "night_story" && cfg.character_b) ||
-                  cfg.model_b
-                }
-              />
+              {cfg.participants.map((participant, idx) => (
+                <SummaryCard
+                  key={idx}
+                  label={`PARTICIPANT ${idx + 1}`}
+                  value={getAgentLabel(participant.agent)}
+                  detail={
+                    (participant.agent === "night_story" &&
+                      participant.character) ||
+                    (participant.agent === "qe" && participant.role) ||
+                    participant.model
+                  }
+                />
+              ))}
               <SummaryCard
                 label="WORLD"
                 value={
@@ -420,9 +448,9 @@ export default function ProjectTest() {
                 }
               />
               <SummaryCard
-                label="LLM"
-                value={`${cfg.model_a} ↔ ${cfg.model_b}`}
-                detail={`${cfg.max_turns} turns max`}
+                label="ROUNDS"
+                value={`${cfg.max_turns} × ${cfg.participants.length}`}
+                detail={`${totalMessages} messages max`}
               />
             </section>
 
@@ -450,24 +478,24 @@ export default function ProjectTest() {
               <div ref={convRef} style={styles.conversation}>
                 {data.turns.map((turn, index) => {
                   const { emoji, identity } = getTurnIdentity(turn);
-                  const isA = index % 2 === 0;
+                  const isEven = (turn.idx ?? index) % 2 === 0;
                   return (
                     <div
                       key={turn.id || index}
                       style={{
                         ...styles.messageRow,
-                        justifyContent: isA ? "flex-start" : "flex-end",
+                        justifyContent: isEven ? "flex-start" : "flex-end",
                       }}
                     >
                       <div
                         style={{
                           ...styles.message,
-                          ...(isA ? styles.messageA : styles.messageB),
+                          ...(isEven ? styles.messageA : styles.messageB),
                         }}
                       >
                         <div style={styles.messageMeta}>
                           <span style={styles.messageIdentity}>
-                            {emoji} {identity}
+                            {emoji} {identity} · P{(turn.idx ?? 0) + 1}
                           </span>
                           <span style={styles.messageModel}>{turn.model}</span>
                         </div>
@@ -509,49 +537,51 @@ export default function ProjectTest() {
 }
 
 // ============================================================
-// AGENT PANE
+// AGENT PANE — singolo partecipante
 // ============================================================
 
-function AgentPane({
-  title,
-  side,
-  cfg,
-  set,
-  agentKey,
-  characterKey,
-  roleKey,
-  modelKey,
-}) {
-  const agent = AGENTS.find((item) => item.id === cfg[agentKey]);
+function AgentPane({ idx, participant, setParticipant, onRemove, canRemove }) {
+  const agent = AGENTS.find((item) => item.id === participant.agent);
   const agentEmoji = AGENT_EMOJI[agent?.id] || "🤖";
 
   return (
-    <section
-      style={{
-        ...styles.agentCard,
-        ...(side === "A" ? styles.agentCardA : styles.agentCardB),
-      }}
-    >
+    <section style={styles.agentCard}>
       <div style={styles.agentHeader}>
         <div>
-          <div style={styles.agentSide}>{title}</div>
+          <div style={styles.agentSide}>PARTICIPANT {idx + 1}</div>
           <div style={styles.agentName}>
             {agentEmoji} {agent?.label || "Agent"}
           </div>
         </div>
-        <div style={styles.agentBadge}>{side}</div>
+        {canRemove && (
+          <button
+            onClick={onRemove}
+            style={styles.removeButton}
+            title="Remove participant"
+          >
+            ✕
+          </button>
+        )}
       </div>
 
       {/* Agent */}
       <Field label="AGENT">
         <select
-          value={cfg[agentKey]}
+          value={participant.agent}
           onChange={(event) => {
             const id = event.target.value;
-            set(agentKey, id);
             const next = AGENTS.find((item) => item.id === id);
-            set(characterKey, next?.hasCharacters ? NS_CHARACTERS[0] : "");
-            set(roleKey, next?.hasRoles ? QE_ROLES[0] : "");
+            setParticipant(idx, "agent", id);
+            setParticipant(
+              idx,
+              "character",
+              next?.hasCharacters ? NS_CHARACTERS[0] : ""
+            );
+            setParticipant(
+              idx,
+              "role",
+              next?.hasRoles ? QE_ROLES[0] : ""
+            );
           }}
           style={styles.select}
         >
@@ -567,8 +597,10 @@ function AgentPane({
       {agent?.hasCharacters && (
         <Field label="GENRE">
           <select
-            value={cfg[characterKey]}
-            onChange={(event) => set(characterKey, event.target.value)}
+            value={participant.character}
+            onChange={(event) =>
+              setParticipant(idx, "character", event.target.value)
+            }
             style={styles.select}
           >
             {NS_CHARACTERS.map((character) => (
@@ -584,8 +616,10 @@ function AgentPane({
       {agent?.hasRoles && (
         <Field label="EMERGENCE ROLE">
           <select
-            value={cfg[roleKey]}
-            onChange={(event) => set(roleKey, event.target.value)}
+            value={participant.role}
+            onChange={(event) =>
+              setParticipant(idx, "role", event.target.value)
+            }
             style={styles.select}
           >
             {QE_ROLES.map((role) => (
@@ -600,8 +634,10 @@ function AgentPane({
       {/* LLM */}
       <Field label="LLM">
         <select
-          value={cfg[modelKey]}
-          onChange={(event) => set(modelKey, event.target.value)}
+          value={participant.model}
+          onChange={(event) =>
+            setParticipant(idx, "model", event.target.value)
+          }
           style={styles.select}
         >
           {LLM_MODELS.map((model) => (
@@ -712,10 +748,10 @@ const styles = {
     lineHeight: 1.6,
   },
 
-  agentsGrid: {
-    display: "grid",
-    gridTemplateColumns: "minmax(0, 1fr) 54px minmax(0, 1fr)",
-    alignItems: "stretch",
+  // Stack verticale di partecipanti (sostituisce agentsGrid A/B)
+  participantsStack: {
+    display: "flex",
+    flexDirection: "column",
     gap: 12,
   },
 
@@ -725,16 +761,8 @@ const styles = {
     borderRadius: 18,
     background:
       "linear-gradient(145deg, rgba(20,29,37,.92), rgba(11,17,23,.92))",
-    border: "1px solid #273640",
+    border: "1px solid #354955",
     boxShadow: "0 18px 50px rgba(0,0,0,.24)",
-  },
-
-  agentCardA: {
-    borderColor: "#354955",
-  },
-
-  agentCardB: {
-    borderColor: "#354955",
   },
 
   agentHeader: {
@@ -759,17 +787,28 @@ const styles = {
     color: "#edf2f4",
   },
 
-  agentBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: "50%",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    border: "1px solid #3a4d58",
-    color: "#aabac3",
+  removeButton: {
+    border: "1px solid #674a4a",
+    background: "transparent",
+    color: "#e5bebe",
+    borderRadius: 999,
+    width: 28,
+    height: 28,
+    cursor: "pointer",
+    fontSize: 13,
+    lineHeight: 1,
+  },
+
+  addButton: {
+    border: "1px dashed #3a4d58",
+    background: "transparent",
+    color: "#9bacb5",
+    borderRadius: 12,
+    padding: "12px",
     fontSize: 12,
     fontWeight: 700,
+    letterSpacing: ".7px",
+    cursor: "pointer",
   },
 
   field: {
@@ -797,36 +836,6 @@ const styles = {
     padding: "11px 12px",
     fontSize: 14,
     outline: "none",
-  },
-
-  vsContainer: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 9,
-  },
-
-  vsLine: {
-    width: 1,
-    flex: 1,
-    background:
-      "linear-gradient(180deg, transparent, #394b56, transparent)",
-  },
-
-  vs: {
-    width: 40,
-    height: 40,
-    borderRadius: "50%",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "#111a21",
-    border: "1px solid #354852",
-    color: "#9bacb5",
-    fontSize: 10,
-    fontWeight: 800,
-    letterSpacing: "1px",
   },
 
   card: {
@@ -925,6 +934,7 @@ const styles = {
     borderRadius: 18,
     background: "rgba(15,23,30,.9)",
     border: "1px solid #273640",
+    flexWrap: "wrap",
   },
 
   optionLabel: {
@@ -933,6 +943,12 @@ const styles = {
     color: "#82949e",
     fontWeight: 700,
     marginBottom: 7,
+  },
+
+  turnsHint: {
+    marginTop: 6,
+    fontSize: 11,
+    color: "#71838d",
   },
 
   smallSelect: {
@@ -965,6 +981,7 @@ const styles = {
     marginBottom: 24,
     paddingBottom: 20,
     borderBottom: "1px solid #25343d",
+    flexWrap: "wrap",
   },
 
   liveTitle: {
@@ -1035,7 +1052,7 @@ const styles = {
 
   summaryGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+    gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
     gap: 10,
     marginBottom: 14,
   },

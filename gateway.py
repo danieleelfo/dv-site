@@ -1,4 +1,5 @@
 import os
+import time
 import asyncio
 import uuid
 
@@ -17,7 +18,7 @@ app = FastAPI(title="Lele AI Gateway")
 
 
 # --------------------------------------------------------------------------
-# GOOGLE AUTH (solo per /api/admin/*)
+# GOOGLE AUTH (per /api/admin/* e /api/agent-arena/start|stop)
 # --------------------------------------------------------------------------
 # Richiesto da env, niente default in chiaro nel codice.
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
@@ -261,10 +262,8 @@ class BarAIRequest(BaseModel):
 @app.api_route("/api/bar-ai/ask", methods=["POST", "OPTIONS"])
 @app.api_route("/api/bar-ai/ask/", methods=["POST", "OPTIONS"])
 async def bar_ai_ask(req: BarAIRequest | None = None):
-    # Se è una richiesta preflight CORS OPTIONS, rispondi subito OK 200
-    from fastapi import Request
-
     # Nota: se FastAPI riceve OPTIONS con payload vuoto, req sarà None
+    # e rispondiamo subito OK 200 (preflight CORS).
 
     target_url = "http://127.0.0.1:8081/ask"
 
@@ -536,7 +535,7 @@ async def admin_chat_router(
 #   Browser
 #      │
 #      ▼
-#   POST /api/agent-arena/start
+#   POST /api/agent-arena/start      (Google auth OBBLIGATORIA)
 #      │
 #      ▼
 #   Gateway
@@ -548,6 +547,15 @@ async def admin_chat_router(
 #             └── Emergence role + model
 #
 # Il loop gira nel backend, non nel browser.
+#
+# Modalità N partecipanti (2..12), round-robin:
+#   P1 -> P2 -> ... -> PN -> P1 -> ...
+#
+# Sicurezza:
+#   - start e stop richiedono un ID token Google valido
+#   - status resta aperto (il run_id è un uuid4 non indovinabile)
+#   - model / character / role passano da allowlist
+#   - tetto ai messaggi totali e ai run contemporanei
 # ==========================================================================
 
 
@@ -566,21 +574,67 @@ ARENA_AGENT_PORTS = {
 ARENA_RUNS: dict[str, dict] = {}
 
 
-class AgentArenaRequest(BaseModel):
-    # ------------------------------------------------------
-    # AGENTE A
-    # ------------------------------------------------------
-    agent_a: str
-    character_a: str = ""
-    model_a: str = ""
+MAX_PARTICIPANTS = 12
+MIN_PARTICIPANTS = 2
 
-    # ------------------------------------------------------
-    # AGENTE B
-    # ------------------------------------------------------
-    agent_b: str
-    character_b: str = ""
-    role_b: str = ""
-    model_b: str = ""
+# Tetti anti-costo / anti-abuso.
+MAX_TURNS = 50
+MAX_TOTAL_MESSAGES = 120
+MAX_ACTIVE_RUNS = 3
+RUN_TTL_SECONDS = 3600  # i run finiti si cancellano dopo 1 ora
+
+ACTIVE_STATUSES = ("STARTING", "RUNNING")
+FINISHED_STATUSES = ("COMPLETED", "STOPPED", "ERROR")
+
+# Allowlist: DEVE restare allineata con ProjectTest.jsx.
+ALLOWED_MODELS = {
+    "gemma4",
+    "llama3",
+    "mistral",
+    "qwen2.5",
+    "deepseek-r1",
+}
+
+ALLOWED_CHARACTERS = {
+    "horror",
+    "drammatica",
+    "comico",
+    "ose",
+    "ricerca",
+    "random",
+    "amore",
+    "culturale",
+}
+
+ALLOWED_ROLES = {
+    "Planner",
+    "Scientist",
+    "Builder",
+    "Critic",
+    "Observer",
+    "Architect",
+    "Developer",
+    "Tester",
+    "Reviewer",
+    "Sheriff",
+    "Outlaw",
+    "Explorer",
+}
+
+# Limiti di lunghezza sugli input liberi.
+MAX_TOPIC_CHARS = 4000
+
+
+class ArenaParticipant(BaseModel):
+    agent: str
+    character: str = ""
+    role: str = ""
+    model: str = ""
+
+
+class AgentArenaRequest(BaseModel):
+    # Lista partecipanti (2..12). Round-robin su questa lista.
+    participants: list[ArenaParticipant]
 
     # ------------------------------------------------------
     # WORLD / TOPIC
@@ -592,15 +646,112 @@ class AgentArenaRequest(BaseModel):
     # ------------------------------------------------------
     # LOOP
     # ------------------------------------------------------
+    # numero di GIRI completi (ogni partecipante parla una volta per giro).
+    # Il totale messaggi è max_turns * N.
     max_turns: int = 10
+
+
+def _validate_arena_request(req: AgentArenaRequest) -> None:
+    """
+    Validazione unica, usata dall'endpoint start.
+    Solleva HTTPException 400 se qualcosa non va.
+    """
+    n = len(req.participants)
+
+    if not (MIN_PARTICIPANTS <= n <= MAX_PARTICIPANTS):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Numero partecipanti deve essere "
+                f"tra {MIN_PARTICIPANTS} e {MAX_PARTICIPANTS}."
+            ),
+        )
+
+    if not 1 <= req.max_turns <= MAX_TURNS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"max_turns deve essere compreso tra 1 e {MAX_TURNS}.",
+        )
+
+    if req.max_turns * n > MAX_TOTAL_MESSAGES:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Troppi messaggi totali "
+                f"({req.max_turns * n}, massimo {MAX_TOTAL_MESSAGES}). "
+                f"Riduci i giri o i partecipanti."
+            ),
+        )
+
+    for i, p in enumerate(req.participants):
+        if p.agent not in ARENA_AGENT_PORTS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Agente non valido (slot {i}): {p.agent}",
+            )
+
+        if p.model and p.model not in ALLOWED_MODELS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Modello non consentito (slot {i}): {p.model}",
+            )
+
+        if p.character and p.character not in ALLOWED_CHARACTERS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Character non valido (slot {i}): {p.character}",
+            )
+
+        if p.role and p.role not in ALLOWED_ROLES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Ruolo non valido (slot {i}): {p.role}",
+            )
+
+    if req.world_source not in ("free", "emergence"):
+        raise HTTPException(
+            status_code=400,
+            detail="world_source deve essere 'free' oppure 'emergence'.",
+        )
+
+    if len(req.topic) > MAX_TOPIC_CHARS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Topic troppo lungo (massimo {MAX_TOPIC_CHARS} caratteri).",
+        )
+
+    if req.world_source == "emergence" and not str(req.world_ref).strip().isdigit():
+        raise HTTPException(
+            status_code=400,
+            detail="world_ref deve essere l'ID numerico di un Emergence World.",
+        )
+
+
+def _arena_cleanup() -> None:
+    """
+    Rimuove dalla memoria i run finiti da più di RUN_TTL_SECONDS.
+    Chiamata a ogni start.
+    """
+    now = time.time()
+
+    expired = [
+        rid
+        for rid, r in ARENA_RUNS.items()
+        if r.get("status") in FINISHED_STATUSES
+        and now - r.get("finished_at", now) > RUN_TTL_SECONDS
+    ]
+
+    for rid in expired:
+        ARENA_RUNS.pop(rid, None)
 
 
 def _arena_chat_id(
     run_id: str,
-    side: str
+    idx: int,
 ) -> int:
     """
-    Crea un chat_id deterministico diverso per A e B.
+    Crea un chat_id deterministico diverso per ogni partecipante
+    (indice 0..N-1 della lista participants).
 
     Non usiamo il chat_id reale dell'utente:
     l'Arena è una conversazione artificiale isolata.
@@ -608,8 +759,7 @@ def _arena_chat_id(
     value = uuid.UUID(run_id).int
 
     return 100000000 + (
-        (value + (1 if side == "a" else 2))
-        % 900000000
+        (value + idx + 1) % 900000000
     )
 
 
@@ -731,7 +881,8 @@ async def _arena_call(
 
 
 async def _arena_load_world(
-    world_ref: str
+    world_ref: str,
+    admin_chat_id: int | None,
 ) -> str:
     """
     Recupera un Emergence World già salvato.
@@ -741,6 +892,10 @@ async def _arena_load_world(
 
     In questo modo non duplichiamo la logica PostgreSQL
     di emergence_worlds.py dentro il gateway.
+
+    Leles protegge query world come comando admin: usiamo il chat_id
+    Telegram dell'utente autenticato (mappa server-side).
+    Nessun fallback hardcodato: se manca, errore esplicito.
     """
 
     world_ref = str(
@@ -753,13 +908,11 @@ async def _arena_load_world(
             "di un Emergence World."
         )
 
-    # Leles protegge query world come comando admin.
-    # Usiamo l'admin chat id configurato server-side,
-    # oppure il primo admin disponibile.
-    admin_chat_id = next(
-        iter(ADMIN_USER_CHAT_IDS.values()),
-        8733881519
-    )
+    if admin_chat_id is None:
+        raise RuntimeError(
+            "Nessun chat_id Telegram configurato per questa email "
+            "(ADMIN_USER_CHAT_IDS): impossibile leggere l'Emergence World."
+        )
 
     result = await _arena_call(
         "leles",
@@ -780,61 +933,36 @@ async def _arena_load_world(
 
 async def _run_agent_arena(
     run_id: str,
-    cfg: AgentArenaRequest
+    cfg: AgentArenaRequest,
+    admin_chat_id: int | None = None,
 ):
     """
-    Esegue il loop:
+    Esegue il loop round-robin su N partecipanti:
 
         topic/world
              ↓
-          Agent A
+           P1
              ↓
-          Agent B
+           P2
              ↓
-          Agent A
+           ...
              ↓
-          Agent B
-             ...
+           PN
+             ↓
+           P1
+             ↓
+           ...
 
-    max_turns indica quanti cicli A+B eseguire.
+    max_turns indica quanti GIRI completi eseguire.
+    Ogni giro = ogni partecipante parla una volta.
+    Totale messaggi = max_turns * N.
+
+    La validazione è già stata fatta in agent_arena_start.
     """
 
     run = ARENA_RUNS[run_id]
 
     try:
-
-        # --------------------------------------------------
-        # VALIDAZIONE
-        # --------------------------------------------------
-
-        if not 1 <= cfg.max_turns <= 50:
-            raise RuntimeError(
-                "max_turns deve essere compreso "
-                "tra 1 e 50."
-            )
-
-        allowed = set(
-            ARENA_AGENT_PORTS
-        )
-
-        if cfg.agent_a not in allowed:
-            raise RuntimeError(
-                f"Agente A non valido: {cfg.agent_a}"
-            )
-
-        if cfg.agent_b not in allowed:
-            raise RuntimeError(
-                f"Agente B non valido: {cfg.agent_b}"
-            )
-
-        if cfg.world_source not in (
-            "free",
-            "emergence",
-        ):
-            raise RuntimeError(
-                "world_source deve essere "
-                "'free' oppure 'emergence'."
-            )
 
         # --------------------------------------------------
         # OPENING
@@ -843,7 +971,8 @@ async def _run_agent_arena(
         if cfg.world_source == "emergence":
 
             opening = await _arena_load_world(
-                cfg.world_ref
+                cfg.world_ref,
+                admin_chat_id,
             )
 
         else:
@@ -866,113 +995,64 @@ async def _run_agent_arena(
         last_msg = opening
 
         # --------------------------------------------------
-        # ARENA LOOP
+        # ARENA LOOP — ROUND ROBIN SU N PARTECIPANTI
         # --------------------------------------------------
 
-        for turn in range(
-            cfg.max_turns
-        ):
+        for turn in range(cfg.max_turns):
 
-            # ==============================================
-            # AGENT A
-            # ==============================================
+            for idx, p in enumerate(cfg.participants):
 
-            if run["stop"]:
+                if run["stop"]:
 
-                run["status"] = "STOPPED"
-                return
+                    run["status"] = "STOPPED"
+                    return
 
-            answer_a = await _arena_call(
-                agent_id=cfg.agent_a,
-                message=last_msg,
-                chat_id=_arena_chat_id(
-                    run_id,
-                    "a"
-                ),
-                character=cfg.character_a,
-                model=cfg.model_a,
-            )
-
-            run["turns"].append(
-                {
-                    "id": len(
-                        run["turns"]
-                    ) + 1,
-
-                    "turn": turn + 1,
-
-                    "side": "a",
-
-                    "agent": cfg.agent_a,
-
-                    "character": (
-                        cfg.character_a
-                        if cfg.agent_a == "night_story"
-                        else ""
+                answer = await _arena_call(
+                    agent_id=p.agent,
+                    message=last_msg,
+                    chat_id=_arena_chat_id(
+                        run_id,
+                        idx,
                     ),
+                    character=p.character,
+                    role=p.role,
+                    model=p.model,
+                )
 
-                    "role": "",
+                run["turns"].append(
+                    {
+                        "id": len(
+                            run["turns"]
+                        ) + 1,
 
-                    "model": cfg.model_a,
+                        "turn": turn + 1,
 
-                    "text": answer_a,
-                }
-            )
+                        "idx": idx,
 
-            last_msg = answer_a
+                        "agent": p.agent,
 
-            # ==============================================
-            # AGENT B
-            # ==============================================
+                        "character": (
+                            p.character
+                            if p.agent == "night_story"
+                            else ""
+                        ),
 
-            if run["stop"]:
+                        "role": (
+                            p.role
+                            if p.agent in (
+                                "qe",
+                                "leles",
+                            )
+                            else ""
+                        ),
 
-                run["status"] = "STOPPED"
-                return
+                        "model": p.model,
 
-            answer_b = await _arena_call(
-                agent_id=cfg.agent_b,
-                message=last_msg,
-                chat_id=_arena_chat_id(
-                    run_id,
-                    "b"
-                ),
-                character=cfg.character_b,
-                role=cfg.role_b,
-                model=cfg.model_b,
-            )
+                        "text": answer,
+                    }
+                )
 
-            run["turns"].append(
-                {
-                    "id": len(
-                        run["turns"]
-                    ) + 1,
-
-                    "turn": turn + 1,
-
-                    "side": "b",
-
-                    "agent": cfg.agent_b,
-
-                    "character": (
-                        cfg.character_b
-                        if cfg.agent_b == "night_story"
-                        else ""
-                    ),
-
-                    "role": (
-                        cfg.role_b
-                        if cfg.agent_b == "qe"
-                        else ""
-                    ),
-
-                    "model": cfg.model_b,
-
-                    "text": answer_b,
-                }
-            )
-
-            last_msg = answer_b
+                last_msg = answer
 
         # --------------------------------------------------
         # COMPLETED
@@ -992,42 +1072,38 @@ async def _run_agent_arena(
 
         run["error"] = str(e)
 
+    finally:
+
+        run["finished_at"] = time.time()
+
 
 # --------------------------------------------------------------------------
-# START ARENA
+# START ARENA  (Google auth obbligatoria)
 # --------------------------------------------------------------------------
 @app.post("/api/agent-arena/start")
 async def agent_arena_start(
-    req: AgentArenaRequest
+    req: AgentArenaRequest,
+    authorization: str | None = Header(None),
 ):
-    allowed = set(
-        ARENA_AGENT_PORTS
+    # Solo utenti Google autorizzati possono lanciare run.
+    email = verify_admin_token(authorization)
+
+    _validate_arena_request(req)
+
+    _arena_cleanup()
+
+    active = sum(
+        1
+        for r in ARENA_RUNS.values()
+        if r.get("status") in ACTIVE_STATUSES
     )
 
-    if req.agent_a not in allowed:
+    if active >= MAX_ACTIVE_RUNS:
         raise HTTPException(
-            status_code=400,
+            status_code=429,
             detail=(
-                f"Agente A non valido: "
-                f"{req.agent_a}"
-            ),
-        )
-
-    if req.agent_b not in allowed:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Agente B non valido: "
-                f"{req.agent_b}"
-            ),
-        )
-
-    if not 1 <= req.max_turns <= 50:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "max_turns deve essere "
-                "compreso tra 1 e 50."
+                f"Troppi run attivi ({active}/{MAX_ACTIVE_RUNS}). "
+                f"Ferma o attendi un run in corso."
             ),
         )
 
@@ -1042,13 +1118,16 @@ async def agent_arena_start(
         "error": None,
         "opening": "",
         "task": None,
+        "owner": email,
+        "finished_at": None,
     }
 
     ARENA_RUNS[run_id]["task"] = (
         asyncio.create_task(
             _run_agent_arena(
                 run_id,
-                req
+                req,
+                ADMIN_USER_CHAT_IDS.get(email),
             )
         )
     )
@@ -1059,7 +1138,7 @@ async def agent_arena_start(
 
 
 # --------------------------------------------------------------------------
-# ARENA STATUS
+# ARENA STATUS  (aperto: run_id = uuid4 non indovinabile)
 # --------------------------------------------------------------------------
 @app.get("/api/agent-arena/{run_id}")
 async def agent_arena_status(
@@ -1087,12 +1166,15 @@ async def agent_arena_status(
 
 
 # --------------------------------------------------------------------------
-# ARENA STOP
+# ARENA STOP  (Google auth obbligatoria)
 # --------------------------------------------------------------------------
 @app.post("/api/agent-arena/{run_id}/stop")
 async def agent_arena_stop(
-    run_id: str
+    run_id: str,
+    authorization: str | None = Header(None),
 ):
+    verify_admin_token(authorization)
+
     run = ARENA_RUNS.get(
         run_id
     )
@@ -1104,6 +1186,13 @@ async def agent_arena_stop(
         )
 
     run["stop"] = True
+
+    # Stop immediato: cancella il task anche se un LLM sta rispondendo.
+    # Il CancelledError è gestito in _run_agent_arena (status STOPPED).
+    task = run.get("task")
+
+    if task is not None and not task.done():
+        task.cancel()
 
     return {
         "status": "STOPPING"
