@@ -12,6 +12,14 @@ from google.oauth2 import id_token
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
+import sys
+from pathlib import Path
+
+LELES_ROOT = Path(__file__).resolve().parent.parent / "leles"
+if str(LELES_ROOT) not in sys.path:
+    sys.path.insert(0, str(LELES_ROOT))
+from core.db import get_connection
+
 load_dotenv("gateway.env")
 
 app = FastAPI(title="Lele AI Gateway")
@@ -527,37 +535,6 @@ async def admin_chat_router(
 # ==========================================================================
 # AGENT ARENA — BOT TO BOT LAB TEST 2
 # ==========================================================================
-#
-# La pagina ProjectTest.jsx parla SOLO con questi endpoint.
-#
-# Flow:
-#
-#   Browser
-#      │
-#      ▼
-#   POST /api/agent-arena/start      (Google auth OBBLIGATORIA)
-#      │
-#      ▼
-#   Gateway
-#      │
-#      ├── Night Story :8666 /ask
-#      │
-#      └── Leles/QE    :8082 /ask
-#             │
-#             └── Emergence role + model
-#
-# Il loop gira nel backend, non nel browser.
-#
-# Modalità N partecipanti (2..12), round-robin:
-#   P1 -> P2 -> ... -> PN -> P1 -> ...
-#
-# Sicurezza:
-#   - start e stop richiedono un ID token Google valido
-#   - status resta aperto (il run_id è un uuid4 non indovinabile)
-#   - model / character / role passano da allowlist
-#   - tetto ai messaggi totali e ai run contemporanei
-# ==========================================================================
-
 
 ARENA_AGENT_PORTS = {
     "night_story": 8666,
@@ -569,8 +546,8 @@ ARENA_AGENT_PORTS = {
 
 # Run attivi in memoria.
 #
-# È intenzionalmente semplice per Lab Test 2:
-# non salviamo lo stato nel DB e non introduciamo Redis.
+# L'Arena usa la memoria per il live polling.
+# La persistenza storica è PostgreSQL.
 ARENA_RUNS: dict[str, dict] = {}
 
 
@@ -581,7 +558,7 @@ MIN_PARTICIPANTS = 2
 MAX_TURNS = 50
 MAX_TOTAL_MESSAGES = 120
 MAX_ACTIVE_RUNS = 3
-RUN_TTL_SECONDS = 3600  # i run finiti si cancellano dopo 1 ora
+RUN_TTL_SECONDS = 3600
 
 ACTIVE_STATUSES = ("STARTING", "RUNNING")
 FINISHED_STATUSES = ("COMPLETED", "STOPPED", "ERROR")
@@ -621,7 +598,6 @@ ALLOWED_ROLES = {
     "Explorer",
 }
 
-# Limiti di lunghezza sugli input liberi.
 MAX_TOPIC_CHARS = 4000
 
 
@@ -633,28 +609,18 @@ class ArenaParticipant(BaseModel):
 
 
 class AgentArenaRequest(BaseModel):
-    # Lista partecipanti (2..12). Round-robin su questa lista.
     participants: list[ArenaParticipant]
 
-    # ------------------------------------------------------
-    # WORLD / TOPIC
-    # ------------------------------------------------------
     world_source: str = "free"
     world_ref: str = ""
     topic: str = ""
 
-    # ------------------------------------------------------
-    # LOOP
-    # ------------------------------------------------------
-    # numero di GIRI completi (ogni partecipante parla una volta per giro).
-    # Il totale messaggi è max_turns * N.
     max_turns: int = 10
 
 
 def _validate_arena_request(req: AgentArenaRequest) -> None:
     """
     Validazione unica, usata dall'endpoint start.
-    Solleva HTTPException 400 se qualcosa non va.
     """
     n = len(req.participants)
 
@@ -730,7 +696,6 @@ def _validate_arena_request(req: AgentArenaRequest) -> None:
 def _arena_cleanup() -> None:
     """
     Rimuove dalla memoria i run finiti da più di RUN_TTL_SECONDS.
-    Chiamata a ogni start.
     """
     now = time.time()
 
@@ -750,11 +715,7 @@ def _arena_chat_id(
     idx: int,
 ) -> int:
     """
-    Crea un chat_id deterministico diverso per ogni partecipante
-    (indice 0..N-1 della lista participants).
-
-    Non usiamo il chat_id reale dell'utente:
-    l'Arena è una conversazione artificiale isolata.
+    Crea un chat_id deterministico diverso per ogni partecipante.
     """
     value = uuid.UUID(run_id).int
 
@@ -773,15 +734,6 @@ async def _arena_call(
 ):
     """
     Chiama un agente locale per un singolo turno Arena.
-
-    Per Night Story:
-        character + model
-
-    Per QE/Leles:
-        role + model
-
-    Il model è passato solo agli agenti che abbiamo modificato
-    per accettarlo: Night Story e Leles/QE.
     """
 
     port = ARENA_AGENT_PORTS.get(
@@ -798,9 +750,6 @@ async def _arena_call(
         "chat_id": chat_id,
     }
 
-    # ------------------------------------------------------
-    # NIGHT STORY
-    # ------------------------------------------------------
     if agent_id == "night_story":
 
         if character:
@@ -809,9 +758,6 @@ async def _arena_call(
         if model:
             payload["model"] = model
 
-    # ------------------------------------------------------
-    # QE / LELES
-    # ------------------------------------------------------
     elif agent_id in (
         "qe",
         "leles",
@@ -822,17 +768,6 @@ async def _arena_call(
 
         if model:
             payload["model"] = model
-
-    # ------------------------------------------------------
-    # ALTRI AGENTI
-    # ------------------------------------------------------
-    #
-    # Story Whisper / Lele I vengono lasciati compatibili
-    # con le loro API attuali.
-    #
-    # Non passiamo model/role perché le loro Question
-    # attuali potrebbero non accettare questi campi.
-    # ------------------------------------------------------
 
     target_url = (
         f"http://127.0.0.1:{port}/ask"
@@ -885,17 +820,7 @@ async def _arena_load_world(
     admin_chat_id: int | None,
 ) -> str:
     """
-    Recupera un Emergence World già salvato.
-
-    Usiamo l'API pubblica già esistente di Leles:
-        query world <id>
-
-    In questo modo non duplichiamo la logica PostgreSQL
-    di emergence_worlds.py dentro il gateway.
-
-    Leles protegge query world come comando admin: usiamo il chat_id
-    Telegram dell'utente autenticato (mappa server-side).
-    Nessun fallback hardcodato: se manca, errore esplicito.
+    Recupera un Emergence World già salvato tramite Leles.
     """
 
     world_ref = str(
@@ -931,36 +856,233 @@ async def _arena_load_world(
     return result
 
 
+# --------------------------------------------------------------------------
+# ARENA — DATABASE PERSISTENCE
+# --------------------------------------------------------------------------
+
+def _arena_db_create_run(
+    run_id: str,
+    cfg: AgentArenaRequest,
+    world_id: int | None = None,
+):
+    """
+    Crea il record Arena e tutti i partecipanti.
+    """
+    conn = get_connection()
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO emergence.arena_runs (
+                    run_id,
+                    world_id,
+                    world_source,
+                    topic,
+                    max_turns,
+                    status
+                )
+                VALUES (
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    %s
+                )
+                RETURNING id
+                """,
+                (
+                    run_id,
+                    world_id,
+                    cfg.world_source,
+                    cfg.topic,
+                    cfg.max_turns,
+                    "STARTING",
+                ),
+            )
+
+            arena_run_id = cur.fetchone()[0]
+
+            for idx, p in enumerate(cfg.participants):
+                cur.execute(
+                    """
+                    INSERT INTO emergence.arena_participants (
+                        arena_run_id,
+                        participant_index,
+                        agent,
+                        character,
+                        role,
+                        model
+                    )
+                    VALUES (
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s,
+                        %s
+                    )
+                    """,
+                    (
+                        arena_run_id,
+                        idx,
+                        p.agent,
+                        p.character,
+                        p.role,
+                        p.model,
+                    ),
+                )
+
+        conn.commit()
+        return arena_run_id
+
+    except Exception:
+        conn.rollback()
+        raise
+
+    finally:
+        conn.close()
+
+
+def _arena_db_add_turn(
+    arena_run_id: int,
+    turn_number: int,
+    round_number: int,
+    participant_index: int,
+    agent: str,
+    character: str,
+    role: str,
+    model: str,
+    message: str,
+):
+    """
+    Salva immediatamente un messaggio Arena.
+    """
+    conn = get_connection()
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO emergence.arena_turns (
+                    arena_run_id,
+                    turn_number,
+                    round_number,
+                    participant_index,
+                    agent,
+                    character,
+                    role,
+                    model,
+                    message
+                )
+                VALUES (
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    %s
+                )
+                """,
+                (
+                    arena_run_id,
+                    turn_number,
+                    round_number,
+                    participant_index,
+                    agent,
+                    character,
+                    role,
+                    model,
+                    message,
+                ),
+            )
+
+        conn.commit()
+
+    except Exception:
+        conn.rollback()
+        raise
+
+    finally:
+        conn.close()
+
+
+def _arena_db_update_status(
+    arena_run_id: int,
+    status: str,
+    error: str | None = None,
+):
+    """
+    Aggiorna lo stato persistente del run.
+    """
+    conn = get_connection()
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE emergence.arena_runs
+                SET
+                    status = %s,
+                    error = %s,
+                    started_at = CASE
+                        WHEN %s = 'RUNNING'
+                             AND started_at IS NULL
+                        THEN CURRENT_TIMESTAMP
+                        ELSE started_at
+                    END,
+                    ended_at = CASE
+                        WHEN %s IN (
+                            'COMPLETED',
+                            'STOPPED',
+                            'ERROR'
+                        )
+                        THEN CURRENT_TIMESTAMP
+                        ELSE ended_at
+                    END
+                WHERE id = %s
+                """,
+                (
+                    status,
+                    error,
+                    status,
+                    status,
+                    arena_run_id,
+                ),
+            )
+
+        conn.commit()
+
+    except Exception:
+        conn.rollback()
+        raise
+
+    finally:
+        conn.close()
+
+
 async def _run_agent_arena(
     run_id: str,
     cfg: AgentArenaRequest,
     admin_chat_id: int | None = None,
+    arena_run_id: int | None = None,
 ):
     """
-    Esegue il loop round-robin su N partecipanti:
+    Esegue il loop round-robin su N partecipanti.
 
-        topic/world
-             ↓
-           P1
-             ↓
-           P2
-             ↓
-           ...
-             ↓
-           PN
-             ↓
-           P1
-             ↓
-           ...
-
-    max_turns indica quanti GIRI completi eseguire.
-    Ogni giro = ogni partecipante parla una volta.
-    Totale messaggi = max_turns * N.
-
-    La validazione è già stata fatta in agent_arena_start.
+    max_turns = numero di giri completi.
     """
 
     run = ARENA_RUNS[run_id]
+
+    if arena_run_id is None:
+        raise RuntimeError(
+            "Arena DB run id mancante."
+        )
 
     try:
 
@@ -990,6 +1112,11 @@ async def _run_agent_arena(
 
         run["status"] = "RUNNING"
 
+        _arena_db_update_status(
+            arena_run_id,
+            "RUNNING",
+        )
+
         run["opening"] = opening
 
         last_msg = opening
@@ -1005,6 +1132,12 @@ async def _run_agent_arena(
                 if run["stop"]:
 
                     run["status"] = "STOPPED"
+
+                    _arena_db_update_status(
+                        arena_run_id,
+                        "STOPPED",
+                    )
+
                     return
 
                 answer = await _arena_call(
@@ -1019,37 +1152,46 @@ async def _run_agent_arena(
                     model=p.model,
                 )
 
+                message_number = len(run["turns"]) + 1
+
+                character = (
+                    p.character
+                    if p.agent == "night_story"
+                    else ""
+                )
+
+                role = (
+                    p.role
+                    if p.agent in (
+                        "qe",
+                        "leles",
+                    )
+                    else ""
+                )
+
                 run["turns"].append(
                     {
-                        "id": len(
-                            run["turns"]
-                        ) + 1,
-
+                        "id": message_number,
                         "turn": turn + 1,
-
                         "idx": idx,
-
                         "agent": p.agent,
-
-                        "character": (
-                            p.character
-                            if p.agent == "night_story"
-                            else ""
-                        ),
-
-                        "role": (
-                            p.role
-                            if p.agent in (
-                                "qe",
-                                "leles",
-                            )
-                            else ""
-                        ),
-
+                        "character": character,
+                        "role": role,
                         "model": p.model,
-
                         "text": answer,
                     }
+                )
+
+                _arena_db_add_turn(
+                    arena_run_id=arena_run_id,
+                    turn_number=message_number,
+                    round_number=turn + 1,
+                    participant_index=idx,
+                    agent=p.agent,
+                    character=character,
+                    role=role,
+                    model=p.model,
+                    message=answer,
                 )
 
                 last_msg = answer
@@ -1060,17 +1202,37 @@ async def _run_agent_arena(
 
         run["status"] = "COMPLETED"
 
+        _arena_db_update_status(
+            arena_run_id,
+            "COMPLETED",
+        )
+
     except asyncio.CancelledError:
 
         run["status"] = "STOPPED"
+
+        _arena_db_update_status(
+            arena_run_id,
+            "STOPPED",
+        )
 
         raise
 
     except Exception as e:
 
         run["status"] = "ERROR"
-
         run["error"] = str(e)
+
+        try:
+            _arena_db_update_status(
+                arena_run_id,
+                "ERROR",
+                str(e),
+            )
+        except Exception as db_error:
+            run["error"] = (
+                f"{e} | DB status update failed: {db_error}"
+            )
 
     finally:
 
@@ -1111,6 +1273,28 @@ async def agent_arena_start(
         uuid.uuid4()
     )
 
+    # ------------------------------------------------------
+    # PERSISTENZA DB
+    # ------------------------------------------------------
+    #
+    # world_id resta None per ora.
+    # Il World viene comunque recuperato da Leles quando
+    # world_source == "emergence".
+    # ------------------------------------------------------
+
+    try:
+        arena_run_id = _arena_db_create_run(
+            run_id=run_id,
+            cfg=req,
+            world_id=None,
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Impossibile creare Arena run nel DB: {e}",
+        )
+
     ARENA_RUNS[run_id] = {
         "status": "STARTING",
         "turns": [],
@@ -1120,6 +1304,7 @@ async def agent_arena_start(
         "task": None,
         "owner": email,
         "finished_at": None,
+        "arena_run_id": arena_run_id,
     }
 
     ARENA_RUNS[run_id]["task"] = (
@@ -1128,6 +1313,7 @@ async def agent_arena_start(
                 run_id,
                 req,
                 ADMIN_USER_CHAT_IDS.get(email),
+                arena_run_id,
             )
         )
     )
@@ -1138,7 +1324,7 @@ async def agent_arena_start(
 
 
 # --------------------------------------------------------------------------
-# ARENA STATUS  (aperto: run_id = uuid4 non indovinabile)
+# ARENA STATUS
 # --------------------------------------------------------------------------
 @app.get("/api/agent-arena/{run_id}")
 async def agent_arena_status(
@@ -1188,7 +1374,7 @@ async def agent_arena_stop(
     run["stop"] = True
 
     # Stop immediato: cancella il task anche se un LLM sta rispondendo.
-    # Il CancelledError è gestito in _run_agent_arena (status STOPPED).
+    # Il CancelledError è gestito in _run_agent_arena.
     task = run.get("task")
 
     if task is not None and not task.done():
