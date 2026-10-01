@@ -110,6 +110,7 @@ const ROLE_EMOJI = {
   Developer: "👨‍💻",
   Tester: 
 
+
 "🧪",
   Reviewer: "📝",
   Sheriff: "⭐",
@@ -204,8 +205,8 @@ export default function ProjectTest() {
     }
   };
 
-  // =========================================================
-=
+  // ==========================================================
+
 
   // STOP
   // ==========================================================
@@ -296,6 +297,7 @@ export default function ProjectTest() {
   // HELPERS
   // ==========================================================
 
+
   
 const getTurnIdentity = (turn) => {
     const emoji = turn.character
@@ -374,7 +376,8 @@ const getTurnIdentity = (turn) => {
                 side="A"
                 cfg={cfg}
                 set={set}
-                agentKey="agent_a"
+                agentKey="agent_
+a"
 
    
              characterKey="character_a"
@@ -437,7 +440,8 @@ const getTurnIdentity = (turn) => {
                     }
                     onChange={() =>
                       set("world_source", "emergence")
-               
+           
+    
     
  }
                   />
@@ -503,7 +507,8 @@ const getTurnIdentity = (turn) => {
                 disabled={starting}
                 style={{
                   ...styles.startButton,
-              
+         
+     
     opacity: starting ? 0.65 : 1,
                   cursor: starting
                     ? "wait"
@@ -576,7 +581,8 @@ const getTurnIdentity = (turn) => {
               </div>
             </div>
 
-            {/* 
+          
+  {/* 
 =====
 ============================================
                 RUN CONFIG SUMMARY
@@ -640,7 +646,8 @@ const getTurnIdentity = (turn) => {
               </div>
             </section>
 
-            {/* =================================================
+            {/* ===========================================
+======
 
       
           CONVERSATION
@@ -702,7 +709,8 @@ const getTurnIdentity = (turn) => {
 
                           <span style={styles.messageModel}>
                             {turn.model}
-                         
+                 
+        
  </span>
                         </div>
 
@@ -785,7 +793,8 @@ function AgentPane({
           : styles.agentCardB),
       }}
     >
-      <div style={styles.agentHeader}>
+      
+<div style={styles.agentHeader}>
         <div>
           <div style={styles.agentSide}>
             {title}
@@ -869,6 +878,7 @@ function AgentPane({
                 value={role}
               >
                 {ROLE_EMOJI[role] || "🌱"}{" "}
+
        
         
  {role}
@@ -970,7 +980,8 @@ const styles = {
     position: "fixed",
     inset: 0,
     background:
-      "linear-gradient(180deg, rgba
+      "linear-gradient(180
+deg, rgba
 (5,10,14,
 .82) 0%, rgba(7,13,18,.91) 48%, rgba(4,8,12,.97) 100%)",
     zIndex: 1,
@@ -1085,7 +1096,8 @@ const styles = {
   fieldLabel: {
     display: "block",
     fontSize: 10,
-    letterSpacing: "1
+    letterS
+pacing: "1
 .5px",
    
  fontWeight: 700,
@@ -1200,7 +1212,8 @@ const styles = {
     minHeight: 100,
     boxSizing: "border-box",
     resize: "vertical",
-    background
+   
+ background
 : "#0d151b"
 ,
     color: "#e5ecef",
@@ -1307,7 +1320,8 @@ const styles = {
 
   statusRunning: {
     background: "#8aaebc",
-    boxShadow: "0
+    b
+oxShadow: "0
  0 10px rgba
 (138,174,188,.7)",
   },
@@ -1421,7 +1435,8 @@ const styles = {
     background:
       "rgba(11,18,24,.9)",
     border: "1px solid #273640",
-    overflow: "hidden",
+    overflow: "h
+idden",
   },
 
 
@@ -1464,6 +1479,6 @@ const styles = {
     borderRadius: 14,
     border: "1px solid #293b45",
     boxShadow:
-      "0 8px 25
+  
 
 ... [Content truncated]
