@@ -126,7 +126,6 @@ const AGENT_EMOJI = {
 const DEFAULT_CFG = {
   agent_a: "night_story",
   character_a: "horror",
-  role_a: "",
   model_a: "gemma4",
 
   agent_b: "qe",
@@ -173,7 +172,7 @@ export default function ProjectTest() {
       const response = await fetch(`${API}/api/agent-arena/start`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
+          "Content-Type": "application/jsonn",
         },
         body: JSON.stringify(cfg),
       });
@@ -295,8 +294,7 @@ export default function ProjectTest() {
   // HELPERS
   // ==========================================================
 
-  con
-st getTurnIdentity = (turn) => {
+  const getTurnIdentity = (turn) => {
     const emoji = turn.character
       ? CHARACTER_EMOJI[turn.character] || "🤖"
       : turn.role
@@ -500,8 +498,7 @@ st getTurnIdentity = (turn) => {
                 disabled={starting}
                 style={{
                   ...styles.startButton,
-                  o
-pacity: starting ? 0.65 : 1,
+                  opacity: starting ? 0.65 : 1,
                   cursor: starting
                     ? "wait"
                     : "pointer",
@@ -583,10 +580,8 @@ pacity: starting ? 0.65 : 1,
                 label="AGENT A"
                 value={getAgentLabel(cfg.agent_a)}
                 detail={
-                  (cfg.agent_a === "night_story" &&
-                    cfg.character_a) ||
-                  (cfg.agent_a === "qe" &&
-                    cfg.role_a) ||
+                  cfg.character_a ||
+                  cfg.role_a ||
                   cfg.model_a
                 }
               />
@@ -595,10 +590,8 @@ pacity: starting ? 0.65 : 1,
                 label="AGENT B"
                 value={getAgentLabel(cfg.agent_b)}
                 detail={
-                  (cfg.agent_b === "qe" &&
-                    cfg.role_b) ||
-                  (cfg.agent_b === "night_story" &&
-                    cfg.character_b) ||
+                  cfg.role_b ||
+                  cfg.character_b ||
                   cfg.model_b
                 }
               />
@@ -701,8 +694,7 @@ pacity: starting ? 0.65 : 1,
 
                           <span style={styles.messageModel}>
                             {turn.model}
-                          </span
->
+                          </span>
                         </div>
 
                         <div style={styles.messageText}>
@@ -807,23 +799,9 @@ es.agentHeader}>
       <Field label="AGENT">
         <select
           value={cfg[agentKey]}
-          onChange={(event) => {
-            const id = event.target.value;
-            set(agentKey, id);
-            const next = AGENTS.find(
-              (item) => item.id === id
-            );
-            set(
-              characterKey,
-              next?.hasCharacters
-                ? NS_CHARACTERS[0]
-                : ""
-            );
-            set(
-              roleKey,
-              next?.hasRoles ? QE_ROLES[0] : ""
-            );
-          }}
+          onChange={(event) =>
+            set(agentKey, event.target.value)
+          }
           style={styles.select}
         >
           {AGENTS.map((item) => (
