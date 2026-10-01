@@ -28,7 +28,7 @@ import bgImage from "../assets/DataInFlames.jpg";
 const API = "https://api.danielevillanova.com";
 
 // <-- INSERISCI il tuo Google OAuth Client ID (stesso del gateway)
-const GOOGLE_CLIENT_ID = "";
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 const TOKEN_STORAGE_KEY = "arena_google_id_token";
 
@@ -70,6 +70,7 @@ function readStoredToken() {
 
 function useGoogleAuth() {
   const [idToken, setIdToken] = useState(readStoredToken);
+  const [authError, setAuthError] = useState("");
   const buttonRef = useRef(null);
 
   const email = idToken ? parseJwt(idToken)?.email || "" : "";
@@ -77,13 +78,16 @@ function useGoogleAuth() {
   const logout = () => {
     try {
       sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+      if (window.google?.accounts?.id) {
+        window.google.accounts.id.disableAutoSelect();
+      }
     } catch {
       /* ignore */
     }
     setIdToken(null);
   };
 
-  // Scadenza automatica del token (Google: ~1 ora).
+  // Scadenza automatica del token
   useEffect(() => {
     if (!idToken) return;
     const payload = parseJwt(idToken);
@@ -97,13 +101,25 @@ function useGoogleAuth() {
     return () => clearTimeout(timer);
   }, [idToken]);
 
-  // Carica GSI e disegna il bottone quando non siamo loggati.
+  // Caricamento resiliente SDK Google (stesso approccio della Console)
   useEffect(() => {
-    if (idToken || !GOOGLE_CLIENT_ID) return;
+    if (idToken) return;
+
     let cancelled = false;
 
-    const init = () => {
-      if (cancelled || !window.google?.accounts?.id || !buttonRef.current) return;
+    function tryInit() {
+      if (cancelled) return;
+
+      if (!window.google?.accounts?.id) {
+        setTimeout(tryInit, 150);
+        return;
+      }
+
+      if (!GOOGLE_CLIENT_ID) {
+        setAuthError("GOOGLE_CLIENT_ID mancante (VITE_GOOGLE_CLIENT_ID).");
+        return;
+      }
+
       window.google.accounts.id.initialize({
         client_id: GOOGLE_CLIENT_ID,
         callback: (response) => {
@@ -117,39 +133,27 @@ function useGoogleAuth() {
           setIdToken(credential);
         },
       });
-      window.google.accounts.id.renderButton(buttonRef.current, {
-        theme: "filled_black",
-        size: "large",
-        text: "signin_with",
-      });
-    };
 
-    if (window.google?.accounts?.id) {
-      init();
-    } else {
-      let script = document.getElementById("google-gsi-script");
-      if (!script) {
-        script = document.createElement("script");
-        script.id = "google-gsi-script";
-        script.src = "https://accounts.google.com/gsi/client";
-        script.async = true;
-        script.defer = true;
-        document.head.appendChild(script);
+      if (buttonRef.current) {
+        window.google.accounts.id.renderButton(buttonRef.current, {
+          theme: "filled_black",
+          size: "large",
+          text: "signin_with",
+          shape: "pill",
+        });
       }
-      script.addEventListener("load", init);
-      return () => {
-        cancelled = true;
-        script.removeEventListener("load", init);
-      };
     }
+
+    tryInit();
 
     return () => {
       cancelled = true;
     };
   }, [idToken]);
 
-  return { idToken, email, buttonRef, logout };
+  return { idToken, email, buttonRef, logout, authError };
 }
+
 
 // ============================================================
 // DATI AGENTI
