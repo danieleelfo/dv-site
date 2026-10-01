@@ -3,6 +3,8 @@ import time
 import asyncio
 import uuid
 
+import psycopg2
+
 import httpx
 from fastapi import FastAPI, Header, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,13 +14,6 @@ from google.oauth2 import id_token
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-import sys
-from pathlib import Path
-
-LELES_ROOT = Path(__file__).resolve().parent.parent / "leles"
-if str(LELES_ROOT) not in sys.path:
-    sys.path.insert(0, str(LELES_ROOT))
-from core.db import get_connection
 
 load_dotenv("gateway.env")
 
@@ -116,6 +111,15 @@ def verify_admin_token(authorization: str | None) -> str:
         )
 
     return email
+    
+def get_connection():
+    return psycopg2.connect(
+        host=os.environ.get("PGHOST", "localhost"),
+        port=os.environ.get("PGPORT", "5432"),
+        dbname=os.environ.get("PGDATABASE"),
+        user=os.environ.get("PGUSER"),
+        password=os.environ.get("PGPASSWORD"),
+    )
 
 
 # --------------------------------------------------------------------------
