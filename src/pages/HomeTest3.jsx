@@ -15,7 +15,6 @@ const FORCED_ADMIN_CHAT_ID = 8733881519
 // ---------------------------------------------------------------------------
 
 // Pagine di test raggiungibili al volo.
-// Layout: griglia a 3 colonne, quindi 3 + 3.
 const QUICK_LINKS = [
   { to: '/test4', label: 'Bot to bot', main: true },
   { to: '/test6', label: 'Test 6' },
@@ -514,17 +513,15 @@ export default function ConsoleTest() {
 
         <nav className="lc-links" aria-label="Altre pagine">
           <span className="lc-dim">Vai a</span>
-          <div className="lc-links-grid">
-            {QUICK_LINKS.map((l) => (
-              <Link
-                key={l.to}
-                to={l.to}
-                className={`lc-link${l.main ? ' lc-link--main' : ''}`}
-              >
-                {l.label}
-              </Link>
-            ))}
-          </div>
+          {QUICK_LINKS.map((l) => (
+            <Link
+              key={l.to}
+              to={l.to}
+              className={`lc-link${l.main ? ' lc-link--main' : ''}`}
+            >
+              {l.label}
+            </Link>
+          ))}
         </nav>
 
         <div className="lc-grid">
@@ -770,9 +767,8 @@ const css = `
 .lc-session{display:flex;align-items:center;gap:10px;padding:5px 5px 5px 14px;border:1px solid var(--line);
   border-radius:999px;background:var(--glass);font-size:12px;color:var(--ink-dim);max-width:100%}
 .lc-ellipsis{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-.lc-links{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:16px;font-size:13px}
-.lc-links-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;width:min(100%,420px)}
-.lc-link{text-align:center;padding:6px 13px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04);
+.lc-links{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:16px;font-size:13px}
+.lc-link{padding:6px 13px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04);
   color:var(--ink);transition:background .15s,border-color .15s}
 .lc-link:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25)}
 .lc-link--main{background:var(--accent);border-color:var(--accent);color:#07201f;font-weight:600}
@@ -817,7 +813,8 @@ const css = `
 .lc-tab:hover{color:var(--ink)}
 .lc-tab.is-on{color:var(--ink);border-color:var(--g);background:color-mix(in srgb,var(--g) 16%,transparent)}
 .lc-count{font-size:11px;color:var(--ink-dim)}
-.lc-chips{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px}
+.lc-chips{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.lc-chips>p{grid-column:1/-1}
 .lc-chip{--g:var(--accent);display:flex;flex-direction:column;gap:2px;text-align:left;padding:9px 12px;border-radius:8px;
   border:1px solid var(--line);border-left:3px solid var(--g);background:rgba(255,255,255,.04);color:var(--ink);
   font:inherit;font-size:13px;cursor:pointer;transition:background .15s,border-color .15s}
@@ -854,7 +851,7 @@ const css = `
 @media (max-width:560px){
   .lc-wrap{padding:20px 14px 56px}
   .lc-entry header{flex-wrap:wrap}
-  .lc-link{padding:6px 8px;font-size:12px}
+  .lc-chips{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media (prefers-reduced-motion:reduce){.lc-pulse,.lc-spin{animation:none}}
 `
