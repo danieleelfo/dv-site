@@ -274,7 +274,32 @@ function parseSystem(text) {
     }
   }
 
-  const filled = sections.filter((s) => s.items.length > 0)
+  // Leles è sempre su (è lui che risponde): il suo stato diventa quello
+  // dell'intestazione "Progetti" e il suo box viene tolto.
+  for (const sec of sections) {
+    if (sec.title === 'Progetti') {
+      const i = sec.items.findIndex((it) => /^leles$/i.test(it.label))
+      if (i >= 0) {
+        sec.head = sec.items[i].state
+        sec.items.splice(i, 1)
+      }
+    }
+  }
+
+  // Ollama: i modelli diventano sotto-box del suo riquadro (a tutta
+  // larghezza, in fondo ai servizi). Se Ollama non c'è, i modelli
+  // restano una sezione a parte.
+  const services = sections.find((sec) => sec.title === 'Servizi')
+  const models = sections.find((sec) => sec.title === 'Modelli')
+  const ollama = services?.items.find((it) => /^ollama$/i.test(it.label))
+  if (ollama && models) {
+    ollama.children = models.items
+    sections.splice(sections.indexOf(models), 1)
+    services.items.splice(services.items.indexOf(ollama), 1)
+    services.items.push(ollama)
+  }
+
+  const filled = sections.filter((sec) => sec.items.length > 0)
   if (filled.length === 0) return null
   return { sections: filled, git }
 }
@@ -289,23 +314,52 @@ function SystemTiles({ data }) {
         return (
           <div key={sec.title} className="lc-sys-sec">
             <div className="lc-sys-title">
-              <span>{sec.title}</span>
+              <span
+                className={`lc-sys-name${sec.head ? ` is-${sec.head}` : ''}`}
+                title={sec.head ? `Leles: ${label[sec.head]}` : undefined}
+              >
+                {sec.title}
+                {sec.head && <span className="lc-sr"> (Leles {label[sec.head]})</span>}
+              </span>
               <span>
                 {up}/{sec.items.length}
               </span>
             </div>
             <div className="lc-tiles">
-              {sec.items.map((it) => (
-                <div
-                  key={it.label}
-                  className={`lc-tile is-${it.state}`}
-                  title={`${it.label}${it.sub ? ` (${it.sub})` : ''}: ${label[it.state]}`}
-                >
-                  <b>{it.label}</b>
-                  {it.sub && <small>{it.sub}</small>}
-                  <span className="lc-sr">{label[it.state]}</span>
-                </div>
-              ))}
+              {sec.items.map((it) =>
+                it.children ? (
+                  <div
+                    key={it.label}
+                    className={`lc-tile lc-tile--wide is-${it.state}`}
+                    title={`${it.label}: ${label[it.state]}`}
+                  >
+                    <b>{it.label}</b>
+                    <span className="lc-sr">{label[it.state]}</span>
+                    <div className="lc-subs">
+                      {it.children.map((m) => (
+                        <span
+                          key={m.label}
+                          className={`lc-sub is-${m.state}`}
+                          title={`${m.label}: ${label[m.state]}`}
+                        >
+                          {m.label}
+                          <span className="lc-sr"> {label[m.state]}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    key={it.label}
+                    className={`lc-tile is-${it.state}`}
+                    title={`${it.label}${it.sub ? ` (${it.sub})` : ''}: ${label[it.state]}`}
+                  >
+                    <b>{it.label}</b>
+                    {it.sub && <small>{it.sub}</small>}
+                    <span className="lc-sr">{label[it.state]}</span>
+                  </div>
+                )
+              )}
             </div>
           </div>
         )
@@ -974,6 +1028,21 @@ const css = `
 .lc-tile.is-ok{color:var(--ok);background:rgba(74,222,128,.1);border-color:rgba(74,222,128,.4)}
 .lc-tile.is-bad{color:var(--bad);background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.45)}
 .lc-tile.is-off{color:var(--ink-dim);opacity:.8}
+.lc-sys-name{display:inline-flex;align-items:center;gap:6px}
+.lc-sys-name.is-ok,.lc-sys-name.is-bad{font-weight:700}
+.lc-sys-name.is-ok::before,.lc-sys-name.is-bad::before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor}
+.lc-sys-name.is-ok{color:var(--ok)}
+.lc-sys-name.is-bad{color:var(--bad)}
+.lc-tile--wide{grid-column:1/-1;gap:8px;padding:9px 18px 10px 10px}
+.lc-subs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.lc-sub{position:relative;padding:5px 6px 5px 16px;border-radius:7px;border:1px solid var(--line);background:rgba(255,255,255,.04);
+  font-size:10px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lc-sub::before{content:'';position:absolute;left:6px;top:50%;width:6px;height:6px;margin-top:-3px;border-radius:50%;background:var(--ink-dim)}
+.lc-sub.is-ok{background:rgba(74,222,128,.1);border-color:rgba(74,222,128,.4)}
+.lc-sub.is-ok::before{background:var(--ok)}
+.lc-sub.is-bad{background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.45)}
+.lc-sub.is-bad::before{background:var(--bad)}
+.lc-sub.is-off{opacity:.7}
 .lc-sys-git{display:flex;gap:6px;flex-wrap:wrap}
 .lc-badge{padding:3px 10px;border-radius:999px;border:1px solid var(--line);font-size:11.5px;font-family:var(--mono);color:var(--ink)}
 .lc-badge.is-ok{color:var(--ok);border-color:rgba(74,222,128,.4)}
