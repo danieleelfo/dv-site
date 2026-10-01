@@ -331,6 +331,26 @@ export default function ProjectTest() {
 
     setStarting(true);
     try {
+      // DOPO (mappatura retrocompatibile per agent_a e agent_b):
+      const p1 = cfg.participants[0] || {};
+      const p2 = cfg.participants[1] || {};
+
+      const payload = {
+        agent_a: p1.agent,
+        agent_b: p2.agent,
+        character_a: p1.character || undefined,
+        character_b: p2.character || undefined,
+        role_a: p1.role || undefined,
+        role_b: p2.role || undefined,
+        model_a: p1.model,
+        model_b: p2.model,
+        world_source: cfg.world_source,
+        world_ref: cfg.world_ref,
+        topic: cfg.topic,
+        max_turns: cfg.max_turns,
+      };
+
+      // Inizio della funzione start con Auth Google + Payload Multi-Agente
       const response = await fetch(`${API}/api/agent-arena/start`, {
         method: "POST",
         headers: {
@@ -339,6 +359,8 @@ export default function ProjectTest() {
         },
         body: JSON.stringify(cfg),
       });
+
+
       const result = await response.json().catch(() => ({}));
 
       if (response.status === 401 || response.status === 403) {
