@@ -108,7 +108,8 @@ const ROLE_EMOJI = {
   Observer: "👁️",
   Architect: "📐",
   Developer: "👨‍💻",
-  Tester: "🧪",
+  Tester: 
+"🧪",
   Reviewer: "📝",
   Sheriff: "⭐",
   Outlaw: "🤠",
@@ -125,6 +126,7 @@ const AGENT_EMOJI = {
 const DEFAULT_CFG = {
   agent_a: "night_story",
   character_a: "horror",
+  role_a: "",
   model_a: "gemma4",
 
   agent_b: "qe",
@@ -203,6 +205,7 @@ export default function ProjectTest() {
   };
 
   // ==========================================================
+
   // STOP
   // ==========================================================
 
@@ -292,7 +295,8 @@ export default function ProjectTest() {
   // HELPERS
   // ==========================================================
 
-  const getTurnIdentity = (turn) => {
+  con
+st getTurnIdentity = (turn) => {
     const emoji = turn.character
       ? CHARACTER_EMOJI[turn.character] || "🤖"
       : turn.role
@@ -370,7 +374,8 @@ export default function ProjectTest() {
                 cfg={cfg}
                 set={set}
                 agentKey="agent_a"
-                characterKey="character_a"
+   
+             characterKey="character_a"
                 roleKey="role_a"
                 modelKey="model_a"
               />
@@ -430,7 +435,8 @@ export default function ProjectTest() {
                     }
                     onChange={() =>
                       set("world_source", "emergence")
-                    }
+                   
+ }
                   />
                   <span>Emergence World</span>
                 </label>
@@ -494,7 +500,8 @@ export default function ProjectTest() {
                 disabled={starting}
                 style={{
                   ...styles.startButton,
-                  opacity: starting ? 0.65 : 1,
+                  o
+pacity: starting ? 0.65 : 1,
                   cursor: starting
                     ? "wait"
                     : "pointer",
@@ -566,7 +573,8 @@ export default function ProjectTest() {
               </div>
             </div>
 
-            {/* =================================================
+            {/* =====
+============================================
                 RUN CONFIG SUMMARY
             ================================================= */}
 
@@ -575,8 +583,10 @@ export default function ProjectTest() {
                 label="AGENT A"
                 value={getAgentLabel(cfg.agent_a)}
                 detail={
-                  cfg.character_a ||
-                  cfg.role_a ||
+                  (cfg.agent_a === "night_story" &&
+                    cfg.character_a) ||
+                  (cfg.agent_a === "qe" &&
+                    cfg.role_a) ||
                   cfg.model_a
                 }
               />
@@ -585,8 +595,10 @@ export default function ProjectTest() {
                 label="AGENT B"
                 value={getAgentLabel(cfg.agent_b)}
                 detail={
-                  cfg.role_b ||
-                  cfg.character_b ||
+                  (cfg.agent_b === "qe" &&
+                    cfg.role_b) ||
+                  (cfg.agent_b === "night_story" &&
+                    cfg.character_b) ||
                   cfg.model_b
                 }
               />
@@ -629,7 +641,8 @@ export default function ProjectTest() {
             </section>
 
             {/* =================================================
-                CONVERSATION
+      
+          CONVERSATION
             ================================================= */}
 
             <section style={styles.conversationCard}>
@@ -688,7 +701,8 @@ export default function ProjectTest() {
 
                           <span style={styles.messageModel}>
                             {turn.model}
-                          </span>
+                          </span
+>
                         </div>
 
                         <div style={styles.messageText}>
@@ -770,7 +784,8 @@ function AgentPane({
           : styles.agentCardB),
       }}
     >
-      <div style={styles.agentHeader}>
+      <div style={styl
+es.agentHeader}>
         <div>
           <div style={styles.agentSide}>
             {title}
@@ -792,9 +807,23 @@ function AgentPane({
       <Field label="AGENT">
         <select
           value={cfg[agentKey]}
-          onChange={(event) =>
-            set(agentKey, event.target.value)
-          }
+          onChange={(event) => {
+            const id = event.target.value;
+            set(agentKey, id);
+            const next = AGENTS.find(
+              (item) => item.id === id
+            );
+            set(
+              characterKey,
+              next?.hasCharacters
+                ? NS_CHARACTERS[0]
+                : ""
+            );
+            set(
+              roleKey,
+              next?.hasRoles ? QE_ROLES[0] : ""
+            );
+          }}
           style={styles.select}
         >
           {AGENTS.map((item) => (
@@ -854,7 +883,8 @@ function AgentPane({
                 value={role}
               >
                 {ROLE_EMOJI[role] || "🌱"}{" "}
-                {role}
+               
+ {role}
               </option>
             ))}
           </select>
@@ -953,7 +983,8 @@ const styles = {
     position: "fixed",
     inset: 0,
     background:
-      "linear-gradient(180deg, rgba(5,10,14,.82) 0%, rgba(7,13,18,.91) 48%, rgba(4,8,12,.97) 100%)",
+      "linear-gradient(180deg, rgba(5,10,14,
+.82) 0%, rgba(7,13,18,.91) 48%, rgba(4,8,12,.97) 100%)",
     zIndex: 1,
   },
 
@@ -1067,7 +1098,8 @@ const styles = {
     display: "block",
     fontSize: 10,
     letterSpacing: "1.5px",
-    fontWeight: 700,
+   
+ fontWeight: 700,
     color: "#82949e",
     marginBottom: 7,
   },
@@ -1179,7 +1211,8 @@ const styles = {
     minHeight: 100,
     boxSizing: "border-box",
     resize: "vertical",
-    background: "#0d151b",
+    background: "#0d151b"
+,
     color: "#e5ecef",
     border: "1px solid #2b3d47",
     borderRadius: 11,
@@ -1284,7 +1317,8 @@ const styles = {
 
   statusRunning: {
     background: "#8aaebc",
-    boxShadow: "0 0 10px rgba(138,174,188,.7)",
+    boxShadow: "0 0 10px rgba
+(138,174,188,.7)",
   },
 
   statusFinished: {
@@ -1399,7 +1433,8 @@ const styles = {
     overflow: "hidden",
   },
 
-  conversationHeader: {
+  conversati
+onHeader: {
     padding: "18px 20px",
     display: "flex",
     alignItems: "center",
@@ -1438,85 +1473,6 @@ const styles = {
     borderRadius: 14,
     border: "1px solid #293b45",
     boxShadow:
-      "0 8px 25px rgba(0,0,0,.15)",
-  },
+      "0 8px 25px rgba(0,0,0,
 
-  messageA: {
-    background:
-      "linear-gradient(145deg, rgba(25,37,46,.96), rgba(16,25,32,.96))",
-    borderTopLeftRadius: 4,
-  },
-
-  messageB: {
-    background:
-      "linear-gradient(145deg, rgba(30,35,43,.96), rgba(18,23,29,.96))",
-    borderTopRightRadius: 4,
-  },
-
-  messageMeta: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 14,
-    marginBottom: 8,
-  },
-
-  messageIdentity: {
-    fontSize: 11,
-    color: "#c4d1d7",
-    fontWeight: 750,
-  },
-
-  messageModel: {
-    fontSize: 9,
-    color: "#687b85",
-    whiteSpace: "nowrap",
-  },
-
-  messageText: {
-    whiteSpace: "pre-wrap",
-    color: "#d5dee2",
-    fontSize: 13,
-    lineHeight: 1.6,
-  },
-
-  thinking: {
-    alignSelf: "center",
-    display: "flex",
-    alignItems: "center",
-    gap: 4,
-    padding: "8px 12px",
-    color: "#71848e",
-    fontSize: 11,
-  },
-
-  errorBox: {
-    padding: 15,
-    borderRadius: 11,
-    border: "1px solid #604347",
-    background: "#211518",
-    color: "#ddb8bd",
-    fontSize: 12,
-    lineHeight: 1.5,
-  },
-
-  completedBox: {
-    alignSelf: "center",
-    padding: "9px 14px",
-    borderRadius: 999,
-    border: "1px solid #3b4e57",
-    background: "#142127",
-    color: "#9db0b8",
-    fontSize: 11,
-  },
-
-  stoppedBox: {
-    alignSelf: "center",
-    padding: "9px 14px",
-    borderRadius: 999,
-    border: "1px solid #514d3c",
-    background: "#211f17",
-    color: "#c8bd9d",
-    fontSize: 11,
-  },
-};
+... [Content truncated]
