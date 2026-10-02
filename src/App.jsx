@@ -10,7 +10,8 @@ import Nav from './components/Nav.jsx'
 // --- PROGETTI PROMOSI (nome e rotta veri) ---
 import EmergenceLab from './pages/EmergenceLab.jsx'   // ex HomeTest  (/test)
 import AgentArena from './pages/AgentArena.jsx'        // ex HomeTest4 (/test4)
-import LelesConsole from './pages/LelesConsole.jsx'   // ex ProjectTest (/test6)
+// LelesConsole = stessa ConsoleTest (admin console vera)
+import ConsoleTest from './pages/ConsoleTest.jsx'
 
 // --- SLOT DI TEST LIBERI (ex pagine promosse) ---
 import TestSlot from './pages/TestSlot.jsx'
@@ -18,7 +19,6 @@ import TestSlot from './pages/TestSlot.jsx'
 // --- SLOT DI TEST ATTIVI ---
 import HomeTest2 from './pages/HomeTest2.jsx'
 import HomeTest3 from './pages/HomeTest3.jsx'
-import ConsoleTest from './pages/ConsoleTest.jsx'
 
 import LeleAdmin from './pages/LeleAdmin.jsx'
 
@@ -84,13 +84,14 @@ export default function App() {
           }
         />
 
+        {/* Console admin = ConsoleTest (file originale, non stub) */}
         <Route
           path="/:lang/leles-console"
           element={
             <>
               <Nav />
               <LangWrapper>
-                <LelesConsole />
+                <ConsoleTest />
               </LangWrapper>
             </>
           }
