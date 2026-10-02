@@ -52,15 +52,15 @@ export default function Nav() {
 
         <div style={styles.right}>
           <nav style={styles.links}>
-                        <Link to={lang ? "/" + lang : "/"} style={styles.link}>{t('nav.home')}</Link>
+            <Link to={lang ? "/" + lang : "/"} style={styles.link}>{t('nav.home')}</Link>
             <Link to={lang ? "/" + lang + "/projects" : "/projects"} style={styles.link}>{t('nav.projects')}</Link>
-            {/* Emergence Experiments */}
-            <Link to="/test" style={styles.link}>Emergence Experiments</Link>
-            {/* Leles — console admin */}
+            {/* AI Lab — Emergence Experiments (test) */}
+            <Link to="/test" style={styles.link}>AI Lab</Link>
+            {/* Leles — console admin (test6) */}
             <Link to="/test6" style={styles.link}>Leles</Link>
-            {/* Bot to Bot */}
-            <Link to="/test4" style={styles.link}>Bot to Bot</Link>
-            {/* Trial Stories */}
+            {/* B2B — Bot to Bot (test4) */}
+            <Link to="/test4" style={styles.link}>B2B</Link>
+            {/* Trial — console pubblica */}
             <Link to={lang ? "/" + lang + "/console" : "/console"} style={styles.link}>Trial</Link>
           </nav>
           <LanguageSwitcher />
@@ -97,7 +97,9 @@ const styles = {
   },
   links: {
     display: 'flex',
-    gap: '2rem',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    gap: '1.4rem',
     fontSize: '0.9rem',
     color: '#8fa1ac',
   },
