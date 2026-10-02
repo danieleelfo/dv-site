@@ -6,7 +6,10 @@ const LELE_API_URL = 'https://api.danielevillanova.com'
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
 
 const TOKEN_STORAGE_KEY = 'leles_admin_id_token'
-const ALLOWED_EMAILS = ['dannybydanny@hotmail.com']
+const ALLOWED_EMAILS = [
+  'dannybydanny@hotmail.com',
+  'salatinodenise@gmail.com',
+]
 const FORCED_ADMIN_CHAT_ID = 8733881519
 
 const DEFAULT_PIPELINE = [

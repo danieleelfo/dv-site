@@ -8,7 +8,10 @@ const TOKEN_STORAGE_KEY = 'leles_admin_id_token'
 
 // --- TEST TEMPORANEO: whitelist email per accesso alla console -----------
 // TODO: rimuovere/estendere quando arriva il login Telegram con ADMIN_IDS.
-const ALLOWED_EMAILS = ['dannybydanny@hotmail.com']
+const ALLOWED_EMAILS = [
+  'dannybydanny@hotmail.com',
+  'salatinodenise@gmail.com',
+]
 // Forza il chat_id a un ADMIN_IDS di Leles, così i comandi riservati
 // al "capitano" funzionano anche dalla console web.
 const FORCED_ADMIN_CHAT_ID = 8733881519
