@@ -8,7 +8,10 @@ const TOKEN_STORAGE_KEY = 'leles_admin_id_token'
 
 // --- TEST TEMPORANEO: whitelist email per accesso alla console -----------
 // TODO: rimuovere/estendere quando arriva il login Telegram con ADMIN_IDS.
-const ALLOWED_EMAILS = ['dannybydanny@hotmail.com']
+const ALLOWED_EMAILS = [
+  'dannybydanny@hotmail.com',
+  'salatinodenise@gmail.com',
+]
 // Forza il chat_id a un ADMIN_IDS di Leles, così i comandi riservati
 // al "capitano" funzionano anche dalla console web.
 const FORCED_ADMIN_CHAT_ID = 8733881519
@@ -22,13 +25,6 @@ const QUICK_LINKS = [
   { to: '/test2', label: 'Test 2' },
   { to: '/test', label: 'Test' },
   { to: '/leles', label: 'Lele Admin' },
-]
-
-// Comandi mostrati nel pannello di destra (si aggiornano con "Aggiorna").
-const STATUS_CMDS = [
-  ['sys', 'Sistema', 'status sistema'],
-  ['os', 'OS', 'status os'],
-  ['ram', 'RAM', 'status ram'],
 ]
 
 const c = (label, command, hint, danger) => ({ label, command, hint, danger })
@@ -51,7 +47,11 @@ const COMMAND_GROUPS = [
       c('Start Lele', 'start lele'),
       c('Stop Lele', 'stop lele', undefined, true),
       c('Restart Lele', 'restart lele', undefined, true),
+      c('Start Story Whisper', 'start story whisper'),
+      c('Stop Story Whisper', 'stop story whisper', undefined, true),
       c('Restart Story Whisper', 'restart story whisper', undefined, true),
+      c('Start Night Story', 'start night story'),
+      c('Stop Night Story', 'stop night story', undefined, true),
       c('Restart Night Story', 'restart night story', undefined, true),
       c('Restart Gateway', 'restart gateway', undefined, true),
       c('Logs Lele', 'logs lele'),
@@ -75,6 +75,7 @@ const COMMAND_GROUPS = [
     id: 'emergence', title: 'Emergence / QE', icon: '🧠', color: '#a78bfa',
     commands: [
       c('QE last 10', 'QE last 10'),
+      c('QE last 3', 'QE last 3'),
       c('QE status', 'QE status ', 'run_id opzionale'),
       c('Decisione', 'decisione ', 'run_id'),
       c('Decisione run', 'decisione run ', 'run_id'),
@@ -185,7 +186,7 @@ async function callAdmin(idToken, prompt, timeoutMs = 310000) {
       const err = new Error(
         res.status === 401
           ? 'Sessione scaduta, effettua di nuovo il login.'
-          : 'Accesso non autorizzato per questo account Google.'
+          : 'Accesso non autorizzato per questo account Google. 🏴‍☠️'
       )
       err.status = res.status
       throw err
@@ -203,7 +204,7 @@ async function callAdmin(idToken, prompt, timeoutMs = 310000) {
     return 'Nessuna risposta ricevuta'
   } catch (err) {
     if (err.name === 'AbortError') {
-      throw new Error('Timeout: il server non ha risposto in tempo.')
+      throw new Error('Timeout: il server non ha risposto in tempo. 😵‍💫')
     }
     throw err
   } finally {
@@ -217,173 +218,6 @@ const timeLabel = (ts) =>
     minute: '2-digit',
     second: '2-digit',
   })
-
-// ------------------------------------------------------------------
-// Dashboard "Sistema": parser del testo di `status sistema` + tessere.
-// ------------------------------------------------------------------
-const SYS_SECTIONS = {
-  'Projects': 'Progetti',
-  'Shared Services': 'Servizi',
-  'Models': 'Modelli',
-}
-
-// Trasforma l'output testuale di "status sistema" in dati per le tessere.
-// Ritorna null se il formato non è riconosciuto (si ripiega sul testo).
-function parseSystem(text) {
-  if (!text) return null
-  const sections = []
-  let cur = null
-  let git = null
-  let inGit = false
-
-  for (const raw of text.split('\n')) {
-    const line = raw.trim()
-    if (!line || /^[\u2500-]+$/.test(line)) continue
-
-    if (SYS_SECTIONS[line]) {
-      cur = { title: SYS_SECTIONS[line], items: [] }
-      sections.push(cur)
-      inGit = false
-      continue
-    }
-    if (line === 'Git') {
-      git = { branch: '', status: '', clean: false, files: [] }
-      cur = null
-      inGit = true
-      continue
-    }
-
-    if (inGit && git) {
-      if (line.startsWith('Branch:')) git.branch = line.slice(7).trim()
-      else if (line.startsWith('Status:')) {
-        git.status = line.slice(7).trim()
-        git.clean = /clean/i.test(git.status)
-      } else git.files.push(line)
-      continue
-    }
-
-    const m = line.match(/^(✅|❌|🟢|⚪️|⚪)\s*(.+)$/u)
-    if (m && cur) {
-      const state = m[1] === '✅' || m[1] === '🟢' ? 'ok' : m[1] === '❌' ? 'bad' : 'off'
-      const nm = m[2].match(/^(.*?)\s*\((.+)\)$/)
-      cur.items.push({
-        label: (nm ? nm[1] : m[2]).replace(/_/g, ' '),
-        sub: nm ? nm[2] : '',
-        state,
-      })
-    }
-  }
-
-  // Leles è sempre su (è lui che risponde): il suo stato diventa quello
-  // dell'intestazione "Progetti" e il suo box viene tolto.
-  for (const sec of sections) {
-    if (sec.title === 'Progetti') {
-      const i = sec.items.findIndex((it) => /^leles$/i.test(it.label))
-      if (i >= 0) {
-        sec.head = sec.items[i].state
-        sec.items.splice(i, 1)
-      }
-    }
-  }
-
-  // Ollama: i modelli diventano sotto-box del suo riquadro (a tutta
-  // larghezza, in fondo ai servizi). Se Ollama non c'è, i modelli
-  // restano una sezione a parte.
-  const services = sections.find((sec) => sec.title === 'Servizi')
-  const models = sections.find((sec) => sec.title === 'Modelli')
-  const ollama = services?.items.find((it) => /^ollama$/i.test(it.label))
-  if (ollama && models) {
-    ollama.children = models.items
-    sections.splice(sections.indexOf(models), 1)
-    services.items.splice(services.items.indexOf(ollama), 1)
-    services.items.push(ollama)
-  }
-
-  const filled = sections.filter((sec) => sec.items.length > 0)
-  if (filled.length === 0) return null
-  return { sections: filled, git }
-}
-
-// Schemino a quadratini: verde = su, rosso = giù, grigio = non caricato.
-function SystemTiles({ data }) {
-  const label = { ok: 'attivo', bad: 'non attivo', off: 'non caricato' }
-  return (
-    <div className="lc-sys">
-      {data.sections.map((sec) => {
-        const up = sec.items.filter((i) => i.state === 'ok').length
-        return (
-          <div key={sec.title} className="lc-sys-sec">
-            <div className="lc-sys-title">
-              <span
-                className={`lc-sys-name${sec.head ? ` is-${sec.head}` : ''}`}
-                title={sec.head ? `Leles: ${label[sec.head]}` : undefined}
-              >
-                {sec.title}
-                {sec.head && <span className="lc-sr"> (Leles {label[sec.head]})</span>}
-              </span>
-              <span>
-                {up}/{sec.items.length}
-              </span>
-            </div>
-            <div className="lc-tiles">
-              {sec.items.map((it) =>
-                it.children ? (
-                  <div
-                    key={it.label}
-                    className={`lc-tile lc-tile--wide is-${it.state}`}
-                    title={`${it.label}: ${label[it.state]}`}
-                  >
-                    <b>{it.label}</b>
-                    <span className="lc-sr">{label[it.state]}</span>
-                    <div className="lc-subs">
-                      {it.children.map((m) => (
-                        <span
-                          key={m.label}
-                          className={`lc-sub is-${m.state}`}
-                          title={`${m.label}: ${label[m.state]}`}
-                        >
-                          {m.label}
-                          <span className="lc-sr"> {label[m.state]}</span>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div
-                    key={it.label}
-                    className={`lc-tile is-${it.state}`}
-                    title={`${it.label}${it.sub ? ` (${it.sub})` : ''}: ${label[it.state]}`}
-                  >
-                    <b>{it.label}</b>
-                    {it.sub && <small>{it.sub}</small>}
-                    <span className="lc-sr">{label[it.state]}</span>
-                  </div>
-                )
-              )}
-            </div>
-          </div>
-        )
-      })}
-
-      {data.git && (
-        <div className="lc-sys-sec">
-          <div className="lc-sys-title">
-            <span>Git</span>
-          </div>
-          <div className="lc-sys-git">
-            {data.git.branch && <span className="lc-badge">{data.git.branch}</span>}
-            <span
-              className={`lc-badge ${data.git.clean ? 'is-ok' : 'is-warn'}`}
-              title={data.git.files.join('\n') || undefined}
-            >
-              {data.git.clean ? 'Clean' : data.git.status.replace(/^⚠️\s*/, '')}
-            </span>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
 
 export default function ConsoleTest() {
   const [idToken, setIdToken] = useState(() => {
@@ -407,10 +241,7 @@ export default function ConsoleTest() {
   const [activeGroup, setActiveGroup] = useState(COMMAND_GROUPS[0].id)
   const [search, setSearch] = useState('')
 
-  const [status, setStatus] = useState({})
-  const [statusLoading, setStatusLoading] = useState(false)
-  const [rawSys, setRawSys] = useState(false)
-  const [ping, setPing] = useState({ ok: null, ms: null, agents: [] })
+  const [ping, setPing] = useState({ ok: null, ms: null })
 
   const buttonRef = useRef(null)
   const textareaRef = useRef(null)
@@ -420,7 +251,7 @@ export default function ConsoleTest() {
     if (!idToken) return
     const email = decodeJwtPayload(idToken)?.email?.toLowerCase()
     if (!email || !ALLOWED_EMAILS.includes(email)) {
-      logout('Accesso non autorizzato per questo account Google.')
+      logout('Accesso non autorizzato per questo account Google. 🏴‍☠️')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -457,8 +288,8 @@ export default function ConsoleTest() {
         window.google.accounts.id.renderButton(buttonRef.current, {
           type: 'standard',
           theme: 'filled_black',
-          size: 'large',
-          text: 'signin_with',
+          size: 'small',
+          text: 'signin',
           shape: 'pill',
         })
       }
@@ -505,7 +336,6 @@ export default function ConsoleTest() {
     setIdToken(null)
     setProfile(null)
     setHistory([])
-    setStatus({})
     setPrompt('')
     setArmed(false)
     setAuthError(message)
@@ -526,12 +356,11 @@ export default function ConsoleTest() {
       const t0 = performance.now()
       try {
         const res = await fetch(`${LELE_API_URL}/`)
-        const data = await res.json()
+        await res.json()
         if (!stop) {
           setPing({
             ok: res.ok,
             ms: Math.round(performance.now() - t0),
-            agents: data.agents || [],
           })
         }
       } catch (e) {
@@ -546,30 +375,6 @@ export default function ConsoleTest() {
       clearInterval(id)
     }
   }, [idToken])
-
-  // Status sistema/OS/RAM: un comando alla volta, via console admin.
-  const refreshStatus = useCallback(async () => {
-    if (!idToken) return
-    setStatusLoading(true)
-    for (const [key, , cmd] of STATUS_CMDS) {
-      try {
-        const text = await callAdmin(idToken, cmd, 60000)
-        setStatus((s) => ({ ...s, [key]: { text } }))
-      } catch (err) {
-        if (err.status === 401 || err.status === 403) {
-          logout(err.message)
-          break
-        }
-        setStatus((s) => ({ ...s, [key]: { err: err.message } }))
-      }
-    }
-    setStatusLoading(false)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idToken])
-
-  useEffect(() => {
-    refreshStatus()
-  }, [refreshStatus])
 
   function selectCommand(command) {
     setPrompt(command.command)
@@ -645,16 +450,16 @@ export default function ConsoleTest() {
       <div className="lc-page">
         <style>{css}</style>
         {backdrop}
-        <div className="lc-wrap lc-wrap--narrow">
-          <h1 className="lc-title">Lele Admin Console</h1>
-          <div className="lc-panel lc-login">
-            <p>Accesso riservato. Entra con l'account Google autorizzato.</p>
-            {authError && <p className="lc-err">{authError}</p>}
-            <div ref={buttonRef} style={{ minHeight: 44 }} />
-            {!gsiReady && !authError && (
-              <p className="lc-dim">Caricamento login Google…</p>
-            )}
+        <div className="lc-wrap">
+          <div className="lc-top">
+            <h1 className="lc-title">Lele Admin Console</h1>
+            <div ref={buttonRef} className="lc-gbtn" />
           </div>
+          <p className="lc-dim lc-small lc-login-msg">Accesso riservato.</p>
+          {authError && <p className="lc-err lc-small">{authError}</p>}
+          {!gsiReady && !authError && (
+            <p className="lc-dim lc-small">Caricamento login Google…</p>
+          )}
         </div>
       </div>
     )
@@ -679,19 +484,6 @@ export default function ConsoleTest() {
           </div>
         </div>
 
-        <nav className="lc-links" aria-label="Altre pagine">
-          <span className="lc-dim">Vai a</span>
-          {QUICK_LINKS.map((l) => (
-            <Link
-              key={l.to}
-              to={l.to}
-              className={`lc-link${l.main ? ' lc-link--main' : ''}`}
-            >
-              {l.label}
-            </Link>
-          ))}
-        </nav>
-
         <div className="lc-grid">
           <main className="lc-main">
             {/* PROMPT */}
@@ -706,7 +498,7 @@ export default function ConsoleTest() {
                   ref={textareaRef}
                   value={prompt}
                   rows={4}
-                  placeholder="Scrivi un comando o parla liberamente con Leles…"
+                  placeholder="Scrivi a Leles…"
                   onChange={(e) => {
                     setPrompt(e.target.value)
                     setArmed(false)
@@ -740,7 +532,7 @@ export default function ConsoleTest() {
                   >
                     {isLoading ? (
                       <>
-                        <span className="lc-spin" /> Leles sta lavorando…
+                        <span className="lc-spin" /> Leles sta pensando… Aspé...🏴‍☠️
                       </>
                     ) : armed ? (
                       'Conferma ed esegui'
@@ -759,7 +551,7 @@ export default function ConsoleTest() {
                 <input
                   type="search"
                   className="lc-search"
-                  placeholder="Cerca tra tutti i comandi"
+                  placeholder="Cerca tra i comandi"
                   aria-label="Cerca comandi"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -788,7 +580,7 @@ export default function ConsoleTest() {
               <div className="lc-chips">
                 {visible.length === 0 && (
                   <p className="lc-dim">
-                    Nessun comando corrisponde a “{search}”. Puoi comunque scriverlo a mano sopra.
+                    Nessun comando corrisponde a “{search}”. ⚓️
                   </p>
                 )}
                 {visible.map((x, i) => (
@@ -861,51 +653,8 @@ export default function ConsoleTest() {
             </section>
           </main>
 
-          {/* DASHBOARD DESTRA */}
-          <aside className="lc-side" aria-label="Stato del sistema">
-            <section className="lc-panel lc-pad">
-              <div className="lc-cmd-head">
-                <h2>Stato del sistema</h2>
-                <button
-                  type="button"
-                  className="lc-btn lc-btn--sm"
-                  onClick={refreshStatus}
-                  disabled={statusLoading}
-                >
-                  {statusLoading ? 'Carico…' : 'Aggiorna'}
-                </button>
-              </div>
-              {STATUS_CMDS.map(([key, label]) => {
-                const s = status[key]
-                const tiles = key === 'sys' && !rawSys ? parseSystem(s?.text) : null
-                return (
-                  <div key={key} className="lc-stat">
-                    <div className="lc-stat-head">
-                      <h3>{label}</h3>
-                      {key === 'sys' && s?.text && parseSystem(s.text) && (
-                        <button
-                          type="button"
-                          className="lc-btn lc-btn--sm"
-                          onClick={() => setRawSys((v) => !v)}
-                        >
-                          {rawSys ? 'Schema' : 'Testo'}
-                        </button>
-                      )}
-                    </div>
-                    {s?.err ? (
-                      <p className="lc-err lc-small">{s.err}</p>
-                    ) : tiles ? (
-                      <SystemTiles data={tiles} />
-                    ) : (
-                      <pre className="lc-pre lc-pre--sm">
-                        {s?.text || (statusLoading ? 'Carico…' : 'Nessun dato. Premi Aggiorna.')}
-                      </pre>
-                    )}
-                  </div>
-                )
-              })}
-            </section>
-
+          {/* DASHBOARD DESTRA: solo pill Gateway */}
+          <aside className="lc-side" aria-label="Stato del gateway">
             <section className="lc-panel lc-pad">
               <div className="lc-cmd-head">
                 <h2>Gateway</h2>
@@ -921,6 +670,20 @@ export default function ConsoleTest() {
             </section>
           </aside>
         </div>
+
+        {/* VAI A (temporanei): in fondo alla pagina */}
+        <nav className="lc-links" aria-label="Altre pagine">
+          <span className="lc-dim">Vai a</span>
+          {QUICK_LINKS.map((l) => (
+            <Link
+              key={l.to}
+              to={l.to}
+              className={`lc-link${l.main ? ' lc-link--main' : ''}`}
+            >
+              {l.label}
+            </Link>
+          ))}
+        </nav>
       </div>
     </div>
   )
@@ -933,13 +696,15 @@ const css = `
 .lc-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.38}
 .lc-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,16,21,.5) 0%,rgba(11,16,21,.96) 70%)}
 .lc-wrap{position:relative;max-width:1280px;margin:0 auto;padding:28px 24px 72px}
-.lc-wrap--narrow{max-width:560px;padding-top:64px}
 .lc-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.lc-gbtn{min-height:32px;flex:none}
+.lc-login-msg{margin-top:10px}
 .lc-title{font-size:clamp(22px,4vw,30px);font-weight:650;letter-spacing:-.01em;line-height:1.15}
 .lc-session{display:flex;align-items:center;gap:10px;padding:5px 5px 5px 14px;border:1px solid var(--line);
   border-radius:999px;background:var(--glass);font-size:12px;color:var(--ink-dim);max-width:100%}
 .lc-ellipsis{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-.lc-links{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:16px;font-size:13px}
+.lc-links{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:28px;padding-top:16px;
+  border-top:1px solid var(--line);font-size:13px}
 .lc-link{padding:6px 13px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04);
   color:var(--ink);transition:background .15s,border-color .15s}
 .lc-link:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25)}
@@ -952,7 +717,6 @@ const css = `
   box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
 .lc-pad{padding:16px 18px}
 .lc-panel h2{font-size:15px;font-weight:650}
-.lc-panel h3{font-size:12px;font-weight:600;color:var(--ink-dim);margin-bottom:4px}
 .lc-dim{color:var(--ink-dim)}.lc-small{font-size:12px}
 .lc-err{color:var(--bad);font-size:14px}
 .lc-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
@@ -1001,52 +765,15 @@ const css = `
 .lc-entry.is-err code{color:var(--bad)}
 .lc-pre{margin:0;padding:12px;font-family:var(--mono);font-size:12.5px;line-height:1.55;white-space:pre-wrap;
   word-break:break-word;max-height:340px;overflow:auto}
-.lc-pre--sm{max-height:130px;font-size:11.5px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:rgba(0,0,0,.28)}
-.lc-stat{margin-bottom:12px}.lc-stat:last-child{margin-bottom:0}
-.lc-stat-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
-.lc-stat-head h3{margin:0}
-.lc-sys-sec{margin-top:12px}.lc-sys-sec:first-child{margin-top:0}
-.lc-sys-title{display:flex;justify-content:space-between;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;
-  color:var(--ink-dim);margin-bottom:6px}
-.lc-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
-.lc-tile{position:relative;display:flex;flex-direction:column;justify-content:center;gap:2px;min-height:54px;
-  padding:8px 18px 8px 10px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.04);
-  line-height:1.25;word-break:break-word;color:var(--ink-dim)}
-.lc-tile::after{content:'';position:absolute;top:8px;right:8px;width:7px;height:7px;border-radius:50%;background:currentColor}
-.lc-tile b{font-size:11.5px;font-weight:650;color:var(--ink)}
-.lc-tile small{font-size:10px;color:var(--ink-dim);overflow:hidden;text-overflow:ellipsis}
-.lc-tile.is-ok{color:var(--ok);background:rgba(74,222,128,.1);border-color:rgba(74,222,128,.4)}
-.lc-tile.is-bad{color:var(--bad);background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.45)}
-.lc-tile.is-off{color:var(--ink-dim);opacity:.8}
-.lc-sys-name{display:inline-flex;align-items:center;gap:6px}
-.lc-sys-name.is-ok,.lc-sys-name.is-bad{font-weight:700}
-.lc-sys-name.is-ok::before,.lc-sys-name.is-bad::before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor}
-.lc-sys-name.is-ok{color:var(--ok)}
-.lc-sys-name.is-bad{color:var(--bad)}
-.lc-tile--wide{grid-column:1/-1;gap:8px;padding:9px 18px 10px 10px}
-.lc-subs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
-.lc-sub{position:relative;padding:5px 6px 5px 16px;border-radius:7px;border:1px solid var(--line);background:rgba(255,255,255,.04);
-  font-size:10px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.lc-sub::before{content:'';position:absolute;left:6px;top:50%;width:6px;height:6px;margin-top:-3px;border-radius:50%;background:var(--ink-dim)}
-.lc-sub.is-ok{background:rgba(74,222,128,.1);border-color:rgba(74,222,128,.4)}
-.lc-sub.is-ok::before{background:var(--ok)}
-.lc-sub.is-bad{background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.45)}
-.lc-sub.is-bad::before{background:var(--bad)}
-.lc-sub.is-off{opacity:.7}
-.lc-sys-git{display:flex;gap:6px;flex-wrap:wrap}
-.lc-badge{padding:3px 10px;border-radius:999px;border:1px solid var(--line);font-size:11.5px;font-family:var(--mono);color:var(--ink)}
-.lc-badge.is-ok{color:var(--ok);border-color:rgba(74,222,128,.4)}
-.lc-badge.is-warn{color:var(--warn);border-color:rgba(251,191,36,.45)}
-.lc-pill{display:inline-flex;align-items:center;gap:7px;padding:4px 11px;border-radius:999px;border:1px solid var(--line);
-  font-size:12px;color:var(--ink-dim)}
+.lc-pill{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:999px;border:1px solid var(--line);
+  font-size:11px;color:var(--ink-dim)}
 .lc-pill.is-ok{color:var(--ok);border-color:rgba(74,222,128,.4)}
 .lc-pill.is-bad{color:var(--bad);border-color:rgba(248,113,113,.45)}
-.lc-dot{width:8px;height:8px;border-radius:50%;background:currentColor}
+.lc-dot{width:6px;height:6px;border-radius:50%;background:currentColor}
 .lc-pulse{animation:lc-pulse 2s ease-in-out infinite}
-@keyframes lc-pulse{0%,100%{box-shadow:0 0 0 0 rgba(74,222,128,.55)}50%{box-shadow:0 0 0 6px rgba(74,222,128,0)}}
+@keyframes lc-pulse{0%,100%{box-shadow:0 0 0 0 rgba(74,222,128,.55)}50%{box-shadow:0 0 0 5px rgba(74,222,128,0)}}
 .lc-spin{width:12px;height:12px;border-radius:50%;border:2px solid rgba(7,32,31,.3);border-top-color:#07201f;animation:lc-rot .8s linear infinite}
 @keyframes lc-rot{to{transform:rotate(360deg)}}
-.lc-login{margin-top:20px;padding:32px 24px;display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center}
 .lc-page :is(button,a,input,textarea):focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 @media (max-width:980px){
   .lc-grid{grid-template-columns:1fr}
