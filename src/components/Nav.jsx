@@ -54,8 +54,9 @@ export default function Nav() {
           <nav style={styles.links}>
             <Link to={lang ? "/" + lang : "/"} style={styles.link}>{t('nav.home')}</Link>
             <Link to={lang ? "/" + lang + "/projects" : "/projects"} style={styles.link}>{t('nav.projects')}</Link>
-            <Link to={lang ? "/" + lang + "/console" : "/console"} style={styles.link}>{t('nav.console')}</Link>
-            {/* Bot to Bot — pagina promossa */}
+            {/* Console admin Leles (la "console chula") */}
+            <Link to={lang ? "/" + lang + "/leles-console" : "/leles-console"} style={styles.link}>{t('nav.console')}</Link>
+            {/* Bot to Bot */}
             <Link to={lang ? "/" + lang + "/arena" : "/arena"} style={styles.link}>Arena</Link>
             <Link to="/leles" style={styles.link}>Leles</Link>
           </nav>
