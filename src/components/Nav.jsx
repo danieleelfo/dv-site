@@ -52,10 +52,16 @@ export default function Nav() {
 
         <div style={styles.right}>
           <nav style={styles.links}>
-            <Link to={lang ? "/" + lang : "/"} style={styles.link}>{t('nav.home')}</Link>
+                        <Link to={lang ? "/" + lang : "/"} style={styles.link}>{t('nav.home')}</Link>
             <Link to={lang ? "/" + lang + "/projects" : "/projects"} style={styles.link}>{t('nav.projects')}</Link>
-            <Link to={lang ? "/" + lang + "/console" : "/console"} style={styles.link}>{t('nav.console')}</Link>
-            <Link to="/leles" style={styles.link}>Leles</Link>
+            {/* Emergence Experiments */}
+            <Link to="/test" style={styles.link}>Emergence Experiments</Link>
+            {/* Leles — console admin */}
+            <Link to="/test6" style={styles.link}>Leles</Link>
+            {/* Bot to Bot */}
+            <Link to="/test4" style={styles.link}>Bot to Bot</Link>
+            {/* Trial Stories */}
+            <Link to={lang ? "/" + lang + "/console" : "/console"} style={styles.link}>Trial</Link>
           </nav>
           <LanguageSwitcher />
         </div>
