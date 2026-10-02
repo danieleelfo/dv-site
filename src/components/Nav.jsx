@@ -55,6 +55,8 @@ export default function Nav() {
             <Link to={lang ? "/" + lang : "/"} style={styles.link}>{t('nav.home')}</Link>
             <Link to={lang ? "/" + lang + "/projects" : "/projects"} style={styles.link}>{t('nav.projects')}</Link>
             <Link to={lang ? "/" + lang + "/console" : "/console"} style={styles.link}>{t('nav.console')}</Link>
+            {/* Bot to Bot — per ora rotta di test /test4, poi /:lang/arena */}
+            <Link to="/test4" style={styles.link}>Arena</Link>
             <Link to="/leles" style={styles.link}>Leles</Link>
           </nav>
           <LanguageSwitcher />
