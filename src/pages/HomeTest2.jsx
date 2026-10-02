@@ -105,6 +105,7 @@ export default function EmergenceLab() {
   const [error, setError] = useState('')
   const [showConf, setShowConf] = useState(true)
   const [selectedPromptRole, setSelectedPromptRole] = useState(null)
+  const [editingPrompt, setEditingPrompt] = useState(false)
 
   const buttonRef = useRef(null)
   const chatIdRef = useRef(FORCED_ADMIN_CHAT_ID)
@@ -231,6 +232,7 @@ export default function EmergenceLab() {
     setResponse('')
     setError('')
     setSelectedPromptRole(null)
+    setEditingPrompt(false)
 
     try {
       window.sessionStorage.removeItem(TOKEN_STORAGE_KEY)
@@ -346,14 +348,25 @@ export default function EmergenceLab() {
 
   async function handlePromptRole(role) {
     setSelectedPromptRole(role)
+    setEditingPrompt(false)
     await sendCommand(`qe prompt ${role}`)
   }
 
-  async function handleEditPrompt() {
+  function handleEditPrompt() {
     if (!selectedPromptRole || !response || isLoading) return
+    setEditingPrompt(true)
+  }
 
-    const cmd = `Update emergence prompt ${selectedPromptRole} as ">>>${response}<<<"`
-    await sendCommand(cmd)
+  async function handleUpdatePrompt() {
+    if (!selectedPromptRole || !response.trim() || isLoading) return
+    const promptText = response
+    await sendCommand(
+      `Update emergence prompt ${selectedPromptRole} as "${promptText}"`
+    )
+    // sendCommand riceve la conferma di Leles:
+    // ripristiniamo nel box il testo effettivamente editato
+    setResponse(promptText)
+    setEditingPrompt(false)
   }
 
   function handleLaunch(e) {
@@ -510,11 +523,51 @@ export default function EmergenceLab() {
 
               {isLoading ? (
                 <p style={{ color: '#8fa1ac', margin: 0, fontSize: '0.85rem' }}>
-                  ⏳ sto recuperando il prompt…
+                    ⏳ sto recuperando il prompt…
                 </p>
-              ) : (
-                <pre style={styles.responsePre}>{response}</pre>
-              )}
+               ) : editingPrompt ? (
+                <>
+                    <textarea
+                      value={response}
+                      onChange={(e) => setResponse(e.target.value)}
+                      style={styles.promptTextarea}
+                      rows={14}
+                      autoFocus
+                    />
+
+                    <div
+                      style={{
+                      display: 'flex',
+                      gap: '0.5rem',
+                      marginTop: '0.65rem',
+                    }}
+                    >
+                    <button
+                        type="button"
+                        onClick={handleUpdatePrompt}
+                        disabled={!response.trim() || isLoading}
+                        style={{
+                        ...styles.editBtn,
+                        ...(!response.trim() || isLoading
+                            ? styles.buttonDisabled
+                            : {}),
+                        }}
+                    >
+                        💾 Update
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => setEditingPrompt(false)}
+                        style={styles.secondaryBtn}
+                    >
+                        Annulla
+                    </button>
+                    </div>
+                </>
+                ) : (
+                  <pre style={styles.responsePre}>{response}</pre>
+                )}
             </div>
           )}
         </div>
@@ -1115,6 +1168,23 @@ const styles = {
     margin: 0,
     fontSize: '1rem',
     color: '#e8f1f5',
+  },
+
+  promptTextarea: {
+    width: '100%',
+    boxSizing: 'border-box',
+    minHeight: 260,
+    resize: 'vertical',
+    background: '#0b1015',
+    border: '1px solid #3fd0c9',
+    borderRadius: 8,
+    color: '#e8f1f5',
+    padding: '0.85rem',
+    fontFamily:
+      'ui-monospace, SFMono-Regular, Menlo, monospace',
+    fontSize: '12px',
+    lineHeight: 1.55,
+    outline: 'none',
   },
 
   responsePre: {
