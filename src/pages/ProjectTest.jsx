@@ -51,7 +51,11 @@ const COMMAND_GROUPS = [
       c('Start Lele', 'start lele'),
       c('Stop Lele', 'stop lele', undefined, true),
       c('Restart Lele', 'restart lele', undefined, true),
+      c('Start Story Whisper', 'start story whisper'),
+      c('Stop Story Whisper', 'stop story whisper', undefined, true),
       c('Restart Story Whisper', 'restart story whisper', undefined, true),
+      c('Start Night Story', 'start night story'),
+      c('Stop Night Story', 'stop night story', undefined, true),
       c('Restart Night Story', 'restart night story', undefined, true),
       c('Restart Gateway', 'restart gateway', undefined, true),
       c('Logs Lele', 'logs lele'),
@@ -75,6 +79,7 @@ const COMMAND_GROUPS = [
     id: 'emergence', title: 'Emergence / QE', icon: '🧠', color: '#a78bfa',
     commands: [
       c('QE last 10', 'QE last 10'),
+      c('QE last 3', 'QE last 3'),
       c('QE status', 'QE status ', 'run_id opzionale'),
       c('Decisione', 'decisione ', 'run_id'),
       c('Decisione run', 'decisione run ', 'run_id'),
@@ -185,7 +190,7 @@ async function callAdmin(idToken, prompt, timeoutMs = 310000) {
       const err = new Error(
         res.status === 401
           ? 'Sessione scaduta, effettua di nuovo il login.'
-          : 'Accesso non autorizzato per questo account Google.'
+          : 'Accesso non autorizzato per questo account Google. 🏴‍☠️'
       )
       err.status = res.status
       throw err
@@ -203,7 +208,7 @@ async function callAdmin(idToken, prompt, timeoutMs = 310000) {
     return 'Nessuna risposta ricevuta'
   } catch (err) {
     if (err.name === 'AbortError') {
-      throw new Error('Timeout: il server non ha risposto in tempo.')
+      throw new Error('Timeout: il server non ha risposto in tempo. 😵‍💫')
     }
     throw err
   } finally {
@@ -420,7 +425,7 @@ export default function ConsoleTest() {
     if (!idToken) return
     const email = decodeJwtPayload(idToken)?.email?.toLowerCase()
     if (!email || !ALLOWED_EMAILS.includes(email)) {
-      logout('Accesso non autorizzato per questo account Google.')
+      logout('Accesso non autorizzato per questo account Google. 🏴‍☠️')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -706,7 +711,7 @@ export default function ConsoleTest() {
                   ref={textareaRef}
                   value={prompt}
                   rows={4}
-                  placeholder="Scrivi un comando o parla liberamente con Leles…"
+                  placeholder="Scrivi a Leles…"
                   onChange={(e) => {
                     setPrompt(e.target.value)
                     setArmed(false)
@@ -740,7 +745,7 @@ export default function ConsoleTest() {
                   >
                     {isLoading ? (
                       <>
-                        <span className="lc-spin" /> Leles sta lavorando…
+                        <span className="lc-spin" /> Leles sta pensando… Aspé...🏴‍☠️
                       </>
                     ) : armed ? (
                       'Conferma ed esegui'
@@ -759,7 +764,7 @@ export default function ConsoleTest() {
                 <input
                   type="search"
                   className="lc-search"
-                  placeholder="Cerca tra tutti i comandi"
+                  placeholder="Cerca tra i comandi"
                   aria-label="Cerca comandi"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -788,7 +793,7 @@ export default function ConsoleTest() {
               <div className="lc-chips">
                 {visible.length === 0 && (
                   <p className="lc-dim">
-                    Nessun comando corrisponde a “{search}”. Puoi comunque scriverlo a mano sopra.
+                    Nessun comando corrisponde a “{search}”. ⚓️
                   </p>
                 )}
                 {visible.map((x, i) => (
@@ -920,7 +925,7 @@ export default function ConsoleTest() {
               </div>
               {ping.agents.length > 0 && (
                 <>
-                  <p className="lc-dim lc-small">Agenti registrati nel gateway</p>
+                  <p className="lc-dim lc-small">Agenti gateway</p>
                   <div className="lc-agents">
                     {ping.agents.map((a) => (
                       <span key={a} className="lc-agent">{a}</span>
