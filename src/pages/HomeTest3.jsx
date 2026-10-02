@@ -1,68 +1,26 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
 import bgImage from '../assets/DataInFlames.jpg'
 
 const LELE_API_URL = 'https://api.danielevillanova.com'
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
 
 const TOKEN_STORAGE_KEY = 'leles_admin_id_token'
-const ALLOWED_EMAILS = [
-  'dannybydanny@hotmail.com',
-  'salatinodenise@gmail.com',
-]
+const CHAT_ID_STORAGE_KEY = 'leles_admin_chat_id'
+
+// --- TEST TEMPORANEO: whitelist email per accesso alla console -----------
+// TODO: rimuovere/estendere quando arriva il login Telegram con ADMIN_IDS
+// (8733881519, 8249666123), gestiti separatamente lato Leles.
+const ALLOWED_EMAILS = ['dannybydanny@hotmail.com']
+
+// Forziamo il chat_id a coincidere con un ADMIN_IDS di Leles, così i comandi
+// riservati al "capitano" funzionano anche dalla console web.
+// TODO: da sostituire con l'id reale assegnato al login Telegram, quando
+// implementato, invece di uno dei due ADMIN_IDS fissi.
 const FORCED_ADMIN_CHAT_ID = 8733881519
+// ---------------------------------------------------------------------------
 
-const DEFAULT_PIPELINE = [
-  'Planner',
-  'Scientist',
-  'Architect',
-  'Builder',
-  'Developer',
-  'Critic',
-  'Tester',
-  'Reviewer',
-  'Explorer',
-  'Observer',
-  'Outlaw',
-  'Sheriff',
-]
-
-const DEFAULT_OVERRIDES = {
-  Planner: 'deepseek-r1',
-  Scientist: 'gemma4',
-  Builder: 'qwen2.5',
-  Critic: 'mistral',
-  Observer: 'gemma4',
-  Architect: 'qwen2.5',
-  Developer: 'qwen2.5',
-  Tester: 'deepseek-r1',
-  Reviewer: 'gemma4',
-  Sheriff: 'mistral',
-  Outlaw: 'deepseek-r1',
-  Explorer: 'gemma4',
-}
-
-const MODEL_OPTIONS = [
-  'gemma4',
-  'llama3',
-  'qwen2.5',
-  'deepseek-r1',
-  'mistral',
-]
-
-const ROLE_ICONS = {
-  Planner: '🧭',
-  Scientist: '🧪',
-  Architect: '🏗️',
-  Builder: '🔨',
-  Developer: '💻',
-  Critic: '🔍',
-  Tester: '🧪',
-  Reviewer: '⚖️',
-  Explorer: '🗺️',
-  Observer: '👁️',
-  Outlaw: '🏴‍☠️',
-  Sheriff: '⭐',
+function getOrCreateChatId() {
+  return FORCED_ADMIN_CHAT_ID
 }
 
 function decodeJwtPayload(token) {
@@ -71,16 +29,248 @@ function decodeJwtPayload(token) {
       .split('.')[1]
       .replace(/-/g, '+')
       .replace(/_/g, '/')
-    return JSON.parse(decodeURIComponent(escape(window.atob(base64))))
+
+    return JSON.parse(
+      decodeURIComponent(
+        escape(window.atob(base64))
+      )
+    )
   } catch (e) {
     return null
   }
 }
 
-export default function EmergenceLab() {
+const COMMAND_GROUPS = [
+  {
+    id: 'system',
+    title: 'SYSTEM',
+    icon: '⚙️',
+    commands: [
+      { label: 'Status sistema', command: 'status sistema' },
+      { label: 'Status OS', command: 'status os' },
+      { label: 'Status RAM', command: 'status ram' },
+      { label: 'Status IP', command: 'status ip' },
+      { label: 'Uvicorn status', command: 'uvicorn status' },
+      { label: 'Telegram status', command: 'telegram status' },
+    ],
+  },
+
+  {
+    id: 'processi',
+    title: 'PROCESSI',
+    icon: '🤖',
+    commands: [
+      { label: 'Start Lele', command: 'start lele' },
+      { label: 'Stop Lele', command: 'stop lele' },
+      { label: 'Restart Lele', command: 'restart lele' },
+      { label: 'Restart Story Whisper', command: 'restart story whisper' },
+      { label: 'Restart Night Story', command: 'restart night story' },
+      { label: 'Restart Gateway', command: 'restart gateway' },
+      { label: 'Logs Lele', command: 'logs lele' },
+      { label: 'Logs Story Whisper', command: 'logs story whisper' },
+      { label: 'Logs Night Story', command: 'logs night story' },
+      { label: 'Logs Leles', command: 'logs leles' },
+    ],
+  },
+
+  {
+    id: 'airflow',
+    title: 'AIRFLOW',
+    icon: '🌬️',
+    commands: [
+      { label: 'Status Airflow', command: 'status airflow' },
+      {
+        label: 'Status DAG',
+        command: 'status dag ',
+        hint: 'Opzionale: dag_id',
+      },
+      {
+        label: 'Log task',
+        command: 'log task ',
+        hint: 'dag_id task_id',
+      },
+      {
+        label: 'Pausa DAG',
+        command: 'pausa dag ',
+        hint: 'dag_id',
+      },
+      {
+        label: 'Attiva DAG',
+        command: 'attiva dag ',
+        hint: 'dag_id',
+      },
+      {
+        label: 'Lancia DAG',
+        command: 'exec airflow lancia ',
+        hint: 'dag_id e conf se necessario',
+      },
+    ],
+  },
+
+  {
+    id: 'emergence',
+    title: 'EMERGENCE / QE',
+    icon: '🧠',
+    commands: [
+      { label: 'QE last 10', command: 'QE last 10' },
+      {
+        label: 'QE status',
+        command: 'QE status ',
+        hint: 'run_id opzionale',
+      },
+      {
+        label: 'Decisione',
+        command: 'decisione ',
+        hint: 'run_id',
+      },
+      {
+        label: 'Decisione run',
+        command: 'decisione run ',
+        hint: 'run_id',
+      },
+      {
+        label: 'Sintetizza',
+        command: 'sintetizza ',
+        hint: 'run_id',
+      },
+      { label: 'Query worlds', command: 'query worlds' },
+      {
+        label: 'Query world',
+        command: 'query world ',
+        hint: 'world id',
+      },
+      {
+        label: 'Save world',
+        command: 'save world ',
+        hint: 'nome as "descrizione"',
+      },
+    ],
+  },
+
+  {
+    id: 'files',
+    title: 'FILES',
+    icon: '📁',
+    commands: [
+      { label: 'Directory leles', command: 'directory leles' },
+      {
+        label: 'LS',
+        command: 'ls ',
+        hint: 'progetto [subpath]',
+      },
+      {
+        label: 'Invia file',
+        command: 'invia file ',
+        hint: 'path assoluto',
+      },
+      { label: 'Remoto test', command: 'remoto test' },
+      {
+        label: 'Remoto LS',
+        command: 'remoto ls ',
+        hint: 'path',
+      },
+      {
+        label: 'Remoto download',
+        command: 'remoto download ',
+        hint: 'file',
+      },
+      {
+        label: 'Remoto upload',
+        command: 'remoto upload ',
+        hint: 'file',
+      },
+    ],
+  },
+
+  {
+    id: 'ai',
+    title: 'AI / CODE',
+    icon: '✨',
+    commands: [
+      {
+        label: 'Query',
+        command: 'query ',
+        hint: 'Scrivi la query',
+      },
+      {
+        label: 'Improve',
+        command: 'improve ',
+        hint: 'file o richiesta',
+      },
+      {
+        label: 'Verifica',
+        command: 'verifica ',
+        hint: 'file o richiesta',
+      },
+      {
+        label: 'Review',
+        command: 'review ',
+        hint: 'file o richiesta',
+      },
+      {
+        label: 'Gemma',
+        command: 'gemma ',
+        hint: 'prompt',
+      },
+      {
+        label: 'Llama',
+        command: 'llama ',
+        hint: 'prompt',
+      },
+    ],
+  },
+
+  {
+    id: 'git',
+    title: 'GIT',
+    icon: '🔀',
+    commands: [
+      { label: 'Status leles', command: 'status leles' },
+      { label: 'Status gateway', command: 'status gateway' },
+      { label: 'Diff leles', command: 'diff leles' },
+      { label: 'Diff gateway', command: 'diff gateway' },
+      { label: 'Pull report leles', command: 'pull report leles' },
+      { label: 'Pull force leles', command: 'pull force leles' },
+      { label: 'Pull report gateway', command: 'pull report gateway' },
+      { label: 'Pull force gateway', command: 'pull force gateway' },
+      {
+        label: 'Ultimo commit leles',
+        command: 'commit leles',
+      },
+      {
+        label: 'Ultimo commit gateway',
+        command: 'commit gateway',
+      },
+    ],
+  },
+
+  {
+    id: 'leles',
+    title: 'LELES',
+    icon: '🏴‍☠️',
+    commands: [
+      { label: 'Restart Lelé', command: 'restart Lelé' },
+      {
+        label: 'Export DAG',
+        command: 'export dag ',
+        hint: 'filename',
+      },
+      {
+        label: 'Crea DAG',
+        command: 'crea dag ',
+        hint: 'Descrivi il DAG',
+      },
+    ],
+  },
+]
+
+export default function ConsoleTest() {
   const [idToken, setIdToken] = useState(() => {
     try {
-      return window.sessionStorage.getItem(TOKEN_STORAGE_KEY) || null
+      return (
+        window.sessionStorage.getItem(TOKEN_STORAGE_KEY) ||
+        null
+      )
     } catch (e) {
       return null
     }
@@ -93,47 +283,18 @@ export default function EmergenceLab() {
   const [authError, setAuthError] = useState('')
   const [gsiReady, setGsiReady] = useState(false)
 
-  const [worldId, setWorldId] = useState(8)
-  const [numIterations, setNumIterations] = useState(3)
-  const [judgeModel, setJudgeModel] = useState('qwen2.5')
-  const [targetRole, setTargetRole] = useState('Outlaw')
-  const [pipeline, setPipeline] = useState([...DEFAULT_PIPELINE])
-  const [overrides, setOverrides] = useState({ ...DEFAULT_OVERRIDES })
-
-  const [isLoading, setIsLoading] = useState(false)
+  const [prompt, setPrompt] = useState('')
   const [response, setResponse] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
-  const [showConf, setShowConf] = useState(true)
-  const [selectedPromptRole, setSelectedPromptRole] = useState(null)
+
+  const [openGroup, setOpenGroup] = useState(null)
 
   const buttonRef = useRef(null)
-  const chatIdRef = useRef(FORCED_ADMIN_CHAT_ID)
+  const chatIdRef = useRef(getOrCreateChatId())
 
-  const confObject = useMemo(() => {
-    const pipeline_config = {
-      pipeline: pipeline,
-      model_strategy: 'override',
-      model_overrides: Object.fromEntries(
-        pipeline.map((role) => [role, overrides[role] || 'gemma4'])
-      ),
-    }
-
-    return {
-      world_id: Number(worldId) || 0,
-      num_iterations: Number(numIterations) || 1,
-      judge_model: judgeModel,
-      target_role: targetRole,
-      pipeline_config: JSON.stringify(pipeline_config),
-    }
-  }, [worldId, numIterations, judgeModel, targetRole, pipeline, overrides])
-
-  const launchCommand = useMemo(() => {
-    return (
-      'exec airflow lancia emergence_flow conf: ' +
-      JSON.stringify(confObject)
-    )
-  }, [confObject])
-
+  // Se al mount risulta già un token salvato ma l'email non è (più)
+  // in whitelist, buttalo fuori subito.
   useEffect(() => {
     if (!idToken) return
 
@@ -156,14 +317,18 @@ export default function EmergenceLab() {
     function tryInit() {
       if (cancelled) return
 
-      if (!window.google?.accounts?.id) {
+      if (
+        !window.google ||
+        !window.google.accounts ||
+        !window.google.accounts.id
+      ) {
         setTimeout(tryInit, 150)
         return
       }
 
       if (!GOOGLE_CLIENT_ID) {
         setAuthError(
-          'GOOGLE_CLIENT_ID non configurato (VITE_GOOGLE_CLIENT_ID mancante).'
+          'GOOGLE_CLIENT_ID non configurato nel frontend (VITE_GOOGLE_CLIENT_ID mancante).'
         )
         return
       }
@@ -174,13 +339,16 @@ export default function EmergenceLab() {
       })
 
       if (buttonRef.current) {
-        window.google.accounts.id.renderButton(buttonRef.current, {
-          type: 'standard',
-          theme: 'filled_black',
-          size: 'large',
-          text: 'signin_with',
-          shape: 'pill',
-        })
+        window.google.accounts.id.renderButton(
+          buttonRef.current,
+          {
+            type: 'standard',
+            theme: 'filled_black',
+            size: 'small',
+            text: 'signin',
+            shape: 'pill',
+          }
+        )
       }
 
       setGsiReady(true)
@@ -199,30 +367,45 @@ export default function EmergenceLab() {
     const token = credentialResponse?.credential
 
     if (!token) {
-      setAuthError('Login Google fallito: nessun token ricevuto.')
+      setAuthError(
+        'Login Google fallito: nessun token ricevuto.'
+      )
       return
     }
 
     const decoded = decodeJwtPayload(token)
     const email = decoded?.email?.toLowerCase()
 
+    // --- TEST TEMPORANEO: solo email in whitelist può entrare ---
     if (!email || !ALLOWED_EMAILS.includes(email)) {
-      setAuthError('Accesso non autorizzato per questo account Google.')
+      setAuthError(
+        'Accesso non autorizzato per questo account Google.'
+      )
 
       try {
-        window.google?.accounts?.id?.disableAutoSelect()
-      } catch (e) {}
+        if (window.google?.accounts?.id) {
+          window.google.accounts.id.disableAutoSelect()
+        }
+      } catch (e) {
+        // no-op
+      }
 
       return
     }
+    // --------------------------------------------------------------
 
     setAuthError('')
     setProfile(decoded)
     setIdToken(token)
 
     try {
-      window.sessionStorage.setItem(TOKEN_STORAGE_KEY, token)
-    } catch (e) {}
+      window.sessionStorage.setItem(
+        TOKEN_STORAGE_KEY,
+        token
+      )
+    } catch (e) {
+      // no-op
+    }
   }
 
   function logout() {
@@ -230,91 +413,96 @@ export default function EmergenceLab() {
     setProfile(null)
     setResponse('')
     setError('')
-    setSelectedPromptRole(null)
 
     try {
-      window.sessionStorage.removeItem(TOKEN_STORAGE_KEY)
-      window.google?.accounts?.id?.disableAutoSelect()
-    } catch (e) {}
-  }
+      window.sessionStorage.removeItem(
+        TOKEN_STORAGE_KEY
+      )
 
-  function toggleRole(role) {
-    setPipeline((prev) => {
-      if (prev.includes(role)) {
-        // non togliere se resta solo 1 ruolo
-        if (prev.length <= 1) return prev
-
-        const next = prev.filter((r) => r !== role)
-
-        if (targetRole === role) {
-          setTargetRole(next[next.length - 1])
-        }
-
-        return next
+      if (window.google?.accounts?.id) {
+        window.google.accounts.id.disableAutoSelect()
       }
-
-      return [
-        ...DEFAULT_PIPELINE.filter(
-          (r) => prev.includes(r) || r === role
-        ),
-      ]
-    })
+    } catch (e) {
+      // no-op
+    }
   }
 
-  function setOverride(role, model) {
-    setOverrides((prev) => ({ ...prev, [role]: model }))
+  function selectCommand(command) {
+    setPrompt(command.command)
+    setResponse('')
+    setError('')
+
+    setTimeout(() => {
+      const textarea =
+        document.getElementById('leles-command-input')
+
+      if (textarea) {
+        textarea.focus()
+        textarea.setSelectionRange(
+          textarea.value.length,
+          textarea.value.length
+        )
+      }
+    }, 50)
   }
 
-  function resetDefaults() {
-    setWorldId(8)
-    setNumIterations(3)
-    setJudgeModel('qwen2.5')
-    setTargetRole('Outlaw')
-    setPipeline([...DEFAULT_PIPELINE])
-    setOverrides({ ...DEFAULT_OVERRIDES })
-  }
+  const handleSubmit = async (e) => {
+    e.preventDefault()
 
-  async function sendCommand(prompt) {
-    if (!idToken || !prompt.trim()) return
+    if (!prompt.trim() || !idToken) {
+      return
+    }
 
     setIsLoading(true)
     setResponse('')
     setError('')
 
     const controller = new AbortController()
-    const timeoutId = setTimeout(() => controller.abort(), 310000)
+
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      310000
+    )
 
     try {
-      const res = await fetch(`${LELE_API_URL}/api/admin/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
-        },
-        signal: controller.signal,
-        body: JSON.stringify({
-          prompt,
-          language: 'en',
-          chat_id: chatIdRef.current,
-        }),
-      })
+      const res = await fetch(
+        `${LELE_API_URL}/api/admin/chat`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${idToken}`,
+          },
+          signal: controller.signal,
+          body: JSON.stringify({
+            prompt,
+            language: 'en',
+            chat_id: chatIdRef.current,
+          }),
+        }
+      )
 
       clearTimeout(timeoutId)
 
-      if (res.status === 401 || res.status === 403) {
+      if (
+        res.status === 401 ||
+        res.status === 403
+      ) {
         logout()
 
         setError(
           res.status === 401
             ? 'Sessione scaduta, effettua di nuovo il login.'
-            : 'Accesso non autorizzato.'
+            : 'Accesso non autorizzato per questo account Google.'
         )
 
         return
       }
 
       if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+        throw new Error(
+          `HTTP ${res.status}: ${res.statusText}`
+        )
       }
 
       const data = await res.json()
@@ -327,16 +515,24 @@ export default function EmergenceLab() {
         setResponse(
           typeof data.detail === 'string'
             ? data.detail
-            : JSON.stringify(data.detail, null, 2)
+            : JSON.stringify(
+                data.detail,
+                null,
+                2
+              )
         )
       } else {
-        setResponse('Nessuna risposta ricevuta')
+        setResponse(
+          'Nessuna risposta ricevuta'
+        )
       }
     } catch (err) {
       clearTimeout(timeoutId)
 
       if (err.name === 'AbortError') {
-        setError('Timeout: il server non ha risposto in tempo.')
+        setError(
+          'Timeout: il server non ha risposto in tempo.'
+        )
       } else {
         setError(err.message)
       }
@@ -345,69 +541,87 @@ export default function EmergenceLab() {
     }
   }
 
-  async function handlePromptRole(role) {
-    setSelectedPromptRole(role)
-    await sendCommand(`qe prompt ${role}`)
-  }
-
-  function handleLaunch(e) {
-    e.preventDefault()
-    setSelectedPromptRole(null) // così la risposta del launch va in basso
-    sendCommand(launchCommand)
-  }
+  // ==========================================================
+  // LOGIN
+  // ==========================================================
 
   if (!idToken) {
     return (
-      <section className="section container" style={styles.wrap}>
-        <img src={bgImage} alt="" style={styles.bgImg} />
+      <section
+        className="section container"
+        style={styles.wrap}
+      >
+        <img
+          src={bgImage}
+          alt=""
+          style={styles.bgImg}
+        />
+
         <div style={styles.overlay} />
 
-        <div style={styles.content}>
-          <h2 style={styles.pageTitle}>Emergence Lab</h2>
+        <div style={styles.contentWide}>
+          {/* Titolo a sx, login piccolo in alto a dx */}
+          <div style={styles.titleRow}>
+            <h2 style={styles.pageTitle}>
+              Lele Admin Console
+            </h2>
 
-          <div style={styles.loginBox}>
-            <p style={styles.loginText}>
-              Accesso riservato. Login Google per lanciare run multi-agente.
-            </p>
-
-            {authError && (
-              <p style={styles.authErrorText}>⚠️ {authError}</p>
-            )}
-
-            <div ref={buttonRef} style={styles.googleButtonSlot} />
-
-            {!gsiReady && !authError && (
-              <p style={styles.loadingText}>
-                Caricamento login Google…
-              </p>
-            )}
+            <div
+              ref={buttonRef}
+              style={styles.googleButtonSlot}
+            />
           </div>
+
+          <p style={styles.loginText}>
+            Accesso riservato.
+          </p>
+
+          {authError && (
+            <p style={styles.authErrorText}>
+              ⚠️ {authError}
+            </p>
+          )}
+
+          {!gsiReady && !authError && (
+            <p style={styles.loadingText}>
+              Caricamento login Google…
+            </p>
+          )}
         </div>
       </section>
     )
   }
 
+  // ==========================================================
+  // DASHBOARD
+  // ==========================================================
+
   return (
-    <section className="section container" style={styles.wrap}>
-      <img src={bgImage} alt="" style={styles.bgImg} />
+    <section
+      className="section container"
+      style={styles.wrap}
+    >
+      <img
+        src={bgImage}
+        alt=""
+        style={styles.bgImg}
+      />
+
       <div style={styles.overlay} />
 
       <div style={styles.contentWide}>
-        <div style={styles.titleRow}>
-          <div>
-            <h2 style={styles.pageTitle}>Emergence Lab</h2>
 
-            <p style={styles.subtitle}>
-              Configura pipeline, modelli e world — lancia{' '}
-              <code style={styles.codeInline}>
-                emergence_flow
-              </code>
-            </p>
-          </div>
+        {/* TITOLO — SUBITO SOTTO LA NAV */}
+
+        <div style={styles.titleRow}>
+          <h2 style={styles.pageTitle}>
+            Lele Admin Console
+          </h2>
 
           <div style={styles.sessionBox}>
             <span style={styles.sessionLabel}>
-              {profile?.email || 'account Google'}
+              {profile?.email ||
+                'account Google'}
             </span>
 
             <button
@@ -420,302 +634,205 @@ export default function EmergenceLab() {
           </div>
         </div>
 
-        {/* ============================================================
-            EMERGENCE ROLE PROMPTS
-        ============================================================ */}
+        {/* ====================================================
+            PROMPT — PRIMA DEI BOTTONI
+            ==================================================== */}
 
-        <div style={styles.promptPanel}>
-          <div style={styles.promptPanelHeader}>
-            <div>
-              <span style={styles.label}>Emergence roles</span>
+        <div style={styles.dashboard}>
 
-              <p style={styles.promptHint}>
-                Clicca un ruolo per leggere il system prompt corrente.
-              </p>
+          <form
+            onSubmit={handleSubmit}
+            style={styles.form}
+          >
+            <div style={styles.inputHeader}>
+              <label
+                htmlFor="leles-command-input"
+                style={styles.inputLabel}
+              >
+                Parla con Leles
+              </label>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setPrompt('')
+                  setResponse('')
+                  setError('')
+                }}
+                style={styles.clearButton}
+              >
+                Pulisci
+              </button>
             </div>
 
-            {selectedPromptRole && (
-              <span style={styles.selectedRole}>
-                {ROLE_ICONS[selectedPromptRole]} {selectedPromptRole}
-              </span>
-            )}
-          </div>
+            <textarea
+              id="leles-command-input"
+              value={prompt}
+              onChange={(e) =>
+                setPrompt(e.target.value)
+              }
+              placeholder="Scrivi un comando o parla liberamente con Leles…"
+              style={styles.textarea}
+              rows={5}
+            />
 
-          <div style={styles.promptRoleGrid}>
-            {DEFAULT_PIPELINE.map((role) => (
+            <div style={styles.buttonsRow}>
               <button
-                key={role}
-                type="button"
-                disabled={isLoading}
-                onClick={() => handlePromptRole(role)}
+                type="submit"
+                disabled={
+                  isLoading ||
+                  !prompt.trim()
+                }
                 style={{
-                  ...styles.promptRoleBtn,
-                  ...(selectedPromptRole === role
-                    ? styles.promptRoleBtnActive
+                  ...styles.executeButton,
+                  ...(isLoading ||
+                  !prompt.trim()
+                    ? styles.buttonDisabled
                     : {}),
                 }}
               >
-                <span style={styles.promptRoleIcon}>
-                  {ROLE_ICONS[role]}
-                </span>
-
-                <span>{role}</span>
+                {isLoading
+                  ? '⏳ Leles sta lavorando…'
+                  : '▶ ESEGUI'}
               </button>
-            ))}
+            </div>
+          </form>
+
+          {/* ==================================================
+              COMANDI
+              ================================================== */}
+
+          <div style={styles.commandTitle}>
+            <span>
+              🏴‍☠️ Comandi Leles
+            </span>
+
+            <span style={styles.dashboardHint}>
+              Seleziona → modifica → esegui
+            </span>
           </div>
 
-          {/* System Prompt subito sotto i roles */}
-          {selectedPromptRole && (response || isLoading) && (
-            <div style={{ ...styles.response, marginTop: '0.85rem', marginBottom: 0 }}>
-              <div style={styles.responseHeader}>
-                <h3 style={styles.responseTitle}>
-                  {isLoading
-                    ? `Caricamento System Prompt — ${selectedPromptRole}…`
-                    : `System Prompt — ${selectedPromptRole}`}
+          <div style={styles.groupBar}>
+            {COMMAND_GROUPS.map((group) => {
+              const isOpen =
+                openGroup === group.id
+
+              return (
+                <button
+                  key={group.id}
+                  type="button"
+                  onClick={() =>
+                    setOpenGroup(
+                      isOpen
+                        ? null
+                        : group.id
+                    )
+                  }
+                  style={{
+                    ...styles.groupButton,
+                    ...(isOpen
+                      ? styles.groupButtonActive
+                      : {}),
+                  }}
+                >
+                  <span style={styles.groupIcon}>
+                    {group.icon}
+                  </span>
+
+                  <span>
+                    {group.title}
+                  </span>
+
+                  <span style={styles.chevron}>
+                    {isOpen ? '▲' : '▼'}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+
+          {openGroup && (
+            <div style={styles.commandPanel}>
+              {COMMAND_GROUPS
+                .find(
+                  (group) =>
+                    group.id === openGroup
+                )
+                ?.commands.map(
+                  (command, index) => (
+                    <button
+                      key={`${openGroup}-${index}`}
+                      type="button"
+                      onClick={() =>
+                        selectCommand(command)
+                      }
+                      style={styles.commandButton}
+                    >
+                      <span>
+                        {command.label}
+                      </span>
+
+                      {command.hint && (
+                        <small
+                          style={
+                            styles.commandHint
+                          }
+                        >
+                          {command.hint}
+                        </small>
+                      )}
+                    </button>
+                  )
+                )}
+            </div>
+          )}
+
+          {error && (
+            <div style={styles.errorBox}>
+              <strong>
+                ⚠️ Errore
+              </strong>
+
+              <p>{error}</p>
+            </div>
+          )}
+
+          {response && (
+            <div style={styles.response}>
+              <div
+                style={
+                  styles.responseHeader
+                }
+              >
+                <h3
+                  style={
+                    styles.responseTitle
+                  }
+                >
+                  Risposta Leles
                 </h3>
 
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={() =>
                     setResponse('')
-                    setSelectedPromptRole(null)
-                  }}
-                  style={styles.secondaryBtn}
+                  }
+                  style={
+                    styles.clearButton
+                  }
                 >
                   Chiudi
                 </button>
               </div>
 
-              {isLoading ? (
-                <p style={{ color: '#8fa1ac', margin: 0, fontSize: '0.85rem' }}>
-                  ⏳ sto recuperando il prompt…
-                </p>
-              ) : (
-                <pre style={styles.responsePre}>{response}</pre>
-              )}
+              <pre
+                style={styles.responseText}
+              >
+                {response}
+              </pre>
             </div>
           )}
         </div>
-
-        {/* ============================================================
-            MAIN CONFIGURATION
-        ============================================================ */}
-
-        <form onSubmit={handleLaunch} style={styles.form}>
-          <div style={styles.grid2}>
-            <label style={styles.field}>
-              <span style={styles.label}>World ID</span>
-
-              <input
-                type="number"
-                min={1}
-                value={worldId}
-                onChange={(e) => setWorldId(e.target.value)}
-                style={styles.input}
-              />
-            </label>
-
-            <label style={styles.field}>
-              <span style={styles.label}>Iterazioni</span>
-
-              <input
-                type="number"
-                min={1}
-                max={50}
-                value={numIterations}
-                onChange={(e) => setNumIterations(e.target.value)}
-                style={styles.input}
-              />
-            </label>
-
-            <label style={styles.field}>
-              <span style={styles.label}>Judge model</span>
-
-              <select
-                value={judgeModel}
-                onChange={(e) => setJudgeModel(e.target.value)}
-                style={styles.input}
-              >
-                {MODEL_OPTIONS.map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label style={styles.field}>
-              <span style={styles.label}>Target role</span>
-
-              <select
-                value={targetRole}
-                onChange={(e) => setTargetRole(e.target.value)}
-                style={styles.input}
-              >
-                {pipeline.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          <div style={styles.sectionBlock}>
-            <div style={styles.sectionHeader}>
-              <span style={styles.label}>
-                Pipeline & model overrides
-              </span>
-
-              <button
-                type="button"
-                onClick={resetDefaults}
-                style={styles.secondaryBtn}
-              >
-                Reset default
-              </button>
-            </div>
-
-            <div style={styles.roleGrid}>
-              {DEFAULT_PIPELINE.map((role) => {
-                const active = pipeline.includes(role)
-
-                return (
-                  <div
-                    key={role}
-                    style={{
-                      ...styles.roleCard,
-                      ...(active ? {} : styles.roleCardOff),
-                    }}
-                  >
-                    <label style={styles.roleCheck}>
-                      <input
-                        type="checkbox"
-                        checked={active}
-                        onChange={() => toggleRole(role)}
-                      />
-
-                      <strong>{role}</strong>
-                    </label>
-
-                    <select
-                      disabled={!active}
-                      value={overrides[role] || 'gemma4'}
-                      onChange={(e) =>
-                        setOverride(role, e.target.value)
-                      }
-                      style={styles.input}
-                    >
-                      {MODEL_OPTIONS.map((m) => (
-                        <option key={m} value={m}>
-                          {m}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-
-          <div style={styles.sectionBlock}>
-            <button
-              type="button"
-              onClick={() => setShowConf((v) => !v)}
-              style={styles.secondaryBtn}
-            >
-              {showConf ? 'Nascondi conf' : 'Mostra conf'}
-            </button>
-
-            {showConf && (
-              <pre style={styles.confPre}>
-                {JSON.stringify(
-                  {
-                    ...confObject,
-                    pipeline_config: JSON.parse(
-                      confObject.pipeline_config
-                    ),
-                  },
-                  null,
-                  2
-                )}
-              </pre>
-            )}
-          </div>
-
-          <div style={styles.actionsRow}>
-            <button
-              type="submit"
-              disabled={isLoading || pipeline.length === 0}
-              style={{
-                ...styles.launchBtn,
-                ...(isLoading || pipeline.length === 0
-                  ? styles.buttonDisabled
-                  : {}),
-              }}
-            >
-              {isLoading
-                ? '⏳ Lancio in corso…'
-                : '▶ Lancia emergence_flow'}
-            </button>
-
-            <button
-              type="button"
-              disabled={isLoading}
-              onClick={() => {
-                setSelectedPromptRole(null)
-                sendCommand('status dag emergence_flow')
-              }}
-              style={styles.secondaryBtn}
-            >
-              Status DAG
-            </button>
-
-            <button
-              type="button"
-              disabled={isLoading}
-              onClick={() => {
-                setSelectedPromptRole(null)
-                sendCommand('QE last 10')
-              }}
-              style={styles.secondaryBtn}
-            >
-              QE last 10
-            </button>
-
-            <Link to="/test5" style={styles.linkBtn}>
-              Console Leles →
-            </Link>
-          </div>
-        </form>
-
-        {error && (
-          <div style={styles.errorBox}>
-            <strong>⚠️ Errore</strong>
-            <p>{error}</p>
-          </div>
-        )}
-
-        {/* Risposte normali (Launch / Status / QE) in basso */}
-        {response && !selectedPromptRole && (
-          <div style={styles.response}>
-            <div style={styles.responseHeader}>
-              <h3 style={styles.responseTitle}>Risposta Leles</h3>
-
-              <button
-                type="button"
-                onClick={() => setResponse('')}
-                style={styles.secondaryBtn}
-              >
-                Chiudi
-              </button>
-            </div>
-
-            <pre style={styles.responsePre}>
-              {response}
-            </pre>
-          </div>
-        )}
       </div>
     </section>
   )
@@ -724,360 +841,341 @@ export default function EmergenceLab() {
 const styles = {
   wrap: {
     position: 'relative',
-    minHeight: '100vh',
-    paddingTop: '5.5rem',
-    paddingBottom: '3rem',
+    minHeight: '70vh',
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden',
   },
 
   bgImg: {
-    position: 'fixed',
+    position: 'absolute',
     inset: 0,
     width: '100%',
     height: '100%',
     objectFit: 'cover',
-    opacity: 0.35,
-    zIndex: 0,
-    pointerEvents: 'none',
+    opacity: 0.45,
   },
 
   overlay: {
-    position: 'fixed',
+    position: 'absolute',
     inset: 0,
     background:
-      'linear-gradient(180deg, rgba(8,12,18,0.75) 0%, rgba(8,12,18,0.92) 100%)',
-    zIndex: 0,
-    pointerEvents: 'none',
+      'linear-gradient(180deg, rgba(11,16,21,0.45) 0%, rgba(11,16,21,0.95) 100%)',
   },
 
   content: {
     position: 'relative',
-    zIndex: 1,
-    maxWidth: 520,
+    width: '100%',
+    maxWidth: '700px',
     margin: '0 auto',
   },
 
   contentWide: {
     position: 'relative',
-    zIndex: 1,
-    maxWidth: 960,
+    width: '100%',
+    maxWidth: '1100px',
     margin: '0 auto',
+  },
+
+  titleRow: {
+    position: 'relative',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '12px',
+    marginBottom: '16px',
+    flexWrap: 'nowrap',
   },
 
   pageTitle: {
     margin: 0,
-    fontSize: '1.75rem',
-    color: '#e8f1f5',
-  },
-
-  subtitle: {
-    margin: '0.35rem 0 0',
-    color: '#8fa1ac',
-    fontSize: '0.9rem',
-  },
-
-  codeInline: {
-    color: '#3fd0c9',
-    fontSize: '0.85rem',
-  },
-
-  titleRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: '1rem',
-    marginBottom: '1.25rem',
-    flexWrap: 'wrap',
+    color: '#e2e8f0',
+    fontSize: 'clamp(18px, 4.5vw, 28px)',
+    lineHeight: 1.1,
+    whiteSpace: 'nowrap',
+    flexShrink: 1,
   },
 
   sessionBox: {
     display: 'flex',
     alignItems: 'center',
-    gap: '0.6rem',
+    gap: '8px',
+    padding: '6px 8px',
+    background:
+      'rgba(255,255,255,0.07)',
+    border:
+      '1px solid rgba(255,255,255,0.14)',
+    borderRadius: '8px',
+    flexShrink: 0,
   },
 
   sessionLabel: {
-    color: '#a8b8c4',
-    fontSize: '0.85rem',
+    color: '#8fa1ac',
+    fontSize: '10px',
+    maxWidth: '150px',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
   },
 
   logoutButton: {
-    background: 'transparent',
-    border: '1px solid #3a4a58',
-    color: '#c5d4de',
-    borderRadius: 999,
-    padding: '0.35rem 0.85rem',
+    padding: '5px 8px',
+    borderRadius: '5px',
+    border:
+      '1px solid rgba(255,255,255,0.25)',
+    background:
+      'rgba(255,255,255,0.08)',
+    color: '#cbd5e1',
+    fontSize: '10px',
     cursor: 'pointer',
-    fontSize: '0.8rem',
-  },
-
-  loginBox: {
-    marginTop: '1.5rem',
-    padding: '1.5rem',
-    background: 'rgba(18,26,34,0.85)',
-    border: '1px solid #1f2b35',
-    borderRadius: 12,
-    textAlign: 'center',
   },
 
   loginText: {
-    color: '#c5d4de',
-    marginBottom: '1rem',
+    color: '#cbd5e1',
+    fontSize: '13px',
+    margin: '0 0 8px',
   },
 
   authErrorText: {
-    color: '#ff8f8f',
-    marginBottom: '0.75rem',
+    color: '#ff6b6b',
+    fontSize: '13px',
+    margin: '0 0 8px',
   },
 
   loadingText: {
     color: '#8fa1ac',
-    fontSize: '0.85rem',
+    fontSize: '12px',
+    margin: 0,
   },
 
   googleButtonSlot: {
-    display: 'flex',
-    justifyContent: 'center',
-    minHeight: 40,
+    minHeight: '32px',
+    flexShrink: 0,
   },
 
-  /* ================================================================
-     PROMPT ROLE PANEL
-  ================================================================ */
-
-  promptPanel: {
-    marginBottom: '1rem',
-    background: 'rgba(18,26,34,0.88)',
-    border: '1px solid #1f2b35',
-    borderRadius: 12,
-    padding: '1rem',
+  dashboard: {
+    backgroundColor:
+      'rgba(255,255,255,0.08)',
+    borderRadius: '14px',
+    padding: '18px',
+    backdropFilter: 'blur(12px)',
+    border:
+      '1px solid rgba(255,255,255,0.16)',
   },
-
-  promptPanelHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: '1rem',
-    marginBottom: '0.75rem',
-    flexWrap: 'wrap',
-  },
-
-  promptHint: {
-    margin: '0.25rem 0 0',
-    color: '#718491',
-    fontSize: '0.78rem',
-  },
-
-  selectedRole: {
-    color: '#3fd0c9',
-    fontSize: '0.8rem',
-    fontWeight: 600,
-    padding: '0.35rem 0.65rem',
-    border: '1px solid #24504f',
-    borderRadius: 999,
-    background: 'rgba(63,208,201,0.06)',
-  },
-
-  promptRoleGrid: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '0.45rem',
-  },
-
-  promptRoleBtn: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.4rem',
-    background: '#0b1015',
-    border: '1px solid #2a3a48',
-    color: '#c5d4de',
-    borderRadius: 999,
-    padding: '0.45rem 0.7rem',
-    cursor: 'pointer',
-    fontSize: '0.78rem',
-    transition: 'all 0.15s ease',
-  },
-
-  promptRoleBtnActive: {
-    border: '1px solid #3fd0c9',
-    color: '#e8f1f5',
-    background: 'rgba(63,208,201,0.1)',
-  },
-
-  promptRoleIcon: {
-    fontSize: '1rem',
-    lineHeight: 1,
-  },
-
-  /* ================================================================
-     MAIN FORM
-  ================================================================ */
 
   form: {
-    background: 'rgba(18,26,34,0.88)',
-    border: '1px solid #1f2b35',
-    borderRadius: 12,
-    padding: '1.25rem',
-  },
-
-  grid2: {
-    display: 'grid',
-    gridTemplateColumns:
-      'repeat(auto-fit, minmax(180px, 1fr))',
-    gap: '0.85rem',
-    marginBottom: '1.25rem',
-  },
-
-  field: {
     display: 'flex',
     flexDirection: 'column',
-    gap: '0.35rem',
+    gap: '10px',
   },
 
-  label: {
-    color: '#8fa1ac',
-    fontSize: '0.75rem',
-    letterSpacing: '0.04em',
-    textTransform: 'uppercase',
-  },
-
-  input: {
-    background: '#0b1015',
-    border: '1px solid #2a3a48',
-    borderRadius: 8,
-    color: '#e8f1f5',
-    padding: '0.55rem 0.7rem',
-    fontSize: '0.9rem',
-  },
-
-  sectionBlock: {
-    marginBottom: '1.1rem',
-  },
-
-  sectionHeader: {
+  inputHeader: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: '0.65rem',
   },
 
-  roleGrid: {
-    display: 'grid',
-    gridTemplateColumns:
-      'repeat(auto-fill, minmax(200px, 1fr))',
-    gap: '0.65rem',
+  inputLabel: {
+    color: '#e2e8f0',
+    fontSize: '13px',
+    fontWeight: '600',
   },
 
-  roleCard: {
-    background: '#0f161c',
-    border: '1px solid #2a3a48',
-    borderRadius: 10,
-    padding: '0.65rem',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0.45rem',
-  },
-
-  roleCardOff: {
-    opacity: 0.45,
-  },
-
-  roleCheck: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.45rem',
-    color: '#e8f1f5',
-    fontSize: '0.9rem',
-  },
-
-  confPre: {
-    marginTop: '0.65rem',
-    background: '#0b1015',
-    border: '1px solid #2a3a48',
-    borderRadius: 8,
-    padding: '0.85rem',
-    color: '#9ec9c4',
-    fontSize: '11px',
-    overflow: 'auto',
-    maxHeight: 280,
-    whiteSpace: 'pre-wrap',
-  },
-
-  actionsRow: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    gap: '0.6rem',
-    alignItems: 'center',
-  },
-
-  launchBtn: {
+  clearButton: {
+    padding: '5px 9px',
+    borderRadius: '5px',
+    border:
+      '1px solid rgba(255,255,255,0.15)',
     background:
-      'linear-gradient(135deg, #2dd4bf, #0ea5e9)',
+      'rgba(255,255,255,0.05)',
+    color: '#8fa1ac',
+    cursor: 'pointer',
+    fontSize: '10px',
+  },
+
+  textarea: {
+    width: '100%',
+    boxSizing: 'border-box',
+    padding: '14px',
+    borderRadius: '9px',
+    border:
+      '1px solid rgba(255,255,255,0.22)',
+    background:
+      'rgba(0,0,0,0.28)',
+    color: '#e2e8f0',
+    fontSize: '15px',
+    resize: 'vertical',
+    fontFamily:
+      'ui-monospace, SFMono-Regular, Menlo, monospace',
+    outline: 'none',
+    lineHeight: 1.5,
+  },
+
+  buttonsRow: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+  },
+
+  executeButton: {
+    padding: '12px 24px',
+    borderRadius: '8px',
     border: 'none',
-    color: '#041016',
-    fontWeight: 700,
-    borderRadius: 999,
-    padding: '0.65rem 1.25rem',
+    background:
+      'linear-gradient(135deg,#667eea 0%,#764ba2 100%)',
+    color: 'white',
+    fontSize: '14px',
+    fontWeight: '700',
     cursor: 'pointer',
-    fontSize: '0.95rem',
-  },
-
-  secondaryBtn: {
-    background: 'transparent',
-    border: '1px solid #3a4a58',
-    color: '#c5d4de',
-    borderRadius: 999,
-    padding: '0.5rem 0.9rem',
-    cursor: 'pointer',
-    fontSize: '0.8rem',
-  },
-
-  linkBtn: {
-    color: '#3fd0c9',
-    fontSize: '0.85rem',
-    textDecoration: 'none',
-    marginLeft: 'auto',
   },
 
   buttonDisabled: {
-    opacity: 0.5,
+    opacity: 0.45,
     cursor: 'not-allowed',
   },
 
+  commandTitle: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '10px',
+    marginTop: '20px',
+    marginBottom: '12px',
+    color: '#e2e8f0',
+    fontSize: '14px',
+    fontWeight: '600',
+  },
+
+  dashboardHint: {
+    color: '#7f8c96',
+    fontSize: '10px',
+    fontWeight: '400',
+  },
+
+  // Barra unica compatta: una riga, scroll orizzontale se non ci sta
+  groupBar: {
+    display: 'flex',
+    flexWrap: 'nowrap',
+    gap: '6px',
+    padding: '6px',
+    overflowX: 'auto',
+    borderRadius: '10px',
+    background: 'rgba(0,0,0,0.2)',
+    border: '1px solid rgba(255,255,255,0.1)',
+  },
+
+  groupButton: {
+    flexShrink: 0,
+    minHeight: '34px',
+    padding: '5px 10px',
+    borderRadius: '7px',
+    border:
+      '1px solid rgba(255,255,255,0.13)',
+    background:
+      'rgba(255,255,255,0.06)',
+    color: '#dce5eb',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    fontSize: '11px',
+    fontWeight: '600',
+    textAlign: 'left',
+    whiteSpace: 'nowrap',
+  },
+
+  groupButtonActive: {
+    background:
+      'rgba(118,75,162,0.30)',
+    border:
+      '1px solid rgba(167,139,250,0.45)',
+  },
+
+  groupIcon: {
+    fontSize: '12px',
+  },
+
+  chevron: {
+    marginLeft: '2px',
+    color: '#82909a',
+    fontSize: '8px',
+  },
+
+  commandPanel: {
+    marginTop: '10px',
+    padding: '10px',
+    borderRadius: '10px',
+    background:
+      'rgba(0,0,0,0.22)',
+    border:
+      '1px solid rgba(255,255,255,0.1)',
+    display: 'grid',
+    gridTemplateColumns:
+      'repeat(auto-fit, minmax(190px, 1fr))',
+    gap: '7px',
+  },
+
+  commandButton: {
+    padding: '11px 12px',
+    borderRadius: '7px',
+    border:
+      '1px solid rgba(255,255,255,0.12)',
+    background:
+      'rgba(255,255,255,0.055)',
+    color: '#dbe4ea',
+    cursor: 'pointer',
+    textAlign: 'left',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '3px',
+    fontSize: '12px',
+  },
+
+  commandHint: {
+    color: '#75838d',
+    fontSize: '10px',
+    fontWeight: '400',
+  },
+
   errorBox: {
-    marginTop: '1rem',
-    padding: '0.9rem',
-    background: 'rgba(80,20,20,0.55)',
-    border: '1px solid #7a3030',
-    borderRadius: 10,
-    color: '#ffc9c9',
+    marginTop: '16px',
+    padding: '13px',
+    borderRadius: '8px',
+    background:
+      'rgba(255,100,100,0.12)',
+    border:
+      '1px solid rgba(255,107,107,0.55)',
+    color: '#ff8585',
+    fontSize: '13px',
   },
 
   response: {
-    marginTop: '1rem',
-    background: 'rgba(18,26,34,0.92)',
-    border: '1px solid #1f2b35',
-    borderRadius: 12,
-    padding: '1rem',
+    marginTop: '18px',
+    padding: '16px',
+    background:
+      'rgba(0,0,0,0.25)',
+    borderRadius: '9px',
+    border:
+      '1px solid rgba(255,255,255,0.15)',
   },
 
   responseHeader: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: '0.5rem',
+    marginBottom: '10px',
   },
 
   responseTitle: {
+    color: '#e2e8f0',
+    fontSize: '15px',
     margin: 0,
-    fontSize: '1rem',
-    color: '#e8f1f5',
   },
 
-  responsePre: {
-    margin: 0,
-    color: '#c5d4de',
+  responseText: {
+    color: '#dbe4ea',
     whiteSpace: 'pre-wrap',
     overflowWrap: 'anywhere',
+    margin: 0,
     fontFamily:
       'ui-monospace, SFMono-Regular, Menlo, monospace',
     fontSize: '12px',
