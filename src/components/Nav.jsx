@@ -97,9 +97,7 @@ const styles = {
   },
   links: {
     display: 'flex',
-    flexWrap: 'wrap',
-    justifyContent: 'flex-end',
-    gap: '1.4rem',
+    gap: '2rem',
     fontSize: '0.9rem',
     color: '#8fa1ac',
   },
