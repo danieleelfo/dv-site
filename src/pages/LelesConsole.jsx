@@ -54,6 +54,7 @@ export default function LelesConsole() {
   const [response, setResponse] = useState('')
   const [error, setError] = useState('')
   const [history, setHistory] = useState([])
+  const [selectedCmd, setSelectedCmd] = useState('')
 
   const buttonRef = useRef(null)
   const chatIdRef = useRef(getOrCreateChatId())
@@ -141,6 +142,11 @@ export default function LelesConsole() {
     } catch (e) {}
   }
 
+  function selectCommand(command) {
+    setPrompt(command)
+    setSelectedCmd(command)
+  }
+
   async function sendCommand(e) {
     e?.preventDefault?.()
     if (!idToken || !prompt.trim()) return
@@ -202,6 +208,16 @@ export default function LelesConsole() {
     }
   }
 
+  const quickCmds = [
+    'status sistema',
+    'status telegram',
+    'status os',
+    'status ram',
+    'QE last 10',
+    'logs lele',
+    'logs leles',
+  ]
+
   if (!idToken) {
     return (
       <section className="section container" style={styles.wrap}>
@@ -242,6 +258,19 @@ export default function LelesConsole() {
               Logout
             </button>
           </div>
+        </div>
+
+        <div style={styles.quickRow}>
+          {quickCmds.map((cmd) => (
+            <button
+              key={cmd}
+              type="button"
+              onClick={() => selectCommand(cmd)}
+              style={styles.quickBtn}
+            >
+              {cmd}
+            </button>
+          ))}
         </div>
 
         <form onSubmit={sendCommand} style={styles.form}>
@@ -397,6 +426,21 @@ const styles = {
     display: 'flex',
     justifyContent: 'center',
     minHeight: 40,
+  },
+  quickRow: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '0.5rem',
+    marginBottom: '1rem',
+  },
+  quickBtn: {
+    background: 'rgba(18,26,34,0.88)',
+    border: '1px solid #2a3a48',
+    color: '#3fd0c9',
+    borderRadius: 999,
+    padding: '0.35rem 0.75rem',
+    cursor: 'pointer',
+    fontSize: '0.75rem',
   },
   form: {
     background: 'rgba(18,26,34,0.88)',
