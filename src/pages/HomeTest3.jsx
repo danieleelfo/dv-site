@@ -352,6 +352,7 @@ export default function EmergenceLab() {
 
   function handleLaunch(e) {
     e.preventDefault()
+    setSelectedPromptRole(null) // così la risposta del launch va in basso
     sendCommand(launchCommand)
   }
 
@@ -462,6 +463,38 @@ export default function EmergenceLab() {
               </button>
             ))}
           </div>
+
+          {/* System Prompt subito sotto i roles */}
+          {selectedPromptRole && (response || isLoading) && (
+            <div style={{ ...styles.response, marginTop: '0.85rem', marginBottom: 0 }}>
+              <div style={styles.responseHeader}>
+                <h3 style={styles.responseTitle}>
+                  {isLoading
+                    ? `Caricamento System Prompt — ${selectedPromptRole}…`
+                    : `System Prompt — ${selectedPromptRole}`}
+                </h3>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResponse('')
+                    setSelectedPromptRole(null)
+                  }}
+                  style={styles.secondaryBtn}
+                >
+                  Chiudi
+                </button>
+              </div>
+
+              {isLoading ? (
+                <p style={{ color: '#8fa1ac', margin: 0, fontSize: '0.85rem' }}>
+                  ⏳ sto recuperando il prompt…
+                </p>
+              ) : (
+                <pre style={styles.responsePre}>{response}</pre>
+              )}
+            </div>
+          )}
         </div>
 
         {/* ============================================================
@@ -629,9 +662,10 @@ export default function EmergenceLab() {
             <button
               type="button"
               disabled={isLoading}
-              onClick={() =>
+              onClick={() => {
+                setSelectedPromptRole(null)
                 sendCommand('status dag emergence_flow')
-              }
+              }}
               style={styles.secondaryBtn}
             >
               Status DAG
@@ -640,7 +674,10 @@ export default function EmergenceLab() {
             <button
               type="button"
               disabled={isLoading}
-              onClick={() => sendCommand('QE last 10')}
+              onClick={() => {
+                setSelectedPromptRole(null)
+                sendCommand('QE last 10')
+              }}
               style={styles.secondaryBtn}
             >
               QE last 10
@@ -659,21 +696,15 @@ export default function EmergenceLab() {
           </div>
         )}
 
-        {response && (
+        {/* Risposte normali (Launch / Status / QE) in basso */}
+        {response && !selectedPromptRole && (
           <div style={styles.response}>
             <div style={styles.responseHeader}>
-              <h3 style={styles.responseTitle}>
-                {selectedPromptRole
-                  ? `System Prompt — ${selectedPromptRole}`
-                  : 'Risposta Leles'}
-              </h3>
+              <h3 style={styles.responseTitle}>Risposta Leles</h3>
 
               <button
                 type="button"
-                onClick={() => {
-                  setResponse('')
-                  setSelectedPromptRole(null)
-                }}
+                onClick={() => setResponse('')}
                 style={styles.secondaryBtn}
               >
                 Chiudi
