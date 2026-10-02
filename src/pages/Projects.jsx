@@ -4,8 +4,7 @@ import bgImage from '../assets/Project.jpg'
 import { projectSlugs, projectNames } from '../data/projects.js'
 
 // In sviluppo punta alla demo locale (Vite su :5180).
-// In produzione usa VITE_BAR_AI_URL (es. https://bar.danielevillanova.com--> da verificare);
-// se non è impostata, il box resta non cliccabile.
+// In produzione usa VITE_BAR_AI_URL; se non è impostata, il box resta non cliccabile.
 
 const BAR_AI_URL = import.meta.env.DEV
   ? 'http://localhost:5180'
@@ -13,8 +12,8 @@ const BAR_AI_URL = import.meta.env.DEV
 
 
 const projectLinks = {
-  leles: '/test5',
-  'emergence-lab': '/test',
+  leles: '/en/leles-console',
+  'emergence-lab': '/en/emergence',
   stories: '/en/console',
   'bar-ai': BAR_AI_URL,
 }
@@ -89,7 +88,7 @@ export default function Projects() {
 const styles = {
   wrap: {
     position: 'relative',
-    height: '40vh', // Immagine più piccola
+    height: '40vh',
     overflow: 'hidden',
   },
   bgImg: {

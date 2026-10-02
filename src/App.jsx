@@ -7,14 +7,20 @@ import Projects from './pages/Projects.jsx'
 import Console from './pages/Console.jsx'
 import Nav from './components/Nav.jsx'
 
-import HomeTest from './pages/HomeTest.jsx'
+// --- PROGETTI PROMOSI (nome e rotta veri) ---
+import EmergenceLab from './pages/EmergenceLab.jsx'   // ex HomeTest  (/test)
+import AgentArena from './pages/AgentArena.jsx'        // ex HomeTest4 (/test4)
+import LelesConsole from './pages/LelesConsole.jsx'   // ex ProjectTest (/test6)
+
+// --- SLOT DI TEST LIBERI (ex pagine promosse) ---
+import TestSlot from './pages/TestSlot.jsx'
+
+// --- SLOT DI TEST ATTIVI ---
 import HomeTest2 from './pages/HomeTest2.jsx'
 import HomeTest3 from './pages/HomeTest3.jsx'
-import HomeTest4 from './pages/HomeTest4.jsx'
-
-import ProjectTest from './pages/ProjectTest.jsx'
-import LeleAdmin from './pages/LeleAdmin.jsx'
 import ConsoleTest from './pages/ConsoleTest.jsx'
+
+import LeleAdmin from './pages/LeleAdmin.jsx'
 
 const SUPPORTED_LANGS = ['en', 'it', 'es', 'fr', 'ca', 'nl']
 
@@ -41,17 +47,6 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/en" replace />} />
 
-        {/* ROTTA DI TEST SENZA PREFISSO DI LINGUA */}
-        <Route
-          path="/test"
-          element={
-            <>
-              <Nav />
-              <HomeTest />
-            </>
-          }
-        />
-
         <Route
           path="/:lang"
           element={
@@ -64,19 +59,108 @@ export default function App() {
           }
         />
 
-        {/* ROTTA DI TEST CON LINGUA */}
+        {/* ============ PROGETTI PROMOSI ============ */}
+        <Route
+          path="/:lang/emergence"
+          element={
+            <>
+              <Nav />
+              <LangWrapper>
+                <EmergenceLab />
+              </LangWrapper>
+            </>
+          }
+        />
+
+        <Route
+          path="/:lang/arena"
+          element={
+            <>
+              <Nav />
+              <LangWrapper>
+                <AgentArena />
+              </LangWrapper>
+            </>
+          }
+        />
+
+        <Route
+          path="/:lang/leles-console"
+          element={
+            <>
+              <Nav />
+              <LangWrapper>
+                <LelesConsole />
+              </LangWrapper>
+            </>
+          }
+        />
+
+        {/* ============ SLOT DI TEST LIBERI ============ */}
+        <Route
+          path="/test"
+          element={
+            <>
+              <Nav />
+              <TestSlot slot={1} />
+            </>
+          }
+        />
         <Route
           path="/:lang/test"
           element={
             <>
               <Nav />
               <LangWrapper>
-                <HomeTest />
+                <TestSlot slot={1} />
               </LangWrapper>
             </>
           }
         />
 
+        <Route
+          path="/test4"
+          element={
+            <>
+              <Nav />
+              <TestSlot slot={4} />
+            </>
+          }
+        />
+        <Route
+          path="/:lang/test4"
+          element={
+            <>
+              <Nav />
+              <LangWrapper>
+                <TestSlot slot={4} />
+              </LangWrapper>
+            </>
+          }
+        />
+
+        <Route
+          path="/test6"
+          element={
+            <>
+              <Nav />
+              <TestSlot slot={6} />
+            </>
+          }
+        />
+        <Route
+          path="/:lang/test6"
+          element={
+            <>
+              <Nav />
+              <LangWrapper>
+                <TestSlot slot={6} />
+              </LangWrapper>
+            </>
+          }
+        />
+
+        {/* ============ SLOT DI TEST ATTIVI ============ */}
         <Route
           path="/test2"
           element={
@@ -86,7 +170,6 @@ export default function App() {
             </>
           }
         />
-
         <Route
           path="/:lang/test2"
           element={
@@ -108,7 +191,6 @@ export default function App() {
             </>
           }
         />
-
         <Route
           path="/:lang/test3"
           element={
@@ -122,31 +204,6 @@ export default function App() {
         />
 
         <Route
-          path="/test4"
-          element={
-            <>
-              <Nav />
-              <HomeTest4 />
-            </>
-          }
-        />
-
-        <Route
-          path="/:lang/test4"
-          element={
-            <>
-              <Nav />
-              <LangWrapper>
-                <HomeTest4 />
-              </LangWrapper>
-            </>
-          }
-        />
-
-        {/* =========================================================
-            TEST 5 — NUOVA CONSOLE LELES
-            ========================================================= */}
-        <Route
           path="/test5"
           element={
             <>
@@ -155,7 +212,6 @@ export default function App() {
             </>
           }
         />
-
         <Route
           path="/:lang/test5"
           element={
@@ -168,32 +224,7 @@ export default function App() {
           }
         />
 
-        {/* TEST 6 -> ProjectTest */}
-        <Route
-          path="/test6"
-          element={
-            <>
-              <Nav />
-              <ProjectTest />
-            </>
-          }
-        />
-
-        <Route
-          path="/:lang/test6"
-          element={
-            <>
-              <Nav />
-              <LangWrapper>
-                <ProjectTest />
-              </LangWrapper>
-            </>
-          }
-        />
-
-        {/* =========================================================
-            LELE ADMIN ORIGINALE — NON TOCCATO
-            ========================================================= */}
+        {/* ============ LELE ADMIN ============ */}
         <Route
           path="/leles"
           element={
@@ -203,8 +234,6 @@ export default function App() {
             </>
           }
         />
-
-        {/* alias per comodità */}
         <Route
           path="/LeleAdmin"
           element={
