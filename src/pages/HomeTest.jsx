@@ -17,6 +17,24 @@ const ALLOWED_EMAILS = [
 const FORCED_ADMIN_CHAT_ID = 8733881519
 // ---------------------------------------------------------------------------
 
+// --- AUDIO: TTS + registrazione + risposta audio ---------------------------
+// Story Whisper e Night Story: API audio complete (/api/chat e /api/chat/audio).
+// Leles: console admin (login Google). Testo e TTS passano da /api/admin/chat.
+// ATTENZIONE: le due route qui sotto per audio in ingresso e file TTS sono
+// ASSUNTE (speculari a quelle pubbliche): da verificare lato gateway.
+const LELES_AGENT = 'Leles'
+const LELES_AUDIO_PATH = '/api/admin/chat/audio'
+const LELES_TTS_PATH = '/api/admin/chat/tts'
+const AUDIO_AGENTS = [
+  { value: 'Story Whisper', label: 'Story Whisper 🌈' },
+  { value: 'Night Story', label: 'Night Story 🌙' },
+  { value: LELES_AGENT, label: 'Leles 🏴‍☠️' },
+]
+const AUDIO_CHAT_ID_KEY = 'lele_chat_id'
+const AUDIO_LANGUAGE = 'it'
+const AUTO_SEND_RECORDING = true
+// ---------------------------------------------------------------------------
+
 // Pagine di test raggiungibili al volo.
 const QUICK_LINKS = [
   { to: '/test4', label: 'Bot to bot', main: true },
@@ -162,6 +180,42 @@ const isDanger = (text) => {
   return DANGER.some((d) => t.startsWith(d))
 }
 
+// chat_id anonimo e persistente per le API audio pubbliche.
+function getAudioChatId() {
+  try {
+    const stored = window.localStorage.getItem(AUDIO_CHAT_ID_KEY)
+    if (stored) return parseInt(stored, 10)
+    const newId = Math.floor(Math.random() * 9_000_000_000) + 1_000_000_000
+    window.localStorage.setItem(AUDIO_CHAT_ID_KEY, String(newId))
+    return newId
+  } catch (e) {
+    return Math.floor(Math.random() * 9_000_000_000) + 1_000_000_000
+  }
+}
+
+const extractFilename = (value) => {
+  if (!value || typeof value !== 'string') return null
+  return value.split(/[/\\]/).pop() || null
+}
+
+const audioText = (data) => {
+  if (data.answer) return data.answer
+  if (data.error) return data.error
+  if (data.detail) {
+    return typeof data.detail === 'string'
+      ? data.detail
+      : JSON.stringify(data.detail, null, 2)
+  }
+  return 'Nessuna risposta ricevuta'
+}
+
+function formatTime(seconds) {
+  if (!seconds || isNaN(seconds)) return '00:00'
+  const m = Math.floor(seconds / 60)
+  const sec = Math.floor(seconds % 60)
+  return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
+}
+
 function decodeJwtPayload(token) {
   try {
     const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
@@ -209,6 +263,37 @@ async function callAdmin(idToken, prompt, timeoutMs = 310000) {
         : JSON.stringify(data.detail, null, 2)
     }
     return 'Nessuna risposta ricevuta'
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      throw new Error('Timeout: il server non ha risposto in tempo. 😵‍💫')
+    }
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+// Chiamata admin generica (JSON o FormData) che restituisce il JSON grezzo.
+async function adminJson(idToken, path, init = {}, timeoutMs = 310000) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetch(`${LELE_API_URL}${path}`, {
+      ...init,
+      headers: { ...(init.headers || {}), Authorization: `Bearer ${idToken}` },
+      signal: controller.signal,
+    })
+    if (res.status === 401 || res.status === 403) {
+      const err = new Error(
+        res.status === 401
+          ? 'Sessione scaduta, effettua di nuovo il login.'
+          : 'Accesso non autorizzato per questo account Google. 🏴‍☠️'
+      )
+      err.status = res.status
+      throw err
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+    return await res.json()
   } catch (err) {
     if (err.name === 'AbortError') {
       throw new Error('Timeout: il server non ha risposto in tempo. 😵‍💫')
@@ -630,6 +715,316 @@ export default function ConsoleTest() {
     }
   }
 
+  // ----------------------------------------------------------
+  // AUDIO: TTS + registrazione + risposta audio
+  // ----------------------------------------------------------
+  const [audioAgent, setAudioAgent] = useState(AUDIO_AGENTS[0].value)
+  const [audioPrompt, setAudioPrompt] = useState('')
+  const [wantsTts, setWantsTts] = useState(false)
+  const [audioReply, setAudioReply] = useState('')
+  const [audioReplyFile, setAudioReplyFile] = useState(null)
+  const [audioReplyAgent, setAudioReplyAgent] = useState('')
+  const [audioError, setAudioError] = useState('')
+  const [audioBusy, setAudioBusy] = useState(false)
+  const [copiedAudioReply, setCopiedAudioReply] = useState(false)
+
+  const [isSpeaking, setIsSpeaking] = useState(false)
+  const [audioCurrentTime, setAudioCurrentTime] = useState(0)
+  const [audioDuration, setAudioDuration] = useState(0)
+  const [playbackRate, setPlaybackRate] = useState(1)
+
+  const [isRecording, setIsRecording] = useState(false)
+  const [recordingTime, setRecordingTime] = useState(0)
+  const [recUrl, setRecUrl] = useState(null)
+  const [recBlob, setRecBlob] = useState(null)
+
+  const audioChatIdRef = useRef(getAudioChatId())
+  const audioPlayerRef = useRef(null)
+  const recorderRef = useRef(null)
+  const chunksRef = useRef([])
+  const recTimerRef = useRef(null)
+  const recBlobRef = useRef(null)
+  const lelesAudioRef = useRef(null)
+
+  useEffect(() => {
+    return () => {
+      if (recUrl) URL.revokeObjectURL(recUrl)
+    }
+  }, [recUrl])
+
+  useEffect(() => {
+    return () => {
+      if (recTimerRef.current) clearInterval(recTimerRef.current)
+      if (lelesAudioRef.current) URL.revokeObjectURL(lelesAudioRef.current.url)
+      const tracks = recorderRef.current?.stream?.getTracks?.() || []
+      tracks.forEach((track) => track.stop())
+    }
+  }, [])
+
+  async function audioRequest(path, init) {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 120000)
+    try {
+      const res = await fetch(`${LELE_API_URL}${path}`, {
+        ...init,
+        signal: controller.signal,
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+      return await res.json()
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        throw new Error('Timeout: il server non ha risposto in tempo. 😵‍💫')
+      }
+      throw err
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
+  function resetAudioReply() {
+    stopSpeaking()
+    setAudioError('')
+    setAudioReply('')
+    setAudioReplyFile(null)
+    setAudioDuration(0)
+  }
+
+  function applyAudioReply(data, agent) {
+    setAudioReply(audioText(data))
+    setAudioReplyFile(
+      extractFilename(data.audio_filename) || extractFilename(data.audio_path)
+    )
+    setAudioReplyAgent(agent)
+  }
+
+  // Testo -> Gateway (/api/chat)
+  async function sendAudioText(e) {
+    e?.preventDefault()
+    const text = audioPrompt.trim()
+    if (!text || audioBusy || isRecording) return
+
+    resetAudioReply()
+    setAudioBusy(true)
+
+    // Leles: console admin (con token). I comandi sensibili passano solo
+    // dal prompt principale, che chiede la conferma.
+    if (audioAgent === LELES_AGENT) {
+      if (isDanger(text)) {
+        setAudioError(
+          'Comando sensibile: usa il prompt principale, che chiede la conferma.'
+        )
+        setAudioBusy(false)
+        return
+      }
+      const lelesClean = text.replace(/^(audio e testo|audio)\s*/i, '')
+      try {
+        const data = await adminJson(idToken, '/api/admin/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: wantsTts ? `audio e testo ${lelesClean}` : text,
+            language: 'en',
+            chat_id: FORCED_ADMIN_CHAT_ID,
+          }),
+        })
+        applyAudioReply(data, LELES_AGENT)
+      } catch (err) {
+        if (err.status === 401 || err.status === 403) {
+          logout(err.message)
+          return
+        }
+        setAudioError(err.message)
+      } finally {
+        setAudioBusy(false)
+      }
+      return
+    }
+
+    const clean = text.replace(/^(audio e testo|audio)\s*/i, '')
+    const promptToSend = wantsTts ? `audio e testo ${clean}` : audioPrompt
+
+    try {
+      const data = await audioRequest('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agent: audioAgent,
+          prompt: promptToSend,
+          language: AUDIO_LANGUAGE,
+          chat_id: audioChatIdRef.current,
+        }),
+      })
+      applyAudioReply(data, audioAgent)
+    } catch (err) {
+      setAudioError(err.message)
+    } finally {
+      setAudioBusy(false)
+    }
+  }
+
+  // Audio registrato -> Gateway (/api/chat/audio)
+  async function sendRecording(blobOverride) {
+    const blob = blobOverride || recBlobRef.current
+    if (!blob) return
+
+    resetAudioReply()
+    setAudioBusy(true)
+
+    const isLeles = audioAgent === LELES_AGENT
+
+    try {
+      const form = new FormData()
+      form.append('audio', blob, 'recording.webm')
+      if (!isLeles) form.append('agent', audioAgent)
+      form.append('language', AUDIO_LANGUAGE)
+      form.append(
+        'chat_id',
+        String(isLeles ? FORCED_ADMIN_CHAT_ID : audioChatIdRef.current)
+      )
+
+      const data = isLeles
+        ? await adminJson(idToken, LELES_AUDIO_PATH, { method: 'POST', body: form })
+        : await audioRequest('/api/chat/audio', { method: 'POST', body: form })
+      applyAudioReply(data, audioAgent)
+    } catch (err) {
+      if (err.status === 401 || err.status === 403) {
+        logout(err.message)
+        return
+      }
+      setAudioError(err.message)
+    } finally {
+      setAudioBusy(false)
+    }
+  }
+
+  async function startRecording() {
+    try {
+      setAudioError('')
+      setRecUrl(null)
+      setRecBlob(null)
+      recBlobRef.current = null
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const options = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? { mimeType: 'audio/webm;codecs=opus' }
+        : {}
+      const recorder = new MediaRecorder(stream, options)
+
+      recorderRef.current = recorder
+      chunksRef.current = []
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunksRef.current.push(event.data)
+      }
+
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, {
+          type: recorder.mimeType || 'audio/webm',
+        })
+        recBlobRef.current = blob
+        setRecBlob(blob)
+        setRecUrl(URL.createObjectURL(blob))
+        stream.getTracks().forEach((track) => track.stop())
+
+        // Invio automatico appena termina la registrazione.
+        // Con Leles (admin) niente invio automatico: si invia a mano.
+        if (AUTO_SEND_RECORDING && audioAgent !== LELES_AGENT) sendRecording(blob)
+      }
+
+      recorder.start()
+      setIsRecording(true)
+      setRecordingTime(0)
+      recTimerRef.current = setInterval(() => {
+        setRecordingTime((time) => time + 1)
+      }, 1000)
+    } catch (err) {
+      setAudioError(
+        'Impossibile accedere al microfono. Controlla i permessi del browser.'
+      )
+    }
+  }
+
+  function stopRecording() {
+    if (recorderRef.current && recorderRef.current.state !== 'inactive') {
+      recorderRef.current.stop()
+    }
+    setIsRecording(false)
+    if (recTimerRef.current) {
+      clearInterval(recTimerRef.current)
+      recTimerRef.current = null
+    }
+  }
+
+  // Audio TTS di Leles: richiede il token, quindi si scarica come blob.
+  async function getLelesAudioUrl(file) {
+    if (lelesAudioRef.current?.file === file) return lelesAudioRef.current.url
+    const res = await fetch(
+      `${LELE_API_URL}${LELES_TTS_PATH}/${encodeURIComponent(file)}`,
+      { headers: { Authorization: `Bearer ${idToken}` } }
+    )
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const url = URL.createObjectURL(await res.blob())
+    if (lelesAudioRef.current) URL.revokeObjectURL(lelesAudioRef.current.url)
+    lelesAudioRef.current = { file, url }
+    return url
+  }
+
+  // Riproduzione audio generato dal backend
+  async function togglePlayAudio() {
+    const player = audioPlayerRef.current
+    if (!audioReplyFile || !player) return
+
+    if (isSpeaking) {
+      player.pause()
+      setIsSpeaking(false)
+      return
+    }
+
+    const isLeles = audioReplyAgent === LELES_AGENT
+    try {
+      const url = isLeles
+        ? await getLelesAudioUrl(audioReplyFile)
+        : `${LELE_API_URL}/api/chat/tts/${encodeURIComponent(
+            audioReplyAgent
+          )}/${encodeURIComponent(audioReplyFile)}`
+
+      if (player.src !== url) {
+        player.src = url
+        player.playbackRate = playbackRate
+      }
+      await player.play()
+      setIsSpeaking(true)
+    } catch (err) {
+      setIsSpeaking(false)
+      setAudioError(
+        isLeles
+          ? `Audio di Leles non disponibile: ${err.message}`
+          : 'Riproduzione audio bloccata dal browser.'
+      )
+    }
+  }
+
+  function stopSpeaking() {
+    const player = audioPlayerRef.current
+    if (player) {
+      player.pause()
+      player.currentTime = 0
+    }
+    setIsSpeaking(false)
+    setAudioCurrentTime(0)
+  }
+
+  function handleRateChange(rate) {
+    setPlaybackRate(rate)
+    if (audioPlayerRef.current) audioPlayerRef.current.playbackRate = rate
+  }
+
+  function handleSeek(e) {
+    const t = parseFloat(e.target.value)
+    setAudioCurrentTime(t)
+    if (audioPlayerRef.current) audioPlayerRef.current.currentTime = t
+  }
+
   const q = search.trim().toLowerCase()
   const group = COMMAND_GROUPS.find((g) => g.id === activeGroup)
   const visible = q
@@ -804,6 +1199,180 @@ export default function ConsoleTest() {
                   </button>
                 ))}
               </div>
+            </section>
+
+            {/* AUDIO: Story Whisper / Night Story */}
+            <section className="lc-panel lc-pad lc-audio" aria-label="Audio">
+              <audio
+                ref={audioPlayerRef}
+                onTimeUpdate={() =>
+                  setAudioCurrentTime(audioPlayerRef.current?.currentTime || 0)
+                }
+                onLoadedMetadata={() =>
+                  setAudioDuration(audioPlayerRef.current?.duration || 0)
+                }
+                onEnded={() => {
+                  setIsSpeaking(false)
+                  setAudioCurrentTime(0)
+                }}
+                onError={() => {
+                  setIsSpeaking(false)
+                  setAudioError("Impossibile riprodurre l'audio generato dal server.")
+                }}
+              />
+
+              <div className="lc-cmd-head">
+                <h2>Audio</h2>
+                <select
+                  className="lc-select"
+                  aria-label="Agente audio"
+                  value={audioAgent}
+                  onChange={(e) => setAudioAgent(e.target.value)}
+                  disabled={isRecording || audioBusy}
+                >
+                  {AUDIO_AGENTS.map((a) => (
+                    <option key={a.value} value={a.value}>
+                      {a.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <form className="lc-audio-form" onSubmit={sendAudioText}>
+                <textarea
+                  className="lc-audio-ta"
+                  rows={3}
+                  value={audioPrompt}
+                  disabled={isRecording}
+                  placeholder={`Scrivi a ${audioAgent}…`}
+                  onChange={(e) => setAudioPrompt(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) sendAudioText(e)
+                  }}
+                />
+                <div className="lc-audio-foot">
+                  <label className="lc-check">
+                    <input
+                      type="checkbox"
+                      checked={wantsTts}
+                      disabled={isRecording || audioBusy}
+                      onChange={(e) => setWantsTts(e.target.checked)}
+                    />
+                    Risposta audio (TTS)
+                  </label>
+                  <div className="lc-row">
+                    <button
+                      type="button"
+                      className="lc-btn"
+                      disabled={!audioPrompt.trim() || isRecording}
+                      onClick={() => setAudioPrompt('')}
+                    >
+                      Pulisci
+                    </button>
+                    <button
+                      type="button"
+                      className={`lc-btn${isRecording ? ' lc-btn--rec' : ''}`}
+                      disabled={audioBusy}
+                      onClick={isRecording ? stopRecording : startRecording}
+                    >
+                      {isRecording ? `⏹ ${formatTime(recordingTime)}` : '🎤 Registra'}
+                    </button>
+                    <button
+                      type="submit"
+                      className="lc-btn lc-btn--run"
+                      disabled={audioBusy || isRecording || !audioPrompt.trim()}
+                    >
+                      {audioBusy ? (
+                        <>
+                          <span className="lc-spin" /> Attendi…
+                        </>
+                      ) : (
+                        'Invia'
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </form>
+
+              {recUrl && (
+                <div className="lc-rec">
+                  <div className="lc-cmd-head">
+                    <span className="lc-small">🎤 Audio registrato</span>
+                    <button
+                      type="button"
+                      className="lc-btn lc-btn--sm"
+                      disabled={audioBusy || !recBlob}
+                      onClick={() => sendRecording()}
+                    >
+                      Invia audio
+                    </button>
+                  </div>
+                  <audio controls src={recUrl} className="lc-rec-audio" />
+                </div>
+              )}
+
+              {audioError && <p className="lc-err lc-small">{audioError}</p>}
+
+              {audioReply && (
+                <div className="lc-audio-out" aria-live="polite">
+                  <header>
+                    <span>Risposta da {audioReplyAgent}</span>
+                    <button
+                      type="button"
+                      className="lc-btn lc-btn--sm"
+                      onClick={() => {
+                        copy(audioReply)
+                        setCopiedAudioReply(true)
+                        setTimeout(() => setCopiedAudioReply(false), 2000)
+                      }}
+                    >
+                      {copiedAudioReply ? 'Copiato ✓' : 'Copia'}
+                    </button>
+                  </header>
+
+                  {audioReplyFile && (
+                    <div className="lc-player">
+                      <div className="lc-player-top">
+                        <button
+                          type="button"
+                          className={`lc-btn lc-btn--sm lc-play${isSpeaking ? ' is-on' : ''}`}
+                          onClick={togglePlayAudio}
+                        >
+                          {isSpeaking ? '⏸ Pausa' : '▶ Ascolta'}
+                        </button>
+                        <span className="lc-time">
+                          {formatTime(audioCurrentTime)} / {formatTime(audioDuration)}
+                        </span>
+                        <input
+                          type="range"
+                          className="lc-seek"
+                          aria-label="Posizione audio"
+                          min="0"
+                          max={audioDuration || 0}
+                          step="0.1"
+                          value={audioCurrentTime}
+                          onChange={handleSeek}
+                        />
+                      </div>
+                      <div className="lc-speed">
+                        <span className="lc-dim lc-small">Velocità</span>
+                        {[1, 1.25, 1.5, 1.75, 2].map((rate) => (
+                          <button
+                            key={rate}
+                            type="button"
+                            className={`lc-btn lc-btn--sm${playbackRate === rate ? ' is-on' : ''}`}
+                            onClick={() => handleRateChange(rate)}
+                          >
+                            {rate}x
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <pre className="lc-pre">{audioReply}</pre>
+                </div>
+              )}
             </section>
 
             {/* CRONOLOGIA */}
@@ -1069,4 +1638,27 @@ const css = `
   .lc-chips{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media (prefers-reduced-motion:reduce){.lc-pulse,.lc-spin{animation:none}}
+.lc-select{padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--ink);font:inherit;font-size:13px}
+.lc-select option{color:#111}
+.lc-audio-form{display:flex;flex-direction:column;gap:10px}
+.lc-audio-ta{width:100%;box-sizing:border-box;resize:vertical;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-family:var(--mono);font-size:14px;line-height:1.5}
+.lc-audio-ta:focus{outline:none;border-color:rgba(63,208,201,.5)}
+.lc-audio-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.lc-check{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-dim);cursor:pointer}
+.lc-btn--rec{background:rgba(248,113,113,.2);border-color:var(--bad);color:#fecaca}
+.lc-rec{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.2)}
+.lc-rec .lc-cmd-head{margin-bottom:8px}
+.lc-rec-audio{width:100%}
+.lc-audio .lc-err{margin-top:10px}
+.lc-audio-hint{margin-top:8px}
+.lc-audio-out{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.28);overflow:hidden}
+.lc-audio-out header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);font-size:13px;font-weight:600}
+.lc-player{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.lc-player-top{display:flex;align-items:center;gap:10px}
+.lc-time{font-family:var(--mono);font-size:11.5px;color:var(--ink-dim);white-space:nowrap}
+.lc-seek{flex:1;min-width:0;cursor:pointer;accent-color:var(--accent)}
+.lc-speed{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.lc-btn--sm.is-on{background:var(--accent);border-color:var(--accent);color:#07201f}
+.lc-play.is-on{background:var(--bad);border-color:var(--bad);color:#fff}
+@media (max-width:560px){.lc-player-top{flex-wrap:wrap}.lc-seek{flex-basis:100%}}
 ` 
