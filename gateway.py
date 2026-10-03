@@ -21,7 +21,7 @@ app = FastAPI(title="Lele AI Gateway")
 
 
 # --------------------------------------------------------------------------
-# GOOGLE AUTH (per /api/admin/* e /api/agent-arena/start|stop)
+# GOOGLE AUTH (per /api/admin/* e /api/agent-arena/start|stop|hand|intervene)
 # --------------------------------------------------------------------------
 # Richiesto da env, niente default in chiaro nel codice.
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
@@ -111,7 +111,7 @@ def verify_admin_token(authorization: str | None) -> str:
         )
 
     return email
-    
+
 def get_connection():
     return psycopg2.connect(
         host=os.environ.get("PGHOST", "localhost"),
@@ -564,8 +564,17 @@ MAX_TOTAL_MESSAGES = 120
 MAX_ACTIVE_RUNS = 3
 RUN_TTL_SECONDS = 3600
 
-ACTIVE_STATUSES = ("STARTING", "RUNNING")
+# "PAUSED" = mano alzata: il run è fermo in attesa dell'umano,
+# quindi conta come run attivo.
+ACTIVE_STATUSES = ("STARTING", "RUNNING", "PAUSED")
 FINISHED_STATUSES = ("COMPLETED", "STOPPED", "ERROR")
+
+# Raise hand: tetti anti-abuso per gli interventi umani.
+# MAX_HUMAN_CHARS DEVE restare allineato con ProjectTest.jsx.
+MAX_HUMAN_CHARS = 2000
+MAX_HUMAN_INTERVENTIONS = 20
+# Se nessuno interviene entro questo tempo, il run riprende da solo.
+HAND_TIMEOUT_SECONDS = 600
 
 # Allowlist: DEVE restare allineata con ProjectTest.jsx.
 ALLOWED_MODELS = {
@@ -620,6 +629,11 @@ class AgentArenaRequest(BaseModel):
     topic: str = ""
 
     max_turns: int = 10
+
+
+class ArenaInterveneRequest(BaseModel):
+    # Testo vuoto = "riprendi senza scrivere".
+    text: str = ""
 
 
 def _validate_arena_request(req: AgentArenaRequest) -> None:
@@ -1069,6 +1083,127 @@ def _arena_db_update_status(
         conn.close()
 
 
+def _arena_db_update_status_safe(
+    arena_run_id: int,
+    status: str,
+):
+    """
+    Come _arena_db_update_status, ma non interrompe mai il run.
+
+    Usata per PAUSED / RUNNING durante la mano alzata: se la colonna
+    status ha un CHECK che non conosce 'PAUSED', il run non va in ERROR,
+    resta solo lo stato in memoria (quello che legge il live polling).
+    """
+    try:
+        _arena_db_update_status(
+            arena_run_id,
+            status,
+        )
+    except Exception as e:
+        print(
+            f"[arena] aggiornamento stato DB '{status}' "
+            f"non riuscito (ignorato): {e}"
+        )
+
+
+async def _arena_handle_hand(
+    run: dict,
+    arena_run_id: int,
+    round_number: int,
+    last_msg: str,
+) -> str:
+    """
+    Gestisce la "mano alzata".
+
+    - mette il run in PAUSED
+    - aspetta /intervene (oppure HAND_TIMEOUT_SECONDS)
+    - se c'è un testo umano lo registra come turno agent="human"
+      (memoria + DB) e lo accoda all'ultimo messaggio
+
+    Ritorna il nuovo last_msg per il prossimo bot.
+
+    Ogni bot riceve SOLO last_msg, quindi il testo umano non lo sostituisce:
+    viene concatenato alla risposta precedente.
+    """
+
+    run["status"] = "PAUSED"
+
+    _arena_db_update_status_safe(
+        arena_run_id,
+        "PAUSED",
+    )
+
+    # Nessun await tra status=PAUSED e clear(): /intervene non può
+    # inserirsi in mezzo.
+    run["resume"].clear()
+
+    try:
+        await asyncio.wait_for(
+            run["resume"].wait(),
+            timeout=HAND_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        # Nessun intervento: il run riprende da solo.
+        pass
+
+    text = (
+        run.get("human_text") or ""
+    ).strip()
+
+    run["human_text"] = ""
+    run["hand"] = False
+    run["status"] = "RUNNING"
+
+    _arena_db_update_status_safe(
+        arena_run_id,
+        "RUNNING",
+    )
+
+    if not text:
+        return last_msg
+
+    message_number = len(run["turns"]) + 1
+
+    run["turns"].append(
+        {
+            "id": message_number,
+            "turn": round_number,
+            "idx": -1,
+            "agent": "human",
+            "character": "",
+            "role": "",
+            "model": "",
+            "text": text,
+        }
+    )
+
+    try:
+        _arena_db_add_turn(
+            arena_run_id=arena_run_id,
+            turn_number=message_number,
+            round_number=round_number,
+            participant_index=-1,
+            agent="human",
+            character="",
+            role="",
+            model="",
+            message=text,
+        )
+    except Exception as e:
+        # Il messaggio è comunque nel live; se il DB lo rifiuta
+        # (es. vincoli su agent/participant_index) il run non si ferma.
+        print(
+            f"[arena] salvataggio turno umano su DB "
+            f"non riuscito (ignorato): {e}"
+        )
+
+    return (
+        f"{last_msg}\n\n"
+        f"[Intervento umano]: {text}\n\n"
+        f"Tieni conto dell'intervento umano nella tua risposta."
+    )
+
+
 async def _run_agent_arena(
     run_id: str,
     cfg: AgentArenaRequest,
@@ -1143,6 +1278,21 @@ async def _run_agent_arena(
                     )
 
                     return
+
+                # ----------------------------------------------
+                # MANO ALZATA: pausa + intervento umano
+                # ----------------------------------------------
+                # Controllata prima di ogni turno di bot: il turno in
+                # corso finisce sempre, poi il run si ferma qui.
+
+                if run.get("hand"):
+
+                    last_msg = await _arena_handle_hand(
+                        run,
+                        arena_run_id,
+                        turn + 1,
+                        last_msg,
+                    )
 
                 answer = await _arena_call(
                     agent_id=p.agent,
@@ -1309,6 +1459,11 @@ async def agent_arena_start(
         "owner": email,
         "finished_at": None,
         "arena_run_id": arena_run_id,
+        # --- raise hand ---
+        "hand": False,
+        "resume": asyncio.Event(),
+        "human_text": "",
+        "human_count": 0,
     }
 
     ARENA_RUNS[run_id]["task"] = (
@@ -1352,6 +1507,9 @@ async def agent_arena_status(
             "opening",
             ""
         ),
+        "hand_raised": bool(
+            run.get("hand", False)
+        ),
     }
 
 
@@ -1386,6 +1544,125 @@ async def agent_arena_stop(
 
     return {
         "status": "STOPPING"
+    }
+
+
+# --------------------------------------------------------------------------
+# ARENA — RAISE HAND  (Google auth obbligatoria, solo il proprietario)
+# --------------------------------------------------------------------------
+def _arena_get_owned_run(
+    run_id: str,
+    email: str,
+) -> dict:
+    """
+    Ritorna il run solo se esiste ed è di questa email.
+
+    Se non è dell'utente risponde 404 (e non 403) apposta: il frontend
+    fa logout su 401/403, e un run altrui non deve cacciare l'utente.
+    """
+    run = ARENA_RUNS.get(
+        run_id
+    )
+
+    if not run or run.get("owner") != email:
+        raise HTTPException(
+            status_code=404,
+            detail="Run arena non trovato.",
+        )
+
+    return run
+
+
+@app.post("/api/agent-arena/{run_id}/hand")
+async def agent_arena_hand(
+    run_id: str,
+    authorization: str | None = Header(None),
+):
+    """
+    Alza la mano: il turno in corso finisce, poi il run va in PAUSED
+    e aspetta /intervene.
+    """
+    email = verify_admin_token(authorization)
+
+    run = _arena_get_owned_run(
+        run_id,
+        email,
+    )
+
+    if run["status"] == "PAUSED":
+        return {
+            "status": "PAUSED"
+        }
+
+    if run["status"] != "RUNNING":
+        raise HTTPException(
+            status_code=409,
+            detail="Il run non è in esecuzione.",
+        )
+
+    run["hand"] = True
+
+    return {
+        "status": "HAND_RAISED"
+    }
+
+
+# --------------------------------------------------------------------------
+# ARENA — INTERVENE  (Google auth obbligatoria, solo il proprietario)
+# --------------------------------------------------------------------------
+@app.post("/api/agent-arena/{run_id}/intervene")
+async def agent_arena_intervene(
+    run_id: str,
+    req: ArenaInterveneRequest,
+    authorization: str | None = Header(None),
+):
+    """
+    Con il run in PAUSED: invia il testo umano (anche vuoto = riprendi
+    senza scrivere) e sblocca il run. Il prossimo bot legge il testo
+    insieme all'ultima risposta.
+    """
+    email = verify_admin_token(authorization)
+
+    run = _arena_get_owned_run(
+        run_id,
+        email,
+    )
+
+    if run["status"] != "PAUSED":
+        raise HTTPException(
+            status_code=409,
+            detail="Alza prima la mano: il run non è in pausa.",
+        )
+
+    text = (req.text or "").strip()
+
+    if len(text) > MAX_HUMAN_CHARS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Messaggio troppo lungo "
+                f"(massimo {MAX_HUMAN_CHARS} caratteri)."
+            ),
+        )
+
+    if text:
+
+        if run["human_count"] >= MAX_HUMAN_INTERVENTIONS:
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    f"Troppi interventi umani in questo run "
+                    f"(massimo {MAX_HUMAN_INTERVENTIONS})."
+                ),
+            )
+
+        run["human_count"] += 1
+
+    run["human_text"] = text
+    run["resume"].set()
+
+    return {
+        "status": "RESUMING"
     }
 
 
