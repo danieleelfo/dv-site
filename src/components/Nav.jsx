@@ -103,5 +103,6 @@ const styles = {
   },
   link: {
     transition: 'color 0.2s',
+    whiteSpace: 'nowrap',
   },
 }
