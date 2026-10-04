@@ -37,12 +37,12 @@ const AUTO_SEND_RECORDING = true
 
 // Pagine di test raggiungibili al volo.
 const QUICK_LINKS = [
-  { to: '/test4', label: 'Bot to bot', main: true },
-  { to: '/test6', label: 'Test 6' },
-  { to: '/test3', label: 'Test 3' },
-  { to: '/test2', label: 'Test 2' },
+  { to: '/test3', label: 'Bot to bot'},
+  { to: '/test2', label: 'AI Lab' },
   { to: '/test', label: 'Test' },
-  { to: '/leles', label: 'Lele Admin' },
+  { to: '/test4, label: 'Test 4' },
+  { to: '/test5', label: 'Test 5' },
+  { to: '/test', label: 'Lele Admin', main: true  },
 ]
 
 // Comandi mostrati nel pannello di destra (si aggiornano con "Aggiorna").
