@@ -39,10 +39,10 @@ const AUTO_SEND_RECORDING = true
 const QUICK_LINKS = [
   { to: '/test3', label: 'Bot to bot'},
   { to: '/test2', label: 'AI Lab' },
+  { to: '/test', label: 'Lele Admin', main: true  },
   { to: '/test6', label: 'Test' },
   { to: '/test4', label: 'Test 4' },
   { to: '/test5', label: 'Test 5' },
-  { to: '/test', label: 'Lele Admin', main: true  },
 ]
 
 // Comandi mostrati nel pannello di destra (si aggiornano con "Aggiorna").
