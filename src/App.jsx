@@ -35,13 +35,28 @@ function LangWrapper({ children }) {
   return children
 }
 
+/*
+ * MAPPING PAGINE (definitivo):
+ *   Home           -> Home.jsx                 (rotta /:lang)
+ *   Projects       -> Projects.jsx             (rotta /:lang/projects)
+ *   Trial          -> Console.jsx              (rotta /:lang/console)
+ *   Leles          -> HomeTest.jsx             (rotta /test e /:lang/test)
+ *   AI Lab         -> HomeTest2.jsx            (rotta /test2 e /:lang/test2)
+ *   B2B            -> HomeTest3.jsx            (rotta /test3 e /:lang/test3)
+ *   Bot-to-bot OLD -> HomeTest4.jsx            (rotta /test4 e /:lang/test4) — da archiviare
+ *   Console Leles  -> ConsoleTest.jsx          (rotta /test5 e /:lang/test5) — da confrontare con Leles
+ *   Console old    -> ConsoleTestALL.jsx       (NON importata) — da archiviare
+ *   ProjectTest    -> ProjectTest.jsx          (rotta /test6 e /:lang/test6)
+ *   Lele Admin     -> LeleAdmin.jsx            (rotta /leles e /LeleAdmin)
+ */
+
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Navigate to="/en" replace />} />
 
-        {/* ROTTA DI TEST SENZA PREFISSO DI LINGUA */}
+        {/* ===== LELES — HomeTest.jsx ===== */}
         <Route
           path="/test"
           element={
@@ -64,7 +79,6 @@ export default function App() {
           }
         />
 
-        {/* ROTTA DI TEST CON LINGUA */}
         <Route
           path="/:lang/test"
           element={
@@ -77,6 +91,7 @@ export default function App() {
           }
         />
 
+        {/* ===== AI LAB — HomeTest2.jsx ===== */}
         <Route
           path="/test2"
           element={
@@ -99,6 +114,7 @@ export default function App() {
           }
         />
 
+        {/* ===== B2B — HomeTest3.jsx ===== */}
         <Route
           path="/test3"
           element={
@@ -121,6 +137,7 @@ export default function App() {
           }
         />
 
+        {/* ===== BOT-TO-BOT (OLD) — HomeTest4.jsx ===== */}
         <Route
           path="/test4"
           element={
@@ -143,9 +160,7 @@ export default function App() {
           }
         />
 
-        {/* =========================================================
-            TEST 5 — NUOVA CONSOLE LELES
-            ========================================================= */}
+        {/* ===== CONSOLE LELES — ConsoleTest.jsx ===== */}
         <Route
           path="/test5"
           element={
@@ -168,7 +183,7 @@ export default function App() {
           }
         />
 
-        {/* TEST 6 -> ProjectTest */}
+        {/* ===== PROJECT TEST — ProjectTest.jsx ===== */}
         <Route
           path="/test6"
           element={
@@ -191,9 +206,7 @@ export default function App() {
           }
         />
 
-        {/* =========================================================
-            LELE ADMIN ORIGINALE — NON TOCCATO
-            ========================================================= */}
+        {/* ===== LELE ADMIN ORIGINLE — LeleAdmin.jsx ===== */}
         <Route
           path="/leles"
           element={
@@ -215,6 +228,7 @@ export default function App() {
           }
         />
 
+        {/* ===== PROJECTS — Projects.jsx ===== */}
         <Route
           path="/:lang/projects"
           element={
@@ -227,6 +241,7 @@ export default function App() {
           }
         />
 
+        {/* ===== TRIAL — Console.jsx ===== */}
         <Route
           path="/:lang/console"
           element={
