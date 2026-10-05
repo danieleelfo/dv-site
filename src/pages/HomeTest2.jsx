@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import bgImage from '../assets/DataInFlames.jpg'
+import bgImage from '../assets/Faro.jpeg'
 
 const LELE_API_URL = 'https://api.danielevillanova.com'
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
@@ -819,7 +819,7 @@ const styles = {
     position: 'fixed',
     inset: 0,
     background:
-      'linear-gradient(180deg, rgba(8,12,18,0.75) 0%, rgba(8,12,18,0.92) 100%)',
+      'linear-gradient(180deg, rgba(8,12,18,0.25) 0%, rgba(8,12,18,0.40) 100%)',
     zIndex: 0,
     pointerEvents: 'none',
   },
