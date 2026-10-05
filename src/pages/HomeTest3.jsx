@@ -1195,7 +1195,7 @@ const styles = {
     position: "fixed",
     inset: 0,
     background:
-      "linear-gradient(180deg, rgba(5,10,14,.82) 0%, rgba(7,13,18,.91) 48%, rgba(4,8,12,.97) 100%)",
+      "linear-gradient(180deg, rgba(5,10,14,.20) 0%, rgba(7,13,18,.30) 48%, rgba(4,8,12,.40) 100%)",
     zIndex: 1,
   },
 
