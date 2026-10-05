@@ -30,7 +30,7 @@
 // ============================================================
 
 import { useState, useEffect, useRef } from "react";
-import bgImage from "../assets/DataInFlames.jpg";
+import bgImage from "../assets/B2B.jp3g";
 
 const API = "https://api.danielevillanova.com";
 
