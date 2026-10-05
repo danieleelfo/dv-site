@@ -44,8 +44,7 @@ export default function Nav() {
             <path d="M43 47 L32 56 Q29 59 32 62 L39 58 L37 51" stroke="#e0e8ec" strokeWidth="1.8" fill="none" strokeLinejoin="round" />
             <circle cx="43" cy="47" r="2.2" fill="#3fd0c9" />
 
-            {/* 
-Gamba basso destra */}
+            {/* Gamba basso destra */}
             <path d="M67 47 L78 56 Q81 59 78 62 L71 58 L73 51" stroke="#e0e8ec" strokeWidth="1.8" fill="none" strokeLinejoin="round" />
             <circle cx="67" cy="47" r="2.2" fill="#3fd0c9" />
           </svg>
@@ -55,12 +54,12 @@ Gamba basso destra */}
           <nav style={styles.links}>
             <Link to={lang ? "/" + lang : "/"} style={styles.link}>{t('nav.home')}</Link>
             <Link to={lang ? "/" + lang + "/projects" : "/projects"} style={styles.link}>{t('nav.projects')}</Link>
-            {/* AI Lab — Emergence Experiments (test) */}
-            <Link to="/test2" style={styles.link}>AI Lab</Link>
-            {/* Leles — console admin (test6) */}
-            <Link to="/test" style={styles.link}>Leles</Link>
-            {/* B2B — Bot to Bot (test4) */}
-            <Link to="/test3" style={styles.link}>B2B</Link>
+            {/* AI Lab — AI_Lab.jsx (sandbox: /test2) */}
+            <Link to={lang ? "/" + lang + "/ai-lab" : "/ai-lab"} style={styles.link}>AI Lab</Link>
+            {/* Leles — LeleAdmin.jsx */}
+            <Link to={lang ? "/" + lang + "/leles" : "/leles"} style={styles.link}>Leles</Link>
+            {/* B2B — B2B.jsx (sandbox: /test3) */}
+            <Link to={lang ? "/" + lang + "/b2b" : "/b2b"} style={styles.link}>B2B</Link>
             {/* Trial — console pubblica */}
             <Link to={lang ? "/" + lang + "/console" : "/console"} style={styles.link}>Trial</Link>
           </nav>
