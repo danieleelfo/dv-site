@@ -819,7 +819,7 @@ const styles = {
     position: 'fixed',
     inset: 0,
     background:
-      'linear-gradient(180deg, rgba(8,12,18,0.25) 0%, rgba(8,12,18,0.40) 100%)',
+      'linear-gradient(180deg, rgba(8,12,18,0.15) 0%, rgba(8,12,18,0.25) 100%)',
     zIndex: 0,
     pointerEvents: 'none',
   },
