@@ -289,7 +289,7 @@ async def bar_ai_ask(req: BarAIRequest | None = None):
         "user_id": req.user_id,
     }
 
-    async with httpx.AsyncClient(timeout=120.0) as client:
+    async with httpx.AsyncClient(timeout=300.0) as client:
         try:
             response = await client.post(
                 target_url,
