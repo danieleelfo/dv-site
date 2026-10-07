@@ -3,172 +3,315 @@ import { Link } from 'react-router-dom'
 import bgImage from '../assets/DataInFlames.jpg'
 import SystemTiles, { parseSystem } from '../components/SystemPanel'
 
-// ------------------------------------------------------------------
-// Dashboard "Sistema": parser del testo di `status sistema` + tessere.
-// ------------------------------------------------------------------
-const SYS_SECTIONS = {
-  'Projects': 'Progetti',
-  'Shared Services': 'Servizi',
-  'Models': 'Modelli',
+const LELE_API_URL = 'https://api.danielevillanova.com'
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
+const TOKEN_STORAGE_KEY = 'leles_admin_id_token'
+
+// --- TEST TEMPORANEO: whitelist email per accesso alla console -----------
+// TODO: rimuovere/estendere quando arriva il login Telegram con ADMIN_IDS.
+const ALLOWED_EMAILS = [
+  'dannybydanny@hotmail.com',
+  'salatinodenise@gmail.com',
+]
+// Forza il chat_id a un ADMIN_IDS di Leles, così i comandi riservati
+// al "capitano" funzionano anche dalla console web.
+const FORCED_ADMIN_CHAT_ID = 8733881519
+// ---------------------------------------------------------------------------
+
+// --- AUDIO: TTS + registrazione + risposta audio ---------------------------
+// Story Whisper e Night Story: API audio complete (/api/chat e /api/chat/audio).
+// Leles: console admin (login Google). Testo e TTS passano da /api/admin/chat.
+// ATTENZIONE: le due route qui sotto per audio in ingresso e file TTS sono
+// ASSUNTE (speculari a quelle pubbliche): da verificare lato gateway.
+const LELES_AGENT = 'Leles'
+const LELES_AUDIO_PATH = '/api/admin/chat/audio'
+const LELES_TTS_PATH = '/api/admin/chat/tts'
+const AUDIO_AGENTS = [
+  { value: 'Story Whisper', label: 'Story Whisper 🌈' },
+  { value: 'Night Story', label: 'Night Story 🌙' },
+  { value: LELES_AGENT, label: 'Leles 🏴‍☠️' },
+]
+const AUDIO_CHAT_ID_KEY = 'lele_chat_id'
+const AUDIO_LANGUAGE = 'it'
+const AUTO_SEND_RECORDING = true
+// ---------------------------------------------------------------------------
+
+// Pagine di test raggiungibili al volo.
+const QUICK_LINKS = [
+  { to: '/test3', label: 'Bot to bot'},
+  { to: '/test2', label: 'AI Lab' },
+  { to: '/test', label: 'Lele Admin', main: true  },
+  { to: '/test6', label: 'Test' },
+  { to: '/test4', label: 'Test 4' },
+  { to: '/test5', label: 'Test 5' },
+]
+
+// Comandi mostrati nel pannello di destra (si aggiornano con "Aggiorna").
+const STATUS_CMDS = [
+  ['sys', 'Sistema', 'status sistema'],
+  ['os', 'OS', 'status os'],
+  ['ram', 'RAM', 'status ram'],
+]
+
+const c = (label, command, hint, danger) => ({ label, command, hint, danger })
+
+const COMMAND_GROUPS = [
+  {
+    id: 'system', title: 'Sistema', icon: '⚙️', color: '#3fd0c9',
+    commands: [
+      c('Status sistema', 'status sistema'),
+      c('Status OS', 'status os'),
+      c('Status RAM', 'status ram'),
+      c('Status IP', 'status ip'),
+      c('Uvicorn status', 'uvicorn status'),
+      c('Telegram status', 'telegram status'),
+    ],
+  },
+  {
+    id: 'processi', title: 'Processi', icon: '🤖', color: '#fbbf24',
+    commands: [
+      c('Start Lele', 'start lele'),
+      c('Stop Lele', 'stop lele', undefined, true),
+      c('Restart Lele', 'restart lele', undefined, true),
+      c('Start Story Whisper', 'start story whisper'),
+      c('Stop Story Whisper', 'stop story whisper', undefined, true),
+      c('Restart Story Whisper', 'restart story whisper', undefined, true),
+      c('Start Night Story', 'start night story'),
+      c('Stop Night Story', 'stop night story', undefined, true),
+      c('Restart Night Story', 'restart night story', undefined, true),
+      c('Restart Gateway', 'restart gateway', undefined, true),
+      c('Logs Lele', 'logs lele'),
+      c('Logs Story Whisper', 'logs story whisper'),
+      c('Logs Night Story', 'logs night story'),
+      c('Logs Leles', 'logs leles'),
+    ],
+  },
+  {
+    id: 'airflow', title: 'Airflow', icon: '🌬️', color: '#38bdf8',
+    commands: [
+      c('Status Airflow', 'status airflow'),
+      c('Status DAG', 'status dag ', 'Opzionale: dag_id'),
+      c('Log task', 'log task ', 'dag_id task_id'),
+      c('Pausa DAG', 'pausa dag ', 'dag_id', true),
+      c('Attiva DAG', 'attiva dag ', 'dag_id'),
+      c('Lancia DAG', 'exec airflow lancia ', 'dag_id e conf se necessario', true),
+    ],
+  },
+  {
+    id: 'emergence', title: 'Emergence / QE', icon: '🧠', color: '#a78bfa',
+    commands: [
+      c('QE last 10', 'QE last 10'),
+      c('QE last 3', 'QE last 3'),
+      c('QE status', 'QE status ', 'run_id opzionale'),
+      c('Decisione', 'decisione ', 'run_id'),
+      c('Decisione run', 'decisione run ', 'run_id'),
+      c('Sintetizza', 'sintetizza ', 'run_id'),
+      c('Query worlds', 'query worlds'),
+      c('Query world', 'query world ', 'world id'),
+      c('Save world', 'save world ', 'nome as "descrizione"'),
+    ],
+  },
+  {
+    id: 'files', title: 'File', icon: '📁', color: '#4ade80',
+    commands: [
+      c('Directory leles', 'directory leles'),
+      c('LS', 'ls ', 'progetto [subpath]'),
+      c('Invia file', 'invia file ', 'path assoluto'),
+      c('Remoto test', 'remoto test'),
+      c('Remoto LS', 'remoto ls ', 'path'),
+      c('Remoto download', 'remoto download ', 'file'),
+      c('Remoto upload', 'remoto upload ', 'file', true),
+    ],
+  },
+  {
+    id: 'ai', title: 'AI / Code', icon: '✨', color: '#f472b6',
+    commands: [
+      c('Query', 'query ', 'Scrivi la query'),
+      c('Esporta', 'esporta ', 'record in formato yaml'),
+      c('Improve', 'improve ', 'file o richiesta'),
+      c('Verifica', 'verifica ', 'file o richiesta'),
+      c('Review', 'review ', 'file o richiesta'),
+      c('Gemma', 'gemma ', 'prompt'),
+      c('Llama', 'llama ', 'prompt'),
+    ],
+  },
+  {
+    id: 'modelli', title: 'Modelli e review', icon: '🎛️', color: '#c4b5fd',
+    commands: [
+      c('Modelli attivi', 'modelli'),
+      c('Cambia modello', 'modello ', 'nome (es. mistral)'),
+      c('Cambia reviewer', 'reviewer ', 'nome modello'),
+      c('Edita', 'edita'),
+      c('Roast', 'roast'),
+      c('Critica', 'critica'),
+      c('Pirata', 'pirata'),
+    ],
+  },
+  {
+    id: 'git', title: 'Git', icon: '🔀', color: '#fb923c',
+    commands: [
+      c('Status leles', 'status leles'),
+      c('Status gateway', 'status gateway'),
+      c('Diff leles', 'diff leles'),
+      c('Diff gateway', 'diff gateway'),
+      c('Pull report leles', 'pull report leles'),
+      c('Pull force leles', 'pull force leles', undefined, true),
+      c('Pull report gateway', 'pull report gateway'),
+      c('Pull force gateway', 'pull force gateway', undefined, true),
+      c('Ultimo commit leles', 'commit leles'),
+      c('Ultimo commit gateway', 'commit gateway'),
+    ],
+  },
+  {
+    id: 'leles', title: 'Leles', icon: '🏴‍☠️', color: '#e2e8f0',
+    commands: [
+      c('Restart Lelé', 'restart Lelé', undefined, true),
+      c('Export DAG', 'export dag ', 'filename'),
+      c('Crea DAG', 'crea dag ', 'Descrivi il DAG'),
+    ],
+  },
+]
+
+// Comandi che cambiano lo stato del sistema: chiedono una seconda conferma.
+const DANGER = COMMAND_GROUPS.flatMap((g) =>
+  g.commands.filter((x) => x.danger).map((x) => x.command.trim().toLowerCase())
+)
+const isDanger = (text) => {
+  const t = text.trim().toLowerCase()
+  return DANGER.some((d) => t.startsWith(d))
 }
 
-// Trasforma l'output testuale di "status sistema" in dati per le tessere.
-// Ritorna null se il formato non è riconosciuto (si ripiega sul testo).
-function parseSystem(text) {
-  if (!text) return null
-  const sections = []
-  let cur = null
-  let git = null
-  let inGit = false
-
-  for (const raw of text.split('\n')) {
-    const line = raw.trim()
-    if (!line || /^[\u2500-]+$/.test(line)) continue
-
-    if (SYS_SECTIONS[line]) {
-      cur = { title: SYS_SECTIONS[line], items: [] }
-      sections.push(cur)
-      inGit = false
-      continue
-    }
-    if (line === 'Git') {
-      git = { branch: '', status: '', clean: false, files: [] }
-      cur = null
-      inGit = true
-      continue
-    }
-
-    if (inGit && git) {
-      if (line.startsWith('Branch:')) git.branch = line.slice(7).trim()
-      else if (line.startsWith('Status:')) {
-        git.status = line.slice(7).trim()
-        git.clean = /clean/i.test(git.status)
-      } else git.files.push(line)
-      continue
-    }
-
-    const m = line.match(/^(✅|❌|🟢|⚪️|⚪)\s*(.+)$/u)
-    if (m && cur) {
-      const state = m[1] === '✅' || m[1] === '🟢' ? 'ok' : m[1] === '❌' ? 'bad' : 'off'
-      const nm = m[2].match(/^(.*?)\s*\((.+)\)$/)
-      cur.items.push({
-        label: (nm ? nm[1] : m[2]).replace(/_/g, ' '),
-        sub: nm ? nm[2] : '',
-        state,
-      })
-    }
+// chat_id anonimo e persistente per le API audio pubbliche.
+function getAudioChatId() {
+  try {
+    const stored = window.localStorage.getItem(AUDIO_CHAT_ID_KEY)
+    if (stored) return parseInt(stored, 10)
+    const newId = Math.floor(Math.random() * 9_000_000_000) + 1_000_000_000
+    window.localStorage.setItem(AUDIO_CHAT_ID_KEY, String(newId))
+    return newId
+  } catch (e) {
+    return Math.floor(Math.random() * 9_000_000_000) + 1_000_000_000
   }
-
-  // Leles è sempre su (è lui che risponde): il suo stato diventa quello
-  // dell'intestazione "Progetti" e il suo box viene tolto.
-  for (const sec of sections) {
-    if (sec.title === 'Progetti') {
-      const i = sec.items.findIndex((it) => /^leles$/i.test(it.label))
-      if (i >= 0) {
-        sec.head = sec.items[i].state
-        sec.items.splice(i, 1)
-      }
-    }
-  }
-
-  // Ollama: i modelli diventano sotto-box del suo riquadro (a tutta
-  // larghezza, in fondo ai servizi). Se Ollama non c'è, i modelli
-  // restano una sezione a parte.
-  const services = sections.find((sec) => sec.title === 'Servizi')
-  const models = sections.find((sec) => sec.title === 'Modelli')
-  const ollama = services?.items.find((it) => /^ollama$/i.test(it.label))
-  if (ollama && models) {
-    ollama.children = models.items
-    sections.splice(sections.indexOf(models), 1)
-    services.items.splice(services.items.indexOf(ollama), 1)
-    services.items.push(ollama)
-  }
-
-  const filled = sections.filter((sec) => sec.items.length > 0)
-  if (filled.length === 0) return null
-  return { sections: filled, git }
 }
 
-// Schemino a quadratini: verde = su, rosso = giù, grigio = non caricato.
-function SystemTiles({ data }) {
-  const label = { ok: 'attivo', bad: 'non attivo', off: 'non caricato' }
-  return (
-    <div className="lc-sys">
-      {data.sections.map((sec) => {
-        const up = sec.items.filter((i) => i.state === 'ok').length
-        return (
-          <div key={sec.title} className="lc-sys-sec">
-            <div className="lc-sys-title">
-              <span
-                className={`lc-sys-name${sec.head ? ` is-${sec.head}` : ''}`}
-                title={sec.head ? `Leles: ${label[sec.head]}` : undefined}
-              >
-                {sec.title}
-                {sec.head && <span className="lc-sr"> (Leles {label[sec.head]})</span>}
-              </span>
-              <span>
-                {up}/{sec.items.length}
-              </span>
-            </div>
-            <div className="lc-tiles">
-              {sec.items.map((it) =>
-                it.children ? (
-                  <div
-                    key={it.label}
-                    className={`lc-tile lc-tile--wide is-${it.state}`}
-                    title={`${it.label}: ${label[it.state]}`}
-                  >
-                    <b>{it.label}</b>
-                    <span className="lc-sr">{label[it.state]}</span>
-                    <div className="lc-subs">
-                      {it.children.map((m) => (
-                        <span
-                          key={m.label}
-                          className={`lc-sub is-${m.state}`}
-                          title={`${m.label}: ${label[m.state]}`}
-                        >
-                          {m.label}
-                          <span className="lc-sr"> {label[m.state]}</span>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div
-                    key={it.label}
-                    className={`lc-tile is-${it.state}`}
-                    title={`${it.label}${it.sub ? ` (${it.sub})` : ''}: ${label[it.state]}`}
-                  >
-                    <b>{it.label}</b>
-                    {it.sub && <small>{it.sub}</small>}
-                    <span className="lc-sr">{label[it.state]}</span>
-                  </div>
-                )
-              )}
-            </div>
-          </div>
-        )
-      })}
-
-      {data.git && (
-        <div className="lc-sys-sec">
-          <div className="lc-sys-title">
-            <span>Git</span>
-          </div>
-          <div className="lc-sys-git">
-            {data.git.branch && <span className="lc-badge">{data.git.branch}</span>}
-            <span
-              className={`lc-badge ${data.git.clean ? 'is-ok' : 'is-warn'}`}
-              title={data.git.files.join('\n') || undefined}
-            >
-              {data.git.clean ? 'Clean' : data.git.status.replace(/^⚠️\s*/, '')}
-            </span>
-          </div>
-        </div>
-      )}
-    </div>
-  )
+const extractFilename = (value) => {
+  if (!value || typeof value !== 'string') return null
+  return value.split(/[/\\]/).pop() || null
 }
+
+const audioText = (data) => {
+  if (data.answer) return data.answer
+  if (data.error) return data.error
+  if (data.detail) {
+    return typeof data.detail === 'string'
+      ? data.detail
+      : JSON.stringify(data.detail, null, 2)
+  }
+  return 'Nessuna risposta ricevuta'
+}
+
+function formatTime(seconds) {
+  if (!seconds || isNaN(seconds)) return '00:00'
+  const m = Math.floor(seconds / 60)
+  const sec = Math.floor(seconds % 60)
+  return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
+}
+
+function decodeJwtPayload(token) {
+  try {
+    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+    return JSON.parse(decodeURIComponent(escape(window.atob(base64))))
+  } catch (e) {
+    return null
+  }
+}
+
+async function callAdmin(idToken, prompt, timeoutMs = 310000) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetch(`${LELE_API_URL}/api/admin/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`,
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        prompt,
+        language: 'en',
+        chat_id: FORCED_ADMIN_CHAT_ID,
+      }),
+    })
+
+    if (res.status === 401 || res.status === 403) {
+      const err = new Error(
+        res.status === 401
+          ? 'Sessione scaduta, effettua di nuovo il login.'
+          : 'Accesso non autorizzato per questo account Google. 🏴‍☠️'
+      )
+      err.status = res.status
+      throw err
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+
+    const data = await res.json()
+    if (data.answer) return data.answer
+    if (data.error) return data.error
+    if (data.detail) {
+      return typeof data.detail === 'string'
+        ? data.detail
+        : JSON.stringify(data.detail, null, 2)
+    }
+    return 'Nessuna risposta ricevuta'
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      throw new Error('Timeout: il server non ha risposto in tempo. 😵‍💫')
+    }
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+// Chiamata admin generica (JSON o FormData) che restituisce il JSON grezzo.
+async function adminJson(idToken, path, init = {}, timeoutMs = 310000) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetch(`${LELE_API_URL}${path}`, {
+      ...init,
+      headers: { ...(init.headers || {}), Authorization: `Bearer ${idToken}` },
+      signal: controller.signal,
+    })
+    if (res.status === 401 || res.status === 403) {
+      const err = new Error(
+        res.status === 401
+          ? 'Sessione scaduta, effettua di nuovo il login.'
+          : 'Accesso non autorizzato per questo account Google. 🏴‍☠️'
+      )
+      err.status = res.status
+      throw err
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+    return await res.json()
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      throw new Error('Timeout: il server non ha risposto in tempo. 😵‍💫')
+    }
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const timeLabel = (ts) =>
+  new Date(ts).toLocaleTimeString('it-IT', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+
 
 export default function ConsoleTest() {
   const [idToken, setIdToken] = useState(() => {
