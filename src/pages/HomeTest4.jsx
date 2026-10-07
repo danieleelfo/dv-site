@@ -6,6 +6,7 @@
 //   - Night Story (8 generi da prompts/genre_*.txt)
 //   - Story Whisper (nessun genere)
 //   - Leles (orchestratore)
+//   - Super-Leles
 //   - QE / Emergence (12 ruoli dal DB)
 //
 // Modalità N partecipanti (2..12), round-robin.
@@ -15,6 +16,13 @@
 //   POST /api/agent-arena/start    -> { run_id }        (Google auth)
 //   GET  /api/agent-arena/{run_id} -> { status, turns } (aperto)
 //   POST /api/agent-arena/{run_id}/stop                 (Google auth)
+//   POST /api/agent-arena/{run_id}/hand                 (Google auth)
+//   POST /api/agent-arena/{run_id}/intervene            (Google auth)
+//
+// RAISE HAND: durante un run l'umano alza la mano; il turno in corso
+// finisce, il run va in PAUSED e si può scrivere un messaggio che il
+// prossimo bot legge insieme all'ultima risposta. Il GET restituisce
+// anche hand_raised. I turni umani arrivano con agent === "human".
 //
 // AUTH: login Google (Google Identity Services) direttamente in pagina.
 // Il GOOGLE_CLIENT_ID deve essere LO STESSO del gateway
@@ -23,7 +31,7 @@
 // ============================================================
 
 import { useState, useEffect, useRef } from "react";
-import bgImage from "../assets/DataInFlames.jpg";
+import bgImage from "../assets/B2B.jpeg";
 
 const API = "https://api.danielevillanova.com";
 
@@ -34,6 +42,9 @@ const TOKEN_STORAGE_KEY = "arena_google_id_token";
 
 // Deve combaciare con MAX_TOTAL_MESSAGES del gateway.
 const MAX_TOTAL_MESSAGES = 120;
+
+// Deve combaciare con MAX_HUMAN_CHARS del gateway.
+const MAX_HUMAN_CHARS = 2000;
 
 // ============================================================
 // GOOGLE AUTH
@@ -163,6 +174,7 @@ const AGENTS = [
   { id: "night_story", label: "Night Story", port: 8666, hasCharacters: true },
   { id: "story_whisper", label: "Story Whisper", port: 8088, hasCharacters: false },
   { id: "leles", label: "Leles", port: 8082, hasCharacters: false },
+  { id: "super_leles", label: "Super-Leles", port: 8082, hasCharacters: false },
   { id: "qe", label: "QE (Emergence)", port: 8082, hasCharacters: false, hasRoles: true },
 ];
 
@@ -194,7 +206,7 @@ const QE_ROLES = [
   "Explorer",
 ];
 
-const LLM_MODELS = ["gemma4", "llama3", "mistral", "qwen2.5", "deepseek-r1"];
+const LLM_MODELS = ["gemma4", "llama3", "mistral", "qwen2.5", "deepseek-r1", "qwen2.5-coder:7b", "gpt-oss:20b"];
 
 const CHARACTER_EMOJI = {
   horror: "💀",
@@ -226,6 +238,7 @@ const AGENT_EMOJI = {
   night_story: "🌙",
   story_whisper: "🌬️",
   leles: "🏴‍☠️",
+  super_leles: "🧠",
   qe: "🌱",
 };
 
@@ -242,7 +255,7 @@ const DEFAULT_PARTICIPANT = {
 const DEFAULT_CFG = {
   participants: [
     { ...DEFAULT_PARTICIPANT },
-    { agent: "qe", character: "", role: "Critic", model: "qwen2.5" },
+    { agent: "qe", character: "", role: "Planner", model: "mistral" },
   ],
   world_source: "free",
   world_ref: "",
@@ -262,6 +275,11 @@ export default function ProjectTest() {
   const [startError, setStartError] = useState("");
   const [notice, setNotice] = useState("");
   const convRef = useRef(null);
+
+  // Raise hand
+  const [humanText, setHumanText] = useState("");
+  const [handBusy, setHandBusy] = useState(false);
+  const [handError, setHandError] = useState("");
 
   const { idToken, email, buttonRef, logout } = useGoogleAuth();
 
@@ -284,7 +302,7 @@ export default function ProjectTest() {
             ...current,
             participants: [
               ...current.participants,
-              { ...DEFAULT_PARTICIPANT, agent: "leles", character: "", model: "gemma4" },
+              { ...DEFAULT_PARTICIPANT, agent: "leles", character: "", model: "llama3" },
             ],
           }
     );
@@ -377,6 +395,8 @@ export default function ProjectTest() {
       if (result.run_id) {
         setRunId(result.run_id);
         setNotice("");
+        setHumanText("");
+        setHandError("");
         setData({ status: "RUNNING", turns: [] });
       }
     } catch (error) {
@@ -410,6 +430,97 @@ export default function ProjectTest() {
     } catch (error) {
       console.error("Agent Arena stop error:", error);
       setNotice("Impossibile contattare il gateway per lo stop.");
+    }
+  };
+
+  // ---- RAISE HAND ----
+  // Il turno in corso finisce, poi il gateway mette il run in PAUSED.
+  const raiseHand = async () => {
+    if (!runId || handBusy) return;
+    setNotice("");
+    setHandError("");
+
+    if (!idToken) {
+      setNotice("Sessione scaduta: accedi di nuovo per intervenire.");
+      return;
+    }
+
+    setHandBusy(true);
+    try {
+      const response = await fetch(`${API}/api/agent-arena/${runId}/hand`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+
+      const result = await response.json().catch(() => ({}));
+
+      if (response.status === 401 || response.status === 403) {
+        logout();
+        setNotice("Sessione scaduta: accedi di nuovo per intervenire.");
+        return;
+      }
+
+      if (!response.ok) throw new Error(readError(result, "Gateway error"));
+
+      setData((current) => ({ ...current, hand_raised: true }));
+    } catch (error) {
+      console.error("Agent Arena hand error:", error);
+      setHandError(error?.message || "Impossibile alzare la mano.");
+    } finally {
+      setHandBusy(false);
+    }
+  };
+
+  // ---- INTERVENE ----
+  // withText = true  -> invia il messaggio e riprende
+  // withText = false -> riprende senza scrivere
+  const sendIntervention = async (withText) => {
+    if (!runId || handBusy) return;
+    setNotice("");
+    setHandError("");
+
+    if (!idToken) {
+      setNotice("Sessione scaduta: accedi di nuovo per intervenire.");
+      return;
+    }
+
+    const text = withText ? humanText.trim() : "";
+
+    setHandBusy(true);
+    try {
+      const response = await fetch(
+        `${API}/api/agent-arena/${runId}/intervene`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({ text }),
+        }
+      );
+
+      const result = await response.json().catch(() => ({}));
+
+      if (response.status === 401 || response.status === 403) {
+        logout();
+        setNotice("Sessione scaduta: accedi di nuovo per intervenire.");
+        return;
+      }
+
+      if (!response.ok) throw new Error(readError(result, "Gateway error"));
+
+      setHumanText("");
+      setData((current) => ({
+        ...current,
+        status: "RUNNING",
+        hand_raised: false,
+      }));
+    } catch (error) {
+      console.error("Agent Arena intervene error:", error);
+      setHandError(error?.message || "Impossibile inviare l'intervento.");
+    } finally {
+      setHandBusy(false);
     }
   };
 
@@ -448,13 +559,24 @@ export default function ProjectTest() {
     setRunId(null);
     setStartError("");
     setNotice("");
+    setHumanText("");
+    setHandError("");
     setData({ status: "IDLE", turns: [] });
   };
 
   const running = data.status === "RUNNING";
+  const paused = data.status === "PAUSED";
+  const active = running || paused;
+
+  // I turni umani non contano nel limite di messaggi dei bot.
+  const botTurns = data.turns.filter((turn) => turn.agent !== "human").length;
+  const humanTurns = data.turns.length - botTurns;
 
   // ---- HELPERS ----
   const getTurnIdentity = (turn) => {
+    if (turn.agent === "human") {
+      return { emoji: "🙋", identity: "You" };
+    }
     const emoji = turn.character
       ? CHARACTER_EMOJI[turn.character] || "🤖"
       : turn.role
@@ -660,13 +782,38 @@ export default function ProjectTest() {
                   <span>{data.status}</span>
                   <span style={styles.statusSeparator}>·</span>
                   <span>
-                    {data.turns.length} / {totalMessages} messages
+                    {botTurns} / {totalMessages} messages
                   </span>
+                  {humanTurns > 0 && (
+                    <>
+                      <span style={styles.statusSeparator}>·</span>
+                      <span>{humanTurns} from you</span>
+                    </>
+                  )}
                 </div>
                 {notice && <div style={styles.noticeText}>{notice}</div>}
+                {handError && !paused && (
+                  <div style={styles.noticeText}>{handError}</div>
+                )}
               </div>
               <div style={styles.liveActions}>
                 {running && (
+                  <button
+                    onClick={raiseHand}
+                    disabled={handBusy || data.hand_raised}
+                    style={{
+                      ...styles.handButton,
+                      opacity: handBusy || data.hand_raised ? 0.6 : 1,
+                      cursor:
+                        handBusy || data.hand_raised
+                          ? "not-allowed"
+                          : "pointer",
+                    }}
+                  >
+                    {data.hand_raised ? "✋ HAND RAISED" : "✋ RAISE HAND"}
+                  </button>
+                )}
+                {active && (
                   <button onClick={stop} style={styles.stopButton}>
                     ⏹ STOP
                   </button>
@@ -732,42 +879,64 @@ export default function ProjectTest() {
                   </div>
                 </div>
                 {running && <div style={styles.liveBadge}>● LIVE</div>}
+                {paused && <div style={styles.liveBadge}>✋ PAUSED</div>}
               </div>
               <div ref={convRef} style={styles.conversation}>
                 {data.turns.map((turn, index) => {
                   const { emoji, identity } = getTurnIdentity(turn);
+                  const isHuman = turn.agent === "human";
                   const isEven = (turn.idx ?? index) % 2 === 0;
                   return (
                     <div
                       key={turn.id || index}
                       style={{
                         ...styles.messageRow,
-                        justifyContent: isEven ? "flex-start" : "flex-end",
+                        justifyContent: isHuman
+                          ? "center"
+                          : isEven
+                            ? "flex-start"
+                            : "flex-end",
                       }}
                     >
                       <div
                         style={{
                           ...styles.message,
-                          ...(isEven ? styles.messageA : styles.messageB),
+                          ...(isHuman
+                            ? styles.messageHuman
+                            : isEven
+                              ? styles.messageA
+                              : styles.messageB),
                         }}
                       >
                         <div style={styles.messageMeta}>
                           <span style={styles.messageIdentity}>
-                            {emoji} {identity} · P{(turn.idx ?? 0) + 1}
+                            {isHuman
+                              ? `${emoji} ${identity}`
+                              : `${emoji} ${identity} · P${(turn.idx ?? 0) + 1}`}
                           </span>
-                          <span style={styles.messageModel}>{turn.model}</span>
+                          <span style={styles.messageModel}>
+                            {isHuman ? "human" : turn.model}
+                          </span>
                         </div>
                         <div style={styles.messageText}>{turn.text}</div>
                       </div>
                     </div>
                   );
                 })}
-                {running && (
+                {running && !data.hand_raised && (
                   <div style={styles.thinking}>
                     <span>●</span>
                     <span>●</span>
                     <span>●</span>
                     <em>agents are thinking...</em>
+                  </div>
+                )}
+                {running && data.hand_raised && (
+                  <div style={styles.thinking}>
+                    <span>✋</span>
+                    <em>
+                      hand raised — the run pauses when the current turn ends...
+                    </em>
                   </div>
                 )}
                 {data.status === "ERROR" && (
@@ -786,6 +955,72 @@ export default function ProjectTest() {
                   <div style={styles.stoppedBox}>⏹ Experiment stopped</div>
                 )}
               </div>
+
+              {/* HUMAN INTERVENTION (solo con il run in pausa) */}
+              {paused && (
+                <div style={styles.humanPanel}>
+                  <div style={styles.humanTitle}>
+                    ✋ RUN PAUSED — YOUR TURN
+                  </div>
+                  <div style={styles.humanHint}>
+                    The next agent reads your message together with the last
+                    answer.
+                  </div>
+                  <textarea
+                    style={{ ...styles.textarea, minHeight: 80 }}
+                    placeholder="Write something for the next agent..."
+                    value={humanText}
+                    maxLength={MAX_HUMAN_CHARS}
+                    disabled={handBusy}
+                    onChange={(event) => setHumanText(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (
+                        event.key === "Enter" &&
+                        (event.ctrlKey || event.metaKey) &&
+                        humanText.trim()
+                      ) {
+                        sendIntervention(true);
+                      }
+                    }}
+                  />
+                  {handError && (
+                    <div style={{ ...styles.noticeText, marginBottom: 10 }}>
+                      {handError}
+                    </div>
+                  )}
+                  <div style={styles.humanActions}>
+                    <span style={styles.humanCounter}>
+                      {humanText.length} / {MAX_HUMAN_CHARS}
+                    </span>
+                    <button
+                      onClick={() => sendIntervention(false)}
+                      disabled={handBusy}
+                      style={{
+                        ...styles.resetButton,
+                        opacity: handBusy ? 0.6 : 1,
+                        cursor: handBusy ? "wait" : "pointer",
+                      }}
+                    >
+                      RESUME WITHOUT MESSAGE
+                    </button>
+                    <button
+                      onClick={() => sendIntervention(true)}
+                      disabled={handBusy || !humanText.trim()}
+                      style={{
+                        ...styles.handButton,
+                        opacity: handBusy || !humanText.trim() ? 0.55 : 1,
+                        cursor: handBusy
+                          ? "wait"
+                          : !humanText.trim()
+                            ? "not-allowed"
+                            : "pointer",
+                      }}
+                    >
+                      {handBusy ? "SENDING..." : "SEND & RESUME"}
+                    </button>
+                  </div>
+                </div>
+              )}
             </section>
           </>
         )}
@@ -963,7 +1198,7 @@ const styles = {
     position: "fixed",
     inset: 0,
     background:
-      "linear-gradient(180deg, rgba(5,10,14,.82) 0%, rgba(7,13,18,.91) 48%, rgba(4,8,12,.97) 100%)",
+      "linear-gradient(180deg, rgba(5,10,14,.20) 0%, rgba(7,13,18,.30) 48%, rgba(4,8,12,.40) 100%)",
     zIndex: 1,
   },
 
@@ -1338,6 +1573,18 @@ const styles = {
     cursor: "pointer",
   },
 
+  // Raise hand: stesso formato dei bottoni live, tono ambra.
+  handButton: {
+    border: "1px solid #6b5a3a",
+    background: "#241f14",
+    color: "#e5d3a8",
+    borderRadius: 999,
+    padding: "10px 15px",
+    fontSize: 11,
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+
   resetButton: {
     border: "1px solid #344853",
     background: "#121c23",
@@ -1473,6 +1720,13 @@ const styles = {
     borderBottomRightRadius: 4,
   },
 
+  // Messaggio umano (raise hand): centrato, tono ambra.
+  messageHuman: {
+    background:
+      "linear-gradient(145deg, rgba(38,32,20,.95), rgba(26,22,14,.95))",
+    border: "1px solid #6b5a3a",
+  },
+
   messageMeta: {
     display: "flex",
     alignItems: "center",
@@ -1507,6 +1761,42 @@ const styles = {
     color: "#71838d",
     fontSize: 12,
     padding: "4px 2px",
+  },
+
+  // Pannello di intervento umano (run in PAUSED).
+  humanPanel: {
+    padding: 20,
+    borderTop: "1px solid #3d3626",
+    background: "rgba(28,24,15,.9)",
+  },
+
+  humanTitle: {
+    fontSize: 11,
+    fontWeight: 750,
+    letterSpacing: "1.6px",
+    color: "#e5d3a8",
+    marginBottom: 5,
+  },
+
+  humanHint: {
+    fontSize: 12,
+    color: "#9c8f6c",
+    marginBottom: 12,
+  },
+
+  humanActions: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    flexWrap: "wrap",
+    gap: 8,
+    marginTop: 12,
+  },
+
+  humanCounter: {
+    marginRight: "auto",
+    fontSize: 11,
+    color: "#7d7358",
   },
 
   errorBox: {
