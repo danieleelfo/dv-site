@@ -7,6 +7,7 @@ const SYS_SECTIONS = {
   'Projects': 'Progetti',
   'Shared Services': 'Servizi',
   'Models': 'Modelli',
+  'B2B Arena': 'B2B Arena',
 }
 
 // Trasforma l'output testuale di "status sistema" in dati per le tessere.
