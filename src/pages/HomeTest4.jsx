@@ -712,7 +712,7 @@ export default function ProjectTest() {
                     setField("max_turns", Number(event.target.value))
                   }
                 >
-                  {[5, 10, 20, 50].map((number) => (
+                  {[1, 2, 3, 5, 10, 13, 20].map((number) => (
                     <option key={number} value={number}>
                       {number}
                     </option>
