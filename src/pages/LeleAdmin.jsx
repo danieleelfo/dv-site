@@ -1424,18 +1424,17 @@ const css = `
 .lc-sys-title{display:flex;justify-content:space-between;font-size:10px;letter-spacing:.08em;text-transform:uppercase;
   color:var(--ink-dim);margin-bottom:5px}
 .lc-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
-.lc-ollama-rows{display:flex;flex-direction:column}
-.lc-ollama-row{display:flex;align-items:center;justify-content:space-between;gap:10px;
-  padding:5px 2px;border-bottom:1px solid var(--line);color:var(--ink)}
-.lc-ollama-row:last-child{border-bottom:0}
-.lc-ollama-label{min-width:0}
-.lc-ollama-row b{font-size:10.5px;font-weight:650}
-.lc-ollama-row small{display:block;font-size:9.5px;color:var(--ink-dim)}
-.lc-ollama-row>span{font-size:9.5px;color:var(--ok);white-space:nowrap}
-.lc-ollama-row.is-bad>span{color:var(--bad)}
-.lc-ollama-row.is-warn>span{color:var(--warn)}
-.lc-ollama-row.is-off>span{color:var(--ink-dim)}
-.lc-tile{position:relative;display:flex;flex-direction:column;justify-content:center;gap:1px;min-height:38px;
+.lc-ollama-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
+.lc-ollama-box{position:relative;display:flex;align-items:center;min-height:38px;
+  padding:5px 12px 5px 8px;border-radius:8px;border:1px solid rgba(74,222,128,.4);
+  background:rgba(74,222,128,.1);line-height:1.2;word-break:break-word;color:var(--ok)}
+.lc-ollama-box::after{content:'';position:absolute;top:6px;right:6px;width:5px;height:5px;
+  border-radius:50%;background:currentColor}
+.lc-ollama-box b{font-size:10.5px;font-weight:650}
+.lc-ollama-wide{grid-column:1/-1}
+.lc-ollama-box.is-bad{color:var(--bad);background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.45)}
+.lc-ollama-box.is-warn{color:var(--warn);background:rgba(251,191,36,.1);border-color:rgba(251,191,36,.45)}
+.lc-ollama-box.is-off{color:var(--ink-dim);opacity:.8}.lc-tile{position:relative;display:flex;flex-direction:column;justify-content:center;gap:1px;min-height:38px;
   padding:5px 12px 5px 8px;border-radius:8px;border:1px solid var(--line);background:rgba(255,255,255,.04);
   line-height:1.2;word-break:break-word;color:var(--ink-dim)}
 .lc-tile::after{content:'';position:absolute;top:6px;right:6px;width:5px;height:5px;border-radius:50%;background:currentColor}

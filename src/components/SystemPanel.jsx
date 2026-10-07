@@ -37,8 +37,9 @@ function parseSystem(text) {
     }
 
     if (inGit && git) {
-      if (line.startsWith('Branch:')) git.branch = line.slice(7).trim()
-      else if (line.startsWith('Status:')) {
+      if (line.startsWith('Branch:')) {
+        git.branch = line.slice(7).trim()
+      } else if (line.startsWith('Status:')) {
         git.status = line.slice(7).trim()
         git.clean = /clean/i.test(git.status)
       } else {
@@ -96,6 +97,10 @@ function parseSystem(text) {
     if (ollamaIndex >= 0) {
       services.items.splice(ollamaIndex, 1)
       models.title = 'Ollama'
+
+      // I 3 gruppi di modelli sono tutti alimentati da Ollama.
+      // Lo stato viene mantenuto sugli item; non mostriamo
+      // "Leles attivo" nell'intestazione Ollama.
     }
   }
 
@@ -118,8 +123,60 @@ function SystemTiles({ data }) {
   return (
     <div className="lc-sys">
       {data.sections.map((sec) => {
-        const up = sec.items.filter((i) => i.state === 'ok').length
         const isOllama = sec.title === 'Ollama'
+
+        // Per Ollama vogliamo 7 box:
+        // 1. Gemma4
+        // 2. Llama3
+        // 3. Qwen2.5
+        // 4. Deepseek-R1
+        // 5. Mistral
+        // 6. Qwen Coder
+        // 7. Superleles available only: GPT-OSS
+        //
+        // Il backend continua a fornire i modelli raggruppati in 3 righe.
+        // Qui li spacchettiamo solo per la visualizzazione.
+
+        let ollamaItems = []
+
+        if (isOllama) {
+          const baseModels = [
+            ['Gemma4', 'Llama3', 'Qwen2.5'],
+            ['Deepseek-R1', 'Mistral', 'Qwen Coder'],
+          ]
+
+          const states = sec.items.reduce((acc, item) => {
+            const names = item.label.split(' · ')
+
+            names.forEach((name) => {
+              acc[name] = item.state
+            })
+
+            return acc
+          }, {})
+
+          for (const name of baseModels.flat()) {
+            ollamaItems.push({
+              label: name,
+              state: states[name] || 'off',
+              sub: '',
+            })
+          }
+
+          const gpt = sec.items.find((item) =>
+            /^GPT-OSS$/i.test(item.label)
+          )
+
+          ollamaItems.push({
+            label: 'Superleles available only: GPT-OSS',
+            state: gpt?.state || 'off',
+            sub: '',
+            wide: true,
+          })
+        }
+
+        const displayItems = isOllama ? ollamaItems : sec.items
+        const up = displayItems.filter((i) => i.state === 'ok').length
 
         return (
           <div key={sec.title} className="lc-sys-sec">
@@ -138,23 +195,21 @@ function SystemTiles({ data }) {
               </span>
 
               <span>
-                {up}/{sec.items.length}
+                {isOllama ? `${up}/${displayItems.length}` : `${up}/${displayItems.length}`}
               </span>
             </div>
 
             {isOllama ? (
-              <div className="lc-ollama-rows">
-                {sec.items.map((it) => (
+              <div className="lc-ollama-grid">
+                {ollamaItems.map((it) => (
                   <div
                     key={it.label}
-                    className={`lc-ollama-row is-${it.state}`}
+                    className={`lc-ollama-box is-${it.state}${
+                      it.wide ? ' lc-ollama-wide' : ''
+                    }`}
+                    title={it.label}
                   >
-                    <div className="lc-ollama-label">
-                      <b>{it.label}</b>
-                      {it.sub && <small>{it.sub}</small>}
-                    </div>
-
-                    <span>{label[it.state]}</span>
+                    <b>{it.label}</b>
                   </div>
                 ))}
               </div>
