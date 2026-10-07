@@ -68,19 +68,6 @@ function parseSystem(text) {
     }
   }
 
-  // Ollama: i modelli diventano sotto-box del suo riquadro (a tutta
-  // larghezza, in fondo ai servizi). Se Ollama non c'è, i modelli
-  // restano una sezione a parte.
-  const services = sections.find((sec) => sec.title === 'Servizi')
-  const models = sections.find((sec) => sec.title === 'Modelli')
-  const ollama = services?.items.find((it) => /^ollama$/i.test(it.label))
-  if (ollama && models) {
-    ollama.children = models.items
-    sections.splice(sections.indexOf(models), 1)
-    services.items.splice(services.items.indexOf(ollama), 1)
-    services.items.push(ollama)
-  }
-
   const filled = sections.filter((sec) => sec.items.length > 0)
   if (filled.length === 0) return null
   return { sections: filled, git }
