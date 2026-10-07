@@ -28,6 +28,7 @@ function parseSystem(text) {
       inGit = false
       continue
     }
+
     if (line === 'Git') {
       git = { branch: '', status: '', clean: false, files: [] }
       cur = null
@@ -40,14 +41,26 @@ function parseSystem(text) {
       else if (line.startsWith('Status:')) {
         git.status = line.slice(7).trim()
         git.clean = /clean/i.test(git.status)
-      } else git.files.push(line)
+      } else {
+        git.files.push(line)
+      }
       continue
     }
 
     const m = line.match(/^(✅|❌|🟢|⚠️|⚪️|⚪)\s*(.+)$/u)
+
     if (m && cur) {
-      const state = m[1] === '✅' || m[1] === '🟢' ? 'ok' : m[1] === '❌' ? 'bad' : m[1] === '⚠️' ? 'warn' : 'off'
+      const state =
+        m[1] === '✅' || m[1] === '🟢'
+          ? 'ok'
+          : m[1] === '❌'
+            ? 'bad'
+            : m[1] === '⚠️'
+              ? 'warn'
+              : 'off'
+
       const nm = m[2].match(/^(.*?)\s*\((.+)\)$/)
+
       cur.items.push({
         label: (nm ? nm[1] : m[2]).replace(/_/g, ' '),
         sub: nm ? nm[2] : '',
@@ -61,6 +74,7 @@ function parseSystem(text) {
   for (const sec of sections) {
     if (sec.title === 'Progetti') {
       const i = sec.items.findIndex((it) => /^leles$/i.test(it.label))
+
       if (i >= 0) {
         sec.head = sec.items[i].state
         sec.items.splice(i, 1)
@@ -68,18 +82,45 @@ function parseSystem(text) {
     }
   }
 
+  // Ollama è una sezione separata.
+  // Il servizio Ollama viene tolto da "Servizi" e la sezione
+  // "Modelli" viene rinominata "Ollama".
+  const services = sections.find((sec) => sec.title === 'Servizi')
+  const models = sections.find((sec) => sec.title === 'Modelli')
+
+  if (services && models) {
+    const ollamaIndex = services.items.findIndex(
+      (it) => /^ollama$/i.test(it.label)
+    )
+
+    if (ollamaIndex >= 0) {
+      services.items.splice(ollamaIndex, 1)
+      models.title = 'Ollama'
+    }
+  }
+
   const filled = sections.filter((sec) => sec.items.length > 0)
+
   if (filled.length === 0) return null
+
   return { sections: filled, git }
 }
 
 // Schemino a quadratini: verde = su, rosso = giù, grigio = non caricato.
 function SystemTiles({ data }) {
-  const label = { ok: 'attivo', bad: 'non attivo', warn: 'parziale', off: 'non caricato' }
+  const label = {
+    ok: 'attivo',
+    bad: 'non attivo',
+    warn: 'parziale',
+    off: 'non caricato',
+  }
+
   return (
     <div className="lc-sys">
       {data.sections.map((sec) => {
         const up = sec.items.filter((i) => i.state === 'ok').length
+        const isOllama = sec.title === 'Ollama'
+
         return (
           <div key={sec.title} className="lc-sys-sec">
             <div className="lc-sys-title">
@@ -88,48 +129,79 @@ function SystemTiles({ data }) {
                 title={sec.head ? `Leles: ${label[sec.head]}` : undefined}
               >
                 {sec.title}
-                {sec.head && <span className="lc-sr"> (Leles {label[sec.head]})</span>}
+                {sec.head && (
+                  <span className="lc-sr">
+                    {' '}
+                    (Leles {label[sec.head]})
+                  </span>
+                )}
               </span>
+
               <span>
                 {up}/{sec.items.length}
               </span>
             </div>
-            <div className="lc-tiles">
-              {sec.items.map((it) =>
-                it.children ? (
+
+            {isOllama ? (
+              <div className="lc-ollama-rows">
+                {sec.items.map((it) => (
                   <div
                     key={it.label}
-                    className={`lc-tile lc-tile--wide is-${it.state}`}
-                    title={`${it.label}: ${label[it.state]}`}
+                    className={`lc-ollama-row is-${it.state}`}
                   >
-                    <b>{it.label}</b>
-                    <span className="lc-sr">{label[it.state]}</span>
-                    <div className="lc-subs">
-                      {it.children.map((m) => (
-                        <span
-                          key={m.label}
-                          className={`lc-sub is-${m.state}`}
-                          title={`${m.label}: ${label[m.state]}`}
-                        >
-                          {m.label}
-                          <span className="lc-sr"> {label[m.state]}</span>
-                        </span>
-                      ))}
+                    <div className="lc-ollama-label">
+                      <b>{it.label}</b>
+                      {it.sub && <small>{it.sub}</small>}
                     </div>
+
+                    <span>{label[it.state]}</span>
                   </div>
-                ) : (
-                  <div
-                    key={it.label}
-                    className={`lc-tile is-${it.state}`}
-                    title={`${it.label}${it.sub ? ` (${it.sub})` : ''}: ${label[it.state]}`}
-                  >
-                    <b>{it.label}</b>
-                    {it.sub && <small>{it.sub}</small>}
-                    <span className="lc-sr">{label[it.state]}</span>
-                  </div>
-                )
-              )}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="lc-tiles">
+                {sec.items.map((it) =>
+                  it.children ? (
+                    <div
+                      key={it.label}
+                      className={`lc-tile lc-tile--wide is-${it.state}`}
+                      title={`${it.label}: ${label[it.state]}`}
+                    >
+                      <b>{it.label}</b>
+                      <span className="lc-sr">{label[it.state]}</span>
+
+                      <div className="lc-subs">
+                        {it.children.map((m) => (
+                          <span
+                            key={m.label}
+                            className={`lc-sub is-${m.state}`}
+                            title={`${m.label}: ${label[m.state]}`}
+                          >
+                            {m.label}
+                            <span className="lc-sr">
+                              {' '}
+                              {label[m.state]}
+                            </span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      key={it.label}
+                      className={`lc-tile is-${it.state}`}
+                      title={`${it.label}${
+                        it.sub ? ` (${it.sub})` : ''
+                      }: ${label[it.state]}`}
+                    >
+                      <b>{it.label}</b>
+                      {it.sub && <small>{it.sub}</small>}
+                      <span className="lc-sr">{label[it.state]}</span>
+                    </div>
+                  )
+                )}
+              </div>
+            )}
           </div>
         )
       })}
@@ -139,13 +211,21 @@ function SystemTiles({ data }) {
           <div className="lc-sys-title">
             <span>Git</span>
           </div>
+
           <div className="lc-sys-git">
-            {data.git.branch && <span className="lc-badge">{data.git.branch}</span>}
+            {data.git.branch && (
+              <span className="lc-badge">{data.git.branch}</span>
+            )}
+
             <span
-              className={`lc-badge ${data.git.clean ? 'is-ok' : 'is-warn'}`}
+              className={`lc-badge ${
+                data.git.clean ? 'is-ok' : 'is-warn'
+              }`}
               title={data.git.files.join('\n') || undefined}
             >
-              {data.git.clean ? 'Clean' : data.git.status.replace(/^⚠️\s*/, '')}
+              {data.git.clean
+                ? 'Clean'
+                : data.git.status.replace(/^⚠️\s*/, '')}
             </span>
           </div>
         </div>
