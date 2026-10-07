@@ -132,7 +132,7 @@ function SystemTiles({ data }) {
         // 4. Deepseek-R1
         // 5. Mistral
         // 6. Qwen Coder
-        // 7. Superleles available only: GPT-OSS
+        // 7. Super Leles available only -->      GPT-OSS:20b
         //
         // Il backend continua a fornire i modelli raggruppati in 3 righe.
         // Qui li spacchettiamo solo per la visualizzazione.
