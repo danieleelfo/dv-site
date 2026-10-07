@@ -368,6 +368,26 @@ export default function ProjectTest() {
         max_turns: cfg.max_turns,
       };
 
+      // TEMPORARY Super-Leles bridge:
+      // il gateway attualmente conosce "leles", non "super_leles".
+      // Per il primo turno, se Super-Leles è il primo partecipante,
+      // usiamo Leles come agent_id e il prefisso "sl " per attivare
+      // Timoniere -> Super-Leles. B2B.jsx e il gateway restano invariati.
+      const arenaCfg = {
+        ...cfg,
+        participants: cfg.participants.map((participant) => ({
+          ...participant,
+          agent:
+            participant.agent === "super_leles"
+              ? "leles"
+              : participant.agent,
+        })),
+        topic:
+          cfg.participants[0]?.agent === "super_leles"
+            ? `sl ${cfg.topic || ""}`.trim()
+            : cfg.topic,
+      };
+
       // Inizio della funzione start con Auth Google + Payload Multi-Agente
       const response = await fetch(`${API}/api/agent-arena/start`, {
         method: "POST",
@@ -375,7 +395,7 @@ export default function ProjectTest() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify(cfg),
+        body: JSON.stringify(arenaCfg),
       });
 
 
