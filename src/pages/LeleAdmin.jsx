@@ -1433,6 +1433,7 @@ const css = `
 .lc-tile.is-ok{color:var(--ok);background:rgba(74,222,128,.1);border-color:rgba(74,222,128,.4)}
 .lc-tile.is-bad{color:var(--bad);background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.45)}
 .lc-tile.is-off{color:var(--ink-dim);opacity:.8}
+.lc-tile.is-warn{color:var(--warn);background:rgba(251,191,36,.1);border-color:rgba(251,191,36,.45)}
 .lc-sys-name{display:inline-flex;align-items:center;gap:5px}
 .lc-sys-name.is-ok,.lc-sys-name.is-bad{font-weight:700}
 .lc-sys-name.is-ok::before,.lc-sys-name.is-bad::before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor}

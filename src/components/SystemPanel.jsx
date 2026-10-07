@@ -44,9 +44,9 @@ function parseSystem(text) {
       continue
     }
 
-    const m = line.match(/^(✅|❌|🟢|⚪️|⚪)\s*(.+)$/u)
+    const m = line.match(/^(✅|❌|🟢|⚠️|⚪️|⚪)\s*(.+)$/u)
     if (m && cur) {
-      const state = m[1] === '✅' || m[1] === '🟢' ? 'ok' : m[1] === '❌' ? 'bad' : 'off'
+      const state = m[1] === '✅' || m[1] === '🟢' ? 'ok' : m[1] === '❌' ? 'bad' : m[1] === '⚠️' ? 'warn' : 'off'
       const nm = m[2].match(/^(.*?)\s*\((.+)\)$/)
       cur.items.push({
         label: (nm ? nm[1] : m[2]).replace(/_/g, ' '),
@@ -88,7 +88,7 @@ function parseSystem(text) {
 
 // Schemino a quadratini: verde = su, rosso = giù, grigio = non caricato.
 function SystemTiles({ data }) {
-  const label = { ok: 'attivo', bad: 'non attivo', off: 'non caricato' }
+  const label = { ok: 'attivo', bad: 'non attivo', warn: 'parziale', off: 'non caricato' }
   return (
     <div className="lc-sys">
       {data.sections.map((sec) => {
