@@ -112,6 +112,7 @@ def verify_admin_token(authorization: str | None) -> str:
 
     return email
 
+
 def get_connection():
     return psycopg2.connect(
         host=os.environ.get("PGHOST", "localhost"),
@@ -446,7 +447,7 @@ async def chat_router_audio(
                 status_code=502,
                 detail=(
                     f"Impossibile raggiungere {agent} "
-                    f"sulla porta {port}: {str(e)}"
+                    f"sulla porta {port}: {e}"
                 ),
             )
 
@@ -494,7 +495,7 @@ async def tts_proxy(agent: str, filename: str):
                 status_code=502,
                 detail=(
                     f"Impossibile raggiungere {agent} "
-                    f"sulla porta {port}: {str(e)}"
+                    f"sulla porta {port}: {e}"
                 ),
             )
 
@@ -544,6 +545,7 @@ ARENA_AGENT_PORTS = {
     "night_story": 8666,
     "story_whisper": 8088,
     "leles": 8082,
+    "super_leles": 8082,
     "qe": 8082,
 }
 
@@ -577,12 +579,25 @@ MAX_HUMAN_INTERVENTIONS = 20
 HAND_TIMEOUT_SECONDS = 600
 
 # Allowlist: DEVE restare allineata con ProjectTest.jsx.
+# Questi sono i modelli consentiti per gli agenti normali.
 ALLOWED_MODELS = {
     "gemma4",
     "llama3",
     "mistral",
     "qwen2.5",
     "deepseek-r1",
+}
+
+# Super-Leles può usare tutti i modelli esposti da HomeTest4.
+# In particolare può usare GPT-OSS e Qwen Coder.
+SUPER_LELES_ALLOWED_MODELS = {
+    "gemma4",
+    "llama3",
+    "mistral",
+    "qwen2.5",
+    "deepseek-r1",
+    "qwen2.5-coder:7b",
+    "gpt-oss:20b",
 }
 
 ALLOWED_CHARACTERS = {
@@ -674,11 +689,21 @@ def _validate_arena_request(req: AgentArenaRequest) -> None:
                 detail=f"Agente non valido (slot {i}): {p.agent}",
             )
 
-        if p.model and p.model not in ALLOWED_MODELS:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Modello non consentito (slot {i}): {p.model}",
+        if p.model:
+            allowed_models = (
+                SUPER_LELES_ALLOWED_MODELS
+                if p.agent == "super_leles"
+                else ALLOWED_MODELS
             )
+
+            if p.model not in allowed_models:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"Modello non consentito "
+                        f"(slot {i}, agente {p.agent}): {p.model}"
+                    ),
+                )
 
         if p.character and p.character not in ALLOWED_CHARACTERS:
             raise HTTPException(
@@ -752,6 +777,9 @@ async def _arena_call(
 ):
     """
     Chiama un agente locale per un singolo turno Arena.
+
+    Super-Leles usa la stessa porta di Leles (8082), ma viene
+    attivato esplicitamente tramite il trigger "sl ".
     """
 
     port = ARENA_AGENT_PORTS.get(
@@ -763,12 +791,32 @@ async def _arena_call(
             f"Agente arena non configurato: {agent_id}"
         )
 
-    payload = {
-        "message": message,
-        "chat_id": chat_id,
-    }
+    # --------------------------------------------------
+    # SUPER-LELES
+    # --------------------------------------------------
+    # Super-Leles vive sulla stessa API di Leles, ma il
+    # Timoniere lo attiva tramite il trigger "sl ".
+    if agent_id == "super_leles":
 
-    if agent_id == "night_story":
+        prompt = f"sl {message}".strip()
+
+        payload = {
+            "message": prompt,
+            "chat_id": chat_id,
+        }
+
+        if model:
+            payload["model"] = model
+
+    # --------------------------------------------------
+    # NIGHT STORY
+    # --------------------------------------------------
+    elif agent_id == "night_story":
+
+        payload = {
+            "message": message,
+            "chat_id": chat_id,
+        }
 
         if character:
             payload["character"] = character
@@ -776,13 +824,34 @@ async def _arena_call(
         if model:
             payload["model"] = model
 
+    # --------------------------------------------------
+    # QE / LELES
+    # --------------------------------------------------
     elif agent_id in (
         "qe",
         "leles",
     ):
 
+        payload = {
+            "message": message,
+            "chat_id": chat_id,
+        }
+
         if role:
             payload["role"] = role
+
+        if model:
+            payload["model"] = model
+
+    # --------------------------------------------------
+    # FALLBACK
+    # --------------------------------------------------
+    else:
+
+        payload = {
+            "message": message,
+            "chat_id": chat_id,
+        }
 
         if model:
             payload["model"] = model
@@ -1677,4 +1746,3 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=9090,
     )
-

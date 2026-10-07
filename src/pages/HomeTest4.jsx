@@ -368,24 +368,20 @@ export default function ProjectTest() {
         max_turns: cfg.max_turns,
       };
 
-      // TEMPORARY Super-Leles bridge:
-      // il gateway attualmente conosce "leles", non "super_leles".
-      // Per il primo turno, se Super-Leles è il primo partecipante,
-      // usiamo Leles come agent_id e il prefisso "sl " per attivare
-      // Timoniere -> Super-Leles. B2B.jsx e il gateway restano invariati.
+      // Super-Leles viene inviato direttamente come "super_leles".
+      // Il gateway lo riconosce come agente separato e gestisce
+      // internamente il prefisso "sl " per attivare Super-Leles.
+      //
+      // NON trasformiamo più:
+      //   super_leles -> leles
+      //
+      // Questo è necessario perché Super-Leles ha una allowlist LLM
+      // diversa e può usare anche gpt-oss:20b.
       const arenaCfg = {
         ...cfg,
         participants: cfg.participants.map((participant) => ({
           ...participant,
-          agent:
-            participant.agent === "super_leles"
-              ? "leles"
-              : participant.agent,
         })),
-        topic:
-          cfg.participants[0]?.agent === "super_leles"
-            ? `sl ${cfg.topic || ""}`.trim()
-            : cfg.topic,
       };
 
       // Inizio della funzione start con Auth Google + Payload Multi-Agente
