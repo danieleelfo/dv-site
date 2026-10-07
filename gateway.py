@@ -1366,9 +1366,10 @@ async def _run_agent_arena(
                 answer = await _arena_call(
                     agent_id=p.agent,
                     message=last_msg,
-                    chat_id=_arena_chat_id(
-                        run_id,
-                        idx,
+                    chat_id=(
+                        admin_chat_id
+                        if p.agent == "super_leles" and admin_chat_id is not None
+                        else _arena_chat_id(run_id, idx)
                     ),
                     character=p.character,
                     role=p.role,
