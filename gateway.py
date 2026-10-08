@@ -1,4 +1,3 @@
-import ast
 import os
 import time
 import asyncio
@@ -655,9 +654,8 @@ class AgentArenaRequest(BaseModel):
     # Modalità improve (pagina /improve):
     #  - ogni bot riceve il topic (file + regole) E l'ultima proposta,
     #    non solo il messaggio precedente;
-    #  - Super-Leles NON usa la chat Telegram personale dell'admin
-    #    (niente memoria/persona/KB personali nel miglioramento codice),
-    #    ma una chat isolata come gli altri bot.
+    #  - i bot "qe" usano chat isolate; Super-Leles resta sulla chat
+    #    admin perche in lele_api e un comando riservato.
     improve: bool = False
 
 
@@ -876,6 +874,14 @@ async def _arena_call(
 
         if model:
             payload["model"] = model
+
+    # Dichiara a lele_api QUALE agente sta chiamando l'Arena, cosi non
+    # deve indovinarlo dalle parole del testo (route() usa trigger a
+    # parole chiave: un file con "query" o "review" nel testo veniva
+    # instradato al comando sbagliato). Se lele_api non conosce il campo
+    # Pydantic lo ignora, quindi e retrocompatibile.
+    if agent_id in ("qe", "super_leles"):
+        payload["arena_agent"] = agent_id
 
     target_url = (
         f"http://127.0.0.1:{port}/ask"
@@ -1402,13 +1408,15 @@ async def _run_agent_arena(
                         f"{last_msg}"
                     )
 
-                # Super-Leles usa la chat Telegram personale dell'admin
-                # (memoria, persona, KB) tranne in modalita improve.
+                # Super-Leles usa SEMPRE la chat Telegram personale
+                # dell'admin: in lele_api e un comando riservato
+                # ("admin-only"), con una chat isolata risponderebbe
+                # "Comando riservato al capitano." come se fosse una
+                # proposta valida. Gli altri bot usano chat isolate.
 
                 use_admin_chat = (
                     p.agent == "super_leles"
                     and admin_chat_id is not None
-                    and not cfg.improve
                 )
 
                 answer = await _arena_call(
@@ -1911,14 +1919,19 @@ async def improve_save_file(
     # Non scrivere su disco codice che non compila: un bot che risponde
     # con prosa, uno snippet o un blocco troncato produrrebbe un
     # .improved.py inutilizzabile.
+    #
+    # compile() e non ast.parse(): ast.parse accetta errori che emergono
+    # solo in compilazione, es. "'return' outside function" (un bot che
+    # sbaglia l'indentazione del corpo di una funzione).
     try:
-        ast.parse(code)
-    except SyntaxError as e:
+        compile(code, rel_path or "<improved>", "exec")
+    except (SyntaxError, ValueError) as e:
         raise HTTPException(
             status_code=400,
             detail=(
                 f"Il codice proposto non e Python valido "
-                f"(riga {e.lineno}: {e.msg}). Non salvato."
+                f"(riga {getattr(e, 'lineno', '?')}: "
+                f"{getattr(e, 'msg', str(e))}). Non salvato."
             ),
         )
 
