@@ -16,6 +16,7 @@ import HomeTest from './pages/HomeTest.jsx'
 import HomeTest2 from './pages/HomeTest2.jsx'
 import HomeTest3 from './pages/HomeTest3.jsx'
 import HomeTest4 from './pages/HomeTest4.jsx'
+import Improve from './pages/Improve.jsx'
 
 import ProjectTest from './pages/ProjectTest.jsx'
 import LeleAdmin from './pages/LeleAdmin.jsx'
@@ -168,6 +169,17 @@ export default function App() {
               <LangWrapper>
                 <B2B />
               </LangWrapper>
+            </>
+          }
+        />
+
+        {/* ===== IMPROVE — Improve.jsx ===== */}
+        <Route
+          path="/improve"
+          element={
+            <>
+              <Nav />
+              <Improve />
             </>
           }
         />

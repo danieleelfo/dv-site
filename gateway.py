@@ -558,7 +558,8 @@ ARENA_RUNS: dict[str, dict] = {}
 
 
 MAX_PARTICIPANTS = 12
-MIN_PARTICIPANTS = 2
+# 1 = anche un solo bot (improve mirato dalla pagina /improve).
+MIN_PARTICIPANTS = 1
 
 # Tetti anti-costo / anti-abuso.
 MAX_TURNS = 50
@@ -1739,6 +1740,129 @@ async def agent_arena_intervene(
 # --------------------------------------------------------------------------
 # AVVIO DIRETTO
 # --------------------------------------------------------------------------
+
+
+# ============================================================
+# IMPROVE — miglioramento file .py del repo Leles via pagina web
+# ============================================================
+# La pagina /improve del sito fa discutere 1-6 bot (ruoli Emergence
+# via "qe" + Super-Leles) sull'Agent Arena, usando un file del repo
+# Leles come topic. Il gateway gira sullo stesso Mac del repo, quindi
+# lo legge direttamente. Come improver_agent.py: MAI sovrascrivere
+# l'originale — si salva sempre <file>.improved.py affiancato.
+
+LELES_REPO_PATH = os.environ.get(
+    "LELES_REPO_PATH",
+    "/Users/danny/Desktop/Danny/leles",
+)
+
+# Cartelle saltate nella scansione dei file.
+_IMPROVE_SKIP_DIRS = {
+    ".venv", "venv", ".git", "__pycache__",
+    ".pytest_cache", ".ruff_cache", "node_modules",
+}
+
+# Limite sul file leggibile dal sito (il topic Arena lo contiene tutto).
+_IMPROVE_MAX_CHARS = 40_000
+
+
+def _improve_resolve(rel_path: str) -> str:
+    """Path assoluto di un file .py dentro il repo Leles, senza escape."""
+    root = os.path.abspath(LELES_REPO_PATH)
+    target = os.path.abspath(os.path.join(root, rel_path))
+    if target != root and not target.startswith(root + os.sep):
+        raise HTTPException(
+            status_code=400,
+            detail="Percorso fuori dal repo Leles.",
+        )
+    if not target.endswith(".py"):
+        raise HTTPException(
+            status_code=400,
+            detail="Sono ammessi solo file .py.",
+        )
+    if not os.path.isfile(target):
+        raise HTTPException(
+            status_code=404,
+            detail=f"File non trovato: {rel_path}",
+        )
+    return target
+
+
+@app.get("/api/improve/files")
+async def improve_list_files(authorization: str | None = Header(None)):
+    """Elenco dei file .py del repo Leles (per il selettore della pagina)."""
+    verify_admin_token(authorization)
+
+    root = os.path.abspath(LELES_REPO_PATH)
+    files = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in _IMPROVE_SKIP_DIRS]
+        for name in filenames:
+            if not name.endswith(".py"):
+                continue
+            full = os.path.join(dirpath, name)
+            rel = os.path.relpath(full, root)
+            try:
+                size = os.path.getsize(full)
+            except OSError:
+                continue
+            files.append({"path": rel, "size": size})
+
+    files.sort(key=lambda f: f["path"])
+    return {"files": files[:2000], "total": len(files)}
+
+
+@app.get("/api/improve/file")
+async def improve_read_file(
+    path: str,
+    authorization: str | None = Header(None),
+):
+    """Contenuto di un file .py del repo Leles (per il topic Arena)."""
+    verify_admin_token(authorization)
+
+    target = _improve_resolve(path)
+    with open(target, "r", encoding="utf-8", errors="replace") as f:
+        content = f.read()
+
+    if len(content) > _IMPROVE_MAX_CHARS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"File troppo grande ({len(content)} caratteri, "
+                f"limite {_IMPROVE_MAX_CHARS}). Spezzalo in moduli più piccoli."
+            ),
+        )
+
+    return {"path": path, "content": content, "size": len(content)}
+
+
+@app.post("/api/improve/save")
+async def improve_save_file(
+    req: dict,
+    authorization: str | None = Header(None),
+):
+    """Salva la versione migliorata come <file>.improved.py (mai l'originale)."""
+    verify_admin_token(authorization)
+
+    rel_path = (req.get("path") or "").strip()
+    code = req.get("code") or ""
+
+    if not code.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Nessun codice da salvare.",
+        )
+
+    target = _improve_resolve(rel_path)
+    saved_path = target + ".improved.py"
+    with open(saved_path, "w", encoding="utf-8") as f:
+        f.write(code.rstrip() + "\n")
+
+    return {
+        "saved_path": saved_path,
+        "bytes": os.path.getsize(saved_path),
+    }
+
 if __name__ == "__main__":
     import uvicorn
 

@@ -44,6 +44,7 @@ const QUICK_LINKS = [
   { to: '/test6', label: 'Test' },
   { to: '/test4', label: 'Test 4' },
   { to: '/test5', label: 'Test 5' },
+  { to: '/improve', label: 'Improve' },
 ]
 
 // Comandi mostrati nel pannello di destra (si aggiornano con "Aggiorna").
