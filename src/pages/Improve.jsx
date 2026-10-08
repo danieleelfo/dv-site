@@ -58,8 +58,7 @@ const MAX_ITERATIONS = 3;
 // Regola di grounding condivisa (stessa degli altri improve).
 const IMPROVE_GROUNDING =
   "REGOLA FERREA - NIENTE INVENZIONI:\n" +
-  "- Usa SOLO nomi (funzioni, variabili, class
-i, import) che esistono gia nel file.\n" +
+  "- Usa SOLO nomi (funzioni, variabili, classi, import) che esistono gia nel file.\n" +
   "- Se proponi qualcosa di NUOVO marcala esplicitamente come NUOVO: e spiega perche serve.\n" +
   "- Se un fix richiede un altro file, dillo invece di indovinare cosa contiene.\n";
 
