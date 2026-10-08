@@ -55,11 +55,11 @@ const MAX_BOTS = 6;
 const MAX_ITERATIONS = 3;
 
 // Regola di grounding condivisa (stessa degli altri improve).
+// Regola di grounding condivisa (stessa degli altri improve).
 const IMPROVE_GROUNDING =
-  "REGOLA FERREA — NIENTE INVENZIONI:\n" +
-  "- Usa SOLO nomi (funzioni, variabili, classi, import) che esistono già nel file.\n" +
-  "- Se proponi qual
-cosa di NUOVO marcala esplicitamente come NUOVO: e spiega perché serve.\n" +
+  "REGOLA FERREA - NIENTE INVENZIONI:\n" +
+  "- Usa SOLO nomi (funzioni, variabili, classi, import) che esistono gia nel file.\n" +
+  "- Se proponi qualcosa di NUOVO marcala esplicitamente come NUOVO: e spiega perche serve.\n" +
   "- Se un fix richiede un altro file, dillo invece di indovinare cosa contiene.\n";
 
 function buildTopic(filePath, content, request) {
@@ -75,7 +75,7 @@ function buildTopic(filePath, content, request) {
     " ===\n" +
     "```python\n" +
     content +
-    "\n" + "```" + "\n\n" +
+    "\n" + BT + "\n\n" +
     "Chiude il turno chi propone la versione MIGLIORATA COMPLETA del file in un unico blocco " +
     "```python (file intero, non un diff o estratto)."
   );
