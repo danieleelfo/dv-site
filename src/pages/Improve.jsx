@@ -190,6 +190,7 @@ export default function Improve() {
   const { idToken, email, buttonRef, logout } = useGoogleAuth();
 
   const [files, setFiles] = useState([]);
+  const [filesLoaded, setFilesLoaded] = useState(false);
   const [fileFilter, setFileFilter] = useState("");
   const [cfg, setCfg] = useState({
     file: "",
@@ -213,13 +214,19 @@ export default function Improve() {
 
   // Carica la lista file quando c'è il token.
   useEffect(() => {
-    if (!idToken || files.length) return;
+    if (!idToken) return;
     fetch(API + "/api/improve/files", {
       headers: { Authorization: "Bearer " + idToken },
     })
       .then((r) => (r.ok ? r.json() : Promise.reject(r)))
-      .then((d) => setFiles(d.files || []))
-      .catch(() => setFiles([]));
+      .then((d) => {
+        setFiles(d.files || []);
+        setFilesLoaded(true);
+      })
+      .catch(() => {
+        setFiles([]);
+        setFilesLoaded(true);
+      });
   }, [idToken]);
 
   // Polling del run.
@@ -409,19 +416,43 @@ export default function Improve() {
             value={fileFilter}
             onChange={(e) => setFileFilter(e.target.value)}
           />
+          {!filesLoaded && (
+            <p className="imp-dim">Caricamento lista file…</p>
+          )}
+          {filesLoaded && !files.length && (
+            <p className="imp-error">
+              ⚠️ Nessun file trovato. Il gateway deve essere la
+              versione nuova: riavvialo (Telegram: restart gateway) e
+              ricarica la pagina. Oppure scrivi il path a mano nel campo
+              filtro qui sopra e usa il bottone “Usa path”.
+            </p>
+          )}
+          {filesLoaded && !files.length && fileFilter.trim() && (
+            <button
+              className="imp-btn"
+              onClick={() => setField("file", fileFilter.trim())}
+            >
+              Usa path: {fileFilter.trim()}
+            </button>
+          )}
           <select
             className="imp-select"
             value={cfg.file}
             onChange={(e) => setField("file", e.target.value)}
             size={8}
           >
-            <option value="">— scegli un file .py —</option>
+            {!cfg.file && <option value="">— scegli un file .py —</option>}
             {visibleFiles.map((f) => (
               <option key={f.path} value={f.path}>
                 {f.path} ({Math.round(f.size / 1024)} KB)
               </option>
             ))}
           </select>
+          {cfg.file && (
+            <p className="imp-file-chosen">
+              ✅ File selezionato: <code>{cfg.file}</code>
+            </p>
+          )}
 
           <label className="imp-label">Richiesta (opzionale)</label>
           <textarea
@@ -571,6 +602,7 @@ export default function Improve() {
         .imp-dim { color: #6b7280; }
         .imp-msg { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 12px; background: rgba(0,0,0,.3); border-radius: 8px; padding: 10px; margin: 0; line-height: 1.5; }
         .imp-empty { color: #6b7280; font-size: 13px; }
+        .imp-file-chosen { color: #34d399; font-size: 13px; margin-top: 6px; }
         .imp-page code { color: #34d399; }
       `}</style>
     </div>
