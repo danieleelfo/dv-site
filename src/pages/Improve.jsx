@@ -1,10 +1,10 @@
 // ============================================================
-// IMPROVE — miglioramento file del repo Leles via Agent Arena
+// IMPROVE - miglioramento file del repo Leles via Agent Arena
 // ============================================================
 // Terzo flusso di improve, gestito dal sito: scegli il file .py del
 // repo Leles, da 1 a 6 bot (ruoli Emergence + Super-Leles) e fino a
 // 3 iterazioni. Il file diventa il topic dell'Arena, i bot discutono,
-// e all'uscita si può salvare <file>.improved.py (mai l'originale,
+// e all'uscita si puo salvare <file>.improved.py (mai l'originale,
 // stessa regola di improver_agent.py).
 //
 // Dipende dal gateway (https://api.danielevillanova.com):
@@ -55,7 +55,6 @@ const MAX_BOTS = 6;
 const MAX_ITERATIONS = 3;
 
 // Regola di grounding condivisa (stessa degli altri improve).
-// Regola di grounding condivisa (stessa degli altri improve).
 const IMPROVE_GROUNDING =
   "REGOLA FERREA - NIENTE INVENZIONI:\n" +
   "- Usa SOLO nomi (funzioni, variabili, classi, import) che esistono gia nel file.\n" +
@@ -64,9 +63,9 @@ const IMPROVE_GROUNDING =
 
 function buildTopic(filePath, content, request) {
   const req = (request || "").trim() ||
-    "Migliora il file: correggi bug, migliora leggibilità e prestazioni dove chiaramente giustificato.";
+    "Migliora il file: correggi bug, migliora leggibilita e prestazioni dove chiaramente giustificato.";
   return (
-    "Sei un ingegnere Python. Il tuo compito è migliorare il file seguente del repo Leles.\n\n" +
+    "Sei un ingegnere Python. Il tuo compito e migliorare il file seguente del repo Leles.\n\n" +
     IMPROVE_GROUNDING +
     "\n=== RICHIESTA UTENTE ===\n" +
     req +
@@ -75,17 +74,21 @@ function buildTopic(filePath, content, request) {
     " ===\n" +
     "```python\n" +
     content +
-    "\n" + BT + "\n\n" +
+    "\n" + "```" + "\n\n" +
     "Chiude il turno chi propone la versione MIGLIORATA COMPLETA del file in un unico blocco " +
     "```python (file intero, non un diff o estratto)."
   );
 }
 
 function extractLastCode(text) {
-  const matches = text.match(/```(?:python)?\n([\s\S]*?)```/g);
+  const rx = new RegExp("```(?:python)?\\n([\\s\\S]*?)```", "g");
+  const matches = text.match(rx);
   if (!matches || !matches.length) return null;
   const last = matches[matches.length - 1];
-  return last.replace(/^```(?:python)?\n/, "").replace(/```$/, "").trim();
+  return last
+    .replace(new RegExp("^```(?:python)?\\n"), "")
+    .replace(new RegExp("```$"), "")
+    .trim();
 }
 
 // ============================================================
@@ -122,9 +125,7 @@ function readStoredToken() {
 }
 
 function useGoogleAuth() {
- 
- const [idToken, setIdToken] = useState(readStoredToken);
-  con
+  const [idToken, setIdToken] = useState(readStoredToken);
   const buttonRef = useRef(null);
 
   function onCredential(resp) {
@@ -204,10 +205,8 @@ export default function Improve() {
       { id: 0, kind: "role", role: "Developer", model: "gemma4" },
     ],
   });
-  const [busy
-, setBusy] = useState(false);
-  const [error, setError] = useSta
-te("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
   const [runId, setRunId] = useState(null);
   const [status, setStatus] = useState("");
   const [turns, setTurns] = useState([]);
@@ -217,7 +216,7 @@ te("");
 
   const isRunning = status === "running" || status === "paused";
 
-  // Carica la lista file quando c'è il token.
+  // Carica la lista file quando c'e il token.
   useEffect(() => {
     if (!idToken) return;
     fetch(API + "/api/improve/files", {
@@ -271,10 +270,8 @@ te("");
       },
       body: JSON.stringify({ path: cfg.file, code }),
     })
-
       .then((r) => (r.ok ? r.json() : Promise.reject(r)))
-      
-.then((d) => setSavedPath(d.saved_path || ""))
+      .then((d) => setSavedPath(d.saved_path || ""))
       .catch(() => setSavedPath(""));
   }, [status, turns]);
 
@@ -350,12 +347,10 @@ te("");
         participants,
         topic: buildTopic(cfg.file, fd.content, cfg.request),
         max_turns: cfg.iterations,
-        world
-_source: "free",
+        world_source: "free",
       };
 
-      const r = await fetch(API + "/api
-/agent-arena/start", {
+      const r = await fetch(API + "/api/agent-arena/start", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -398,8 +393,8 @@ _source: "free",
   if (!idToken) {
     return (
       <div className="imp-page">
-        <h1>🔧 Improve</h1>
-        <p>Accedi con Google per usare l’improve dei file Leles.</p>
+        <h1>Improve</h1>
+        <p>Accedi con Google per usare l'improve dei file Leles.</p>
         <div ref={buttonRef} />
       </div>
     );
@@ -408,7 +403,7 @@ _source: "free",
   return (
     <div className="imp-page">
       <div className="imp-head">
-        <h1>🔧 Improve Leles</h1>
+        <h1>Improve Leles</h1>
         <div className="imp-auth">
           <span>{email}</span>
           <button onClick={logout} className="imp-btn">Logout</button>
@@ -426,25 +421,14 @@ _source: "free",
             onChange={(e) => setFileFilter(e.target.value)}
           />
           {!filesLoaded && (
-            <p className="imp-dim">Caricamento lista file…</p>
+            <p className="imp-empty">Caricamento lista file...</p>
           )}
-
           {filesLoaded && !files.length && (
-            <p classN
-ame="imp-error">
-              ⚠️ Nessun file trovato. Il gateway deve essere la
-              versione nuova: riavvialo (Telegram: restart gateway) e
-              ricarica la pagina. Oppure scrivi il path a mano nel campo
-              filtro qui sopra e usa il bottone “Usa path”.
+            <p className="imp-error">
+              Nessun file trovato. Il gateway deve essere la versione
+              nuova: riavvialo (Telegram: restart gateway) e ricarica
+              la pagina.
             </p>
-          )}
-          {filesLoaded && !files.length && fileFilter.trim() && (
-            <button
-              className="imp-btn"
-              onClick={() => setField("file", fileFilter.trim())}
-            >
-              Usa path: {fileFilter.trim()}
-            </button>
           )}
           <select
             className="imp-select"
@@ -452,7 +436,7 @@ ame="imp-error">
             onChange={(e) => setField("file", e.target.value)}
             size={8}
           >
-            {!cfg.file && <option value="">— scegli un file .py —</option>}
+            {!cfg.file && <option value="">- scegli un file .py -</option>}
             {visibleFiles.map((f) => (
               <option key={f.path} value={f.path}>
                 {f.path} ({Math.round(f.size / 1024)} KB)
@@ -461,7 +445,7 @@ ame="imp-error">
           </select>
           {cfg.file && (
             <p className="imp-file-chosen">
-              ✅ File selezionato: <code>{cfg.file}</code>
+              File selezionato: <code>{cfg.file}</code>
             </p>
           )}
 
@@ -475,7 +459,7 @@ ame="imp-error">
           />
 
           <label className="imp-label">
-            Bot (1–{MAX_BOTS}, ruoli Emergence + Super-Leles)
+            {"Bot (1-" + MAX_BOTS + ", ruoli Emergence + Super-Leles)"}
           </label>
           {cfg.participants.map((p, idx) => (
             <div key={p.id} className="imp-bot-row">
@@ -483,10 +467,8 @@ ame="imp-error">
                 className="imp-select"
                 value={p.kind === "sl" ? "__sl__" : p.role}
                 onChange={(e) =>
-                  e.tar
-get.value === "__sl__"
-                    ? updateParticipant(idx, 
-{
+                  e.target.value === "__sl__"
+                    ? updateParticipant(idx, {
                         kind: "sl",
                         model: "gemma4",
                       })
@@ -511,7 +493,7 @@ get.value === "__sl__"
                 ))}
               </select>
               <button className="imp-btn imp-x" onClick={() => removeBot(idx)}>
-                ✕
+                X
               </button>
             </div>
           ))}
@@ -521,7 +503,7 @@ get.value === "__sl__"
             </button>
           )}
 
-          <label className="imp-label">Iterazioni (1–{MAX_ITERATIONS})</label>
+          <label className="imp-label">Iterazioni (1-{MAX_ITERATIONS})</label>
           <select
             className="imp-select"
             value={cfg.iterations}
@@ -542,11 +524,9 @@ get.value === "__sl__"
           </label>
 
           <div className="imp-actions">
-       
-     <button
+            <button
               className="imp-btn imp-primary"
-          
-    disabled={busy || isRunning}
+              disabled={busy || isRunning}
               onClick={startRun}
             >
               {busy ? "..." : "Avvia Improve"}
@@ -558,14 +538,14 @@ get.value === "__sl__"
             )}
           </div>
 
-          {error && <div className="imp-error">⚠️ {error}</div>}
+          {error && <div className="imp-error">! {error}</div>}
           {runId && (
             <div className="imp-runinfo">
               Run: <code>{String(runId).slice(0, 8)}</code> · Stato:{" "}
               <b>{status || "..."}</b>
               {savedPath && (
                 <div className="imp-saved">
-                  U0001f4be Salvato: <code>{savedPath}</code>
+                  Salvato: <code>{savedPath}</code>
                 </div>
               )}
             </div>
@@ -595,10 +575,8 @@ get.value === "__sl__"
         .imp-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
         .imp-auth { display: flex; gap: 10px; align-items: center; font-size: 13px; color: #9ca3af; }
         .imp-cols { display: grid; grid-template-columns: 380px 1fr; gap: 20px; }
-        @media (max-width: 900px) { .i
-mp-cols { grid-template-columns: 1fr; } }
-        .imp-col { backgroun
-d: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 16px; }
+        @media (max-width: 900px) { .imp-cols { grid-template-columns: 1fr; } }
+        .imp-col { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 16px; }
         .imp-label { display: block; margin: 14px 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #9ca3af; }
         .imp-input, .imp-select { width: 100%; background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.12); border-radius: 8px; color: #e5e7eb; padding: 8px 10px; font-size: 13px; margin-bottom: 4px; }
         .imp-bot-row { display: flex; gap: 6px; margin-bottom: 6px; }
@@ -618,10 +596,8 @@ d: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08); border-radius
         .imp-turn-head { font-size: 12px; color: #9ca3af; margin-bottom: 4px; }
         .imp-dim { color: #6b7280; }
         .imp-msg { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 12px; background: rgba(0,0,0,.3); border-radius: 8px; padding: 10px; margin: 0; line-height: 1.5; }
-        .imp-empty { color: #6b72
-80; font-size: 13px; }
-        .imp-file-chosen { color: #34d399; font-
-size: 13px; margin-top: 6px; }
+        .imp-empty { color: #6b7280; font-size: 13px; }
+        .imp-file-chosen { color: #34d399; font-size: 13px; margin-top: 6px; }
         .imp-page code { color: #34d399; }
       `}</style>
     </div>
