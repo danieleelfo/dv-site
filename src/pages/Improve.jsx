@@ -58,7 +58,8 @@ const MAX_ITERATIONS = 3;
 const IMPROVE_GROUNDING =
   "REGOLA FERREA — NIENTE INVENZIONI:\n" +
   "- Usa SOLO nomi (funzioni, variabili, classi, import) che esistono già nel file.\n" +
-  "- Se proponi qualcosa di NUOVO marcala esplicitamente come NUOVO: e spiega perché serve.\n" +
+  "- Se proponi qual
+cosa di NUOVO marcala esplicitamente come NUOVO: e spiega perché serve.\n" +
   "- Se un fix richiede un altro file, dillo invece di indovinare cosa contiene.\n";
 
 function buildTopic(filePath, content, request) {
@@ -74,7 +75,7 @@ function buildTopic(filePath, content, request) {
     " ===\n" +
     "```python\n" +
     content +
-    "\n" + BT + "\n\n" +
+    "\n" + "```" + "\n\n" +
     "Chiude il turno chi propone la versione MIGLIORATA COMPLETA del file in un unico blocco " +
     "```python (file intero, non un diff o estratto)."
   );
@@ -122,7 +123,8 @@ function readStoredToken() {
 
 function useGoogleAuth() {
   const [idToken, setIdToken] = useState(readStoredToken);
-  const buttonRef = useRef(null);
+  con
+st buttonRef = useRef(null);
 
   function onCredential(resp) {
     const token = resp?.credential;
@@ -202,7 +204,8 @@ export default function Improve() {
     ],
   });
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useSta
+te("");
   const [runId, setRunId] = useState(null);
   const [status, setStatus] = useState("");
   const [turns, setTurns] = useState([]);
@@ -267,7 +270,8 @@ export default function Improve() {
       body: JSON.stringify({ path: cfg.file, code }),
     })
       .then((r) => (r.ok ? r.json() : Promise.reject(r)))
-      .then((d) => setSavedPath(d.saved_path || ""))
+      
+.then((d) => setSavedPath(d.saved_path || ""))
       .catch(() => setSavedPath(""));
   }, [status, turns]);
 
@@ -346,7 +350,8 @@ export default function Improve() {
         world_source: "free",
       };
 
-      const r = await fetch(API + "/api/agent-arena/start", {
+      const r = await fetch(API + "/api
+/agent-arena/start", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -420,7 +425,8 @@ export default function Improve() {
             <p className="imp-dim">Caricamento lista file…</p>
           )}
           {filesLoaded && !files.length && (
-            <p className="imp-error">
+            <p classN
+ame="imp-error">
               ⚠️ Nessun file trovato. Il gateway deve essere la
               versione nuova: riavvialo (Telegram: restart gateway) e
               ricarica la pagina. Oppure scrivi il path a mano nel campo
@@ -473,7 +479,8 @@ export default function Improve() {
                 value={p.kind === "sl" ? "__sl__" : p.role}
                 onChange={(e) =>
                   e.target.value === "__sl__"
-                    ? updateParticipant(idx, {
+                    ? updateParticipant(idx, 
+{
                         kind: "sl",
                         model: "gemma4",
                       })
@@ -531,7 +538,8 @@ export default function Improve() {
           <div className="imp-actions">
             <button
               className="imp-btn imp-primary"
-              disabled={busy || isRunning}
+          
+    disabled={busy || isRunning}
               onClick={startRun}
             >
               {busy ? "..." : "Avvia Improve"}
@@ -581,7 +589,8 @@ export default function Improve() {
         .imp-auth { display: flex; gap: 10px; align-items: center; font-size: 13px; color: #9ca3af; }
         .imp-cols { display: grid; grid-template-columns: 380px 1fr; gap: 20px; }
         @media (max-width: 900px) { .imp-cols { grid-template-columns: 1fr; } }
-        .imp-col { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 16px; }
+        .imp-col { backgroun
+d: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 16px; }
         .imp-label { display: block; margin: 14px 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #9ca3af; }
         .imp-input, .imp-select { width: 100%; background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.12); border-radius: 8px; color: #e5e7eb; padding: 8px 10px; font-size: 13px; margin-bottom: 4px; }
         .imp-bot-row { display: flex; gap: 6px; margin-bottom: 6px; }
@@ -602,7 +611,8 @@ export default function Improve() {
         .imp-dim { color: #6b7280; }
         .imp-msg { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 12px; background: rgba(0,0,0,.3); border-radius: 8px; padding: 10px; margin: 0; line-height: 1.5; }
         .imp-empty { color: #6b7280; font-size: 13px; }
-        .imp-file-chosen { color: #34d399; font-size: 13px; margin-top: 6px; }
+        .imp-file-chosen { color: #34d399; font-
+size: 13px; margin-top: 6px; }
         .imp-page code { color: #34d399; }
       `}</style>
     </div>
