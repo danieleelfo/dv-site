@@ -58,7 +58,8 @@ const MAX_ITERATIONS = 3;
 // Regola di grounding condivisa (stessa degli altri improve).
 const IMPROVE_GROUNDING =
   "REGOLA FERREA - NIENTE INVENZIONI:\n" +
-  "- Usa SOLO nomi (funzioni, variabili, classi, import) che esistono gia nel file.\n" +
+  "- Usa SOLO nomi (funzioni, variabili, class
+i, import) che esistono gia nel file.\n" +
   "- Se proponi qualcosa di NUOVO marcala esplicitamente come NUOVO: e spiega perche serve.\n" +
   "- Se un fix richiede un altro file, dillo invece di indovinare cosa contiene.\n";
 
@@ -122,9 +123,10 @@ function readStoredToken() {
 }
 
 function useGoogleAuth() {
-  const [idToken, setIdToken] = useState(readStoredToken);
+ 
+ const [idToken, setIdToken] = useState(readStoredToken);
   con
-st buttonRef = useRef(null);
+  const buttonRef = useRef(null);
 
   function onCredential(resp) {
     const token = resp?.credential;
@@ -203,7 +205,8 @@ export default function Improve() {
       { id: 0, kind: "role", role: "Developer", model: "gemma4" },
     ],
   });
-  const [busy, setBusy] = useState(false);
+  const [busy
+, setBusy] = useState(false);
   const [error, setError] = useSta
 te("");
   const [runId, setRunId] = useState(null);
@@ -269,6 +272,7 @@ te("");
       },
       body: JSON.stringify({ path: cfg.file, code }),
     })
+
       .then((r) => (r.ok ? r.json() : Promise.reject(r)))
       
 .then((d) => setSavedPath(d.saved_path || ""))
@@ -347,7 +351,8 @@ te("");
         participants,
         topic: buildTopic(cfg.file, fd.content, cfg.request),
         max_turns: cfg.iterations,
-        world_source: "free",
+        world
+_source: "free",
       };
 
       const r = await fetch(API + "/api
@@ -424,6 +429,7 @@ te("");
           {!filesLoaded && (
             <p className="imp-dim">Caricamento lista file…</p>
           )}
+
           {filesLoaded && !files.length && (
             <p classN
 ame="imp-error">
@@ -478,7 +484,8 @@ ame="imp-error">
                 className="imp-select"
                 value={p.kind === "sl" ? "__sl__" : p.role}
                 onChange={(e) =>
-                  e.target.value === "__sl__"
+                  e.tar
+get.value === "__sl__"
                     ? updateParticipant(idx, 
 {
                         kind: "sl",
@@ -536,7 +543,8 @@ ame="imp-error">
           </label>
 
           <div className="imp-actions">
-            <button
+       
+     <button
               className="imp-btn imp-primary"
           
     disabled={busy || isRunning}
@@ -588,7 +596,8 @@ ame="imp-error">
         .imp-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
         .imp-auth { display: flex; gap: 10px; align-items: center; font-size: 13px; color: #9ca3af; }
         .imp-cols { display: grid; grid-template-columns: 380px 1fr; gap: 20px; }
-        @media (max-width: 900px) { .imp-cols { grid-template-columns: 1fr; } }
+        @media (max-width: 900px) { .i
+mp-cols { grid-template-columns: 1fr; } }
         .imp-col { backgroun
 d: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 16px; }
         .imp-label { display: block; margin: 14px 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #9ca3af; }
@@ -610,7 +619,8 @@ d: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08); border-radius
         .imp-turn-head { font-size: 12px; color: #9ca3af; margin-bottom: 4px; }
         .imp-dim { color: #6b7280; }
         .imp-msg { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 12px; background: rgba(0,0,0,.3); border-radius: 8px; padding: 10px; margin: 0; line-height: 1.5; }
-        .imp-empty { color: #6b7280; font-size: 13px; }
+        .imp-empty { color: #6b72
+80; font-size: 13px; }
         .imp-file-chosen { color: #34d399; font-
 size: 13px; margin-top: 6px; }
         .imp-page code { color: #34d399; }
