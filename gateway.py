@@ -1,3 +1,4 @@
+import ast
 import os
 import time
 import asyncio
@@ -627,7 +628,12 @@ ALLOWED_ROLES = {
     "Explorer",
 }
 
+# Topic delle Arena normali.
 MAX_TOPIC_CHARS = 4000
+
+# Topic delle Arena "improve": contiene un intero file .py
+# (fino a _IMPROVE_MAX_CHARS = 40.000) più le istruzioni.
+MAX_TOPIC_CHARS_IMPROVE = 48_000
 
 
 class ArenaParticipant(BaseModel):
@@ -645,6 +651,14 @@ class AgentArenaRequest(BaseModel):
     topic: str = ""
 
     max_turns: int = 10
+
+    # Modalità improve (pagina /improve):
+    #  - ogni bot riceve il topic (file + regole) E l'ultima proposta,
+    #    non solo il messaggio precedente;
+    #  - Super-Leles NON usa la chat Telegram personale dell'admin
+    #    (niente memoria/persona/KB personali nel miglioramento codice),
+    #    ma una chat isolata come gli altri bot.
+    improve: bool = False
 
 
 class ArenaInterveneRequest(BaseModel):
@@ -724,10 +738,16 @@ def _validate_arena_request(req: AgentArenaRequest) -> None:
             detail="world_source deve essere 'free' oppure 'emergence'.",
         )
 
-    if len(req.topic) > MAX_TOPIC_CHARS:
+    max_topic = (
+        MAX_TOPIC_CHARS_IMPROVE
+        if req.improve
+        else MAX_TOPIC_CHARS
+    )
+
+    if len(req.topic) > max_topic:
         raise HTTPException(
             status_code=400,
-            detail=f"Topic troppo lungo (massimo {MAX_TOPIC_CHARS} caratteri).",
+            detail=f"Topic troppo lungo (massimo {max_topic} caratteri).",
         )
 
     if req.world_source == "emergence" and not str(req.world_ref).strip().isdigit():
@@ -1364,12 +1384,39 @@ async def _run_agent_arena(
                         last_msg,
                     )
 
+                # ----------------------------------------------
+                # MESSAGGIO IN INGRESSO AL BOT
+                # ----------------------------------------------
+                # Arena normale: il bot vede SOLO l'ultimo messaggio.
+                #
+                # Improve: dal secondo messaggio in poi il bot vede
+                # anche il topic (file + regole anti-invenzione),
+                # altrimenti lavora senza istruzioni e senza il file.
+
+                msg_in = last_msg
+
+                if cfg.improve and not (turn == 0 and idx == 0):
+                    msg_in = (
+                        f"{opening}\n\n"
+                        f"=== ULTIMA PROPOSTA / MESSAGGIO PRECEDENTE ===\n"
+                        f"{last_msg}"
+                    )
+
+                # Super-Leles usa la chat Telegram personale dell'admin
+                # (memoria, persona, KB) tranne in modalita improve.
+
+                use_admin_chat = (
+                    p.agent == "super_leles"
+                    and admin_chat_id is not None
+                    and not cfg.improve
+                )
+
                 answer = await _arena_call(
                     agent_id=p.agent,
-                    message=last_msg,
+                    message=msg_in,
                     chat_id=(
                         admin_chat_id
-                        if p.agent == "super_leles" and admin_chat_id is not None
+                        if use_admin_chat
                         else _arena_chat_id(run_id, idx)
                     ),
                     character=p.character,
@@ -1737,11 +1784,6 @@ async def agent_arena_intervene(
     }
 
 
-# --------------------------------------------------------------------------
-# AVVIO DIRETTO
-# --------------------------------------------------------------------------
-
-
 # ============================================================
 # IMPROVE — miglioramento file .py del repo Leles via pagina web
 # ============================================================
@@ -1763,7 +1805,11 @@ _IMPROVE_SKIP_DIRS = {
 }
 
 # Limite sul file leggibile dal sito (il topic Arena lo contiene tutto).
+# Deve restare < MAX_TOPIC_CHARS_IMPROVE meno lo spazio per le istruzioni.
 _IMPROVE_MAX_CHARS = 40_000
+
+# Limite sul codice salvabile (un file migliorato non deve esplodere).
+_IMPROVE_MAX_SAVE_CHARS = 120_000
 
 
 def _improve_resolve(rel_path: str) -> str:
@@ -1853,6 +1899,29 @@ async def improve_save_file(
             detail="Nessun codice da salvare.",
         )
 
+    if len(code) > _IMPROVE_MAX_SAVE_CHARS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Codice troppo lungo ({len(code)} caratteri, "
+                f"limite {_IMPROVE_MAX_SAVE_CHARS})."
+            ),
+        )
+
+    # Non scrivere su disco codice che non compila: un bot che risponde
+    # con prosa, uno snippet o un blocco troncato produrrebbe un
+    # .improved.py inutilizzabile.
+    try:
+        ast.parse(code)
+    except SyntaxError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Il codice proposto non e Python valido "
+                f"(riga {e.lineno}: {e.msg}). Non salvato."
+            ),
+        )
+
     target = _improve_resolve(rel_path)
     saved_path = target + ".improved.py"
     with open(saved_path, "w", encoding="utf-8") as f:
@@ -1863,6 +1932,10 @@ async def improve_save_file(
         "bytes": os.path.getsize(saved_path),
     }
 
+
+# --------------------------------------------------------------------------
+# AVVIO DIRETTO
+# --------------------------------------------------------------------------
 if __name__ == "__main__":
     import uvicorn
 
