@@ -164,8 +164,10 @@ function SystemTiles({ data }) {
             })
           }
 
+          // Senza ^ : l'etichetta è "Superleles available only: GPT-OSS",
+          // quindi GPT-OSS non è all'inizio della stringa.
           const gpt = sec.items.find((item) =>
-            /^GPT[-\s]?OSS/i.test(item.label)
+            /GPT[-\s]?OSS/i.test(item.label)
           )
 
           ollamaItems.push({
@@ -178,7 +180,7 @@ function SystemTiles({ data }) {
 
         const displayItems = isOllama ? ollamaItems : sec.items
         const up = displayItems.filter((i) => i.state === 'ok').length
-        
+
         // verde se tutto su, arancione altrimenti (vale per Progetti, Servizi, Ollama)
         const secState = up === displayItems.length ? 'ok' : 'warn'
 
@@ -198,8 +200,6 @@ function SystemTiles({ data }) {
               <span className={`lc-sys-count is-${secState}`}>
                 {up}/{displayItems.length}
               </span>
-              
-              
             </div>
 
             {isOllama ? (
