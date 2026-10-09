@@ -341,6 +341,7 @@ export default function Improve() {
   const [diffLeftName, setDiffLeftName] = useState("originale.txt");
   const [diffRightName, setDiffRightName] = useState("modificato.txt");
   const [diffRows, setDiffRows] = useState(null);
+  const [diffOnly, setDiffOnly] = useState(false);
   const [diffCoarse, setDiffCoarse] = useState(false);
   const [diffError, setDiffError] = useState("");
   const [diffCopied, setDiffCopied] = useState(false);
@@ -606,6 +607,7 @@ export default function Improve() {
 
   function runDiff() {
     setDiffError("");
+    setDiffOnly(false);
     if (!diffLeft && !diffRight) {
       setDiffError("Carica o incolla il contenuto di almeno uno dei due file.");
       return;
@@ -617,7 +619,8 @@ export default function Improve() {
 
   function diffAsText() {
     if (!diffRows) return "";
-    return diffRows.map((row) => {
+    const rows = diffOnly ? diffRows.filter((row) => row.type !== "same") : diffRows;
+    return rows.map((row) => {
       if (row.type === "same") return "  " + (row.left ?? "");
       if (row.type === "remove") return "- " + (row.left ?? "");
       return "+ " + (row.right ?? "");
@@ -735,15 +738,22 @@ export default function Improve() {
           <div className="imp-diff-actions">
             <button className="imp-btn imp-primary" onClick={runDiff}>Confronta</button>
             <button className="imp-btn" onClick={() => {
-              setDiffLeft(""); setDiffRight(""); setDiffRows(null); setDiffError("");
+              setDiffLeft(""); setDiffRight(""); setDiffRows(null); setDiffOnly(false); setDiffError("");
               setDiffLeftName("originale.txt"); setDiffRightName("modificato.txt");
               if (leftUploadRef.current) leftUploadRef.current.value = "";
               if (rightUploadRef.current) rightUploadRef.current.value = "";
             }}>Pulisci</button>
             {diffRows && (
               <>
-                <button className="imp-btn" onClick={copyDiff}>{diffCopied ? "Copiata" : "Copia diff"}</button>
-                <button className="imp-btn" onClick={() => downloadTextFile("diff.txt", diffAsText())}>Scarica diff</button>
+                <button
+                  className={"imp-btn " + (diffOnly ? "imp-tab-active" : "")}
+                  onClick={() => setDiffOnly((current) => !current)}
+                  aria-pressed={diffOnly}
+                >
+                  {diffOnly ? "Mostra tutto" : "Diff only"}
+                </button>
+                <button className="imp-btn" onClick={copyDiff}>{diffCopied ? "Copiata" : diffOnly ? "Copia diff only" : "Copia diff"}</button>
+                <button className="imp-btn" onClick={() => downloadTextFile("diff.txt", diffAsText())}>{diffOnly ? "Scarica diff only" : "Scarica diff"}</button>
                 <button className="imp-btn" onClick={() => downloadTextFile(diffRightName || "modificato.txt", diffRight)}>Scarica file B</button>
               </>
             )}
@@ -760,14 +770,18 @@ export default function Improve() {
                 </div>
               </div>
               {diffCoarse && <p className="imp-note">File molto grandi: il blocco centrale viene mostrato come rimozioni e aggiunte, senza allineamento riga per riga.</p>}
+              {diffOnly && !diffRows.some((row) => row.type !== "same") ? (
+                <p className="imp-empty">Nessuna differenza: i file sono identici.</p>
+              ) : (
               <div className="imp-diff-lines">
-                {diffRows.map((row, i) => (
+                {(diffOnly ? diffRows.filter((row) => row.type !== "same") : diffRows).map((row, i) => (
                   <div key={i} className={"imp-diff-line imp-diff-" + row.type}>
                     <span className="imp-diff-mark">{row.type === "add" ? "+" : row.type === "remove" ? "−" : " "}</span>
                     <pre>{row.type === "add" ? row.right : row.left}</pre>
                   </div>
                 ))}
               </div>
+              )}
             </section>
           )}
         </div>
