@@ -127,8 +127,8 @@ function turnText(t) {
 // ============================================================
 
 function calculateLineDiff(leftText, rightText) {
-  const left = leftText.replace(/\\r\\n/g, "\\n").split("\\n");
-  const right = rightText.replace(/\\r\\n/g, "\\n").split("\\n");
+  const left = leftText.replace(/\r\n/g, "\n").split("\n");
+  const right = rightText.replace(/\r\n/g, "\n").split("\n");
   const n = left.length;
   const m = right.length;
   const MAX_CELLS = 4_000_000;
@@ -621,7 +621,7 @@ export default function Improve() {
       if (row.type === "same") return "  " + (row.left ?? "");
       if (row.type === "remove") return "- " + (row.left ?? "");
       return "+ " + (row.right ?? "");
-    }).join("\\n");
+    }).join("\n");
   }
 
   async function copyDiff() {
