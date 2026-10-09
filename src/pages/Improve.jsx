@@ -156,7 +156,7 @@ function calculateLineDiff(leftText, rightText) {
       endR++;
       suffix.push({ type: "same", left: left[endL], right: right[endR] });
     }
-    return { rows: rows.concat(suffix), coarse: true };
+    return { rows: addDiffLineNumbers(rows.concat(suffix)), coarse: true };
   }
 
   // LCS per allineare righe uguali e mostrare aggiunte/rimozioni.
@@ -185,7 +185,21 @@ function calculateLineDiff(leftText, rightText) {
   }
   while (i < n) rows.push({ type: "remove", left: left[i++] });
   while (j < m) rows.push({ type: "add", right: right[j++] });
-  return { rows, coarse: false };
+  return { rows: addDiffLineNumbers(rows), coarse: false };
+}
+
+function addDiffLineNumbers(rows) {
+  let leftLine = 1;
+  let rightLine = 1;
+  return rows.map((row) => {
+    if (row.type === "same") {
+      return { ...row, leftLine: leftLine++, rightLine: rightLine++ };
+    }
+    if (row.type === "remove") {
+      return { ...row, leftLine: leftLine++, rightLine: null };
+    }
+    return { ...row, leftLine: null, rightLine: rightLine++ };
+  });
 }
 
 function downloadTextFile(filename, text) {
@@ -621,9 +635,9 @@ export default function Improve() {
     if (!diffRows) return "";
     const rows = diffOnly ? diffRows.filter((row) => row.type !== "same") : diffRows;
     return rows.map((row) => {
-      if (row.type === "same") return "  " + (row.left ?? "");
-      if (row.type === "remove") return "- " + (row.left ?? "");
-      return "+ " + (row.right ?? "");
+      if (row.type === "same") return "  " + row.leftLine + " | " + (row.left ?? "");
+      if (row.type === "remove") return "- " + row.leftLine + " | " + (row.left ?? "");
+      return "+ " + row.rightLine + " | " + (row.right ?? "");
     }).join("\n");
   }
 
@@ -777,6 +791,8 @@ export default function Improve() {
                 {(diffOnly ? diffRows.filter((row) => row.type !== "same") : diffRows).map((row, i) => (
                   <div key={i} className={"imp-diff-line imp-diff-" + row.type}>
                     <span className="imp-diff-mark">{row.type === "add" ? "+" : row.type === "remove" ? "−" : " "}</span>
+                    <span className="imp-diff-line-number">{row.leftLine ?? ""}</span>
+                    <span className="imp-diff-line-number">{row.rightLine ?? ""}</span>
                     <pre>{row.type === "add" ? row.right : row.left}</pre>
                   </div>
                 ))}
@@ -1002,7 +1018,7 @@ export default function Improve() {
         .imp-diff-same-label { color: #9ca3af; }
         .imp-diff-lines { margin-top: 12px; overflow: auto; max-height: 70vh; border-radius: 8px; background: rgba(0,0,0,.3); }
         .imp-diff-line { display: flex; min-width: max-content; border-bottom: 1px solid rgba(255,255,255,.025); }
-        .imp-diff-mark { width: 28px; flex: 0 0 28px; text-align: center; padding: 3px 0; font-family: ui-monospace, monospace; color: #9ca3af; user-select: none; }
+        .imp-diff-mark { width: 28px; flex: 0 0 28px; text-align: center; padding: 3px 0; font-family: ui-monospace, monospace; color: #9ca3af; user-select: none; }\n        .imp-diff-line-number { width: 38px; flex: 0 0 38px; box-sizing: border-box; text-align: right; padding: 3px 6px 3px 0; border-right: 1px solid rgba(255,255,255,.07); font: 12px/1.5 ui-monospace, monospace; color: #6b7280; user-select: none; }
         .imp-diff-line pre { margin: 0; padding: 3px 10px 3px 0; white-space: pre; font-family: ui-monospace, monospace; font-size: 12px; line-height: 1.5; color: #d1d5db; }
         .imp-diff-add { background: rgba(16,185,129,.12); }
         .imp-diff-add .imp-diff-mark, .imp-diff-add pre { color: #6ee7b7; }
