@@ -19,7 +19,7 @@
 //   - GET {run_id} restituisce anche "error"
 //   - start accetta "improve": true (topic fisso su ogni turno + chat isolate)
 //
-// AUTH: login Google, stesso client del gateway (come HomeTest4).
+// AUTH: login Google, stesso client del gateway (come HomeTest4).\n// Diff: upload e copia/incolla, elaborati solo nel browser; stessa Google auth.
 // ============================================================
 
 import { useState, useEffect, useRef } from "react";
@@ -119,6 +119,85 @@ function extractLastCode(text) {
 // Il gateway usa "text"; "message" resta come fallback difensivo.
 function turnText(t) {
   return (t && (t.text ?? t.message)) || "";
+}
+
+
+// ============================================================
+// LOCAL DIFF - confronto nel browser, senza endpoint aggiuntivi
+// ============================================================
+
+function calculateLineDiff(leftText, rightText) {
+  const left = leftText.replace(/\\r\\n/g, "\\n").split("\\n");
+  const right = rightText.replace(/\\r\\n/g, "\\n").split("\\n");
+  const n = left.length;
+  const m = right.length;
+  const MAX_CELLS = 4_000_000;
+  let rows = [];
+
+  // Per file molto grandi evitiamo una matrice LCS enorme: mostriamo
+  // il prefisso/suffisso comune e il blocco centrale come modificato.
+  if ((n + 1) * (m + 1) > MAX_CELLS) {
+    let start = 0;
+    while (start < n && start < m && left[start] === right[start]) {
+      rows.push({ type: "same", left: left[start], right: right[start] });
+      start++;
+    }
+    let endL = n - 1;
+    let endR = m - 1;
+    while (endL >= start && endR >= start && left[endL] === right[endR]) {
+      endL--;
+      endR--;
+    }
+    for (let i = start; i <= endL; i++) rows.push({ type: "remove", left: left[i] });
+    for (let j = start; j <= endR; j++) rows.push({ type: "add", right: right[j] });
+    const suffix = [];
+    while (endL + 1 < n && endR + 1 < m) {
+      endL++;
+      endR++;
+      suffix.push({ type: "same", left: left[endL], right: right[endR] });
+    }
+    return { rows: rows.concat(suffix), coarse: true };
+  }
+
+  // LCS per allineare righe uguali e mostrare aggiunte/rimozioni.
+  const width = m + 1;
+  const dp = new Uint32Array((n + 1) * width);
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i * width + j] = left[i] === right[j]
+        ? dp[(i + 1) * width + j + 1] + 1
+        : Math.max(dp[(i + 1) * width + j], dp[i * width + j + 1]);
+    }
+  }
+
+  let i = 0;
+  let j = 0;
+  while (i < n && j < m) {
+    if (left[i] === right[j]) {
+      rows.push({ type: "same", left: left[i], right: right[j] });
+      i++;
+      j++;
+    } else if (dp[(i + 1) * width + j] >= dp[i * width + j + 1]) {
+      rows.push({ type: "remove", left: left[i++] });
+    } else {
+      rows.push({ type: "add", right: right[j++] });
+    }
+  }
+  while (i < n) rows.push({ type: "remove", left: left[i++] });
+  while (j < m) rows.push({ type: "add", right: right[j++] });
+  return { rows, coarse: false };
+}
+
+function downloadTextFile(filename, text) {
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 // ============================================================
@@ -256,6 +335,17 @@ export default function Improve() {
   const [saveNote, setSaveNote] = useState("");
   const [finalCode, setFinalCode] = useState("");
   const [copied, setCopied] = useState(false);
+  const [mode, setMode] = useState("improve");
+  const [diffLeft, setDiffLeft] = useState("");
+  const [diffRight, setDiffRight] = useState("");
+  const [diffLeftName, setDiffLeftName] = useState("originale.txt");
+  const [diffRightName, setDiffRightName] = useState("modificato.txt");
+  const [diffRows, setDiffRows] = useState(null);
+  const [diffCoarse, setDiffCoarse] = useState(false);
+  const [diffError, setDiffError] = useState("");
+  const [diffCopied, setDiffCopied] = useState(false);
+  const leftUploadRef = useRef(null);
+  const rightUploadRef = useRef(null);
 
   const savedRef = useRef(false);
   const pollRef = useRef(null);
@@ -495,6 +585,55 @@ export default function Improve() {
     }
   }
 
+
+  async function loadDiffFile(side, file) {
+    if (!file) return;
+    try {
+      const content = await file.text();
+      if (side === "left") {
+        setDiffLeft(content);
+        setDiffLeftName(file.name || "originale.txt");
+      } else {
+        setDiffRight(content);
+        setDiffRightName(file.name || "modificato.txt");
+      }
+      setDiffRows(null);
+      setDiffError("");
+    } catch {
+      setDiffError("Non riesco a leggere il file selezionato.");
+    }
+  }
+
+  function runDiff() {
+    setDiffError("");
+    if (!diffLeft && !diffRight) {
+      setDiffError("Carica o incolla il contenuto di almeno uno dei due file.");
+      return;
+    }
+    const result = calculateLineDiff(diffLeft, diffRight);
+    setDiffRows(result.rows);
+    setDiffCoarse(result.coarse);
+  }
+
+  function diffAsText() {
+    if (!diffRows) return "";
+    return diffRows.map((row) => {
+      if (row.type === "same") return "  " + (row.left ?? "");
+      if (row.type === "remove") return "- " + (row.left ?? "");
+      return "+ " + (row.right ?? "");
+    }).join("\\n");
+  }
+
+  async function copyDiff() {
+    try {
+      await navigator.clipboard.writeText(diffAsText());
+      setDiffCopied(true);
+      setTimeout(() => setDiffCopied(false), 2000);
+    } catch {
+      setDiffError("Copia non riuscita: il browser non ha concesso l'accesso agli appunti.");
+    }
+  }
+
   // Nasconde i .improved.py gia generati: non sono sorgenti da migliorare.
   const visibleFiles = files
     .filter((f) => !f.path.endsWith(".improved.py"))
@@ -524,6 +663,115 @@ export default function Improve() {
         </div>
       </div>
 
+      <div className="imp-mode-tabs" role="tablist" aria-label="Modalità Improve">
+        <button
+          className={"imp-btn " + (mode === "improve" ? "imp-tab-active" : "")}
+          onClick={() => setMode("improve")}
+          role="tab"
+          aria-selected={mode === "improve"}
+        >
+          Improve
+        </button>
+        <button
+          className={"imp-btn " + (mode === "diff" ? "imp-tab-active" : "")}
+          onClick={() => setMode("diff")}
+          role="tab"
+          aria-selected={mode === "diff"}
+        >
+          Diff file
+        </button>
+      </div>
+
+      {mode === "diff" ? (
+        <div className="imp-diff-workspace">
+          <div className="imp-diff-intro">
+            <h2>Confronta due file</h2>
+            <p>Carica i file oppure incolla il codice. Il confronto avviene nel browser: nessun file viene inviato al gateway o salvato sul server.</p>
+          </div>
+          <div className="imp-diff-inputs">
+            <section className="imp-col">
+              <div className="imp-diff-title">
+                <label className="imp-label">A · Originale</label>
+                <button className="imp-btn" onClick={() => leftUploadRef.current?.click()}>Carica file</button>
+                <input
+                  ref={leftUploadRef}
+                  className="imp-file-input"
+                  type="file"
+                  onChange={(e) => loadDiffFile("left", e.target.files?.[0])}
+                />
+              </div>
+              <p className="imp-diff-filename">{diffLeftName}</p>
+              <textarea
+                className="imp-input imp-diff-editor"
+                aria-label="Contenuto del file originale"
+                placeholder="Incolla qui il contenuto originale..."
+                value={diffLeft}
+                onChange={(e) => { setDiffLeft(e.target.value); setDiffRows(null); }}
+                spellCheck={false}
+              />
+            </section>
+            <section className="imp-col">
+              <div className="imp-diff-title">
+                <label className="imp-label">B · Modificato</label>
+                <button className="imp-btn" onClick={() => rightUploadRef.current?.click()}>Carica file</button>
+                <input
+                  ref={rightUploadRef}
+                  className="imp-file-input"
+                  type="file"
+                  onChange={(e) => loadDiffFile("right", e.target.files?.[0])}
+                />
+              </div>
+              <p className="imp-diff-filename">{diffRightName}</p>
+              <textarea
+                className="imp-input imp-diff-editor"
+                aria-label="Contenuto del file modificato"
+                placeholder="Incolla qui il contenuto modificato..."
+                value={diffRight}
+                onChange={(e) => { setDiffRight(e.target.value); setDiffRows(null); }}
+                spellCheck={false}
+              />
+            </section>
+          </div>
+          <div className="imp-diff-actions">
+            <button className="imp-btn imp-primary" onClick={runDiff}>Confronta</button>
+            <button className="imp-btn" onClick={() => {
+              setDiffLeft(""); setDiffRight(""); setDiffRows(null); setDiffError("");
+              setDiffLeftName("originale.txt"); setDiffRightName("modificato.txt");
+              if (leftUploadRef.current) leftUploadRef.current.value = "";
+              if (rightUploadRef.current) rightUploadRef.current.value = "";
+            }}>Pulisci</button>
+            {diffRows && (
+              <>
+                <button className="imp-btn" onClick={copyDiff}>{diffCopied ? "Copiata" : "Copia diff"}</button>
+                <button className="imp-btn" onClick={() => downloadTextFile("diff.txt", diffAsText())}>Scarica diff</button>
+                <button className="imp-btn" onClick={() => downloadTextFile(diffRightName || "modificato.txt", diffRight)}>Scarica file B</button>
+              </>
+            )}
+          </div>
+          {diffError && <div className="imp-error">! {diffError}</div>}
+          {diffRows && (
+            <section className="imp-col imp-diff-result">
+              <div className="imp-diff-result-head">
+                <h3>Risultato</h3>
+                <div className="imp-diff-legend">
+                  <span className="imp-diff-add-label">+ aggiunta</span>
+                  <span className="imp-diff-remove-label">− rimossa</span>
+                  <span className="imp-diff-same-label">· invariata</span>
+                </div>
+              </div>
+              {diffCoarse && <p className="imp-note">File molto grandi: il blocco centrale viene mostrato come rimozioni e aggiunte, senza allineamento riga per riga.</p>}
+              <div className="imp-diff-lines">
+                {diffRows.map((row, i) => (
+                  <div key={i} className={"imp-diff-line imp-diff-" + row.type}>
+                    <span className="imp-diff-mark">{row.type === "add" ? "+" : row.type === "remove" ? "−" : " "}</span>
+                    <pre>{row.type === "add" ? row.right : row.left}</pre>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+      ) : (
       <div className="imp-cols">
         {/* ---------- CONFIG ---------- */}
         <div className="imp-col">
@@ -714,9 +962,39 @@ export default function Improve() {
         </div>
       </div>
 
+      )}
       <style>{`
         .imp-page { max-width: 1200px; margin: 0 auto; padding: 24px; color: #e5e7eb; min-height: 100vh; background: #0b0e14; }
         .imp-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+        .imp-mode-tabs { display: flex; gap: 8px; margin: 0 0 18px; }
+        .imp-tab-active { border-color: #10b981; background: rgba(16,185,129,.16); color: #6ee7b7; }
+        .imp-diff-workspace { display: flex; flex-direction: column; gap: 16px; }
+        .imp-diff-intro h2 { margin: 0 0 6px; font-size: 20px; }
+        .imp-diff-intro p { margin: 0; color: #9ca3af; font-size: 13px; line-height: 1.5; }
+        .imp-diff-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        @media (max-width: 800px) { .imp-diff-inputs { grid-template-columns: 1fr; } }
+        .imp-diff-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        .imp-diff-title .imp-label { margin-top: 0; }
+        .imp-file-input { display: none; }
+        .imp-diff-filename { margin: 0 0 8px; color: #6ee7b7; font-size: 12px; overflow-wrap: anywhere; }
+        .imp-diff-editor { min-height: 260px; resize: vertical; font-family: ui-monospace, monospace; line-height: 1.5; white-space: pre; tab-size: 2; }
+        .imp-diff-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+        .imp-diff-result { min-width: 0; }
+        .imp-diff-result-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+        .imp-diff-result-head h3 { margin: 0; }
+        .imp-diff-legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; }
+        .imp-diff-add-label { color: #6ee7b7; }
+        .imp-diff-remove-label { color: #fca5a5; }
+        .imp-diff-same-label { color: #9ca3af; }
+        .imp-diff-lines { margin-top: 12px; overflow: auto; max-height: 70vh; border-radius: 8px; background: rgba(0,0,0,.3); }
+        .imp-diff-line { display: flex; min-width: max-content; border-bottom: 1px solid rgba(255,255,255,.025); }
+        .imp-diff-mark { width: 28px; flex: 0 0 28px; text-align: center; padding: 3px 0; font-family: ui-monospace, monospace; color: #9ca3af; user-select: none; }
+        .imp-diff-line pre { margin: 0; padding: 3px 10px 3px 0; white-space: pre; font-family: ui-monospace, monospace; font-size: 12px; line-height: 1.5; color: #d1d5db; }
+        .imp-diff-add { background: rgba(16,185,129,.12); }
+        .imp-diff-add .imp-diff-mark, .imp-diff-add pre { color: #6ee7b7; }
+        .imp-diff-remove { background: rgba(239,68,68,.12); }
+        .imp-diff-remove .imp-diff-mark, .imp-diff-remove pre { color: #fca5a5; }
+
         .imp-auth { display: flex; gap: 10px; align-items: center; font-size: 13px; color: #9ca3af; }
         .imp-cols { display: grid; grid-template-columns: 380px 1fr; gap: 20px; }
         @media (max-width: 900px) { .imp-cols { grid-template-columns: 1fr; } }
