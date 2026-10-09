@@ -142,18 +142,27 @@ a {
   color: #f59e0b;
 }
 
-/* Modelli Ollama: testo bianco anche se caricati */
-.lc-sys .lc-ollama-box,
-.lc-sys .lc-ollama-box b {
+/* Pallino davanti al titolo anche per l'arancione */
+.lc-sys .lc-sys-name.is-warn::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* Modelli Ollama caricati: testo bianco */
+.lc-sys .lc-ollama-box.is-ok,
+.lc-sys .lc-ollama-box.is-ok b {
   color: var(--ink);
 }
 
 /* Solo GPT-OSS: verde se su, grigio se non caricato */
-.lc-sys .lc-ollama-wide.is-ok,
-.lc-sys .lc-ollama-wide.is-ok b {
+.lc-sys .lc-ollama-box.lc-ollama-wide.is-ok,
+.lc-sys .lc-ollama-box.lc-ollama-wide.is-ok b {
   color: #22c55e;
 }
-.lc-sys .lc-ollama-wide.is-off,
-.lc-sys .lc-ollama-wide.is-off b {
+.lc-sys .lc-ollama-box.lc-ollama-wide.is-off,
+.lc-sys .lc-ollama-box.lc-ollama-wide.is-off b {
   color: var(--ink-dim);
 }
