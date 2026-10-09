@@ -37,7 +37,7 @@ const API = "https://api.danielevillanova.com";
 // <-- INSERISCI il tuo Google OAuth Client ID (stesso del gateway)
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
-const TOKEN_STORAGE_KEY = "arena_google_id_token";
+const TOKEN_STORAGE_KEY = "dv_google_id_token";
 
 // Deve combaciare con MAX_TOTAL_MESSAGES del gateway.
 const MAX_TOTAL_MESSAGES = 120;
@@ -71,7 +71,7 @@ function isTokenValid(token) {
 
 function readStoredToken() {
   try {
-    const stored = sessionStorage.getItem(TOKEN_STORAGE_KEY);
+    const stored = localStorage.getItem(TOKEN_STORAGE_KEY);
     return isTokenValid(stored) ? stored : null;
   } catch {
     return null;
@@ -80,6 +80,17 @@ function readStoredToken() {
 
 function useGoogleAuth() {
   const [idToken, setIdToken] = useState(readStoredToken);
+
+  // Sync login tra pagine/tab: se un'altra pagina fa login/logout,
+  // l'evento "storage" ci arriva subito e aggiorniamo lo stato.
+  useEffect(() => {
+    function onStorage(e) {
+      if (e.key !== TOKEN_STORAGE_KEY) return;
+      setIdToken(e.newValue && isTokenValid(e.newValue) ? e.newValue : null);
+    }
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
   const [authError, setAuthError] = useState("");
   const buttonRef = useRef(null);
 
@@ -87,7 +98,7 @@ function useGoogleAuth() {
 
   const logout = () => {
     try {
-      sessionStorage.removeItem(TOKEN_STORAGE_KEY);
+      localStorage.removeItem(TOKEN_STORAGE_KEY);
       if (window.google?.accounts?.id) {
         window.google.accounts.id.disableAutoSelect();
       }
@@ -136,7 +147,7 @@ function useGoogleAuth() {
           const credential = response?.credential;
           if (!isTokenValid(credential)) return;
           try {
-            sessionStorage.setItem(TOKEN_STORAGE_KEY, credential);
+            localStorage.setItem(TOKEN_STORAGE_KEY, credential);
           } catch {
             /* ignore */
           }
