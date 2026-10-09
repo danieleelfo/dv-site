@@ -635,9 +635,9 @@ export default function Improve() {
     if (!diffRows) return "";
     const rows = diffOnly ? diffRows.filter((row) => row.type !== "same") : diffRows;
     return rows.map((row) => {
-      if (row.type === "same") return "  " + row.leftLine + " | " + (row.left ?? "");
-      if (row.type === "remove") return "- " + row.leftLine + " | " + (row.left ?? "");
-      return "+ " + row.rightLine + " | " + (row.right ?? "");
+      if (row.type === "same") return "  " + (row.left ?? "");
+      if (row.type === "remove") return "- " + (row.left ?? "");
+      return "+ " + (row.right ?? "");
     }).join("\n");
   }
 
