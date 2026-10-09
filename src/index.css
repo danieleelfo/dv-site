@@ -125,3 +125,35 @@ a {
   padding-top: 4rem;
   padding-bottom: 4rem;
 }
+
+/* ===== Pannello Stato sistema: colori titoli e Ollama ===== */
+
+/* Titoli sezione + contatore: bold, verde se tutto su, arancione altrimenti */
+.lc-sys .lc-sys-name,
+.lc-sys .lc-sys-count {
+  font-weight: 700;
+}
+.lc-sys .lc-sys-name.is-ok,
+.lc-sys .lc-sys-count.is-ok {
+  color: #22c55e;
+}
+.lc-sys .lc-sys-name.is-warn,
+.lc-sys .lc-sys-count.is-warn {
+  color: #f59e0b;
+}
+
+/* Modelli Ollama: testo bianco anche se caricati */
+.lc-sys .lc-ollama-box,
+.lc-sys .lc-ollama-box b {
+  color: var(--ink);
+}
+
+/* Solo GPT-OSS: verde se su, grigio se non caricato */
+.lc-sys .lc-ollama-wide.is-ok,
+.lc-sys .lc-ollama-wide.is-ok b {
+  color: #22c55e;
+}
+.lc-sys .lc-ollama-wide.is-off,
+.lc-sys .lc-ollama-wide.is-off b {
+  color: var(--ink-dim);
+}

@@ -165,7 +165,7 @@ function SystemTiles({ data }) {
           }
 
           const gpt = sec.items.find((item) =>
-            /^GPT-OSS$/i.test(item.label)
+            /^GPT[-\s]?OSS/i.test(item.label)
           )
 
           ollamaItems.push({
@@ -178,26 +178,28 @@ function SystemTiles({ data }) {
 
         const displayItems = isOllama ? ollamaItems : sec.items
         const up = displayItems.filter((i) => i.state === 'ok').length
+        
+        // verde se tutto su, arancione altrimenti (vale per Progetti, Servizi, Ollama)
+        const secState = up === displayItems.length ? 'ok' : 'warn'
 
         return (
           <div key={sec.title} className="lc-sys-sec">
             <div className="lc-sys-title">
               <span
-                className={`lc-sys-name${sec.head ? ` is-${sec.head}` : ''}`}
+                className={`lc-sys-name is-${secState}`}
                 title={sec.head ? `Leles: ${label[sec.head]}` : undefined}
               >
                 {sec.title}
                 {sec.head && (
-                  <span className="lc-sr">
-                    {' '}
-                    (Leles {label[sec.head]})
-                  </span>
+                  <span className="lc-sr"> (Leles {label[sec.head]})</span>
                 )}
               </span>
 
-              <span>
-                {isOllama ? `${up}/${displayItems.length}` : `${up}/${displayItems.length}`}
+              <span className={`lc-sys-count is-${secState}`}>
+                {up}/{displayItems.length}
               </span>
+              
+              
             </div>
 
             {isOllama ? (
