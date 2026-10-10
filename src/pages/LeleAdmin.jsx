@@ -38,13 +38,13 @@ const AUTO_SEND_RECORDING = true
 
 // Pagine di test raggiungibili al volo.
 const QUICK_LINKS = [
-  { to: '/improve', label: 'Improve'},
-  { to: '/test', label: 'Test' },
-  { to: '/test2', label: 'Test2' },
-  { to: '/test3', label: 'Test3' },
-  { to: '/test4', label: 'Test4' },
-  { to: '/test5', label: 'Test5' },
-  { to: '/test6', label: 'Test6' },
+  { to: '/improve', label: 'Improve 🛠️', main: true},
+  { to: '/test', label: 'Test 🕰️' },
+  { to: '/test2', label: 'Test2 🧜🏻‍♀️' },
+  { to: '/test3', label: 'Test3 🗺️' },
+  { to: '/test4', label: 'Test4 🔬' },
+  { to: '/test5', label: 'Test5 🧠' },
+  { to: '/test6', label: 'Test6 🍸' },
   { to: '/leles', label: 'Leles Admin 🏴‍☠️', main: true  },
 ]
 
