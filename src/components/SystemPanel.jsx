@@ -379,19 +379,18 @@ function statLevel(key, status) {
   if (key === 'sys') {
     const d = parseSystem(status.sys?.text)
     if (!d) return null
-    const notOk = d.sections.some((sec) =>
-      sec.items.some((i) => i.state === 'bad' || i.state === 'warn')
-    )
-    return notOk ? 'warn' : 'ok'
+    // Verde salvo errori veri: i singoli titoli (Progetti, ecc.) hanno già il loro colore.
+    // Se vuoi anche l'arancione per le voci "warn", cambia in: i.state === 'bad' || i.state === 'warn'
+    const anyBad = d.sections.some((sec) => sec.items.some((i) => i.state === 'bad'))
+    return anyBad ? 'bad' : 'ok'
   }
   const os = parseOs(status.os?.text)
   if (!os) return null
   if (key === 'ram') return os.ram ? levelOf(os.ram.pct) : null
   if (key === 'os') {
     const rank = { ok: 0, warn: 1, bad: 2 }
-    const levels = [os.cpu, os.ram?.pct, os.disk?.pct]
-      .filter((v) => v != null)
-      .map(levelOf)
+    // Solo CPU e Disco: la RAM è già segnalata dall'etichetta RAM.
+    const levels = [os.cpu, os.disk?.pct].filter((v) => v != null).map(levelOf)
     return levels.reduce((a, b) => (rank[b] > rank[a] ? b : a), 'ok')
   }
   return null
