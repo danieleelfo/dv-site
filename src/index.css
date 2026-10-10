@@ -180,3 +180,9 @@ a {
 .lc-kpi-bar i { display: block; height: 100%; border-radius: inherit; background: #4ade80; }
 .lc-kpi.is-warn .lc-kpi-bar i { background: #fbbf24; }
 .lc-kpi.is-bad .lc-kpi-bar i { background: #f87171; }
+
+/* Etichette blocchi: Sistema, OS, RAM */
+.lc-panel h3.lc-stat-name { font-weight: 700; }
+.lc-panel h3.lc-stat-name.is-ok   { color: #22c55e; }
+.lc-panel h3.lc-stat-name.is-warn { color: #f59e0b; }
+.lc-panel h3.lc-stat-name.is-bad  { color: #f87171; }

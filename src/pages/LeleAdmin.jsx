@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import bgImage from '../assets/DataInFlames.jpg'
-import SystemTiles, { parseSystem, parseOs, cleanRam, OsKpis } from '../components/SystemPanel'
+import SystemTiles, { parseSystem, parseOs, cleanRam, OsKpis, statLevel } from '../components/SystemPanel'
 
 const LELE_API_URL = 'https://api.danielevillanova.com'
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
@@ -1293,10 +1293,11 @@ export default function LeleAdmin() {
                 const tiles = key === 'sys' && !rawSys ? parseSystem(s?.text) : null
                 const osData = key === 'os' ? parseOs(s?.text) : null
                 const ramText = key === 'ram' ? cleanRam(s?.text) : null
+                const lvl = statLevel(key, status)
                 return (
                     <div key={key} className="lc-stat">
                     <div className="lc-stat-head">
-                        <h3>{label}</h3>
+                        <h3 className={`lc-stat-name${lvl ? ` is-${lvl}` : ''}`}>{label}</h3>
                         {key === 'sys' && s?.text && parseSystem(s.text) && (
                             <button
                                 type="button"

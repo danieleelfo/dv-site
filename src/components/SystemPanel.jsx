@@ -267,7 +267,7 @@ function SystemTiles({ data }) {
       {data.git && (
         <div className="lc-sys-sec">
           <div className="lc-sys-title">
-            <span>Git</span>
+            <span className={`lc-sys-name is-${data.git.clean ? 'ok' : 'warn'}`}>Git</span>
           </div>
 
           <div className="lc-sys-git">
@@ -374,5 +374,28 @@ function cleanRam(text) {
   return lines.length ? lines.join('\n') : null
 }
 
-export { parseSystem, parseOs, cleanRam, OsKpis }
+// Livello (ok/warn/bad) per l'etichetta di ogni blocco del pannello.
+function statLevel(key, status) {
+  if (key === 'sys') {
+    const d = parseSystem(status.sys?.text)
+    if (!d) return null
+    const notOk = d.sections.some((sec) =>
+      sec.items.some((i) => i.state === 'bad' || i.state === 'warn')
+    )
+    return notOk ? 'warn' : 'ok'
+  }
+  const os = parseOs(status.os?.text)
+  if (!os) return null
+  if (key === 'ram') return os.ram ? levelOf(os.ram.pct) : null
+  if (key === 'os') {
+    const rank = { ok: 0, warn: 1, bad: 2 }
+    const levels = [os.cpu, os.ram?.pct, os.disk?.pct]
+      .filter((v) => v != null)
+      .map(levelOf)
+    return levels.reduce((a, b) => (rank[b] > rank[a] ? b : a), 'ok')
+  }
+  return null
+}
+
+export { parseSystem, parseOs, cleanRam, OsKpis, statLevel }
 export default SystemTiles
