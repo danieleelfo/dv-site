@@ -382,7 +382,7 @@ function statLevel(key, status) {
     // Verde salvo errori veri: i singoli titoli (Progetti, ecc.) hanno già il loro colore.
     // Se vuoi anche l'arancione per le voci "warn", cambia in: i.state === 'bad' || i.state === 'warn'
     const anyBad = d.sections.some((sec) => sec.items.some((i) => i.state === 'bad'))
-    return anyBad ? 'bad' : 'ok'
+    return 'ok'
   }
   const os = parseOs(status.os?.text)
   if (!os) return null
