@@ -1,16 +1,16 @@
 // ============================================================
-// IMPROVE - miglioramento file del repo Leles via Agent Arena
+// IMPROVE - miglioramento file via Agent Arena (root multiple)
 // ============================================================
-// Terzo flusso di improve, gestito dal sito: scegli il file .py del
-// repo Leles, da 1 a 6 bot (ruoli Emergence + Super-Leles) e fino a
-// 3 iterazioni. Il file diventa il topic dell'Arena, i bot discutono,
-// e a run COMPLETED si puo salvare <file>.improved.py (mai l'originale,
+// Scegli la root (Leles, Airflow DAGs, dv-site, Incoming), un file,
+// da 1 a 6 bot (ruoli Emergence + Super-Leles) e fino a 3 iterazioni.
+// Il file diventa il topic dell'Arena, i bot discutono, e a run
+// COMPLETED si puo salvare <file>.improved<ext> (mai l'originale,
 // stessa regola di improver_agent.py).
 //
 // Dipende dal gateway (https://api.danielevillanova.com):
-//   GET  /api/improve/files            -> { files: [{path, size}] }
-//   GET  /api/improve/file?path=...    -> { content }
-//   POST /api/improve/save             -> { saved_path }
+//   GET  /api/improve/files                     -> { files: [{root, path, size}], roots }
+//   GET  /api/improve/file?root=...&path=...    -> { content }
+//   POST /api/improve/save {root, path, code}   -> { saved_path }
 //   + Agent Arena: start / GET {run_id} / stop
 //
 // Contratto del gateway (verificato su gateway.py):
@@ -19,7 +19,8 @@
 //   - GET {run_id} restituisce anche "error"
 //   - start accetta "improve": true (topic fisso su ogni turno + chat isolate)
 //
-// AUTH: login Google, stesso client del gateway (come HomeTest4).\n// Diff: upload e copia/incolla, elaborati solo nel browser; stessa Google auth.
+// AUTH: login Google, stesso client del gateway (come HomeTest4).
+// Diff: upload e copia/incolla, elaborati solo nel browser; stessa Google auth.
 // ============================================================
 
 import { useState, useEffect, useRef } from "react";
@@ -66,6 +67,31 @@ const MAX_FILE_BYTES = 40000;
 const ACTIVE_STATUSES = ["STARTING", "RUNNING", "PAUSED"];
 const FINISHED_STATUSES = ["COMPLETED", "STOPPED", "ERROR"];
 
+// Root esposte dal gateway (whitelist lato server, qui solo le etichette).
+const ROOT_LABELS = {
+  leles: "Leles",
+  airflow: "Airflow DAGs",
+  dv_site: "dv-site",
+  incoming: "Incoming",
+};
+
+const LANG_BY_EXT = {
+  py: "python",
+  jsx: "jsx",
+  js: "javascript",
+  css: "css",
+  sql: "sql",
+  yaml: "yaml",
+  yml: "yaml",
+  md: "markdown",
+  txt: "text",
+};
+
+function langOf(path) {
+  const ext = (path.split(".").pop() || "").toLowerCase();
+  return LANG_BY_EXT[ext] || "text";
+}
+
 // Regola di grounding condivisa. Nel gateway, con improve=true, il topic
 // viene rimandato a OGNI bot: queste regole valgono per tutti i turni.
 const IMPROVE_GROUNDING =
@@ -78,35 +104,45 @@ const IMPROVE_GROUNDING =
   "- Se un fix richiede un altro file, dillo invece di indovinare cosa contiene.\n" +
   "- Rispondi in modo tecnico e neutro, senza dialetto o personaggi.\n";
 
-function buildTopic(filePath, content, request) {
+function buildTopic(filePath, content, request, root) {
+  const lang = langOf(filePath);
   const req =
     (request || "").trim() ||
     "Migliora il file: correggi bug, migliora leggibilita e prestazioni dove chiaramente giustificato.";
   return (
-    "Sei un ingegnere Python. Il tuo compito e migliorare il file seguente del repo Leles.\n\n" +
+    "Sei un ingegnere software. Il tuo compito e migliorare il file seguente (" +
+    (ROOT_LABELS[root] || root) +
+    ", linguaggio: " +
+    lang +
+    ").\n\n" +
     IMPROVE_GROUNDING +
     "\n=== RICHIESTA UTENTE ===\n" +
     req +
     "\n\n=== FILE: " +
     filePath +
     " ===\n" +
-    "```python\n" +
+    "```" +
+    lang +
+    "\n" +
     content +
     "\n" +
     "```" +
     "\n\n" +
     "Spiega in poche righe cosa cambi e perche. " +
     "Poi chiudi SEMPRE la risposta con la versione MIGLIORATA COMPLETA del file in un unico " +
-    "blocco ```python (file intero, non un diff o un estratto). " +
+    "blocco ```" +
+    lang +
+    " (file intero, non un diff o un estratto). " +
     "Se ricevi la proposta di un altro bot, correggila e riproponi il file completo."
   );
 }
 
-// Estrae il blocco ```python piu grande da un messaggio (il file completo
-// e quasi sempre il blocco piu lungo, anche se c'e uno snippet dopo).
+// Estrae il blocco di codice piu grande da un messaggio, qualunque sia il
+// linguaggio del fence (il file completo e quasi sempre il blocco piu
+// lungo, anche se c'e uno snippet dopo).
 function extractLastCode(text) {
   if (!text) return null;
-  const rx = /```(?:python|py)?[ \t]*\r?\n([\s\S]*?)```/gi;
+  const rx = /```[a-zA-Z0-9_+-]*[ \t]*\r?\n([\s\S]*?)```/g;
   let best = null;
   let m;
   while ((m = rx.exec(text)) !== null) {
@@ -330,6 +366,8 @@ export default function Improve() {
   const [files, setFiles] = useState([]);
   const [filesLoaded, setFilesLoaded] = useState(false);
   const [fileFilter, setFileFilter] = useState("");
+  const [rootSel, setRootSel] = useState("leles");
+  const [roots, setRoots] = useState(["leles"]);
   const [cfg, setCfg] = useState({
     file: "",
     request: "",
@@ -364,9 +402,10 @@ export default function Improve() {
 
   const savedRef = useRef(false);
   const pollRef = useRef(null);
-  // Snapshot di cio che e stato lanciato: se cambi file o checkbox mentre
-  // il run gira, il salvataggio resta coerente con il run.
+  // Snapshot di cio che e stato lanciato: se cambi file, root o checkbox
+  // mentre il run gira, il salvataggio resta coerente con il run.
   const runFileRef = useRef("");
+  const runRootRef = useRef("leles");
   const runSaveRef = useRef(true);
 
   const isRunning = ACTIVE_STATUSES.includes(status);
@@ -380,6 +419,7 @@ export default function Improve() {
       .then((r) => (r.ok ? r.json() : Promise.reject(r)))
       .then((d) => {
         setFiles(d.files || []);
+        if (d.roots?.length) setRoots(d.roots);
         setFilesLoaded(true);
       })
       .catch(() => {
@@ -437,7 +477,7 @@ export default function Improve() {
 
     if (!code) {
       setSaveNote(
-        "Nessun blocco ```python trovato nelle risposte: niente da salvare."
+        "Nessun blocco di codice trovato nelle risposte: niente da salvare."
       );
       return;
     }
@@ -452,7 +492,11 @@ export default function Improve() {
         "Content-Type": "application/json",
         Authorization: "Bearer " + idToken,
       },
-      body: JSON.stringify({ path: runFileRef.current, code }),
+      body: JSON.stringify({
+        root: runRootRef.current,
+        path: runFileRef.current,
+        code,
+      }),
     })
       .then(async (r) => {
         const d = await r.json().catch(() => ({}));
@@ -523,7 +567,11 @@ export default function Improve() {
     setBusy(true);
     try {
       const fr = await fetch(
-        API + "/api/improve/file?path=" + encodeURIComponent(cfg.file),
+        API +
+          "/api/improve/file?root=" +
+          encodeURIComponent(rootSel) +
+          "&path=" +
+          encodeURIComponent(cfg.file),
         { headers: { Authorization: "Bearer " + idToken } }
       );
       if (!fr.ok) {
@@ -539,7 +587,7 @@ export default function Improve() {
       );
       const body = {
         participants,
-        topic: buildTopic(cfg.file, fd.content, cfg.request),
+        topic: buildTopic(cfg.file, fd.content, cfg.request, rootSel),
         max_turns: cfg.iterations,
         world_source: "free",
         improve: true,
@@ -566,6 +614,7 @@ export default function Improve() {
       const d = await r.json();
 
       runFileRef.current = cfg.file;
+      runRootRef.current = rootSel;
       runSaveRef.current = cfg.saveImproved;
 
       setTurns([]);
@@ -651,9 +700,11 @@ export default function Improve() {
     }
   }
 
-  // Nasconde i .improved.py gia generati: non sono sorgenti da migliorare.
+  // Solo i file della root scelta; nasconde i .improved.* gia generati
+  // (non sono sorgenti da migliorare).
   const visibleFiles = files
-    .filter((f) => !f.path.endsWith(".improved.py"))
+    .filter((f) => (f.root || "leles") === rootSel)
+    .filter((f) => !f.path.includes(".improved."))
     .filter(
       (f) =>
         !fileFilter ||
@@ -664,7 +715,7 @@ export default function Improve() {
     return (
       <div className="imp-page">
         <h1>Improve</h1>
-        <p>Accedi con Google per usare l'improve dei file Leles.</p>
+        <p>Accedi con Google per usare l'improve dei file.</p>
         <div ref={buttonRef} />
       </div>
     );
@@ -673,7 +724,7 @@ export default function Improve() {
   return (
     <div className="imp-page">
       <div className="imp-head">
-        <h1>Improve Leles</h1>
+        <h1>Improve</h1>
         <div className="imp-auth">
           <span>{email}</span>
           <button onClick={logout} className="imp-btn">Logout</button>
@@ -806,6 +857,22 @@ export default function Improve() {
         {/* ---------- CONFIG ---------- */}
         <div className="imp-col">
           <label className="imp-label">File da migliorare</label>
+
+          <div className="imp-roots">
+            {roots.map((r) => (
+              <button
+                key={r}
+                className={"imp-btn " + (rootSel === r ? "imp-tab-active" : "")}
+                onClick={() => {
+                  setRootSel(r);
+                  setField("file", "");
+                }}
+              >
+                {ROOT_LABELS[r] || r}
+              </button>
+            ))}
+          </div>
+
           <input
             className="imp-input"
             placeholder="filtra (es. scripts/)"
@@ -822,16 +889,19 @@ export default function Improve() {
               la pagina.
             </p>
           )}
+          {filesLoaded && files.length > 0 && !visibleFiles.length && (
+            <p className="imp-empty">Nessun file in questa root con il filtro attuale.</p>
+          )}
           <select
             className="imp-select"
             value={cfg.file}
             onChange={(e) => setField("file", e.target.value)}
             size={8}
           >
-            {!cfg.file && <option value="">- scegli un file .py -</option>}
+            {!cfg.file && <option value="">- scegli un file -</option>}
             {visibleFiles.map((f) => (
               <option
-                key={f.path}
+                key={f.root + ":" + f.path}
                 value={f.path}
                 disabled={f.size > MAX_FILE_BYTES}
               >
@@ -924,7 +994,7 @@ export default function Improve() {
               checked={cfg.saveImproved}
               onChange={(e) => setField("saveImproved", e.target.checked)}
             />
-            Salva <code>{"{file}.improved.py"}</code> a run completato
+            Salva <code>{"{file}.improved.<ext>"}</code> a run completato
           </label>
 
           <div className="imp-actions">
@@ -997,6 +1067,7 @@ export default function Improve() {
         .imp-page { max-width: 1200px; margin: 0 auto; padding: 24px; color: #e5e7eb; min-height: 100vh; background: #0b0e14; }
         .imp-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
         .imp-mode-tabs { display: flex; gap: 8px; margin: 0 0 18px; }
+        .imp-roots { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
         .imp-tab-active { border-color: #10b981; background: rgba(16,185,129,.16); color: #6ee7b7; }
         .imp-diff-workspace { display: flex; flex-direction: column; gap: 16px; }
         .imp-diff-intro h2 { margin: 0 0 6px; font-size: 20px; }
@@ -1018,7 +1089,8 @@ export default function Improve() {
         .imp-diff-same-label { color: #9ca3af; }
         .imp-diff-lines { margin-top: 12px; overflow: auto; max-height: 70vh; border-radius: 8px; background: rgba(0,0,0,.3); }
         .imp-diff-line { display: flex; min-width: max-content; border-bottom: 1px solid rgba(255,255,255,.025); }
-        .imp-diff-mark { width: 28px; flex: 0 0 28px; text-align: center; padding: 3px 0; font-family: ui-monospace, monospace; color: #9ca3af; user-select: none; }\n        .imp-diff-line-number { width: 38px; flex: 0 0 38px; box-sizing: border-box; text-align: right; padding: 3px 6px 3px 0; border-right: 1px solid rgba(255,255,255,.07); font: 12px/1.5 ui-monospace, monospace; color: #6b7280; user-select: none; }
+        .imp-diff-mark { width: 28px; flex: 0 0 28px; text-align: center; padding: 3px 0; font-family: ui-monospace, monospace; color: #9ca3af; user-select: none; }
+        .imp-diff-line-number { width: 38px; flex: 0 0 38px; box-sizing: border-box; text-align: right; padding: 3px 6px 3px 0; border-right: 1px solid rgba(255,255,255,.07); font: 12px/1.5 ui-monospace, monospace; color: #6b7280; user-select: none; }
         .imp-diff-line pre { margin: 0; padding: 3px 10px 3px 0; white-space: pre; font-family: ui-monospace, monospace; font-size: 12px; line-height: 1.5; color: #d1d5db; }
         .imp-diff-add { background: rgba(16,185,129,.12); }
         .imp-diff-add .imp-diff-mark, .imp-diff-add pre { color: #6ee7b7; }

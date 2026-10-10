@@ -563,7 +563,7 @@ MIN_PARTICIPANTS = 1
 
 # Tetti anti-costo / anti-abuso.
 MAX_TURNS = 50
-MAX_TOTAL_MESSAGES = 120
+MAX_TOTAL_MESSAGES = 600
 MAX_ACTIVE_RUNS = 3
 RUN_TTL_SECONDS = 3600
 
@@ -1793,46 +1793,98 @@ async def agent_arena_intervene(
 
 
 # ============================================================
-# IMPROVE — miglioramento file .py del repo Leles via pagina web
+# IMPROVE — miglioramento file via pagina web (root multiple)
 # ============================================================
-# La pagina /improve del sito fa discutere 1-6 bot (ruoli Emergence
-# via "qe" + Super-Leles) sull'Agent Arena, usando un file del repo
-# Leles come topic. Il gateway gira sullo stesso Mac del repo, quindi
-# lo legge direttamente. Come improver_agent.py: MAI sovrascrivere
-# l'originale — si salva sempre <file>.improved.py affiancato.
+# Come improver_agent.py: MAI sovrascrivere l'originale. Si salva
+# sempre <file>.improved<ext> affiancato.
+#
+# Le root sono una WHITELIST: il client manda solo il nome della root
+# ("leles", "airflow", ...), mai un path assoluto.
 
 LELES_REPO_PATH = os.environ.get(
     "LELES_REPO_PATH",
     "/Users/danny/Desktop/Danny/leles",
 )
 
-# Cartelle saltate nella scansione dei file.
-_IMPROVE_SKIP_DIRS = {
-    ".venv", "venv", ".git", "__pycache__",
-    ".pytest_cache", ".ruff_cache", "node_modules",
+# Ogni root: path, estensioni ammesse, prefissi consentiti (None = tutto).
+IMPROVE_ROOTS = {
+    "leles": {
+        "path": LELES_REPO_PATH,
+        "exts": {".py"},
+        "only": None,
+    },
+    "airflow": {
+        "path": os.environ.get(
+            "AIRFLOW_DAGS_PATH",
+            os.path.expanduser("~/Desktop/Danny/airflow/dags"),
+        ),
+        "exts": {".py"},
+        "only": None,
+    },
+    "dv_site": {
+        "path": os.environ.get(
+            "DV_SITE_PATH",
+            "/Users/danny/Desktop/Danny/dv-site",
+        ),
+        "exts": {".jsx", ".js", ".css", ".py"},
+        # Solo sorgenti: niente dist, public, ecc.
+        "only": ("src/", "gateway.py"),
+    },
+    "incoming": {
+        "path": os.environ.get(
+            "INCOMING_PATH",
+            os.path.expanduser("~/Desktop/Danny/airflow/incoming_files"),
+        ),
+        "exts": {".py", ".jsx", ".js", ".css", ".sql", ".yaml", ".yml", ".md", ".txt"},
+        "only": None,
+    },
 }
 
-# Limite sul file leggibile dal sito (il topic Arena lo contiene tutto).
-# Deve restare < MAX_TOPIC_CHARS_IMPROVE meno lo spazio per le istruzioni.
-_IMPROVE_MAX_CHARS = 40_000
+_IMPROVE_SKIP_DIRS = {
+    ".venv", "venv", ".git", "__pycache__", ".pytest_cache",
+    ".ruff_cache", "node_modules", "dist", "build",
+}
 
-# Limite sul codice salvabile (un file migliorato non deve esplodere).
+_IMPROVE_MAX_CHARS = 40_000
 _IMPROVE_MAX_SAVE_CHARS = 120_000
 
 
-def _improve_resolve(rel_path: str) -> str:
-    """Path assoluto di un file .py dentro il repo Leles, senza escape."""
-    root = os.path.abspath(LELES_REPO_PATH)
-    target = os.path.abspath(os.path.join(root, rel_path))
-    if target != root and not target.startswith(root + os.sep):
+def _improve_root(root_name: str) -> tuple[str, dict]:
+    cfg = IMPROVE_ROOTS.get(root_name)
+    if not cfg or not cfg["path"] or not os.path.isdir(cfg["path"]):
         raise HTTPException(
             status_code=400,
-            detail="Percorso fuori dal repo Leles.",
+            detail=f"Root non disponibile: {root_name}",
         )
-    if not target.endswith(".py"):
+    return os.path.realpath(cfg["path"]), cfg
+
+
+def _improve_allowed(rel: str, cfg: dict) -> bool:
+    rel = rel.replace(os.sep, "/")
+    if ".improved." in os.path.basename(rel):
+        return False
+    if os.path.splitext(rel)[1].lower() not in cfg["exts"]:
+        return False
+    only = cfg["only"]
+    if only and not any(rel == o or rel.startswith(o) for o in only):
+        return False
+    return True
+
+
+def _improve_resolve(root_name: str, rel_path: str) -> str:
+    """Path assoluto di un file ammesso dentro la root, senza escape."""
+    root, cfg = _improve_root(root_name)
+    target = os.path.realpath(os.path.join(root, rel_path))
+    if not target.startswith(root + os.sep):
         raise HTTPException(
             status_code=400,
-            detail="Sono ammessi solo file .py.",
+            detail="Percorso fuori dalla root.",
+        )
+    rel = os.path.relpath(target, root)
+    if not _improve_allowed(rel, cfg):
+        raise HTTPException(
+            status_code=400,
+            detail="File non ammesso per questa root.",
         )
     if not os.path.isfile(target):
         raise HTTPException(
@@ -1844,37 +1896,43 @@ def _improve_resolve(rel_path: str) -> str:
 
 @app.get("/api/improve/files")
 async def improve_list_files(authorization: str | None = Header(None)):
-    """Elenco dei file .py del repo Leles (per il selettore della pagina)."""
+    """Elenco file di tutte le root disponibili."""
     verify_admin_token(authorization)
 
-    root = os.path.abspath(LELES_REPO_PATH)
     files = []
-    for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = [d for d in dirnames if d not in _IMPROVE_SKIP_DIRS]
-        for name in filenames:
-            if not name.endswith(".py"):
-                continue
-            full = os.path.join(dirpath, name)
-            rel = os.path.relpath(full, root)
-            try:
-                size = os.path.getsize(full)
-            except OSError:
-                continue
-            files.append({"path": rel, "size": size})
+    roots = []
+    for name, cfg in IMPROVE_ROOTS.items():
+        if not cfg["path"] or not os.path.isdir(cfg["path"]):
+            continue
+        roots.append(name)
+        root = os.path.realpath(cfg["path"])
+        for dirpath, dirnames, filenames in os.walk(root):
+            dirnames[:] = [d for d in dirnames if d not in _IMPROVE_SKIP_DIRS]
+            for fname in filenames:
+                full = os.path.join(dirpath, fname)
+                rel = os.path.relpath(full, root)
+                if not _improve_allowed(rel, cfg):
+                    continue
+                try:
+                    size = os.path.getsize(full)
+                except OSError:
+                    continue
+                files.append({"root": name, "path": rel, "size": size})
 
-    files.sort(key=lambda f: f["path"])
-    return {"files": files[:2000], "total": len(files)}
+    files.sort(key=lambda f: (f["root"], f["path"]))
+    return {"files": files[:4000], "roots": roots, "total": len(files)}
 
 
 @app.get("/api/improve/file")
 async def improve_read_file(
     path: str,
+    root: str = "leles",
     authorization: str | None = Header(None),
 ):
-    """Contenuto di un file .py del repo Leles (per il topic Arena)."""
+    """Contenuto di un file ammesso (per il topic Arena)."""
     verify_admin_token(authorization)
 
-    target = _improve_resolve(path)
+    target = _improve_resolve(root, path)
     with open(target, "r", encoding="utf-8", errors="replace") as f:
         content = f.read()
 
@@ -1887,7 +1945,7 @@ async def improve_read_file(
             ),
         )
 
-    return {"path": path, "content": content, "size": len(content)}
+    return {"root": root, "path": path, "content": content, "size": len(content)}
 
 
 @app.post("/api/improve/save")
@@ -1895,17 +1953,15 @@ async def improve_save_file(
     req: dict,
     authorization: str | None = Header(None),
 ):
-    """Salva la versione migliorata come <file>.improved.py (mai l'originale)."""
+    """Salva la versione migliorata come <file>.improved<ext> (mai l'originale)."""
     verify_admin_token(authorization)
 
+    root_name = (req.get("root") or "leles").strip()
     rel_path = (req.get("path") or "").strip()
     code = req.get("code") or ""
 
     if not code.strip():
-        raise HTTPException(
-            status_code=400,
-            detail="Nessun codice da salvare.",
-        )
+        raise HTTPException(status_code=400, detail="Nessun codice da salvare.")
 
     if len(code) > _IMPROVE_MAX_SAVE_CHARS:
         raise HTTPException(
@@ -1916,27 +1972,25 @@ async def improve_save_file(
             ),
         )
 
-    # Non scrivere su disco codice che non compila: un bot che risponde
-    # con prosa, uno snippet o un blocco troncato produrrebbe un
-    # .improved.py inutilizzabile.
-    #
-    # compile() e non ast.parse(): ast.parse accetta errori che emergono
-    # solo in compilazione, es. "'return' outside function" (un bot che
-    # sbaglia l'indentazione del corpo di una funzione).
-    try:
-        compile(code, rel_path or "<improved>", "exec")
-    except (SyntaxError, ValueError) as e:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Il codice proposto non e Python valido "
-                f"(riga {getattr(e, 'lineno', '?')}: "
-                f"{getattr(e, 'msg', str(e))}). Non salvato."
-            ),
-        )
+    target = _improve_resolve(root_name, rel_path)
+    ext = os.path.splitext(target)[1].lower()
 
-    target = _improve_resolve(rel_path)
-    saved_path = target + ".improved.py"
+    # Solo per .py: non scrivere codice che non compila.
+    if ext == ".py":
+        try:
+            compile(code, rel_path or "<improved>", "exec")
+        except (SyntaxError, ValueError) as e:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Il codice proposto non e Python valido "
+                    f"(riga {getattr(e, 'lineno', '?')}: "
+                    f"{getattr(e, 'msg', str(e))}). Non salvato."
+                ),
+            )
+
+    base, _ = os.path.splitext(target)
+    saved_path = f"{base}.improved{ext}"
     with open(saved_path, "w", encoding="utf-8") as f:
         f.write(code.rstrip() + "\n")
 
@@ -1944,8 +1998,6 @@ async def improve_save_file(
         "saved_path": saved_path,
         "bytes": os.path.getsize(saved_path),
     }
-
-
 # --------------------------------------------------------------------------
 # AVVIO DIRETTO
 # --------------------------------------------------------------------------
