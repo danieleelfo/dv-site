@@ -1438,6 +1438,15 @@ const css = `
 .lc-ollama-box.is-off{color:var(--ink-dim);opacity:.8}.lc-tile{position:relative;display:flex;flex-direction:column;justify-content:center;gap:1px;min-height:38px;
   padding:5px 12px 5px 8px;border-radius:8px;border:1px solid var(--line);background:rgba(255,255,255,.04);
   line-height:1.2;word-break:break-word;color:var(--ink-dim)}
+/* Solo GPT-OSS: nome verde se su, grigio se non caricato */
+.lc-sys .lc-ollama-box.lc-ollama-wide.is-ok,
+.lc-sys .lc-ollama-box.lc-ollama-wide.is-ok b {
+  color: #22c55e;
+}
+.lc-sys .lc-ollama-box.lc-ollama-wide.is-off,
+.lc-sys .lc-ollama-box.lc-ollama-wide.is-off b {
+  color: var(--ink-dim);
+}
 .lc-tile::after{content:'';position:absolute;top:6px;right:6px;width:5px;height:5px;border-radius:50%;background:currentColor}
 .lc-tile b{font-size:10.5px;font-weight:650;color:var(--ink)}
 .lc-tile small{font-size:9.5px;color:var(--ink-dim);overflow:hidden;text-overflow:ellipsis}

@@ -151,18 +151,14 @@ a {
   background: currentColor;
 }
 
-/* Modelli Ollama caricati: testo bianco */
-.lc-sys .lc-ollama-box.is-ok,
+/* Box Ollama attivi: verde sul box (pallino/bordo), nome bianco */
+.lc-sys .lc-ollama-box.is-ok {
+  color: #22c55e;
+}
 .lc-sys .lc-ollama-box.is-ok b {
   color: var(--ink);
 }
-
-/* Solo GPT-OSS: verde se su, grigio se non caricato */
-.lc-sys .lc-ollama-box.lc-ollama-wide.is-ok,
-.lc-sys .lc-ollama-box.lc-ollama-wide.is-ok b {
-  color: #22c55e;
-}
-.lc-sys .lc-ollama-box.lc-ollama-wide.is-off,
-.lc-sys .lc-ollama-box.lc-ollama-wide.is-off b {
-  color: var(--ink-dim);
+.lc-sys .lc-ollama-box.is-ok::after {
+  background: #22c55e !important;
+  box-shadow: 0 0 6px #22c55e;
 }
