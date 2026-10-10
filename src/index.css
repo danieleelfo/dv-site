@@ -162,3 +162,21 @@ a {
   background: #22c55e !important;
   box-shadow: 0 0 6px #22c55e;
 }
+
+/* KPI OS */
+.lc-kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.lc-kpi {
+  display: flex; flex-direction: column; gap: 2px; padding: 8px 10px;
+  border-radius: 10px; border: 1px solid rgba(255,255,255,.1);
+  background: rgba(255,255,255,.04);
+}
+.lc-kpi-top {
+  display: flex; align-items: center; gap: 6px; font-size: 10px;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--ink-dim);
+}
+.lc-kpi-val { font-size: 15px; font-weight: 650; color: var(--ink); line-height: 1.2; }
+.lc-kpi small { font-size: 10.5px; color: var(--ink-dim); }
+.lc-kpi-bar { height: 4px; border-radius: 999px; background: rgba(255,255,255,.08); overflow: hidden; margin-top: 4px; }
+.lc-kpi-bar i { display: block; height: 100%; border-radius: inherit; background: #4ade80; }
+.lc-kpi.is-warn .lc-kpi-bar i { background: #fbbf24; }
+.lc-kpi.is-bad .lc-kpi-bar i { background: #f87171; }

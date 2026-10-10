@@ -292,5 +292,87 @@ function SystemTiles({ data }) {
   )
 }
 
-export { parseSystem }
+// ---------------- OS: KPI con icone ----------------
+const levelOf = (pct) => (pct >= 90 ? 'bad' : pct >= 70 ? 'warn' : 'ok')
+
+// Legge il testo di `status os`. Ignora la lista modelli Ollama.
+function parseOs(text) {
+  if (!text) return null
+  const cpu = text.match(/CPU:\s*(\d+(?:\.\d+)?)\s*%/i)
+  const mem = (label) => {
+    const m = text.match(
+      new RegExp(label + ':\\s*([\\d.]+)\\s*/\\s*([\\d.]+)\\s*GB\\s*\\((\\d+)%\\)', 'i')
+    )
+    return m ? { used: m[1], total: m[2], pct: Number(m[3]) } : null
+  }
+  const ram = mem('RAM')
+  const disk = mem('Disco')
+  const up = text.match(/Uptime[^:\n]*:\s*(.+)/i)
+  if (!cpu && !ram && !disk && !up) return null
+  return {
+    cpu: cpu ? Number(cpu[1]) : null,
+    ram,
+    disk,
+    uptime: up ? up[1].trim() : null,
+  }
+}
+
+function OsKpis({ data }) {
+  const items = []
+  if (data.cpu != null)
+    items.push({ icon: '🖥️', label: 'CPU', value: `${Math.round(data.cpu)}%`, pct: data.cpu })
+  if (data.ram)
+    items.push({
+      icon: '🧠', label: 'RAM',
+      value: `${data.ram.used}/${data.ram.total} GB`,
+      sub: `${data.ram.pct}%`, pct: data.ram.pct,
+    })
+  if (data.disk)
+    items.push({
+      icon: '💾', label: 'Disco',
+      value: `${data.disk.used}/${data.disk.total} GB`,
+      sub: `${data.disk.pct}%`, pct: data.disk.pct,
+    })
+  if (data.uptime)
+    items.push({ icon: '⏱️', label: 'Uptime', value: data.uptime, pct: null })
+
+  return (
+    <div className="lc-kpis">
+      {items.map((it) => (
+        <div
+          key={it.label}
+          className={`lc-kpi${it.pct != null ? ` is-${levelOf(it.pct)}` : ''}`}
+        >
+          <div className="lc-kpi-top">
+            <span aria-hidden="true">{it.icon}</span>
+            <span>{it.label}</span>
+          </div>
+          <b className="lc-kpi-val">{it.value}</b>
+          {it.sub && <small>{it.sub}</small>}
+          {it.pct != null && (
+            <div className="lc-kpi-bar">
+              <i style={{ width: `${Math.min(100, it.pct)}%` }} />
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ---------------- RAM: solo la parte Ollama ----------------
+// Toglie recinti ```, riga "RAM totale" (già nei KPI) e nota Piper/TTS.
+function cleanRam(text) {
+  if (!text) return null
+  const lines = text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .filter((l) => !l.startsWith('```'))
+    .filter((l) => !/piper|tts/i.test(l))
+    .filter((l) => !/RAM totale/i.test(l))
+  return lines.length ? lines.join('\n') : null
+}
+
+export { parseSystem, parseOs, cleanRam, OsKpis }
 export default SystemTiles

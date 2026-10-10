@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import bgImage from '../assets/DataInFlames.jpg'
-import SystemTiles, { parseSystem } from '../components/SystemPanel'
+import SystemTiles, { parseSystem, parseOs, cleanRam, OsKpis } from '../components/SystemPanel'
 
 const LELE_API_URL = 'https://api.danielevillanova.com'
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
@@ -1291,32 +1291,38 @@ export default function LeleAdmin() {
               {STATUS_CMDS.map(([key, label]) => {
                 const s = status[key]
                 const tiles = key === 'sys' && !rawSys ? parseSystem(s?.text) : null
+                const osData = key === 'os' ? parseOs(s?.text) : null
+                const ramText = key === 'ram' ? cleanRam(s?.text) : null
                 return (
-                  <div key={key} className="lc-stat">
+                    <div key={key} className="lc-stat">
                     <div className="lc-stat-head">
-                      <h3>{label}</h3>
-                      {key === 'sys' && s?.text && parseSystem(s.text) && (
-                        <button
-                          type="button"
-                          className="lc-btn lc-btn--sm"
-                          onClick={() => setRawSys((v) => !v)}
-                        >
-                          {rawSys ? 'Schema' : 'Testo'}
-                        </button>
-                      )}
+                        <h3>{label}</h3>
+                        {key === 'sys' && s?.text && parseSystem(s.text) && (
+                            <button
+                                type="button"
+                                className="lc-btn lc-btn--sm"
+                                onClick={() => setRawSys((v) => !v)}
+                            >
+                                {rawSys ? 'Schema' : 'Testo'}
+                            </button>
+                        )}
                     </div>
                     {s?.err ? (
-                      <p className="lc-err lc-small">{s.err}</p>
+                        <p className="lc-err lc-small">{s.err}</p>
                     ) : tiles ? (
-                      <SystemTiles data={tiles} />
+                        <SystemTiles data={tiles} />
+                    ) : osData ? (
+                        <OsKpis data={osData} />
                     ) : (
-                      <pre className="lc-pre lc-pre--sm">
-                        {s?.text || (statusLoading ? 'Carico…' : 'Nessun dato. Premi Aggiorna.')}
-                      </pre>
+                        <pre className="lc-pre lc-pre--sm">
+                            {(key === 'ram' && ramText) ||
+                                s?.text ||
+                                (statusLoading ? 'Carico…' : 'Nessun dato. Premi Aggiorna.')}
+                        </pre>
                     )}
-                  </div>
-                )
-              })}
+                </div>
+            )
+        })}
             </section>
           </aside>
         </div>
