@@ -573,13 +573,13 @@ ACTIVE_STATUSES = ("STARTING", "RUNNING", "PAUSED")
 FINISHED_STATUSES = ("COMPLETED", "STOPPED", "ERROR")
 
 # Raise hand: tetti anti-abuso per gli interventi umani.
-# MAX_HUMAN_CHARS DEVE restare allineato con ProjectTest.jsx.
+# MAX_HUMAN_CHARS DEVE restare allineato con B2B.jsx e Test3.jsx.
 MAX_HUMAN_CHARS = 2000
 MAX_HUMAN_INTERVENTIONS = 20
 # Se nessuno interviene entro questo tempo, il run riprende da solo.
 HAND_TIMEOUT_SECONDS = 600
 
-# Allowlist: DEVE restare allineata con ProjectTest.jsx.
+# Allowlist: DEVE restare allineata con B2B.jsx e Test3.jsx.
 # Questi sono i modelli consentiti per gli agenti normali.
 ALLOWED_MODELS = {
     "gemma4",
@@ -589,7 +589,7 @@ ALLOWED_MODELS = {
     "deepseek-r1",
 }
 
-# Super-Leles può usare tutti i modelli esposti da HomeTest4.
+# Super-Leles può usare tutti i modelli esposti da Test4.jsx.
 # In particolare può usare GPT-OSS e Qwen Coder.
 SUPER_LELES_ALLOWED_MODELS = {
     "gemma4",

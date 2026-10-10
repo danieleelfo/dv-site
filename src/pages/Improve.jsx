@@ -19,7 +19,7 @@
 //   - GET {run_id} restituisce anche "error"
 //   - start accetta "improve": true (topic fisso su ogni turno + chat isolate)
 //
-// AUTH: login Google, stesso client del gateway (come HomeTest4).
+// AUTH: login Google, stesso client del gateway (come Test4.jsx).
 // Diff: upload e copia/incolla, elaborati solo nel browser; stessa Google auth.
 // ============================================================
 
@@ -29,7 +29,7 @@ const API = "https://api.danielevillanova.com";
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const TOKEN_STORAGE_KEY = "dv_google_id_token";
 
-// Ruoli Emergence (stessi di HomeTest4 / core/db_init_exp.py).
+// Ruoli Emergence (stessi di Test4.jsx / core/db_init_exp.py).
 const QE_ROLES = [
   "Planner",
   "Scientist",

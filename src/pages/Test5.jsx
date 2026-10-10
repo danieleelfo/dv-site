@@ -17,6 +17,17 @@ const ALLOWED_EMAILS = [
 const FORCED_ADMIN_CHAT_ID = 8733881519
 // ---------------------------------------------------------------------------
 
+// --- AUDIO: TTS + registrazione + risposta audio ---------------------------
+// Le API audio (/api/chat e /api/chat/audio) funzionano solo per questi due agenti.
+const AUDIO_AGENTS = [
+  { value: 'Story Whisper', label: 'Story Whisper 🌈' },
+  { value: 'Night Story', label: 'Night Story 🌙' },
+]
+const AUDIO_CHAT_ID_KEY = 'lele_chat_id'
+const AUDIO_LANGUAGE = 'it'
+const AUTO_SEND_RECORDING = true
+// ---------------------------------------------------------------------------
+
 // Pagine di test raggiungibili al volo.
 const QUICK_LINKS = [
   { to: '/test4', label: 'Bot to bot', main: true },
@@ -160,6 +171,42 @@ const DANGER = COMMAND_GROUPS.flatMap((g) =>
 const isDanger = (text) => {
   const t = text.trim().toLowerCase()
   return DANGER.some((d) => t.startsWith(d))
+}
+
+// chat_id anonimo e persistente per le API audio pubbliche.
+function getAudioChatId() {
+  try {
+    const stored = window.localStorage.getItem(AUDIO_CHAT_ID_KEY)
+    if (stored) return parseInt(stored, 10)
+    const newId = Math.floor(Math.random() * 9_000_000_000) + 1_000_000_000
+    window.localStorage.setItem(AUDIO_CHAT_ID_KEY, String(newId))
+    return newId
+  } catch (e) {
+    return Math.floor(Math.random() * 9_000_000_000) + 1_000_000_000
+  }
+}
+
+const extractFilename = (value) => {
+  if (!value || typeof value !== 'string') return null
+  return value.split(/[/\\]/).pop() || null
+}
+
+const audioText = (data) => {
+  if (data.answer) return data.answer
+  if (data.error) return data.error
+  if (data.detail) {
+    return typeof data.detail === 'string'
+      ? data.detail
+      : JSON.stringify(data.detail, null, 2)
+  }
+  return 'Nessuna risposta ricevuta'
+}
+
+function formatTime(seconds) {
+  if (!seconds || isNaN(seconds)) return '00:00'
+  const m = Math.floor(seconds / 60)
+  const sec = Math.floor(seconds % 60)
+  return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
 }
 
 function decodeJwtPayload(token) {
@@ -393,7 +440,7 @@ function SystemTiles({ data }) {
   )
 }
 
-export default function ConsoleTest() {
+export default function Test5() {
   const [idToken, setIdToken] = useState(() => {
     try {
       return window.sessionStorage.getItem(TOKEN_STORAGE_KEY) || null
@@ -465,8 +512,8 @@ export default function ConsoleTest() {
         window.google.accounts.id.renderButton(buttonRef.current, {
           type: 'standard',
           theme: 'filled_black',
-          size: 'large',
-          text: 'signin_with',
+          size: 'small',
+          text: 'signin',
           shape: 'pill',
         })
       }
@@ -630,6 +677,250 @@ export default function ConsoleTest() {
     }
   }
 
+  // ----------------------------------------------------------
+  // AUDIO: TTS + registrazione + risposta audio
+  // ----------------------------------------------------------
+  const [audioAgent, setAudioAgent] = useState(AUDIO_AGENTS[0].value)
+  const [audioPrompt, setAudioPrompt] = useState('')
+  const [wantsTts, setWantsTts] = useState(false)
+  const [audioReply, setAudioReply] = useState('')
+  const [audioReplyFile, setAudioReplyFile] = useState(null)
+  const [audioReplyAgent, setAudioReplyAgent] = useState('')
+  const [audioError, setAudioError] = useState('')
+  const [audioBusy, setAudioBusy] = useState(false)
+  const [copiedAudioReply, setCopiedAudioReply] = useState(false)
+
+  const [isSpeaking, setIsSpeaking] = useState(false)
+  const [audioCurrentTime, setAudioCurrentTime] = useState(0)
+  const [audioDuration, setAudioDuration] = useState(0)
+  const [playbackRate, setPlaybackRate] = useState(1)
+
+  const [isRecording, setIsRecording] = useState(false)
+  const [recordingTime, setRecordingTime] = useState(0)
+  const [recUrl, setRecUrl] = useState(null)
+  const [recBlob, setRecBlob] = useState(null)
+
+  const audioChatIdRef = useRef(getAudioChatId())
+  const audioPlayerRef = useRef(null)
+  const recorderRef = useRef(null)
+  const chunksRef = useRef([])
+  const recTimerRef = useRef(null)
+  const recBlobRef = useRef(null)
+
+  useEffect(() => {
+    return () => {
+      if (recUrl) URL.revokeObjectURL(recUrl)
+    }
+  }, [recUrl])
+
+  useEffect(() => {
+    return () => {
+      if (recTimerRef.current) clearInterval(recTimerRef.current)
+      const tracks = recorderRef.current?.stream?.getTracks?.() || []
+      tracks.forEach((track) => track.stop())
+    }
+  }, [])
+
+  async function audioRequest(path, init) {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 120000)
+    try {
+      const res = await fetch(`${LELE_API_URL}${path}`, {
+        ...init,
+        signal: controller.signal,
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+      return await res.json()
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        throw new Error('Timeout: il server non ha risposto in tempo. 😵‍💫')
+      }
+      throw err
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
+  function resetAudioReply() {
+    stopSpeaking()
+    setAudioError('')
+    setAudioReply('')
+    setAudioReplyFile(null)
+    setAudioDuration(0)
+  }
+
+  function applyAudioReply(data, agent) {
+    setAudioReply(audioText(data))
+    setAudioReplyFile(
+      extractFilename(data.audio_filename) || extractFilename(data.audio_path)
+    )
+    setAudioReplyAgent(agent)
+  }
+
+  // Testo -> Gateway (/api/chat)
+  async function sendAudioText(e) {
+    e?.preventDefault()
+    const text = audioPrompt.trim()
+    if (!text || audioBusy || isRecording) return
+
+    resetAudioReply()
+    setAudioBusy(true)
+
+    const clean = text.replace(/^(audio e testo|audio)\s*/i, '')
+    const promptToSend = wantsTts ? `audio e testo ${clean}` : audioPrompt
+
+    try {
+      const data = await audioRequest('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agent: audioAgent,
+          prompt: promptToSend,
+          language: AUDIO_LANGUAGE,
+          chat_id: audioChatIdRef.current,
+        }),
+      })
+      applyAudioReply(data, audioAgent)
+    } catch (err) {
+      setAudioError(err.message)
+    } finally {
+      setAudioBusy(false)
+    }
+  }
+
+  // Audio registrato -> Gateway (/api/chat/audio)
+  async function sendRecording(blobOverride) {
+    const blob = blobOverride || recBlobRef.current
+    if (!blob) return
+
+    resetAudioReply()
+    setAudioBusy(true)
+
+    try {
+      const form = new FormData()
+      form.append('audio', blob, 'recording.webm')
+      form.append('agent', audioAgent)
+      form.append('language', AUDIO_LANGUAGE)
+      form.append('chat_id', String(audioChatIdRef.current))
+
+      const data = await audioRequest('/api/chat/audio', {
+        method: 'POST',
+        body: form,
+      })
+      applyAudioReply(data, audioAgent)
+    } catch (err) {
+      setAudioError(err.message)
+    } finally {
+      setAudioBusy(false)
+    }
+  }
+
+  async function startRecording() {
+    try {
+      setAudioError('')
+      setRecUrl(null)
+      setRecBlob(null)
+      recBlobRef.current = null
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const options = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? { mimeType: 'audio/webm;codecs=opus' }
+        : {}
+      const recorder = new MediaRecorder(stream, options)
+
+      recorderRef.current = recorder
+      chunksRef.current = []
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) chunksRef.current.push(event.data)
+      }
+
+      recorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, {
+          type: recorder.mimeType || 'audio/webm',
+        })
+        recBlobRef.current = blob
+        setRecBlob(blob)
+        setRecUrl(URL.createObjectURL(blob))
+        stream.getTracks().forEach((track) => track.stop())
+
+        // Invio automatico appena termina la registrazione.
+        if (AUTO_SEND_RECORDING) sendRecording(blob)
+      }
+
+      recorder.start()
+      setIsRecording(true)
+      setRecordingTime(0)
+      recTimerRef.current = setInterval(() => {
+        setRecordingTime((time) => time + 1)
+      }, 1000)
+    } catch (err) {
+      setAudioError(
+        'Impossibile accedere al microfono. Controlla i permessi del browser.'
+      )
+    }
+  }
+
+  function stopRecording() {
+    if (recorderRef.current && recorderRef.current.state !== 'inactive') {
+      recorderRef.current.stop()
+    }
+    setIsRecording(false)
+    if (recTimerRef.current) {
+      clearInterval(recTimerRef.current)
+      recTimerRef.current = null
+    }
+  }
+
+  // Riproduzione audio generato dal backend
+  function togglePlayAudio() {
+    const player = audioPlayerRef.current
+    if (!audioReplyFile || !player) return
+
+    const url = `${LELE_API_URL}/api/chat/tts/${encodeURIComponent(
+      audioReplyAgent
+    )}/${encodeURIComponent(audioReplyFile)}`
+
+    if (player.src !== url) {
+      player.src = url
+      player.playbackRate = playbackRate
+    }
+
+    if (isSpeaking) {
+      player.pause()
+      setIsSpeaking(false)
+    } else {
+      player
+        .play()
+        .then(() => setIsSpeaking(true))
+        .catch(() => {
+          setIsSpeaking(false)
+          setAudioError('Riproduzione audio bloccata dal browser.')
+        })
+    }
+  }
+
+  function stopSpeaking() {
+    const player = audioPlayerRef.current
+    if (player) {
+      player.pause()
+      player.currentTime = 0
+    }
+    setIsSpeaking(false)
+    setAudioCurrentTime(0)
+  }
+
+  function handleRateChange(rate) {
+    setPlaybackRate(rate)
+    if (audioPlayerRef.current) audioPlayerRef.current.playbackRate = rate
+  }
+
+  function handleSeek(e) {
+    const t = parseFloat(e.target.value)
+    setAudioCurrentTime(t)
+    if (audioPlayerRef.current) audioPlayerRef.current.currentTime = t
+  }
+
   const q = search.trim().toLowerCase()
   const group = COMMAND_GROUPS.find((g) => g.id === activeGroup)
   const visible = q
@@ -653,16 +944,16 @@ export default function ConsoleTest() {
       <div className="lc-page">
         <style>{css}</style>
         {backdrop}
-        <div className="lc-wrap lc-wrap--narrow">
-          <h1 className="lc-title">Lele Admin Console</h1>
-          <div className="lc-panel lc-login">
-            <p>Accesso riservato. Entra con l'account Google autorizzato.</p>
-            {authError && <p className="lc-err">{authError}</p>}
-            <div ref={buttonRef} style={{ minHeight: 44 }} />
-            {!gsiReady && !authError && (
-              <p className="lc-dim">Caricamento login Google…</p>
-            )}
+        <div className="lc-wrap">
+          <div className="lc-top">
+            <h1 className="lc-title">Lele Admin Console</h1>
+            <div ref={buttonRef} className="lc-gbtn" />
           </div>
+          <p className="lc-dim lc-small lc-login-msg">Accesso riservato.</p>
+          {authError && <p className="lc-err lc-small">{authError}</p>}
+          {!gsiReady && !authError && (
+            <p className="lc-dim lc-small">Caricamento login Google…</p>
+          )}
         </div>
       </div>
     )
@@ -686,19 +977,6 @@ export default function ConsoleTest() {
             </button>
           </div>
         </div>
-
-        <nav className="lc-links" aria-label="Altre pagine">
-          <span className="lc-dim">Vai a</span>
-          {QUICK_LINKS.map((l) => (
-            <Link
-              key={l.to}
-              to={l.to}
-              className={`lc-link${l.main ? ' lc-link--main' : ''}`}
-            >
-              {l.label}
-            </Link>
-          ))}
-        </nav>
 
         <div className="lc-grid">
           <main className="lc-main">
@@ -819,6 +1097,180 @@ export default function ConsoleTest() {
               </div>
             </section>
 
+            {/* AUDIO: Story Whisper / Night Story */}
+            <section className="lc-panel lc-pad lc-audio" aria-label="Audio">
+              <audio
+                ref={audioPlayerRef}
+                onTimeUpdate={() =>
+                  setAudioCurrentTime(audioPlayerRef.current?.currentTime || 0)
+                }
+                onLoadedMetadata={() =>
+                  setAudioDuration(audioPlayerRef.current?.duration || 0)
+                }
+                onEnded={() => {
+                  setIsSpeaking(false)
+                  setAudioCurrentTime(0)
+                }}
+                onError={() => {
+                  setIsSpeaking(false)
+                  setAudioError("Impossibile riprodurre l'audio generato dal server.")
+                }}
+              />
+
+              <div className="lc-cmd-head">
+                <h2>Audio</h2>
+                <select
+                  className="lc-select"
+                  aria-label="Agente audio"
+                  value={audioAgent}
+                  onChange={(e) => setAudioAgent(e.target.value)}
+                  disabled={isRecording || audioBusy}
+                >
+                  {AUDIO_AGENTS.map((a) => (
+                    <option key={a.value} value={a.value}>
+                      {a.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <form className="lc-audio-form" onSubmit={sendAudioText}>
+                <textarea
+                  className="lc-audio-ta"
+                  rows={3}
+                  value={audioPrompt}
+                  disabled={isRecording}
+                  placeholder={`Scrivi a ${audioAgent}…`}
+                  onChange={(e) => setAudioPrompt(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) sendAudioText(e)
+                  }}
+                />
+                <div className="lc-audio-foot">
+                  <label className="lc-check">
+                    <input
+                      type="checkbox"
+                      checked={wantsTts}
+                      disabled={isRecording || audioBusy}
+                      onChange={(e) => setWantsTts(e.target.checked)}
+                    />
+                    Risposta audio (TTS)
+                  </label>
+                  <div className="lc-row">
+                    <button
+                      type="button"
+                      className="lc-btn"
+                      disabled={!audioPrompt.trim() || isRecording}
+                      onClick={() => setAudioPrompt('')}
+                    >
+                      Pulisci
+                    </button>
+                    <button
+                      type="button"
+                      className={`lc-btn${isRecording ? ' lc-btn--rec' : ''}`}
+                      disabled={audioBusy}
+                      onClick={isRecording ? stopRecording : startRecording}
+                    >
+                      {isRecording ? `⏹ ${formatTime(recordingTime)}` : '🎤 Registra'}
+                    </button>
+                    <button
+                      type="submit"
+                      className="lc-btn lc-btn--run"
+                      disabled={audioBusy || isRecording || !audioPrompt.trim()}
+                    >
+                      {audioBusy ? (
+                        <>
+                          <span className="lc-spin" /> Attendi…
+                        </>
+                      ) : (
+                        'Invia'
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </form>
+
+              {recUrl && (
+                <div className="lc-rec">
+                  <div className="lc-cmd-head">
+                    <span className="lc-small">🎤 Audio registrato</span>
+                    <button
+                      type="button"
+                      className="lc-btn lc-btn--sm"
+                      disabled={audioBusy || !recBlob}
+                      onClick={() => sendRecording()}
+                    >
+                      Invia audio
+                    </button>
+                  </div>
+                  <audio controls src={recUrl} className="lc-rec-audio" />
+                </div>
+              )}
+
+              {audioError && <p className="lc-err lc-small">{audioError}</p>}
+
+              {audioReply && (
+                <div className="lc-audio-out" aria-live="polite">
+                  <header>
+                    <span>Risposta da {audioReplyAgent}</span>
+                    <button
+                      type="button"
+                      className="lc-btn lc-btn--sm"
+                      onClick={() => {
+                        copy(audioReply)
+                        setCopiedAudioReply(true)
+                        setTimeout(() => setCopiedAudioReply(false), 2000)
+                      }}
+                    >
+                      {copiedAudioReply ? 'Copiato ✓' : 'Copia'}
+                    </button>
+                  </header>
+
+                  {audioReplyFile && (
+                    <div className="lc-player">
+                      <div className="lc-player-top">
+                        <button
+                          type="button"
+                          className={`lc-btn lc-btn--sm lc-play${isSpeaking ? ' is-on' : ''}`}
+                          onClick={togglePlayAudio}
+                        >
+                          {isSpeaking ? '⏸ Pausa' : '▶ Ascolta'}
+                        </button>
+                        <span className="lc-time">
+                          {formatTime(audioCurrentTime)} / {formatTime(audioDuration)}
+                        </span>
+                        <input
+                          type="range"
+                          className="lc-seek"
+                          aria-label="Posizione audio"
+                          min="0"
+                          max={audioDuration || 0}
+                          step="0.1"
+                          value={audioCurrentTime}
+                          onChange={handleSeek}
+                        />
+                      </div>
+                      <div className="lc-speed">
+                        <span className="lc-dim lc-small">Velocità</span>
+                        {[1, 1.25, 1.5, 1.75, 2].map((rate) => (
+                          <button
+                            key={rate}
+                            type="button"
+                            className={`lc-btn lc-btn--sm${playbackRate === rate ? ' is-on' : ''}`}
+                            onClick={() => handleRateChange(rate)}
+                          >
+                            {rate}x
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <pre className="lc-pre">{audioReply}</pre>
+                </div>
+              )}
+            </section>
+
             {/* CRONOLOGIA */}
             <section className="lc-panel lc-pad" aria-label="Risposte">
               <div className="lc-cmd-head">
@@ -869,20 +1321,32 @@ export default function ConsoleTest() {
             </section>
           </main>
 
-          {/* DASHBOARD DESTRA */}
+          {/* DASHBOARD DESTRA: Sistema + OS + RAM + Gateway in un solo pannello */}
           <aside className="lc-side" aria-label="Stato del sistema">
-            <section className="lc-panel lc-pad">
+            <section className="lc-panel lc-pad lc-status">
               <div className="lc-cmd-head">
                 <h2>Stato del sistema</h2>
-                <button
-                  type="button"
-                  className="lc-btn lc-btn--sm"
-                  onClick={refreshStatus}
-                  disabled={statusLoading}
-                >
-                  {statusLoading ? 'Carico…' : 'Aggiorna'}
-                </button>
+                <div className="lc-row">
+                  <span
+                    className={`lc-pill ${
+                      ping.ok === null ? '' : ping.ok ? 'is-ok' : 'is-bad'
+                    }`}
+                    title="Gateway"
+                  >
+                    <span className={`lc-dot${ping.ok ? ' lc-pulse' : ''}`} />
+                    {ping.ok === null ? '…' : ping.ok ? `${ping.ms} ms` : 'offline'}
+                  </span>
+                  <button
+                    type="button"
+                    className="lc-btn lc-btn--sm"
+                    onClick={refreshStatus}
+                    disabled={statusLoading}
+                  >
+                    {statusLoading ? 'Carico…' : 'Aggiorna'}
+                  </button>
+                </div>
               </div>
+
               {STATUS_CMDS.map(([key, label]) => {
                 const s = status[key]
                 const tiles = key === 'sys' && !rawSys ? parseSystem(s?.text) : null
@@ -913,32 +1377,22 @@ export default function ConsoleTest() {
                 )
               })}
             </section>
-
-            <section className="lc-panel lc-pad">
-              <div className="lc-cmd-head">
-                <h2>Gateway</h2>
-                <span
-                  className={`lc-pill ${
-                    ping.ok === null ? '' : ping.ok ? 'is-ok' : 'is-bad'
-                  }`}
-                >
-                  <span className={`lc-dot${ping.ok ? ' lc-pulse' : ''}`} />
-                  {ping.ok === null ? 'Controllo…' : ping.ok ? `Online, ${ping.ms} ms` : 'Non raggiungibile'}
-                </span>
-              </div>
-              {ping.agents.length > 0 && (
-                <>
-                  <p className="lc-dim lc-small">Agenti gateway</p>
-                  <div className="lc-agents">
-                    {ping.agents.map((a) => (
-                      <span key={a} className="lc-agent">{a}</span>
-                    ))}
-                  </div>
-                </>
-              )}
-            </section>
           </aside>
         </div>
+
+        {/* VAI A (temporanei): in fondo alla pagina */}
+        <nav className="lc-links" aria-label="Altre pagine">
+          <span className="lc-dim">Vai a</span>
+          {QUICK_LINKS.map((l) => (
+            <Link
+              key={l.to}
+              to={l.to}
+              className={`lc-link${l.main ? ' lc-link--main' : ''}`}
+            >
+              {l.label}
+            </Link>
+          ))}
+        </nav>
       </div>
     </div>
   )
@@ -951,13 +1405,15 @@ const css = `
 .lc-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.38}
 .lc-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,16,21,.5) 0%,rgba(11,16,21,.96) 70%)}
 .lc-wrap{position:relative;max-width:1280px;margin:0 auto;padding:28px 24px 72px}
-.lc-wrap--narrow{max-width:560px;padding-top:64px}
 .lc-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.lc-gbtn{min-height:32px;flex:none}
+.lc-login-msg{margin-top:10px}
 .lc-title{font-size:clamp(22px,4vw,30px);font-weight:650;letter-spacing:-.01em;line-height:1.15}
 .lc-session{display:flex;align-items:center;gap:10px;padding:5px 5px 5px 14px;border:1px solid var(--line);
   border-radius:999px;background:var(--glass);font-size:12px;color:var(--ink-dim);max-width:100%}
 .lc-ellipsis{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-.lc-links{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:16px;font-size:13px}
+.lc-links{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:28px;padding-top:16px;
+  border-top:1px solid var(--line);font-size:13px}
 .lc-link{padding:6px 13px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04);
   color:var(--ink);transition:background .15s,border-color .15s}
 .lc-link:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25)}
@@ -1020,53 +1476,53 @@ const css = `
 .lc-pre{margin:0;padding:12px;font-family:var(--mono);font-size:12.5px;line-height:1.55;white-space:pre-wrap;
   word-break:break-word;max-height:340px;overflow:auto}
 .lc-pre--sm{max-height:130px;font-size:11.5px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:rgba(0,0,0,.28)}
-.lc-stat{margin-bottom:12px}.lc-stat:last-child{margin-bottom:0}
-.lc-stat-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
+.lc-status .lc-cmd-head{margin-bottom:8px}
+.lc-gw{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.lc-stat{margin-bottom:10px}.lc-stat:last-child{margin-bottom:0}
+.lc-stat-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:5px}
 .lc-stat-head h3{margin:0}
-.lc-sys-sec{margin-top:12px}.lc-sys-sec:first-child{margin-top:0}
-.lc-sys-title{display:flex;justify-content:space-between;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;
-  color:var(--ink-dim);margin-bottom:6px}
-.lc-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
-.lc-tile{position:relative;display:flex;flex-direction:column;justify-content:center;gap:2px;min-height:54px;
-  padding:8px 18px 8px 10px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.04);
-  line-height:1.25;word-break:break-word;color:var(--ink-dim)}
-.lc-tile::after{content:'';position:absolute;top:8px;right:8px;width:7px;height:7px;border-radius:50%;background:currentColor}
-.lc-tile b{font-size:11.5px;font-weight:650;color:var(--ink)}
-.lc-tile small{font-size:10px;color:var(--ink-dim);overflow:hidden;text-overflow:ellipsis}
+.lc-sys-sec{margin-top:9px}.lc-sys-sec:first-child{margin-top:0}
+.lc-sys-title{display:flex;justify-content:space-between;font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-dim);margin-bottom:5px}
+.lc-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
+.lc-tile{position:relative;display:flex;flex-direction:column;justify-content:center;gap:1px;min-height:38px;
+  padding:5px 12px 5px 8px;border-radius:8px;border:1px solid var(--line);background:rgba(255,255,255,.04);
+  line-height:1.2;word-break:break-word;color:var(--ink-dim)}
+.lc-tile::after{content:'';position:absolute;top:6px;right:6px;width:5px;height:5px;border-radius:50%;background:currentColor}
+.lc-tile b{font-size:10.5px;font-weight:650;color:var(--ink)}
+.lc-tile small{font-size:9.5px;color:var(--ink-dim);overflow:hidden;text-overflow:ellipsis}
 .lc-tile.is-ok{color:var(--ok);background:rgba(74,222,128,.1);border-color:rgba(74,222,128,.4)}
 .lc-tile.is-bad{color:var(--bad);background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.45)}
 .lc-tile.is-off{color:var(--ink-dim);opacity:.8}
-.lc-sys-name{display:inline-flex;align-items:center;gap:6px}
+.lc-sys-name{display:inline-flex;align-items:center;gap:5px}
 .lc-sys-name.is-ok,.lc-sys-name.is-bad{font-weight:700}
-.lc-sys-name.is-ok::before,.lc-sys-name.is-bad::before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor}
+.lc-sys-name.is-ok::before,.lc-sys-name.is-bad::before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor}
 .lc-sys-name.is-ok{color:var(--ok)}
 .lc-sys-name.is-bad{color:var(--bad)}
-.lc-tile--wide{grid-column:1/-1;gap:8px;padding:9px 18px 10px 10px}
-.lc-subs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
-.lc-sub{position:relative;padding:5px 6px 5px 16px;border-radius:7px;border:1px solid var(--line);background:rgba(255,255,255,.04);
-  font-size:10px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.lc-sub::before{content:'';position:absolute;left:6px;top:50%;width:6px;height:6px;margin-top:-3px;border-radius:50%;background:var(--ink-dim)}
+.lc-tile--wide{grid-column:1/-1;gap:6px;padding:6px 12px 7px 8px}
+.lc-subs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
+.lc-sub{position:relative;padding:3px 5px 3px 13px;border-radius:6px;border:1px solid var(--line);background:rgba(255,255,255,.04);
+  font-size:9.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lc-sub::before{content:'';position:absolute;left:5px;top:50%;width:5px;height:5px;margin-top:-2.5px;border-radius:50%;background:var(--ink-dim)}
 .lc-sub.is-ok{background:rgba(74,222,128,.1);border-color:rgba(74,222,128,.4)}
 .lc-sub.is-ok::before{background:var(--ok)}
 .lc-sub.is-bad{background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.45)}
 .lc-sub.is-bad::before{background:var(--bad)}
 .lc-sub.is-off{opacity:.7}
-.lc-sys-git{display:flex;gap:6px;flex-wrap:wrap}
-.lc-badge{padding:3px 10px;border-radius:999px;border:1px solid var(--line);font-size:11.5px;font-family:var(--mono);color:var(--ink)}
+.lc-sys-git{display:flex;gap:5px;flex-wrap:wrap}
+.lc-badge{padding:2px 8px;border-radius:999px;border:1px solid var(--line);font-size:10.5px;font-family:var(--mono);color:var(--ink)}
 .lc-badge.is-ok{color:var(--ok);border-color:rgba(74,222,128,.4)}
 .lc-badge.is-warn{color:var(--warn);border-color:rgba(251,191,36,.45)}
-.lc-pill{display:inline-flex;align-items:center;gap:7px;padding:4px 11px;border-radius:999px;border:1px solid var(--line);
-  font-size:12px;color:var(--ink-dim)}
+.lc-pill{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:999px;border:1px solid var(--line);
+  font-size:11px;color:var(--ink-dim)}
 .lc-pill.is-ok{color:var(--ok);border-color:rgba(74,222,128,.4)}
 .lc-pill.is-bad{color:var(--bad);border-color:rgba(248,113,113,.45)}
-.lc-dot{width:8px;height:8px;border-radius:50%;background:currentColor}
+.lc-dot{width:6px;height:6px;border-radius:50%;background:currentColor}
 .lc-pulse{animation:lc-pulse 2s ease-in-out infinite}
-@keyframes lc-pulse{0%,100%{box-shadow:0 0 0 0 rgba(74,222,128,.55)}50%{box-shadow:0 0 0 6px rgba(74,222,128,0)}}
-.lc-agents{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-.lc-agent{padding:3px 10px;border-radius:6px;background:rgba(255,255,255,.06);border:1px solid var(--line);font-size:12px;font-family:var(--mono)}
+@keyframes lc-pulse{0%,100%{box-shadow:0 0 0 0 rgba(74,222,128,.55)}50%{box-shadow:0 0 0 5px rgba(74,222,128,0)}}
+.lc-agent{padding:2px 8px;border-radius:6px;background:rgba(255,255,255,.06);border:1px solid var(--line);font-size:10.5px;font-family:var(--mono)}
 .lc-spin{width:12px;height:12px;border-radius:50%;border:2px solid rgba(7,32,31,.3);border-top-color:#07201f;animation:lc-rot .8s linear infinite}
 @keyframes lc-rot{to{transform:rotate(360deg)}}
-.lc-login{margin-top:20px;padding:32px 24px;display:flex;flex-direction:column;align-items:center;gap:16px;text-align:center}
 .lc-page :is(button,a,input,textarea):focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 @media (max-width:980px){
   .lc-grid{grid-template-columns:1fr}
@@ -1078,4 +1534,26 @@ const css = `
   .lc-chips{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media (prefers-reduced-motion:reduce){.lc-pulse,.lc-spin{animation:none}}
-`
+.lc-select{padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--ink);font:inherit;font-size:13px}
+.lc-select option{color:#111}
+.lc-audio-form{display:flex;flex-direction:column;gap:10px}
+.lc-audio-ta{width:100%;box-sizing:border-box;resize:vertical;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-family:var(--mono);font-size:14px;line-height:1.5}
+.lc-audio-ta:focus{outline:none;border-color:rgba(63,208,201,.5)}
+.lc-audio-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.lc-check{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-dim);cursor:pointer}
+.lc-btn--rec{background:rgba(248,113,113,.2);border-color:var(--bad);color:#fecaca}
+.lc-rec{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.2)}
+.lc-rec .lc-cmd-head{margin-bottom:8px}
+.lc-rec-audio{width:100%}
+.lc-audio .lc-err{margin-top:10px}
+.lc-audio-out{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.28);overflow:hidden}
+.lc-audio-out header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);font-size:13px;font-weight:600}
+.lc-player{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.lc-player-top{display:flex;align-items:center;gap:10px}
+.lc-time{font-family:var(--mono);font-size:11.5px;color:var(--ink-dim);white-space:nowrap}
+.lc-seek{flex:1;min-width:0;cursor:pointer;accent-color:var(--accent)}
+.lc-speed{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.lc-btn--sm.is-on{background:var(--accent);border-color:var(--accent);color:#07201f}
+.lc-play.is-on{background:var(--bad);border-color:var(--bad);color:#fff}
+@media (max-width:560px){.lc-player-top{flex-wrap:wrap}.lc-seek{flex-basis:100%}}
+` 

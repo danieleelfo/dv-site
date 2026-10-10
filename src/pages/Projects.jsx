@@ -13,8 +13,8 @@ const BAR_AI_URL = import.meta.env.DEV
 
 
 const projectLinks = {
-  leles: '/test',
-  'emergence-lab': '/test2',
+  leles: '/leles',
+  'emergence-lab': '/ai-lab',
   stories: '/en/console',
   'bar-ai': BAR_AI_URL,
 }

@@ -18,10 +18,17 @@ const FORCED_ADMIN_CHAT_ID = 8733881519
 // ---------------------------------------------------------------------------
 
 // --- AUDIO: TTS + registrazione + risposta audio ---------------------------
-// Le API audio (/api/chat e /api/chat/audio) funzionano solo per questi due agenti.
+// Story Whisper e Night Story: API audio complete (/api/chat e /api/chat/audio).
+// Leles: console admin (login Google). Testo e TTS passano da /api/admin/chat.
+// ATTENZIONE: le due route qui sotto per audio in ingresso e file TTS sono
+// ASSUNTE (speculari a quelle pubbliche): da verificare lato gateway.
+const LELES_AGENT = 'Leles'
+const LELES_AUDIO_PATH = '/api/admin/chat/audio'
+const LELES_TTS_PATH = '/api/admin/chat/tts'
 const AUDIO_AGENTS = [
   { value: 'Story Whisper', label: 'Story Whisper 🌈' },
   { value: 'Night Story', label: 'Night Story 🌙' },
+  { value: LELES_AGENT, label: 'Leles 🏴‍☠️' },
 ]
 const AUDIO_CHAT_ID_KEY = 'lele_chat_id'
 const AUDIO_LANGUAGE = 'it'
@@ -30,12 +37,12 @@ const AUTO_SEND_RECORDING = true
 
 // Pagine di test raggiungibili al volo.
 const QUICK_LINKS = [
-  { to: '/test4', label: 'Bot to bot', main: true },
-  { to: '/test6', label: 'Test 6' },
-  { to: '/test3', label: 'Test 3' },
-  { to: '/test2', label: 'Test 2' },
-  { to: '/test', label: 'Test' },
-  { to: '/leles', label: 'Lele Admin' },
+  { to: '/test3', label: 'Bot to bot'},
+  { to: '/test2', label: 'AI Lab' },
+  { to: '/test', label: 'Lele Admin', main: true  },
+  { to: '/test6', label: 'Test' },
+  { to: '/test4', label: 'Test 4' },
+  { to: '/test5', label: 'Test 5' },
 ]
 
 // Comandi mostrati nel pannello di destra (si aggiornano con "Aggiorna").
@@ -266,6 +273,37 @@ async function callAdmin(idToken, prompt, timeoutMs = 310000) {
   }
 }
 
+// Chiamata admin generica (JSON o FormData) che restituisce il JSON grezzo.
+async function adminJson(idToken, path, init = {}, timeoutMs = 310000) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetch(`${LELE_API_URL}${path}`, {
+      ...init,
+      headers: { ...(init.headers || {}), Authorization: `Bearer ${idToken}` },
+      signal: controller.signal,
+    })
+    if (res.status === 401 || res.status === 403) {
+      const err = new Error(
+        res.status === 401
+          ? 'Sessione scaduta, effettua di nuovo il login.'
+          : 'Accesso non autorizzato per questo account Google. 🏴‍☠️'
+      )
+      err.status = res.status
+      throw err
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+    return await res.json()
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      throw new Error('Timeout: il server non ha risposto in tempo. 😵‍💫')
+    }
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 const timeLabel = (ts) =>
   new Date(ts).toLocaleTimeString('it-IT', {
     hour: '2-digit',
@@ -440,7 +478,7 @@ function SystemTiles({ data }) {
   )
 }
 
-export default function ConsoleTest() {
+export default function Test() {
   const [idToken, setIdToken] = useState(() => {
     try {
       return window.sessionStorage.getItem(TOKEN_STORAGE_KEY) || null
@@ -706,6 +744,7 @@ export default function ConsoleTest() {
   const chunksRef = useRef([])
   const recTimerRef = useRef(null)
   const recBlobRef = useRef(null)
+  const lelesAudioRef = useRef(null)
 
   useEffect(() => {
     return () => {
@@ -716,6 +755,7 @@ export default function ConsoleTest() {
   useEffect(() => {
     return () => {
       if (recTimerRef.current) clearInterval(recTimerRef.current)
+      if (lelesAudioRef.current) URL.revokeObjectURL(lelesAudioRef.current.url)
       const tracks = recorderRef.current?.stream?.getTracks?.() || []
       tracks.forEach((track) => track.stop())
     }
@@ -766,6 +806,40 @@ export default function ConsoleTest() {
     resetAudioReply()
     setAudioBusy(true)
 
+    // Leles: console admin (con token). I comandi sensibili passano solo
+    // dal prompt principale, che chiede la conferma.
+    if (audioAgent === LELES_AGENT) {
+      if (isDanger(text)) {
+        setAudioError(
+          'Comando sensibile: usa il prompt principale, che chiede la conferma.'
+        )
+        setAudioBusy(false)
+        return
+      }
+      const lelesClean = text.replace(/^(audio e testo|audio)\s*/i, '')
+      try {
+        const data = await adminJson(idToken, '/api/admin/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: wantsTts ? `audio e testo ${lelesClean}` : text,
+            language: 'en',
+            chat_id: FORCED_ADMIN_CHAT_ID,
+          }),
+        })
+        applyAudioReply(data, LELES_AGENT)
+      } catch (err) {
+        if (err.status === 401 || err.status === 403) {
+          logout(err.message)
+          return
+        }
+        setAudioError(err.message)
+      } finally {
+        setAudioBusy(false)
+      }
+      return
+    }
+
     const clean = text.replace(/^(audio e testo|audio)\s*/i, '')
     const promptToSend = wantsTts ? `audio e testo ${clean}` : audioPrompt
 
@@ -796,19 +870,27 @@ export default function ConsoleTest() {
     resetAudioReply()
     setAudioBusy(true)
 
+    const isLeles = audioAgent === LELES_AGENT
+
     try {
       const form = new FormData()
       form.append('audio', blob, 'recording.webm')
-      form.append('agent', audioAgent)
+      if (!isLeles) form.append('agent', audioAgent)
       form.append('language', AUDIO_LANGUAGE)
-      form.append('chat_id', String(audioChatIdRef.current))
+      form.append(
+        'chat_id',
+        String(isLeles ? FORCED_ADMIN_CHAT_ID : audioChatIdRef.current)
+      )
 
-      const data = await audioRequest('/api/chat/audio', {
-        method: 'POST',
-        body: form,
-      })
+      const data = isLeles
+        ? await adminJson(idToken, LELES_AUDIO_PATH, { method: 'POST', body: form })
+        : await audioRequest('/api/chat/audio', { method: 'POST', body: form })
       applyAudioReply(data, audioAgent)
     } catch (err) {
+      if (err.status === 401 || err.status === 403) {
+        logout(err.message)
+        return
+      }
       setAudioError(err.message)
     } finally {
       setAudioBusy(false)
@@ -845,7 +927,8 @@ export default function ConsoleTest() {
         stream.getTracks().forEach((track) => track.stop())
 
         // Invio automatico appena termina la registrazione.
-        if (AUTO_SEND_RECORDING) sendRecording(blob)
+        // Con Leles (admin) niente invio automatico: si invia a mano.
+        if (AUTO_SEND_RECORDING && audioAgent !== LELES_AGENT) sendRecording(blob)
       }
 
       recorder.start()
@@ -872,31 +955,52 @@ export default function ConsoleTest() {
     }
   }
 
+  // Audio TTS di Leles: richiede il token, quindi si scarica come blob.
+  async function getLelesAudioUrl(file) {
+    if (lelesAudioRef.current?.file === file) return lelesAudioRef.current.url
+    const res = await fetch(
+      `${LELE_API_URL}${LELES_TTS_PATH}/${encodeURIComponent(file)}`,
+      { headers: { Authorization: `Bearer ${idToken}` } }
+    )
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const url = URL.createObjectURL(await res.blob())
+    if (lelesAudioRef.current) URL.revokeObjectURL(lelesAudioRef.current.url)
+    lelesAudioRef.current = { file, url }
+    return url
+  }
+
   // Riproduzione audio generato dal backend
-  function togglePlayAudio() {
+  async function togglePlayAudio() {
     const player = audioPlayerRef.current
     if (!audioReplyFile || !player) return
-
-    const url = `${LELE_API_URL}/api/chat/tts/${encodeURIComponent(
-      audioReplyAgent
-    )}/${encodeURIComponent(audioReplyFile)}`
-
-    if (player.src !== url) {
-      player.src = url
-      player.playbackRate = playbackRate
-    }
 
     if (isSpeaking) {
       player.pause()
       setIsSpeaking(false)
-    } else {
-      player
-        .play()
-        .then(() => setIsSpeaking(true))
-        .catch(() => {
-          setIsSpeaking(false)
-          setAudioError('Riproduzione audio bloccata dal browser.')
-        })
+      return
+    }
+
+    const isLeles = audioReplyAgent === LELES_AGENT
+    try {
+      const url = isLeles
+        ? await getLelesAudioUrl(audioReplyFile)
+        : `${LELE_API_URL}/api/chat/tts/${encodeURIComponent(
+            audioReplyAgent
+          )}/${encodeURIComponent(audioReplyFile)}`
+
+      if (player.src !== url) {
+        player.src = url
+        player.playbackRate = playbackRate
+      }
+      await player.play()
+      setIsSpeaking(true)
+    } catch (err) {
+      setIsSpeaking(false)
+      setAudioError(
+        isLeles
+          ? `Audio di Leles non disponibile: ${err.message}`
+          : 'Riproduzione audio bloccata dal browser.'
+      )
     }
   }
 
@@ -1403,7 +1507,7 @@ const css = `
   --mono:ui-monospace,'JetBrains Mono','SF Mono',Menlo,Consolas,monospace;
   position:relative;min-height:calc(100vh - 64px);overflow:hidden;color:var(--ink);font-family:var(--sans)}
 .lc-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.38}
-.lc-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,16,21,.5) 0%,rgba(11,16,21,.96) 70%)}
+.lc-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,16,21,.25) 0%,rgba(11,16,21,.40) 70%)}
 .lc-wrap{position:relative;max-width:1280px;margin:0 auto;padding:28px 24px 72px}
 .lc-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .lc-gbtn{min-height:32px;flex:none}
@@ -1546,6 +1650,7 @@ const css = `
 .lc-rec .lc-cmd-head{margin-bottom:8px}
 .lc-rec-audio{width:100%}
 .lc-audio .lc-err{margin-top:10px}
+.lc-audio-hint{margin-top:8px}
 .lc-audio-out{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.28);overflow:hidden}
 .lc-audio-out header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);font-size:13px;font-weight:600}
 .lc-player{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}

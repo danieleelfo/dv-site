@@ -275,7 +275,7 @@ const DEFAULT_CFG = {
 // MAIN
 // ============================================================
 
-export default function ProjectTest() {
+export default function B2B() {
   const [cfg, setCfg] = useState(DEFAULT_CFG);
   const [runId, setRunId] = useState(null);
   const [data, setData] = useState({ status: "IDLE", turns: [] });
@@ -756,7 +756,7 @@ export default function ProjectTest() {
                     </>
                   ) : (
                     <div style={styles.authHint}>
-                      GOOGLE_CLIENT_ID mancante in ProjectTest.jsx
+                      GOOGLE_CLIENT_ID mancante in B2B.jsx
                     </div>
                   )}
                 </div>

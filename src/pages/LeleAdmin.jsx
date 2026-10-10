@@ -314,7 +314,7 @@ const timeLabel = (ts) =>
   })
 
 
-export default function ConsoleTest() {
+export default function LeleAdmin() {
   const [idToken, setIdToken] = useState(() => {
     try {
       return window.sessionStorage.getItem(TOKEN_STORAGE_KEY) || null
