@@ -20,6 +20,7 @@ import Test3 from './pages/Test3.jsx'
 import Test4 from './pages/Test4.jsx'
 import Test5 from './pages/Test5.jsx'
 import Test6 from './pages/Test6.jsx'
+import TestBarAI from './pages/TestBarAI.jsx'
 
 const SUPPORTED_LANGS = ['en', 'it', 'es', 'fr', 'ca', 'nl']
 
@@ -40,294 +41,50 @@ function LangWrapper({ children }) {
   return children
 }
 
-/*
- * MAPPING PAGINE (definitivo):
- *
- * UFFICIALI (nella nav)
- *   Home           -> Home.jsx          (/:lang)
- *   Projects       -> Projects.jsx      (/:lang/projects)
- *   AI Lab         -> AI_Lab.jsx        (/ai-lab e /:lang/ai-lab)
- *   Leles          -> LeleAdmin.jsx     (/leles e /:lang/leles)
- *   B2B            -> B2B.jsx           (/b2b e /:lang/b2b)
- *   Trial          -> Console.jsx       (/:lang/console)
- *
- * SANDBOX (bottoni test in LeleAdmin)
- *   test   -> Test.jsx      (/test e /:lang/test)
- *   test2  -> Test2.jsx     (/test2 e /:lang/test2)
- *   test3  -> Test3.jsx     (/test3 e /:lang/test3)
- *   test4  -> Test4.jsx     (/test4 e /:lang/test4)  — Bot-to-bot OLD, da archiviare
- *   test5  -> Test5.jsx   (/test5 e /:lang/test5)
- *   test6  -> Test6.jsx   (/test6 e /:lang/test6)
- *
- * ALTRO
- *   LeleAdmin alias: /LeleAdmin
- */
-
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Navigate to="/en" replace />} />
 
-        {/* ===== HOME ===== */}
-        <Route
-          path="/:lang"
-          element={
-            <>
-              <Nav />
-              <LangWrapper>
-                <Home />
-              </LangWrapper>
-            </>
-          }
-        />
+        <Route path="/:lang" element={<><Nav /><LangWrapper><Home /></LangWrapper></>} />
+        <Route path="/:lang/projects" element={<><Nav /><LangWrapper><Projects /></LangWrapper></>} />
 
-        {/* ===== PROJECTS — Projects.jsx ===== */}
-        <Route
-          path="/:lang/projects"
-          element={
-            <>
-              <Nav />
-              <LangWrapper>
-                <Projects />
-              </LangWrapper>
-            </>
-          }
-        />
+        <Route path="/ai-lab" element={<><Nav /><AI_Lab /></>} />
+        <Route path="/:lang/ai-lab" element={<><Nav /><LangWrapper><AI_Lab /></LangWrapper></>} />
 
-        {/* ===== AI LAB (ufficiale) — AI_Lab.jsx ===== */}
-        <Route
-          path="/ai-lab"
-          element={
-            <>
-              <Nav />
-              <AI_Lab />
-            </>
-          }
-        />
-        <Route
-          path="/:lang/ai-lab"
-          element={
-            <>
-              <Nav />
-              <LangWrapper>
-                <AI_Lab />
-              </LangWrapper>
-            </>
-          }
-        />
+        <Route path="/leles" element={<><Nav /><LeleAdmin /></>} />
+        <Route path="/:lang/leles" element={<><Nav /><LangWrapper><LeleAdmin /></LangWrapper></>} />
+        <Route path="/LeleAdmin" element={<><Nav /><LeleAdmin /></>} />
 
-        {/* ===== LELES (ufficiale) — LeleAdmin.jsx ===== */}
-        <Route
-          path="/leles"
-          element={
-            <>
-              <Nav />
-              <LeleAdmin />
-            </>
-          }
-        />
-        <Route
-          path="/:lang/leles"
-          element={
-            <>
-              <Nav />
-              <LangWrapper>
-                <LeleAdmin />
-              </LangWrapper>
-            </>
-          }
-        />
-        {/* alias per comodità */}
-        <Route
-          path="/LeleAdmin"
-          element={
-            <>
-              <Nav />
-              <LeleAdmin />
-            </>
-          }
-        />
+        <Route path="/b2b" element={<><Nav /><B2B /></>} />
+        <Route path="/:lang/b2b" element={<><Nav /><LangWrapper><B2B /></LangWrapper></>} />
 
-        {/* ===== B2B (ufficiale) — B2B.jsx ===== */}
-        <Route
-          path="/b2b"
-          element={
-            <>
-              <Nav />
-              <B2B />
-            </>
-          }
-        />
-        <Route
-          path="/:lang/b2b"
-          element={
-            <>
-              <Nav />
-              <LangWrapper>
-                <B2B />
-              </LangWrapper>
-            </>
-          }
-        />
+        <Route path="/improve" element={<><Nav /><Improve /></>} />
+        <Route path="/:lang/console" element={<><Nav /><LangWrapper><Console /></LangWrapper></>} />
 
-        {/* ===== IMPROVE — Improve.jsx ===== */}
-        <Route
-          path="/improve"
-          element={
-            <>
-              <Nav />
-              <Improve />
-            </>
-          }
-        />
+        <Route path="/test" element={<><Nav /><Test /></>} />
+        <Route path="/:lang/test" element={<><Nav /><LangWrapper><Test /></LangWrapper></>} />
 
-        {/* ===== TRIAL — Console.jsx ===== */}
-        <Route
-          path="/:lang/console"
-          element={
-            <>
-              <Nav />
-              <LangWrapper>
-                <Console />
-              </LangWrapper>
-            </>
-          }
-        />
+        <Route path="/test2" element={<><Nav /><Test2 /></>} />
+        <Route path="/:lang/test2" element={<><Nav /><LangWrapper><Test2 /></LangWrapper></>} />
 
-        {/* ================= SANDBOX ================= */}
+        <Route path="/test3" element={<><Nav /><Test3 /></>} />
+        <Route path="/:lang/test3" element={<><Nav /><LangWrapper><Test3 /></LangWrapper></>} />
 
-        {/* test — Test.jsx */}
-        <Route
-          path="/test"
-          element={
-            <>
-              <Nav />
-              <Test />
-            </>
-          }
-        />
-        <Route
-          path="/:lang/test"
-          element={
-            <>
-              <Nav />
-              <LangWrapper>
-                <Test />
-              </LangWrapper>
-            </>
-          }
-        />
+        <Route path="/test4" element={<><Nav /><Test4 /></>} />
+        <Route path="/:lang/test4" element={<><Nav /><LangWrapper><Test4 /></LangWrapper></>} />
 
-        {/* test2 — Test2.jsx  */}
-        <Route
-          path="/test2"
-          element={
-            <>
-              <Nav />
-              <Test2 />
-            </>
-          }
-        />
-        <Route
-          path="/:lang/test2"
-          element={
-            <>
-              <Nav />
-              <LangWrapper>
-                <Test2 />
-              </LangWrapper>
-            </>
-          }
-        />
+        <Route path="/test5" element={<><Nav /><Test5 /></>} />
+        <Route path="/:lang/test5" element={<><Nav /><LangWrapper><Test5 /></LangWrapper></>} />
 
-        {/* test3 — Test3.jsx */}
-        <Route
-          path="/test3"
-          element={
-            <>
-              <Nav />
-              <Test3 />
-            </>
-          }
-        />
-        <Route
-          path="/:lang/test3"
-          element={
-            <>
-              <Nav />
-              <LangWrapper>
-                <Test3 />
-              </LangWrapper>
-            </>
-          }
-        />
+        {/* Test6 resta dedicato agli endpoint admin futuri. */}
+        <Route path="/test6" element={<><Nav /><Test6 /></>} />
+        <Route path="/:lang/test6" element={<><Nav /><LangWrapper><Test6 /></LangWrapper></>} />
 
-        {/* test4 — Test4.jsx  */}
-        <Route
-          path="/test4"
-          element={
-            <>
-              <Nav />
-              <Test4 />
-            </>
-          }
-        />
-        <Route
-          path="/:lang/test4"
-          element={
-            <>
-              <Nav />
-              <LangWrapper>
-                <Test4 />
-              </LangWrapper>
-            </>
-          }
-        />
-
-        {/* test5 — Test5.jsx */}
-        <Route
-          path="/test5"
-          element={
-            <>
-              <Nav />
-              <Test5 />
-            </>
-          }
-        />
-        <Route
-          path="/:lang/test5"
-          element={
-            <>
-              <Nav />
-              <LangWrapper>
-                <Test5 />
-              </LangWrapper>
-            </>
-          }
-        />
-
-        {/* test6 — Test6.jsx */}
-        <Route
-          path="/test6"
-          element={
-            <>
-              <Nav />
-                <Test6 />
-            </>
-          }
-        />
-        <Route
-          path="/:lang/test6"
-          element={
-            <>
-              <Nav />
-              <LangWrapper>
-                <Test6 />
-              </LangWrapper>
-            </>
-          }
-        />
+        {/* Bar AI sandbox: usa solo il proxy /api/bar-ai/ask già presente. */}
+        <Route path="/testbarai" element={<><Nav /><TestBarAI /></>} />
+        <Route path="/:lang/testbarai" element={<><Nav /><LangWrapper><TestBarAI /></LangWrapper></>} />
       </Routes>
     </BrowserRouter>
   )
