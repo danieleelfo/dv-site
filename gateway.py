@@ -6,7 +6,7 @@ import uuid
 import psycopg2
 
 import httpx
-from fastapi import FastAPI, Header, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, Header, HTTPException, Request, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from google.auth.transport import requests as google_requests
@@ -1998,6 +1998,71 @@ async def improve_save_file(
         "saved_path": saved_path,
         "bytes": os.path.getsize(saved_path),
     }
+# --------------------------------------------------------------------------
+# BAR AI SUMMARY (dati del giorno per la dashboard demo, no LLM)
+# --------------------------------------------------------------------------
+@app.api_route("/api/bar-ai/summary", methods=["GET"])
+@app.api_route("/api/bar-ai/summary/", methods=["GET"])
+async def bar_ai_summary(restaurant_id: int = 1):
+    target_url = f"http://127.0.0.1:8081/summary?restaurant_id={restaurant_id}"
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        try:
+            response = await client.get(target_url)
+        except Exception as e:
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    f"Impossibile raggiungere Bar AI "
+                    f"su porta 8081: {str(e)}"
+                )
+            )
+
+    if response.status_code >= 400:
+        raise HTTPException(
+            status_code=response.status_code,
+            detail=response.text,
+        )
+
+    return response.json()
+
+
+# --------------------------------------------------------------------------
+# BAR AI ADMIN (CRUD tabelle gestionali -> main.py :8081/admin, Google auth)
+# --------------------------------------------------------------------------
+@app.api_route("/api/bar-ai/admin/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
+async def bar_ai_admin(path: str, request: Request):
+    # Google auth: stesso schema di /api/admin/* e Arena.
+    verify_admin_token(request.headers.get("authorization"))
+
+    body = await request.body()
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        try:
+            response = await client.request(
+                request.method,
+                "http://127.0.0.1:8081/admin/" + path,
+                content=body,
+                headers={"Content-Type": "application/json"},
+            )
+        except Exception as e:
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    f"Impossibile raggiungere Bar AI "
+                    f"su porta 8081: {str(e)}"
+                )
+            )
+
+    if response.status_code >= 400:
+        raise HTTPException(
+            status_code=response.status_code,
+            detail=response.text,
+        )
+
+    return response.json()
+
+
 # --------------------------------------------------------------------------
 # AVVIO DIRETTO
 # --------------------------------------------------------------------------
