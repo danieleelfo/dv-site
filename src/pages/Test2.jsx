@@ -443,11 +443,26 @@ export default function DagPanel() {
           }
         `}</style>
         <div className="dgp-titlerow" style={styles.titleRow}>
-          <div>
-            <h2 style={styles.pageTitle}>Airflow DAG Panel</h2>
-            <p style={styles.subtitle}>
-              Lancia, metti in pausa e monitora i DAG — comandi via Leles, senza LLM nel routing.
-            </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+            <svg width="44" height="44" viewBox="0 0 200 200" role="img" aria-label="Apache Airflow" style={{ flex: '0 0 auto' }}>
+              <defs>
+                <linearGradient id="afRed" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stopColor="#E43921"/><stop offset="1" stopColor="#A62B5B"/></linearGradient>
+                <linearGradient id="afBlue" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stopColor="#017CEE"/><stop offset="1" stopColor="#00A6D6"/></linearGradient>
+                <linearGradient id="afTeal" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stopColor="#00A6D6"/><stop offset="1" stopColor="#26C6DA"/></linearGradient>
+                <linearGradient id="afGreen" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stopColor="#26C6DA"/><stop offset="1" stopColor="#58C9B4"/></linearGradient>
+              </defs>
+              <g>
+                <path d="M100 100 L46 54 A66 66 0 0 1 154 54 Z" fill="url(#afRed)"/>
+                <path d="M100 100 L146 46 A66 66 0 0 1 146 154 Z" fill="url(#afBlue)"/>
+                <path d="M100 100 L154 146 A66 66 0 0 1 46 146 Z" fill="url(#afTeal)"/>
+                <path d="M100 100 L54 154 A66 66 0 0 1 54 46 Z" fill="url(#afGreen)"/>
+              </g>
+              <circle cx="100" cy="100" r="18" fill="#0b1015"/>
+              <circle cx="100" cy="100" r="10" fill="#58C9B4"/>
+            </svg>
+            <div>
+              <h2 style={{ ...styles.pageTitle, margin: 0 }}>Airflow DAG Panel</h2>
+            </div>
           </div>
           <div style={styles.sessionBox}>
             <span style={styles.sessionLabel}>{profile?.email || 'account Google'}</span>
