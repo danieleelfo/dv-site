@@ -199,8 +199,14 @@ export default function DagPanel() {
   const [pausedMap, setPausedMap] = useState({})
   const [taskId, setTaskId] = useState('')
   const [lastAction, setLastAction] = useState('')
+  const [dirFiles, setDirFiles] = useState(null)
+  const [pickedFile, setPickedFile] = useState(null)
+  const [newDagId, setNewDagId] = useState('')
+  const [newDagDesc, setNewDagDesc] = useState('')
+  const [extraDags, setExtraDags] = useState([])
 
-  const selected = DAGS.find((d) => d.id === selectedId)
+  const allDags = [...DAGS, ...extraDags]
+  const selected = allDags.find((d) => d.id === selectedId)
 
   useEffect(() => {
     if (!idToken) return
@@ -339,9 +345,37 @@ export default function DagPanel() {
     setValues((prev) => ({ ...prev, [dagId]: { ...prev[dagId], [key]: val } }))
   }
 
+  async function handleDirectory() {
+    const a = await sendCommand('directory dags', 'Directory dags')
+    if (!a) return
+    const files = [...a.matchAll(/📄\s*(\S+\.py)/g)].map((mm) => mm[1])
+    setDirFiles(files)
+    setPickedFile(null)
+    if (!files.length) setError('Nessun file .py trovato nella directory dags — risposta inattesa.')
+  }
+
+  async function handleAddDag() {
+    const id = newDagId.trim()
+    if (!id) { setError('Inserisci il dag_id'); return }
+    setError('')
+    const a = await sendCommand('aggiungi dag ' + id + (newDagDesc.trim() ? ' ' + newDagDesc.trim() : ''), 'Aggiungi ' + id)
+    if (!a) return
+    if (a.includes('aggiunto a KNOWN_DAGS')) {
+      setExtraDags((prev) => [...prev.filter((d) => d.id !== id), {
+        id, name: id,
+        desc: newDagDesc.trim() || 'DAG nuovo — descrizione da completare.',
+        params: [],
+      }])
+      setSelectedId(id)
+      setPickedFile(null)
+      setDirFiles(null)
+    }
+  }
+
   function handleLaunch() {
-    const conf = buildConf(selected, values[selected.id])
-    const missing = selected.params.filter((p) => p.req && !values[selected.id][p.k] && values[selected.id][p.k] !== 0)
+    const vals = values[selected.id] || {}
+    const conf = buildConf(selected, vals)
+    const missing = selected.params.filter((p) => p.req && !vals[p.k] && vals[p.k] !== 0)
     if (missing.length) {
       setError('Parametri obbligatori mancanti: ' + missing.map((p) => p.label).join(', '))
       return
@@ -413,13 +447,18 @@ export default function DagPanel() {
           {/* ============ SIDEBAR DAG ============ */}
           <aside className="dgp-sidebar" style={styles.sidebar}>
             <div style={styles.sidebarHeader}>
-              <span style={styles.label}>DAG ({DAGS.length})</span>
-              <button type="button" disabled={isLoading} onClick={refreshPaused} style={styles.secondaryBtn}>
-                ↻
-              </button>
+              <span style={styles.label}>DAG ({allDags.length})</span>
+              <div style={{ display: 'flex', gap: '0.3rem' }}>
+                <button type="button" disabled={isLoading} onClick={handleDirectory} title="Listing directory dags (anche DAG nuovi)" style={styles.secondaryBtn}>
+                  📂
+                </button>
+                <button type="button" disabled={isLoading} onClick={refreshPaused} title="Aggiorna stato attivo/pausa" style={styles.secondaryBtn}>
+                  ↻
+                </button>
+              </div>
             </div>
             <div className="dgp-daglist" style={styles.dagList}>
-              {DAGS.map((d) => {
+              {allDags.map((d) => {
                 const paused = pausedMap[d.id]
                 return (
                   <button
@@ -440,6 +479,69 @@ export default function DagPanel() {
                 )
               })}
             </div>
+
+            {dirFiles !== null && (
+              <div style={{ ...styles.panel, padding: '0.7rem', marginTop: '0.6rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                <span style={styles.label}>📁 dags/ ({dirFiles.length})</span>
+                <button type="button" onClick={() => { setDirFiles(null); setPickedFile(null) }} style={styles.secondaryBtn}>✕</button>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', maxHeight: 240, overflowY: 'auto' }}>
+                {dirFiles.map((f) => {
+                  const base = f.replace(/\.py$/, '')
+                  const candidates = [base, base.replace(/_dag$/, ''), base.replace(/^nightly_/, 'night_')]
+                  const isNew = !allDags.some((d) => candidates.includes(d.id))
+                  const isPicked = pickedFile === f
+                  return (
+                    <button
+                      key={f}
+                      type="button"
+                      onClick={() => { setPickedFile(f); setNewDagId(base.replace(/_dag$/, '')); setNewDagDesc('') }}
+                      style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.4rem',
+                        background: isPicked ? 'rgba(63,208,201,0.12)' : '#0b1015',
+                        border: '1px solid ' + (isPicked ? '#3fd0c9' : '#2a3a48'),
+                        color: '#c5d4de', borderRadius: 8, padding: '0.4rem 0.55rem',
+                        cursor: 'pointer', fontSize: '0.75rem', textAlign: 'left',
+                      }}
+                    >
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f}</span>
+                      {isNew && <span style={{ fontSize: '0.65rem', color: '#fbbf24', border: '1px solid #6e5a2c', borderRadius: 999, padding: '0.05rem 0.4rem', whiteSpace: 'nowrap' }}>nuovo</span>}
+                    </button>
+                  )
+                })}
+              </div>
+
+              {pickedFile && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.6rem', borderTop: '1px solid #1f2b35', paddingTop: '0.6rem' }}>
+                  <span style={styles.label}>＋ Aggiungi come KNOWN DAG</span>
+                  <input
+                    type="text"
+                    value={newDagId}
+                    placeholder="dag_id (es. mio_nuovo_dag)"
+                    onChange={(e) => setNewDagId(e.target.value)}
+                    style={styles.input}
+                  />
+                  <input
+                    type="text"
+                    value={newDagDesc}
+                    placeholder="descrizione breve (opzionale)"
+                    onChange={(e) => setNewDagDesc(e.target.value)}
+                    style={styles.input}
+                  />
+                  <button
+                    type="button"
+                    disabled={isLoading || !newDagId.trim()}
+                    onClick={handleAddDag}
+                    style={{ ...styles.launchBtn, padding: '0.5rem 0.9rem', fontSize: '0.8rem', ...(isLoading || !newDagId.trim() ? styles.buttonDisabled : {}) }}
+                  >
+                    ＋ Aggiungi {newDagId.trim() || pickedFile}
+                  </button>
+                  <span style={styles.hint}>Registra il DAG in KNOWN_DAGS di leles (memoria + airflow_agent.py). Params da definire dopo — punto sospeso.</span>
+                </div>
+              )}
+              </div>
+            )}
           </aside>
 
           {/* ============ PANNELLO PRINCIPALE ============ */}
@@ -461,7 +563,7 @@ export default function DagPanel() {
                   <span style={styles.label}>Parametri</span>
                   <div className="dgp-paramgrid" style={styles.paramGrid}>
                     {selected.params.map((p) => {
-                      const v = values[selected.id][p.k]
+                      const v = (values[selected.id] || {})[p.k]
                       return (
                         <label key={p.k} style={{ ...styles.field, ...(p.type === 'text' || p.type === 'json' ? { gridColumn: '1 / -1' } : {}) }}>
                           <span style={styles.label}>
