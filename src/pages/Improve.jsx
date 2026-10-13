@@ -75,6 +75,18 @@ const ROOT_LABELS = {
   incoming: "Incoming",
 };
 
+// Tab Git: progetti gestibili dal git_agent di Leles (chiave = parola
+// riconosciuta da extract_project del Timoniere).
+const GIT_PROJECTS = [
+  { key: "leles", label: "Leles" },
+  { key: "gateway", label: "Gateway (dv-site)" },
+  { key: "bar_ai", label: "Bar AI" },
+  { key: "lele", label: "Lelé" },
+  { key: "story whisper", label: "Story Whisper" },
+  { key: "night story", label: "Night Story" },
+];
+const ADMIN_CHAT_ID = 8733881519;
+
 const LANG_BY_EXT = {
   py: "python",
   jsx: "jsx",
@@ -397,6 +409,11 @@ export default function Improve() {
   const [diffCoarse, setDiffCoarse] = useState(false);
   const [diffError, setDiffError] = useState("");
   const [diffCopied, setDiffCopied] = useState(false);
+  const [gitProject, setGitProject] = useState("leles");
+  const [gitBusy, setGitBusy] = useState(false);
+  const [gitOutput, setGitOutput] = useState("");
+  const [gitError, setGitError] = useState("");
+  const [gitCopied, setGitCopied] = useState(false);
   const leftUploadRef = useRef(null);
   const rightUploadRef = useRef(null);
 
@@ -700,6 +717,53 @@ export default function Improve() {
     }
   }
 
+  async function runGit(command, confirmText) {
+    if (confirmText && !window.confirm(confirmText)) return;
+    setGitBusy(true);
+    setGitError("");
+    setGitCopied(false);
+    const controller = new AbortController();
+    const tid = setTimeout(() => controller.abort(), 120000);
+    try {
+      const r = await fetch(API + "/api/admin/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + idToken,
+        },
+        signal: controller.signal,
+        body: JSON.stringify({
+          prompt: command,
+          language: "en",
+          chat_id: ADMIN_CHAT_ID,
+        }),
+      });
+      clearTimeout(tid);
+      if (r.status === 401 || r.status === 403) {
+        setGitError("Accesso non autorizzato (" + r.status + "): riloggati.");
+        return;
+      }
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const d = await r.json();
+      setGitOutput(d.answer || "(nessuna risposta)");
+    } catch (e) {
+      clearTimeout(tid);
+      setGitError(e.name === "AbortError" ? "Timeout: il comando non ha risposto entro 120s." : (e.message || String(e)));
+    } finally {
+      setGitBusy(false);
+    }
+  }
+
+  async function copyGitOutput() {
+    try {
+      await navigator.clipboard.writeText(gitOutput);
+      setGitCopied(true);
+      setTimeout(() => setGitCopied(false), 2000);
+    } catch {
+      setGitError("Copia non riuscita.");
+    }
+  }
+
   // Solo i file della root scelta; nasconde i .improved.* gia generati
   // (non sono sorgenti da migliorare).
   const visibleFiles = files
@@ -748,9 +812,74 @@ export default function Improve() {
         >
           Diff file
         </button>
+        <button
+          className={"imp-btn " + (mode === "git" ? "imp-tab-active" : "")}
+          onClick={() => setMode("git")}
+          role="tab"
+          aria-selected={mode === "git"}
+        >
+          Git
+        </button>
       </div>
 
-      {mode === "diff" ? (
+      {mode === "git" ? (
+        <div className="imp-diff-workspace">
+          <div className="imp-diff-intro">
+            <h2>Git admin</h2>
+            <p>Comandi git sui repo del Mac, via Leles (admin-only). 'Pull rebase' = git pull --rebase + push: riconcilia i branch divergenti senza perdere i commit locali.</p>
+          </div>
+
+          <div className="imp-git-projects">
+            {GIT_PROJECTS.map((p) => (
+              <button
+                key={p.key}
+                className={"imp-btn " + (gitProject === p.key ? "imp-tab-active" : "")}
+                onClick={() => setGitProject(p.key)}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="imp-diff-actions">
+            <button className="imp-btn" disabled={gitBusy} onClick={() => runGit("status " + gitProject)}>Status</button>
+            <button className="imp-btn" disabled={gitBusy} onClick={() => runGit("diff " + gitProject)}>Diff locale</button>
+            <button className="imp-btn" disabled={gitBusy} onClick={() => runGit("commit " + gitProject)}>Ultimo commit</button>
+            <button className="imp-btn" disabled={gitBusy} onClick={() => runGit("pull report " + gitProject)}>Pull</button>
+            <button
+              className="imp-btn imp-danger"
+              disabled={gitBusy}
+              onClick={() => runGit("pull force " + gitProject, "Pull FORCE su '" + gitProject + "':\nbutta via OGNI commit/modifica locale non pushata. Sicuro?")}
+            >
+              Pull force
+            </button>
+            <button
+              className="imp-btn imp-primary"
+              disabled={gitBusy}
+              onClick={() => runGit("pull rebase " + gitProject, "Pull REBASE su '" + gitProject + "':\nribasa i commit locali su origin e li pubblica (push). Confermi?")}
+            >
+              Pull rebase
+            </button>
+          </div>
+
+          {gitError && <div className="imp-error">! {gitError}</div>}
+          {gitBusy && <p className="imp-empty">Comando in esecuzione…</p>}
+
+          {gitOutput && (
+            <section className="imp-col">
+              <div className="imp-diff-result-head">
+                <h3>Risultato</h3>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button className="imp-btn" onClick={copyGitOutput}>{gitCopied ? "Copiata" : "Copia"}</button>
+                  <button className="imp-btn" onClick={() => downloadTextFile("git_" + gitProject.replace(/\s+/g, "_") + ".txt", gitOutput)}>Scarica</button>
+                  <button className="imp-btn" onClick={() => setGitOutput("")}>Chiudi</button>
+                </div>
+              </div>
+              <pre className="imp-msg imp-git-out">{gitOutput}</pre>
+            </section>
+          )}
+        </div>
+      ) : mode === "diff" ? (
         <div className="imp-diff-workspace">
           <div className="imp-diff-intro">
             <h2>Confronta due file</h2>
@@ -1127,6 +1256,9 @@ export default function Improve() {
         .imp-empty { color: #6b7280; font-size: 13px; }
         .imp-file-chosen { color: #34d399; font-size: 13px; margin-top: 6px; }
         .imp-page code { color: #34d399; }
+        .imp-git-projects { display: flex; flex-wrap: wrap; gap: 6px; }
+        .imp-git-out { max-height: 65vh; overflow: auto; white-space: pre-wrap; }
+        .imp-diff-result-head h3 { margin: 0; }
       `}</style>
     </div>
   );
