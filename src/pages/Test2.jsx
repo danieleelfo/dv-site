@@ -348,10 +348,22 @@ export default function DagPanel() {
   async function handleDirectory() {
     const a = await sendCommand('directory dags', 'Directory dags')
     if (!a) return
-    const files = [...a.matchAll(/📄\s*(\S+\.py)/g)].map((mm) => mm[1])
+    // Prende SOLO i file della sezione "📁 dags/" (indent 4 spazi: diretti in dags/,
+    // esclude Archive/, incoming_files/, config della root AIRFLOW, ecc.)
+    const files = []
+    const lines = a.split('\n')
+    let inDags = false
+    for (const line of lines) {
+      if (/📁\s*dags\/\s*$/.test(line)) { inDags = true; continue }
+      if (inDags) {
+        const mm = line.match(/^\s{4}📄\s*(\S+\.py)\s*\(/)
+        if (mm) { files.push(mm[1]); continue }
+        if (/^\s{2}📁/.test(line)) { inDags = false; continue }
+      }
+    }
     setDirFiles(files)
     setPickedFile(null)
-    if (!files.length) setError('Nessun file .py trovato nella directory dags — risposta inattesa.')
+    if (!files.length) setError('Nessun file .py trovato nella sezione dags/ — controlla la risposta nel pannello.')
   }
 
   async function handleAddDag() {
@@ -496,7 +508,7 @@ export default function DagPanel() {
                     <button
                       key={f}
                       type="button"
-                      onClick={() => { setPickedFile(f); setNewDagId(base.replace(/_dag$/, '')); setNewDagDesc('') }}
+                      onClick={() => { setPickedFile(isNew ? f : null); setNewDagId(base.replace(/_dag$/, '')); setNewDagDesc('') }}
                       style={{
                         display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.4rem',
                         background: isPicked ? 'rgba(63,208,201,0.12)' : '#0b1015',
@@ -506,7 +518,9 @@ export default function DagPanel() {
                       }}
                     >
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f}</span>
-                      {isNew && <span style={{ fontSize: '0.65rem', color: '#fbbf24', border: '1px solid #6e5a2c', borderRadius: 999, padding: '0.05rem 0.4rem', whiteSpace: 'nowrap' }}>nuovo</span>}
+                      {isNew
+                        ? <span style={{ fontSize: '0.65rem', color: '#fbbf24', border: '1px solid #6e5a2c', borderRadius: 999, padding: '0.05rem 0.4rem', whiteSpace: 'nowrap' }}>nuovo</span>
+                        : <span style={{ fontSize: '0.65rem', color: '#6ee7a8', border: '1px solid #2c6e52', borderRadius: 999, padding: '0.05rem 0.4rem', whiteSpace: 'nowrap' }}>✓ known</span>}
                     </button>
                   )
                 })}
