@@ -378,7 +378,25 @@ export default function DagPanel() {
       <div style={styles.overlay} />
 
       <div style={styles.contentWide}>
-        <div style={styles.titleRow}>
+        <style>{`
+          @media (max-width: 820px) {
+            .dgp-layout { display: flex !important; flex-direction: column !important; gap: 0.75rem !important; }
+            .dgp-sidebar { padding: 0.6rem !important; }
+            .dgp-daglist { flex-direction: row !important; overflow-x: auto; gap: 0.35rem !important; padding-bottom: 0.3rem; -webkit-overflow-scrolling: touch; }
+            .dgp-daglist::-webkit-scrollbar { height: 4px; }
+            .dgp-daglist::-webkit-scrollbar-thumb { background: #2a3a48; border-radius: 4px; }
+            .dgp-daglist > button { flex: 0 0 auto; max-width: 180px; }
+            .dgp-paramgrid { grid-template-columns: 1fr !important; }
+            .dgp-logrow { flex-wrap: wrap; }
+            .dgp-logrow > input { flex: 1 1 100% !important; }
+            .dgp-logrow > button { width: 100%; }
+          }
+          @media (max-width: 520px) {
+            .dgp-layout { font-size: 0.95rem; }
+            .dgp-titlerow { gap: 0.5rem !important; }
+          }
+        `}</style>
+        <div className="dgp-titlerow" style={styles.titleRow}>
           <div>
             <h2 style={styles.pageTitle}>Airflow DAG Panel</h2>
             <p style={styles.subtitle}>
@@ -391,16 +409,16 @@ export default function DagPanel() {
           </div>
         </div>
 
-        <div style={styles.layout}>
+        <div className="dgp-layout" style={styles.layout}>
           {/* ============ SIDEBAR DAG ============ */}
-          <aside style={styles.sidebar}>
+          <aside className="dgp-sidebar" style={styles.sidebar}>
             <div style={styles.sidebarHeader}>
               <span style={styles.label}>DAG ({DAGS.length})</span>
               <button type="button" disabled={isLoading} onClick={refreshPaused} style={styles.secondaryBtn}>
                 ↻
               </button>
             </div>
-            <div style={styles.dagList}>
+            <div className="dgp-daglist" style={styles.dagList}>
               {DAGS.map((d) => {
                 const paused = pausedMap[d.id]
                 return (
@@ -441,7 +459,7 @@ export default function DagPanel() {
               {selected.params.length > 0 && (
                 <>
                   <span style={styles.label}>Parametri</span>
-                  <div style={styles.paramGrid}>
+                  <div className="dgp-paramgrid" style={styles.paramGrid}>
                     {selected.params.map((p) => {
                       const v = values[selected.id][p.k]
                       return (
@@ -500,7 +518,7 @@ export default function DagPanel() {
                 </button>
               </div>
 
-              <div style={styles.logRow}>
+              <div className="dgp-logrow" style={styles.logRow}>
                 <input
                   type="text"
                   value={taskId}
