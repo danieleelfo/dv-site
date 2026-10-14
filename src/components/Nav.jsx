@@ -21,10 +21,12 @@ export default function Nav() {
               alt="LELES"
               style={{
                 height: 61,
-                width: 'auto',
+                width: '130px',
+                objectFit: 'contain',
                 display: 'block',
                 marginTop: '-4px',
-                marginBottom: '-4px'
+                marginBottom: '-4px',
+                marginLeft: 0,
               }}
               onError={() => setLogoImgOk(false)}
             />
