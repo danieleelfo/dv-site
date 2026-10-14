@@ -16,7 +16,7 @@ export default function Nav() {
         <Link to={lang ? "/" + lang : "/"} style={styles.logo}>
           {logoImgOk && (
             <img
-              src="/leles-logo.jpg"
+              src="/leles-logo.png"
               alt="LELES"
               style={{ height: 40, width: 'auto', display: 'block' }}
               onError={() => setLogoImgOk(false)}
