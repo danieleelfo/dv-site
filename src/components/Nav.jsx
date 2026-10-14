@@ -12,7 +12,8 @@ export default function Nav() {
 
   return (
     <header style={styles.header}>
-      <div className="container" style={styles.bar}>
+      {/* Rimosso className="container" per permettere al layout di estendersi fino ai bordi */}
+      <div style={styles.bar}>
         <Link to={lang ? "/" + lang : "/"} style={styles.logo}>
           {logoImgOk && (
             <img
@@ -100,6 +101,10 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'space-between',
     height: 64,
+    paddingLeft: '1.5rem',  /* Distanza dal bordo sinistro dello schermo */
+    paddingRight: '1.5rem', /* Distanza dal bordo destro dello schermo */
+    width: '100%',
+    boxSizing: 'border-box',
   },
   right: {
     display: 'flex',
