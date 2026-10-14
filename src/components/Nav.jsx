@@ -19,7 +19,7 @@ export default function Nav() {
               src={lelesLogo}
               alt="LELES"
               style={{
-                height: 65,
+                height: 61,
                 width: 'auto',
                 display: 'block',
                 marginTop: '-4px',
