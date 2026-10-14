@@ -198,6 +198,7 @@ export default function DagAdmin() {
   const [error, setError] = useState('')
   const [pausedMap, setPausedMap] = useState({})
   const [taskId, setTaskId] = useState('')
+  const [dagRunId, setDagRunId] = useState('')
   const [lastAction, setLastAction] = useState('')
   const [dirFiles, setDirFiles] = useState(null)
   const [pickedFile, setPickedFile] = useState(null)
@@ -523,7 +524,19 @@ export default function DagAdmin() {
                     <button
                       key={f}
                       type="button"
-                      onClick={() => { setPickedFile(isNew ? f : null); setNewDagId(base.replace(/_dag$/, '')); setNewDagDesc('') }}
+                      onClick={() => {
+                      if (isNew) {
+                        setPickedFile(f)
+                        setNewDagId(base.replace(/_dag$/, ''))
+                        setNewDagDesc('')
+                      } else {
+                        const match = allDags.find((d) => candidates.includes(d.id))
+                        if (match) {
+                          setSelectedId(match.id)
+                          setPickedFile(null)
+                        }
+                      }
+                    }}
                       style={{
                         display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.4rem',
                         background: isPicked ? 'rgba(63,208,201,0.12)' : '#0b1015',
@@ -650,6 +663,21 @@ export default function DagAdmin() {
               </div>
 
               <div className="dgp-logrow" style={styles.logRow}>
+                <input
+                  type="text"
+                  value={dagRunId}
+                  placeholder="dag_run_id (es. leles_abedb852 — da 'Ultime run')"
+                  onChange={(e) => setDagRunId(e.target.value)}
+                  style={{ ...styles.input, flex: 1 }}
+                />
+                <button
+                  type="button"
+                  disabled={isLoading || !dagRunId.trim()}
+                  onClick={() => sendCommand('task run ' + selected.id + ' ' + dagRunId.trim(), 'Task della run ' + dagRunId.trim())}
+                  style={{ ...styles.secondaryBtn, ...(isLoading || !dagRunId.trim() ? styles.buttonDisabled : {}) }}
+                >
+                  📋 Task
+                </button>
                 <input
                   type="text"
                   value={taskId}
