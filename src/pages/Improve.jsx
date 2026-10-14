@@ -24,6 +24,7 @@
 // ============================================================
 
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 
 const API = "https://api.danielevillanova.com";
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -373,6 +374,7 @@ function useGoogleAuth() {
 // ============================================================
 
 export default function Improve() {
+  const navigate = useNavigate();
   const { idToken, email, buttonRef, logout } = useGoogleAuth();
 
   const [files, setFiles] = useState([]);
@@ -819,6 +821,13 @@ export default function Improve() {
           aria-selected={mode === "git"}
         >
           Git
+        </button>
+        <button
+          className="imp-btn"
+          onClick={() => navigate("/dag-admin")}
+          title="Pannello DAG Airflow (DagAdmin)"
+        >
+          DAG Admin ↗
         </button>
       </div>
 

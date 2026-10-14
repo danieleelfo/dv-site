@@ -11,6 +11,7 @@ import Nav from './components/Nav.jsx'
 import AI_Lab from './pages/AI_Lab.jsx'
 import LeleAdmin from './pages/LeleAdmin.jsx'
 import Improve from './pages/Improve.jsx'
+import DagAdmin from './pages/DagAdmin.jsx'
 import B2B from './pages/B2B.jsx'
 
 // Sandbox
@@ -61,6 +62,10 @@ export default function App() {
         <Route path="/:lang/b2b" element={<><Nav /><LangWrapper><B2B /></LangWrapper></>} />
 
         <Route path="/improve" element={<><Nav /><Improve /></>} />
+
+        {/* DAG Admin: pannello Airflow (già Test2), raggiungibile anche dalla tab in Improve */}
+        <Route path="/dag-admin" element={<><Nav /><DagAdmin /></>} />
+        <Route path="/:lang/dag-admin" element={<><Nav /><LangWrapper><DagAdmin /></LangWrapper></>} />
         <Route path="/:lang/console" element={<><Nav /><LangWrapper><Console /></LangWrapper></>} />
 
         <Route path="/test" element={<><Nav /><Test /></>} />
