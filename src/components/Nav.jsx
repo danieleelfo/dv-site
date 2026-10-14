@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import LanguageSwitcher from './LanguageSwitcher.jsx'
@@ -6,10 +7,22 @@ export default function Nav() {
   const { t } = useTranslation()
   const { lang } = useParams()
 
+  // Logo LELES da /public/leles-logo.jpg — se il file manca, fallback sul logo SVG.
+  const [logoImgOk, setLogoImgOk] = useState(true)
+
   return (
     <header style={styles.header}>
       <div className="container" style={styles.bar}>
         <Link to={lang ? "/" + lang : "/"} style={styles.logo}>
+          {logoImgOk && (
+            <img
+              src="/leles-logo.jpg"
+              alt="LELES"
+              style={{ height: 40, width: 'auto', display: 'block' }}
+              onError={() => setLogoImgOk(false)}
+            />
+          )}
+          {!logoImgOk && (
           <svg
             width="46"
             height="32"
@@ -48,6 +61,7 @@ export default function Nav() {
             <path d="M67 47 L78 56 Q81 59 78 62 L71 58 L73 51" stroke="#e0e8ec" strokeWidth="1.8" fill="none" strokeLinejoin="round" />
             <circle cx="67" cy="47" r="2.2" fill="#3fd0c9" />
           </svg>
+          )}
         </Link>
 
         <div style={styles.right}>
