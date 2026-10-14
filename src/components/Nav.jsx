@@ -19,11 +19,11 @@ export default function Nav() {
               src={lelesLogo}
               alt="LELES"
               style={{
-                height: 80,
+                height: 72,
                 width: 'auto',
                 display: 'block',
-                marginTop: '-8px',
-                marginBottom: '-8px'
+                marginTop: '-4px',
+                marginBottom: '-4px'
               }}
               onError={() => setLogoImgOk(false)}
             />
