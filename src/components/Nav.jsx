@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import lelesLogo from '../assets/leles-logo.png'
 import { Link, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import LanguageSwitcher from './LanguageSwitcher.jsx'
@@ -16,7 +17,7 @@ export default function Nav() {
         <Link to={lang ? "/" + lang : "/"} style={styles.logo}>
           {logoImgOk && (
             <img
-              src="/leles-logo.png"
+              src={lelesLogo}
               alt="LELES"
               style={{ height: 40, width: 'auto', display: 'block' }}
               onError={() => setLogoImgOk(false)}
