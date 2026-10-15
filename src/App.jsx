@@ -17,6 +17,7 @@ import B2B from './pages/B2B.jsx'
 // Sandbox
 import Test from './pages/Test.jsx'
 import Test2 from './pages/Test2.jsx'
+import BarAiAdmin from './pages/BarAiAdmin.jsx'
 import Test3 from './pages/Test3.jsx'
 import Test4 from './pages/Test4.jsx'
 import Test5 from './pages/Test5.jsx'
@@ -73,6 +74,8 @@ export default function App() {
 
         <Route path="/test2" element={<><Nav /><Test2 /></>} />
         <Route path="/:lang/test2" element={<><Nav /><LangWrapper><Test2 /></LangWrapper></>} />
+        <Route path="/bar-ai-admin" element={<><Nav /><BarAiAdmin /></>} />
+        <Route path="/:lang/bar-ai-admin" element={<><Nav /><LangWrapper><BarAiAdmin /></LangWrapper></>} />
 
         <Route path="/test3" element={<><Nav /><Test3 /></>} />
         <Route path="/:lang/test3" element={<><Nav /><LangWrapper><Test3 /></LangWrapper></>} />

@@ -2037,11 +2037,15 @@ async def bar_ai_admin(path: str, request: Request):
 
     body = await request.body()
 
+    target = "http://127.0.0.1:8081/admin/" + path
+    if request.url.query:
+        target += "?" + request.url.query
+
     async with httpx.AsyncClient(timeout=30.0) as client:
         try:
             response = await client.request(
                 request.method,
-                "http://127.0.0.1:8081/admin/" + path,
+                target,
                 content=body,
                 headers={"Content-Type": "application/json"},
             )
