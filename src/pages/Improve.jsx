@@ -864,7 +864,7 @@ export default function Improve() {
         </button>
         <button
           className="imp-btn"
-          onClick={() => navigate("/test2")}
+          onClick={() => navigate("/git-admin")}
           title="Pannello Git Admin 🛠️ "        >
           Git Admin ↗
         </button>

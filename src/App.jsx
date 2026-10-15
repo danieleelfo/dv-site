@@ -12,6 +12,7 @@ import AI_Lab from './pages/AI_Lab.jsx'
 import LeleAdmin from './pages/LeleAdmin.jsx'
 import Improve from './pages/Improve.jsx'
 import DagAdmin from './pages/DagAdmin.jsx'
+import GitAdmin from './pages/GitAdmin.jsx'
 import B2B from './pages/B2B.jsx'
 
 // Sandbox
@@ -67,6 +68,10 @@ export default function App() {
         {/* DAG Admin: pannello Airflow (già Test2), raggiungibile anche dalla tab in Improve */}
         <Route path="/dag-admin" element={<><Nav /><DagAdmin /></>} />
         <Route path="/:lang/dag-admin" element={<><Nav /><LangWrapper><DagAdmin /></LangWrapper></>} />
+
+        {/* Git Admin: console git con preview+conferma (git_admin.py), da Improve */}
+        <Route path="/git-admin" element={<><Nav /><GitAdmin /></>} />
+        <Route path="/:lang/git-admin" element={<><Nav /><LangWrapper><GitAdmin /></LangWrapper></>} />
         <Route path="/:lang/console" element={<><Nav /><LangWrapper><Console /></LangWrapper></>} />
 
         <Route path="/test" element={<><Nav /><Test /></>} />
