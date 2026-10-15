@@ -2,6 +2,7 @@ import os
 import time
 import asyncio
 import uuid
+import re
 
 import psycopg2
 
@@ -2091,67 +2092,48 @@ async def bar_ai_admin(path: str, request: Request):
 
 
 # ==========================================================================
-# AI IMAGE LAB — GENERAZIONE ASINCRONA CON Z-IMAGE-TURBO
+
+# ==========================================================================
+# AI IMAGE LAB — Z-IMAGE-TURBO VIA GRADIO
 # ==========================================================================
 #
 # Frontend: /image-lab
+# Backend locale: Gradio sulla porta 7860.
 #
-# API:
+# API gateway:
 #   POST /api/image/jobs
-#       Avvia una generazione e restituisce subito job_id.
+#   GET  /api/image/jobs/{job_id}
+#   GET  /api/image/jobs/{job_id}/result
+#   GET  /api/image/health
 #
-#   GET /api/image/jobs/{job_id}
-#       Restituisce lo stato del job.
-#
-#   GET /api/image/jobs/{job_id}/result
-#       Restituisce l'immagine generata in base64.
-#
-# Architettura:
-#   Sito -> Gateway autenticato -> Z-Image-Turbo locale :8000
-#
-# La porta 8000 NON deve essere esposta pubblicamente.
-# Le generazioni vengono eseguite in background.
-# È consentita una sola generazione alla volta per evitare
-# di saturare la memoria del Mac.
+# Le generazioni sono asincrone e vengono eseguite una alla volta.
+# Il gateway non espone pubblicamente Gradio.
 # ==========================================================================
+
+import base64
+import json
+import math
+from urllib.parse import quote
 
 from pydantic import Field
 
 
-# --------------------------------------------------------------------------
-# CONFIGURAZIONE
-# --------------------------------------------------------------------------
-
 IMAGE_MODEL_URL = os.environ.get(
     "IMAGE_MODEL_URL",
-    "http://127.0.0.1:8000",
+    "http://127.0.0.1:7860",
 ).rstrip("/")
 
-# Il modello ha impiegato circa 8 minuti per una generazione.
-# Il timeout viene portato a 15 minuti.
 IMAGE_GENERATION_TIMEOUT = 900.0
-
-# Evita generazioni simultanee sul Mac con 16 GB di RAM.
-_IMAGE_GENERATION_LOCK = asyncio.Lock()
-
-# Job conservati nella memoria del gateway.
-# I risultati restano disponibili finché il gateway è attivo.
-IMAGE_JOBS: dict[str, dict] = {}
-
-# Numero massimo di job conservati.
-IMAGE_MAX_JOBS = 30
-
-# Limiti per la richiesta.
-IMAGE_MAX_PROMPT_CHARS = 5000
+IMAGE_MAX_PROMPT_CHARS = 12000
 IMAGE_ALLOWED_WIDTHS = {512, 768, 1024, 1280}
 IMAGE_ALLOWED_HEIGHTS = {512, 768, 1024, 1280}
 IMAGE_MIN_STEPS = 1
 IMAGE_MAX_STEPS = 100
+IMAGE_MAX_JOBS = 30
 
+_IMAGE_GENERATION_LOCK = asyncio.Lock()
+IMAGE_JOBS: dict[str, dict] = {}
 
-# --------------------------------------------------------------------------
-# REQUEST
-# --------------------------------------------------------------------------
 
 class ImageGenerationRequest(BaseModel):
     prompt: str = Field(
@@ -2159,64 +2141,274 @@ class ImageGenerationRequest(BaseModel):
         min_length=1,
         max_length=IMAGE_MAX_PROMPT_CHARS,
     )
-
-    width: int = 1024
-    height: int = 1024
+    width: int = 512
+    height: int = 512
     steps: int = 8
-
-    # -1 = seed casuale.
     seed: int = -1
 
 
-# --------------------------------------------------------------------------
-# PULIZIA JOB VECCHI
-# --------------------------------------------------------------------------
-
 def _image_cleanup_jobs() -> None:
-    """
-    Elimina i job conclusi più vecchi di un'ora.
-
-    Non elimina mai job ancora in esecuzione o in coda.
-    """
-
     now = time.time()
 
     for job_id, job in list(IMAGE_JOBS.items()):
-        if job.get("status") not in (
-            "COMPLETED",
-            "ERROR",
-        ):
+        if job.get("status") not in ("COMPLETED", "ERROR"):
             continue
 
         finished_at = job.get("finished_at")
-
         if finished_at and now - finished_at > 3600:
             IMAGE_JOBS.pop(job_id, None)
 
-    # Limita il numero totale di job conservati.
     if len(IMAGE_JOBS) <= IMAGE_MAX_JOBS:
         return
 
-    finished_jobs = sorted(
-        [
+    finished = sorted(
+        (
             (job_id, job)
             for job_id, job in IMAGE_JOBS.items()
             if job.get("status") in ("COMPLETED", "ERROR")
-        ],
+        ),
         key=lambda item: item[1].get("finished_at") or 0,
     )
 
-    while (
-        len(IMAGE_JOBS) > IMAGE_MAX_JOBS
-        and finished_jobs
-    ):
-        job_id, _ = finished_jobs.pop(0)
+    while len(IMAGE_JOBS) > IMAGE_MAX_JOBS and finished:
+        job_id, _ = finished.pop(0)
         IMAGE_JOBS.pop(job_id, None)
 
 
-# --------------------------------------------------------------------------
-# ESECUZIONE ASINCRONA
-# --------------------------------------------------------------------------
+def _image_resolution(width: int, height: int) -> tuple[str, str]:
+    """
+    Traduce le dimensioni richieste nei due dropdown di Gradio.
+
+    Il primo dropdown seleziona la categoria 512/768/1024/1280.
+    Il secondo seleziona il rapporto d'aspetto.
+    """
+
+    category = min(
+        (512, 768, 1024, 1280),
+        key=lambda value: abs(value - max(width, height)),
+    )
+
+    requested_ratio = width / height
+
+    # Rapporti disponibili nella UI Gradio, osservati in /config.
+    ratios = [
+        ("1:1", 1.0, lambda c: (c, c)),
+        ("5:3", 5 / 3, lambda c: (int(c * 1.25), int(c * 0.75))),
+        ("3:5", 3 / 5, lambda c: (int(c * 0.75), int(c * 1.25))),
+        ("4:3", 4 / 3, lambda c: (c, int(c * 0.75))),
+        ("3:4", 3 / 4, lambda c: (int(c * 0.75), c)),
+        ("16:9", 16 / 9, lambda c: (int(c * 1.25), int(c * 368 / 512))),
+        ("9:16", 9 / 16, lambda c: (int(c * 368 / 512), int(c * 1.25))),
+    ]
+
+    ratio_name, _, dimensions_fn = min(
+        ratios,
+        key=lambda item: abs(math.log(requested_ratio / item[1])),
+    )
+
+    out_width, out_height = dimensions_fn(category)
+    resolution = f"{out_width}x{out_height} ({ratio_name})"
+
+    return str(category), resolution
+
+
+async def _image_gradio_generate(
+    prompt: str,
+    width: int,
+    height: int,
+    steps: int,
+    seed: int,
+) -> dict:
+    """
+    Invoca direct_generate tramite l'API Gradio.
+
+    Gradio restituisce un event_id; il risultato arriva successivamente
+    tramite lo stream /gradio_api/call/direct_generate/{event_id}.
+    """
+
+    category, resolution = _image_resolution(width, height)
+
+    timeout = httpx.Timeout(
+        timeout=IMAGE_GENERATION_TIMEOUT,
+        connect=10.0,
+    )
+
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        # Avvia il lavoro Gradio.
+        response = await client.post(
+            f"{IMAGE_MODEL_URL}/gradio_api/call/direct_generate",
+            json={
+                "data": [
+                    prompt,
+                    category,
+                    resolution,
+                    seed,
+                    False,  # Seed esplicito: non richiedere un altro seed casuale.
+                    steps,
+                ]
+            },
+        )
+
+        if response.status_code >= 400:
+            raise RuntimeError(
+                f"Gradio HTTP {response.status_code}: {response.text[:1500]}"
+            )
+
+        try:
+            event_id = response.json().get("event_id")
+        except Exception as exc:
+            raise RuntimeError(
+                f"Risposta Gradio di avvio non valida: {response.text[:1000]}"
+            ) from exc
+
+        if not event_id:
+            raise RuntimeError(
+                f"Gradio non ha restituito event_id: {response.text[:1000]}"
+            )
+
+        # Attende il risultato senza mantenere aperta la richiesta del browser.
+        event_url = (
+            f"{IMAGE_MODEL_URL}/gradio_api/call/direct_generate/"
+            f"{quote(str(event_id), safe='')}"
+        )
+
+        result_payload = None
+        current_event = None
+
+        async with client.stream("GET", event_url) as stream:
+            if stream.status_code >= 400:
+                body = await stream.aread()
+                raise RuntimeError(
+                    f"Gradio stream HTTP {stream.status_code}: "
+                    f"{body.decode('utf-8', errors='replace')[:1500]}"
+                )
+
+            async for line in stream.aiter_lines():
+                if line.startswith("event:"):
+                    current_event = line[len("event:"):].strip()
+                    continue
+
+                if not line.startswith("data:"):
+                    continue
+
+                raw_data = line[len("data:"):].strip()
+
+                if current_event == "error":
+                    raise RuntimeError(f"Errore generazione Gradio: {raw_data}")
+
+                if current_event != "complete":
+                    continue
+
+                try:
+                    result_payload = json.loads(raw_data)
+                except json.JSONDecodeError as exc:
+                    raise RuntimeError(
+                        f"Risultato Gradio non JSON: {raw_data[:1000]}"
+                    ) from exc
+
+                break
+
+        if result_payload is None:
+            raise RuntimeError(
+                "Lo stream Gradio è terminato senza un evento complete."
+            )
+
+        # Normalizza i diversi formati di risposta Gradio.
+        if isinstance(result_payload, dict):
+            outputs = result_payload.get("data", [])
+        else:
+            outputs = result_payload
+
+        if not isinstance(outputs, list) or len(outputs) < 1:
+            raise RuntimeError(
+                f"Formato output Gradio inatteso: {str(result_payload)[:1500]}"
+            )
+
+        image_output = outputs[0]
+        seed_output = outputs[1] if len(outputs) > 1 else seed
+
+        # Alcune applicazioni restituiscono direttamente una data URI/base64.
+        if isinstance(image_output, str) and image_output.startswith(
+            "data:image/"
+        ):
+            encoded = image_output.split(",", 1)[1]
+            return {
+                "image_base64": encoded,
+                "seed": seed_output,
+                "width": width,
+                "height": height,
+            }
+
+        if isinstance(image_output, str) and re.fullmatch(
+            r"[A-Za-z0-9+/=\r\n]+", image_output
+        ):
+            return {
+                "image_base64": image_output,
+                "seed": seed_output,
+                "width": width,
+                "height": height,
+            }
+
+        if not isinstance(image_output, dict):
+            raise RuntimeError(
+                "Gradio non ha restituito un oggetto immagine riconoscibile: "
+                f"{str(image_output)[:1000]}"
+            )
+
+        # Gradio normalmente restituisce un oggetto FileData con "url"
+        # e/o "path". Scarichiamo il file dal server locale.
+        image_url = image_output.get("url")
+        image_path = image_output.get("path")
+
+        if image_url:
+            if image_url.startswith(("http://", "https://")):
+                # Non permettere che un risultato inatteso faccia scaricare
+                # risorse da host esterni.
+                from urllib.parse import urlparse
+
+                parsed = urlparse(image_url)
+                base = urlparse(IMAGE_MODEL_URL)
+
+                if (parsed.hostname, parsed.port) != (base.hostname, base.port):
+                    raise RuntimeError(
+                        "Gradio ha restituito un URL immagine su un host diverso."
+                    )
+
+                download_url = image_url
+            elif image_url.startswith("/"):
+                download_url = IMAGE_MODEL_URL + image_url
+            else:
+                download_url = IMAGE_MODEL_URL + "/" + image_url
+        elif image_path:
+            download_url = (
+                f"{IMAGE_MODEL_URL}/gradio_api/file="
+                f"{quote(str(image_path), safe='/')}"
+            )
+        else:
+            raise RuntimeError(
+                "Output Gradio senza URL o percorso dell'immagine."
+            )
+
+        image_response = await client.get(download_url)
+
+        if image_response.status_code >= 400:
+            raise RuntimeError(
+                "Impossibile scaricare l'immagine da Gradio: "
+                f"HTTP {image_response.status_code} "
+                f"{image_response.text[:500]}"
+            )
+
+        image_bytes = image_response.content
+        if not image_bytes:
+            raise RuntimeError("Gradio ha restituito un'immagine vuota.")
+
+        return {
+            "image_base64": base64.b64encode(image_bytes).decode("ascii"),
+            "seed": seed_output,
+            "width": width,
+            "height": height,
+        }
+
 
 async def _image_run_job(
     job_id: str,
@@ -2226,138 +2418,66 @@ async def _image_run_job(
     steps: int,
     seed: int,
 ) -> None:
-    """
-    Esegue la generazione in background.
-
-    Il frontend non deve restare collegato alla richiesta HTTP
-    durante gli 8-15 minuti necessari al modello.
-    """
-
     job = IMAGE_JOBS.get(job_id)
-
     if job is None:
         return
 
     try:
         job["status"] = "QUEUED"
-        job["message"] = (
-            "In attesa che il generatore locale sia disponibile."
-        )
+        job["message"] = "In attesa del generatore locale."
 
-        # Una generazione alla volta: protezione della RAM.
         async with _IMAGE_GENERATION_LOCK:
-
-            # Il job potrebbe essere stato eliminato nel frattempo.
             job = IMAGE_JOBS.get(job_id)
-
             if job is None:
                 return
 
             job["status"] = "RUNNING"
-            job["message"] = (
-                "Generazione in corso sul Mac."
-            )
+            job["message"] = "Generazione in corso sul Mac."
             job["started_at"] = time.time()
 
-            # Se seed=-1, scegliamo un seed effettivo e lo
-            # inviamo al modello per rendere riproducibile il risultato.
             actual_seed = (
                 random.SystemRandom().randint(0, 2**31 - 1)
                 if seed == -1
                 else seed
             )
 
-            payload = {
-                "prompt": prompt,
-                "width": width,
-                "height": height,
-                "steps": steps,
-                "seed": actual_seed,
-            }
-
-            timeout = httpx.Timeout(
-                timeout=IMAGE_GENERATION_TIMEOUT,
-                connect=10.0,
+            result = await _image_gradio_generate(
+                prompt=prompt,
+                width=width,
+                height=height,
+                steps=steps,
+                seed=actual_seed,
             )
 
-            async with httpx.AsyncClient(
-                timeout=timeout,
-            ) as client:
-
-                response = await client.post(
-                    f"{IMAGE_MODEL_URL}/generate",
-                    json=payload,
-                )
-
-                if response.status_code >= 400:
-                    raise RuntimeError(
-                        "Il generatore ha restituito "
-                        f"HTTP {response.status_code}: "
-                        f"{response.text[:1500]}"
-                    )
-
-                data = response.json()
-
-            image_base64 = data.get("image_base64")
-
-            if not image_base64:
-                raise RuntimeError(
-                    "Il generatore non ha restituito l'immagine."
-                )
-
-            # Salviamo il risultato nel job.
-            job["result"] = {
-                "image_base64": image_base64,
-                "seed": data.get("seed", actual_seed),
-                "width": width,
-                "height": height,
-            }
-
+            job["result"] = result
             job["status"] = "COMPLETED"
             job["message"] = "Immagine generata."
             job["finished_at"] = time.time()
 
     except asyncio.CancelledError:
         job = IMAGE_JOBS.get(job_id)
-
         if job is not None:
             job["status"] = "ERROR"
             job["error"] = "Generazione interrotta."
             job["finished_at"] = time.time()
-
         raise
 
-    except Exception as e:
+    except Exception as exc:
         job = IMAGE_JOBS.get(job_id)
-
         if job is not None:
             job["status"] = "ERROR"
-            job["error"] = str(e)
+            job["error"] = str(exc)
             job["finished_at"] = time.time()
 
-        print(
-            f"[image-lab] Errore job {job_id}: {e}",
-            flush=True,
-        )
+        print(f"[image-lab] Errore job {job_id}: {exc}", flush=True)
 
-
-# --------------------------------------------------------------------------
-# AVVIO GENERAZIONE
-# --------------------------------------------------------------------------
 
 @app.post("/api/image/jobs", status_code=202)
 async def image_create_job(
     req: ImageGenerationRequest,
     authorization: str | None = Header(None),
 ):
-    """
-    Avvia un job e restituisce subito il suo identificativo.
-
-    Richiede autenticazione Google come gli altri endpoint admin.
-    """
-
     email = verify_admin_token(authorization)
-
     prompt = req.prompt.strip()
 
     if not prompt:
@@ -2369,53 +2489,35 @@ async def image_create_job(
     if len(prompt) > IMAGE_MAX_PROMPT_CHARS:
         raise HTTPException(
             status_code=400,
-            detail=(
-                "Prompt troppo lungo. "
-                f"Massimo {IMAGE_MAX_PROMPT_CHARS} caratteri."
-            ),
+            detail=f"Prompt troppo lungo: massimo {IMAGE_MAX_PROMPT_CHARS} caratteri.",
         )
 
     if req.width not in IMAGE_ALLOWED_WIDTHS:
         raise HTTPException(
             status_code=400,
-            detail=(
-                "Larghezza non consentita. "
-                f"Valori ammessi: {sorted(IMAGE_ALLOWED_WIDTHS)}"
-            ),
+            detail=f"Larghezza non consentita: {sorted(IMAGE_ALLOWED_WIDTHS)}",
         )
 
     if req.height not in IMAGE_ALLOWED_HEIGHTS:
         raise HTTPException(
             status_code=400,
-            detail=(
-                "Altezza non consentita. "
-                f"Valori ammessi: {sorted(IMAGE_ALLOWED_HEIGHTS)}"
-            ),
+            detail=f"Altezza non consentita: {sorted(IMAGE_ALLOWED_HEIGHTS)}",
         )
 
     if not IMAGE_MIN_STEPS <= req.steps <= IMAGE_MAX_STEPS:
         raise HTTPException(
             status_code=400,
-            detail=(
-                f"steps deve essere compreso tra "
-                f"{IMAGE_MIN_STEPS} e {IMAGE_MAX_STEPS}."
-            ),
+            detail=f"steps deve essere compreso tra {IMAGE_MIN_STEPS} e {IMAGE_MAX_STEPS}.",
         )
 
-    if req.seed < -1 or req.seed > 2**31 - 1:
-        raise HTTPException(
-            status_code=400,
-            detail="Seed non valido.",
-        )
+    if req.seed < -1 or req.seed > 2**32 - 1:
+        raise HTTPException(status_code=400, detail="Seed non valido.")
 
     _image_cleanup_jobs()
 
-    # Un job per utente alla volta: evita di accodare involontariamente
-    # molte generazioni mentre il modello è occupato.
     existing_job = next(
         (
-            job
-            for job in IMAGE_JOBS.values()
+            job for job in IMAGE_JOBS.values()
             if job.get("owner") == email
             and job.get("status") in ("QUEUED", "RUNNING")
         ),
@@ -2426,19 +2528,13 @@ async def image_create_job(
         return {
             "job_id": existing_job["job_id"],
             "status": existing_job["status"],
-            "message": (
-                "Hai già una generazione in corso. "
-                "Puoi seguirne lo stato."
-            ),
+            "message": "Hai già una generazione in corso.",
         }
 
     if len(IMAGE_JOBS) >= IMAGE_MAX_JOBS:
         raise HTTPException(
             status_code=429,
-            detail=(
-                "Troppi job conservati. "
-                "Attendi qualche minuto e riprova."
-            ),
+            detail="Troppi job conservati. Attendi e riprova.",
         )
 
     job_id = str(uuid.uuid4())
@@ -2455,7 +2551,6 @@ async def image_create_job(
         "finished_at": None,
     }
 
-    # Il job continua anche dopo la risposta HTTP al browser.
     asyncio.create_task(
         _image_run_job(
             job_id=job_id,
@@ -2474,76 +2569,50 @@ async def image_create_job(
     }
 
 
-# --------------------------------------------------------------------------
-# STATO JOB
-# --------------------------------------------------------------------------
-
 @app.get("/api/image/jobs/{job_id}")
 async def image_get_job(
     job_id: str,
     authorization: str | None = Header(None),
 ):
-    """
-    Restituisce lo stato del job senza trasferire l'immagine.
-    """
-
     email = verify_admin_token(authorization)
-
     job = IMAGE_JOBS.get(job_id)
 
     if not job or job.get("owner") != email:
-        raise HTTPException(
-            status_code=404,
-            detail="Job non trovato.",
-        )
+        raise HTTPException(status_code=404, detail="Job non trovato.")
 
     return {
         "job_id": job_id,
         "status": job["status"],
         "message": job.get("message"),
         "error": job.get("error"),
+        "progress": 100 if job["status"] == "COMPLETED" else None,
         "created_at": job.get("created_at"),
         "started_at": job.get("started_at"),
         "finished_at": job.get("finished_at"),
     }
 
 
-# --------------------------------------------------------------------------
-# RISULTATO IMMAGINE
-# --------------------------------------------------------------------------
-
 @app.get("/api/image/jobs/{job_id}/result")
 async def image_get_result(
     job_id: str,
     authorization: str | None = Header(None),
 ):
-    """
-    Restituisce il risultato base64 solo quando la generazione è conclusa.
-    """
-
     email = verify_admin_token(authorization)
-
     job = IMAGE_JOBS.get(job_id)
 
     if not job or job.get("owner") != email:
-        raise HTTPException(
-            status_code=404,
-            detail="Job non trovato.",
-        )
+        raise HTTPException(status_code=404, detail="Job non trovato.")
 
     if job.get("status") != "COMPLETED":
         raise HTTPException(
             status_code=409,
             detail={
                 "status": job.get("status"),
-                "message": (
-                    "L'immagine non è ancora disponibile."
-                ),
+                "message": "L'immagine non è ancora disponibile.",
             },
         )
 
     result = job.get("result")
-
     if not result:
         raise HTTPException(
             status_code=500,
@@ -2553,58 +2622,43 @@ async def image_get_result(
     return result
 
 
-# --------------------------------------------------------------------------
-# HEALTH CHECK IMAGE LAB
-# --------------------------------------------------------------------------
-
 @app.get("/api/image/health")
 async def image_health(
     authorization: str | None = Header(None),
 ):
-    """
-    Verifica che il generatore locale risponda.
-    Richiede autenticazione Google.
-    """
-
     verify_admin_token(authorization)
 
     try:
-        async with httpx.AsyncClient(
-            timeout=10.0,
-        ) as client:
-
+        async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.get(
-                f"{IMAGE_MODEL_URL}/health",
+                f"{IMAGE_MODEL_URL}/gradio_api/info"
             )
 
         if response.status_code >= 400:
             raise HTTPException(
                 status_code=502,
-                detail=(
-                    "Il generatore locale ha restituito "
-                    f"HTTP {response.status_code}."
-                ),
+                detail=f"Gradio ha restituito HTTP {response.status_code}.",
             )
+
+        info = response.json()
+        endpoints = info.get("named_endpoints", {})
 
         return {
             "gateway": "ok",
-            "generator": response.json(),
+            "generator": "ok",
+            "url": IMAGE_MODEL_URL,
+            "api": "direct_generate" in endpoints,
         }
 
     except HTTPException:
         raise
 
-    except httpx.RequestError as e:
+    except Exception as exc:
         raise HTTPException(
             status_code=503,
-            detail=(
-                "Z-Image-Turbo non è raggiungibile. "
-                "Verifica che model_server.py sia in esecuzione. "
-                f"Dettaglio: {e}"
-            ),
+            detail=f"Gradio non è raggiungibile su {IMAGE_MODEL_URL}: {exc}",
         )
 
-# --------------------------------------------------------------------------
 # AVVIO DIRETTO
 # --------------------------------------------------------------------------
 if __name__ == "__main__":
