@@ -205,6 +205,8 @@ export default function DagAdmin() {
   const [newDagId, setNewDagId] = useState('')
   const [newDagDesc, setNewDagDesc] = useState('')
   const [extraDags, setExtraDags] = useState([])
+  const [runsSummary, setRunsSummary] = useState(null)
+  const [runsLoading, setRunsLoading] = useState(false)
 
   const allDags = [...DAGS, ...extraDags]
   const selected = allDags.find((d) => d.id === selectedId)
@@ -326,6 +328,54 @@ export default function DagAdmin() {
     }
   }
 
+  // Ultime run del DAG selezionato (stesso comando 'status dag', ma in un
+  // riquadro dedicato: auto-caricato alla selezione, ordinato per data desc.
+  async function fetchRuns(dagId) {
+    if (!idToken || !dagId) return
+    setRunsLoading(true)
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 60000)
+    try {
+      const res = await fetch(LELE_API_URL + '/api/admin/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + idToken,
+        },
+        signal: controller.signal,
+        body: JSON.stringify({
+          prompt: 'status dag ' + dagId,
+          language: 'en',
+          chat_id: FORCED_ADMIN_CHAT_ID,
+        }),
+      })
+      clearTimeout(timeoutId)
+      if (res.status === 401 || res.status === 403) { logout(); return }
+      if (!res.ok) throw new Error('HTTP ' + res.status)
+      const data = await res.json()
+      const answer = data.answer || data.error || ''
+      const runs = []
+      answer.split('\n').forEach((line) => {
+        const parts = line.split('|')
+        if (parts.length < 3) return
+        const id = parts[0].replace(/[^\w]/g, '')
+        if (!id) return
+        const state = parts[1].trim()
+        const timing = parts.slice(2).join('|').trim()
+        const sep = timing.indexOf('→')
+        const start = sep >= 0 ? timing.slice(0, sep).trim() : timing
+        const end = sep >= 0 ? timing.slice(sep + 1).trim() : '?'
+        runs.push({ id, state, start, end })
+      })
+      setRunsSummary(runs)
+    } catch (e) {
+      setRunsSummary(null)
+    } finally {
+      clearTimeout(timeoutId)
+      setRunsLoading(false)
+    }
+  }
+
   async function refreshPaused() {
     const answer = await sendCommand('status dag', 'Elenco DAG')
     if (!answer) return
@@ -341,6 +391,13 @@ export default function DagAdmin() {
     if (idToken) refreshPaused()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idToken])
+
+  useEffect(() => {
+    if (!idToken) return
+    setRunsSummary(null)
+    fetchRuns(selectedId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, idToken])
 
   function setValue(dagId, key, val) {
     setValues((prev) => ({ ...prev, [dagId]: { ...prev[dagId], [key]: val } }))
@@ -394,7 +451,7 @@ export default function DagAdmin() {
       return
     }
     setError('')
-    sendCommand('exec airflow lancia ' + selected.id + ' conf: ' + JSON.stringify(conf), 'Lancio ' + selected.id)
+    sendCommand('exec airflow lancia ' + selected.id + ' conf: ' + JSON.stringify(conf), 'Lancio ' + selected.id).then(() => fetchRuns(selected.id))
   }
 
   if (!idToken) {
@@ -694,6 +751,44 @@ export default function DagAdmin() {
                   📄 Log task
                 </button>
               </div>
+            </div>
+
+            <div style={{ ...styles.panel, padding: '1rem 1.25rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <span style={styles.label}>🕐 Ultime run di {selected.id}</span>
+                <button type="button" disabled={runsLoading} onClick={() => fetchRuns(selected.id)} style={styles.secondaryBtn} title="Aggiorna">
+                  {runsLoading ? '⏳' : '↻'}
+                </button>
+              </div>
+              {runsSummary === null ? (
+                <p style={{ ...styles.hint, marginTop: '0.5rem' }}>{runsLoading ? 'Carico le run...' : 'Nessun dato run (premi ↻ per riprovare).'}</p>
+              ) : runsSummary.length === 0 ? (
+                <p style={{ ...styles.hint, marginTop: '0.5rem' }}>Nessuna run trovata per questo DAG.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', marginTop: '0.5rem' }}>
+                  {runsSummary.slice(0, 5).map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      title="Clic per compilare dag_run_id nel modulo qui sopra"
+                      onClick={() => setDagRunId(r.id)}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap',
+                        background: '#0b1015', border: '1px solid #2a3a48', borderRadius: 8,
+                        color: '#c5d4de', padding: '0.4rem 0.6rem', cursor: 'pointer',
+                        fontSize: '0.75rem', textAlign: 'left',
+                      }}
+                    >
+                      <span style={{ color: r.state === 'success' ? '#6ee7a8' : r.state === 'failed' ? '#ff9b9b' : r.state === 'running' ? '#fbbf24' : '#c5d4de' }}>
+                        {r.state === 'success' ? '✅' : r.state === 'failed' ? '❌' : r.state === 'running' ? '🔄' : '⏳'} {r.state}
+                      </span>
+                      <code style={{ color: '#3fd0c9' }}>{r.id}</code>
+                      <span style={{ color: '#8fa1ac' }}>{r.start} → {r.end}</span>
+                    </button>
+                  ))}
+                  <span style={styles.hint}>Ordinate per data di esecuzione (più recenti prima) · clic su una run = compila dag_run_id</span>
+                </div>
+              )}
             </div>
 
             {error && (

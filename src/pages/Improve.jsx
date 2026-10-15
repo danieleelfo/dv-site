@@ -416,6 +416,8 @@ export default function Improve() {
   const [gitOutput, setGitOutput] = useState("");
   const [gitError, setGitError] = useState("");
   const [gitCopied, setGitCopied] = useState(false);
+  const [diffRootSel, setDiffRootSel] = useState("leles");
+  const [diffFileFilter, setDiffFileFilter] = useState("");
   const leftUploadRef = useRef(null);
   const rightUploadRef = useRef(null);
 
@@ -687,6 +689,37 @@ export default function Improve() {
     }
   }
 
+  // Carica un file esistente dal Mac (stesso elenco/file API del tab Improve).
+  async function loadDiffFromServer(side, path) {
+    if (!path) return;
+    try {
+      const r = await fetch(
+        API +
+          "/api/improve/file?root=" +
+          encodeURIComponent(diffRootSel) +
+          "&path=" +
+          encodeURIComponent(path),
+        { headers: { Authorization: "Bearer " + idToken } }
+      );
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        throw new Error(d.detail || "Impossibile leggere il file.");
+      }
+      const d = await r.json();
+      if (side === "left") {
+        setDiffLeft(d.content || "");
+        setDiffLeftName(path);
+      } else {
+        setDiffRight(d.content || "");
+        setDiffRightName(path);
+      }
+      setDiffRows(null);
+      setDiffError("");
+    } catch (e) {
+      setDiffError(e.message || String(e));
+    }
+  }
+
   function runDiff() {
     setDiffError("");
     setDiffOnly(false);
@@ -775,6 +808,16 @@ export default function Improve() {
       (f) =>
         !fileFilter ||
         f.path.toLowerCase().includes(fileFilter.toLowerCase())
+    );
+
+  // File per il selettore del tab Diff (root separata da quella del tab Improve).
+  const visibleDiffFiles = files
+    .filter((f) => (f.root || "leles") === diffRootSel)
+    .filter((f) => !f.path.includes(".improved."))
+    .filter(
+      (f) =>
+        !diffFileFilter ||
+        f.path.toLowerCase().includes(diffFileFilter.toLowerCase())
     );
 
   if (!idToken) {
@@ -892,12 +935,48 @@ export default function Improve() {
         <div className="imp-diff-workspace">
           <div className="imp-diff-intro">
             <h2>Confronta due file</h2>
-            <p>Carica i file oppure incolla il codice. Il confronto avviene nel browser: nessun file viene inviato al gateway o salvato sul server.</p>
+            <p>Carica i file, incolla il codice, oppure prendi un file esistente dal Mac con i selettori qui sotto (stesso elenco del tab Improve).</p>
+          </div>
+
+          <div className="imp-diff-projectpick">
+            <div className="imp-roots">
+              {roots.map((r) => (
+                <button
+                  key={r}
+                  className={"imp-btn " + (diffRootSel === r ? "imp-tab-active" : "")}
+                  onClick={() => setDiffRootSel(r)}
+                >
+                  {ROOT_LABELS[r] || r}
+                </button>
+              ))}
+            </div>
+            <input
+              className="imp-input"
+              placeholder="filtra file (es. scripts/)"
+              value={diffFileFilter}
+              onChange={(e) => setDiffFileFilter(e.target.value)}
+            />
+            <p className="imp-hint">
+              Scegli il file nei selettori "da progetto" nelle colonne A e B qui sotto.
+            </p>
           </div>
           <div className="imp-diff-inputs">
             <section className="imp-col">
               <div className="imp-diff-title">
                 <label className="imp-label">A · Originale</label>
+                <select
+                  className="imp-select imp-diff-pick"
+                  value=""
+                  onChange={(e) => { loadDiffFromServer("left", e.target.value); e.target.value = ""; }}
+                  aria-label="File esistente dal progetto (colonna A)"
+                >
+                  <option value="">— da progetto —</option>
+                  {visibleDiffFiles.map((f) => (
+                    <option key={f.path} value={f.path} disabled={f.size > MAX_FILE_BYTES}>
+                      {f.path}{f.size > MAX_FILE_BYTES ? " · troppo grande" : ""}
+                    </option>
+                  ))}
+                </select>
                 <button className="imp-btn" onClick={() => leftUploadRef.current?.click()}>Carica file</button>
                 <input
                   ref={leftUploadRef}
@@ -919,6 +998,19 @@ export default function Improve() {
             <section className="imp-col">
               <div className="imp-diff-title">
                 <label className="imp-label">B · Modificato</label>
+                <select
+                  className="imp-select imp-diff-pick"
+                  value=""
+                  onChange={(e) => { loadDiffFromServer("right", e.target.value); e.target.value = ""; }}
+                  aria-label="File esistente dal progetto (colonna B)"
+                >
+                  <option value="">— da progetto —</option>
+                  {visibleDiffFiles.map((f) => (
+                    <option key={f.path} value={f.path} disabled={f.size > MAX_FILE_BYTES}>
+                      {f.path}{f.size > MAX_FILE_BYTES ? " · troppo grande" : ""}
+                    </option>
+                  ))}
+                </select>
                 <button className="imp-btn" onClick={() => rightUploadRef.current?.click()}>Carica file</button>
                 <input
                   ref={rightUploadRef}
@@ -1212,7 +1304,10 @@ export default function Improve() {
         .imp-diff-intro p { margin: 0; color: #9ca3af; font-size: 13px; line-height: 1.5; }
         .imp-diff-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
         @media (max-width: 800px) { .imp-diff-inputs { grid-template-columns: 1fr; } }
-        .imp-diff-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        .imp-diff-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+        .imp-diff-projectpick { display: flex; flex-direction: column; gap: 6px; }
+        .imp-diff-projectpick .imp-input { margin-bottom: 0; }
+        .imp-diff-pick { max-width: 200px; margin-bottom: 0; font-size: 12px; padding: 6px 8px; }
         .imp-diff-title .imp-label { margin-top: 0; }
         .imp-file-input { display: none; }
         .imp-diff-filename { margin: 0 0 8px; color: #6ee7b7; font-size: 12px; overflow-wrap: anywhere; }
