@@ -165,6 +165,14 @@ const COMMAND_GROUPS = [
     ],
   },
   {
+    id: 'super', title: 'Super-Leles', icon: '⚡', color: '#a78bfa',
+    commands: [
+      c('Modello SL in uso', 'modellosl', 'mostra il modello corrente di Super-Leles'),
+      c('Cambia modello SL', 'modellosl ', 'nome modello (es. modellosl mistral)'),
+      c('Super domanda', 'super ', 'chiedi anything a Super-Leles'),
+    ],
+  },
+  {
     id: 'leles', title: 'Leles', icon: '🏴‍☠️', color: '#e2e8f0',
     commands: [
       c('Restart Lelé', 'restart Lelé', undefined, true),
@@ -315,7 +323,7 @@ const timeLabel = (ts) =>
   })
 
 
-export default function LeleAdmin() {
+export default function Test5() {
   const [idToken, setIdToken] = useState(() => {
     try {
       return window.sessionStorage.getItem(TOKEN_STORAGE_KEY) || null
@@ -330,6 +338,7 @@ export default function LeleAdmin() {
   const [gsiReady, setGsiReady] = useState(false)
 
   const [prompt, setPrompt] = useState('')
+  const [superMode, setSuperMode] = useState(false)
   const [armed, setArmed] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [history, setHistory] = useState([])
@@ -515,7 +524,10 @@ export default function LeleAdmin() {
 
   async function run(e) {
     e?.preventDefault()
-    const cmd = prompt.trim()
+    // Super-Leles: se il toggle e' attivo, il prompt parte come 'super <domanda>'
+    // (a meno che non sia gia' un comando super/sl/modellosl).
+    const raw = prompt.trim()
+    const cmd = superMode && !/^(super|super-leles|sl|modellosl)\b/i.test(raw) ? 'super ' + raw : raw
     if (!cmd || !idToken || isLoading) return
 
     // Comandi sensibili: serve una seconda pressione.
@@ -887,7 +899,7 @@ export default function LeleAdmin() {
         {backdrop}
         <div className="lc-wrap">
           <div className="lc-top">
-            <h1 className="lc-title">Lele Admin Console</h1>
+            <h1 className="lc-title">Lele Admin Console · Test5 (Super-Leles)</h1>
             <div ref={buttonRef} className="lc-gbtn" />
           </div>
           <p className="lc-dim lc-small lc-login-msg">Accesso riservato.</p>
@@ -910,7 +922,7 @@ export default function LeleAdmin() {
 
       <div className="lc-wrap">
         <div className="lc-top">
-          <h1 className="lc-title">Lele Admin Console</h1>
+          <h1 className="lc-title">Lele Admin Console · Test5 (Super-Leles)</h1>
           <div className="lc-session">
             <span className="lc-ellipsis">{profile?.email || 'account Google'}</span>
             <button type="button" className="lc-btn lc-btn--sm" onClick={() => logout()}>
@@ -944,6 +956,15 @@ export default function LeleAdmin() {
                 />
               </div>
               <div className="lc-prompt-foot">
+                <button
+                  type="button"
+                  className="lc-btn"
+                  onClick={() => setSuperMode((v) => !v)}
+                  style={superMode ? { borderColor: '#a78bfa', color: '#a78bfa' } : undefined}
+                  title="Quando attivo, il prompt viene inviato come 'super <domanda>' a Super-Leles (grounded)"
+                >
+                  {superMode ? '⚡ Super-Leles ON' : '⚡ Super-Leles'}
+                </button>
                 <span className="lc-dim lc-small">
                   {armed
                     ? 'Comando che cambia lo stato del sistema: premi di nuovo per confermare.'
