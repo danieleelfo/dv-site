@@ -6,6 +6,7 @@
 //   - Night Story (8 generi da prompts/genre_*.txt)
 //   - Story Whisper (nessun genere)
 //   - Leles (orchestratore)
+//   - Super-Leles
 //   - QE / Emergence (12 ruoli dal DB)
 //
 // Modalità N partecipanti (2..12), round-robin.
@@ -184,6 +185,7 @@ const AGENTS = [
   { id: "night_story", label: "Night Story", port: 8666, hasCharacters: true },
   { id: "story_whisper", label: "Story Whisper", port: 8088, hasCharacters: false },
   { id: "leles", label: "Leles", port: 8082, hasCharacters: false },
+  { id: "super_leles", label: "Super-Leles", port: 8082, hasCharacters: false },
   { id: "qe", label: "QE (Emergence)", port: 8082, hasCharacters: false, hasRoles: true },
 ];
 
@@ -247,6 +249,7 @@ const AGENT_EMOJI = {
   night_story: "🌙",
   story_whisper: "🌬️",
   leles: "🏴‍☠️",
+  super_leles: "🧠",
   qe: "🌱",
 };
 
@@ -275,7 +278,7 @@ const DEFAULT_CFG = {
 // MAIN
 // ============================================================
 
-export default function B2B() {
+export default function Test4() {
   const [cfg, setCfg] = useState(DEFAULT_CFG);
   const [runId, setRunId] = useState(null);
   const [data, setData] = useState({ status: "IDLE", turns: [] });
@@ -376,6 +379,22 @@ export default function B2B() {
         max_turns: cfg.max_turns,
       };
 
+      // Super-Leles viene inviato direttamente come "super_leles".
+      // Il gateway lo riconosce come agente separato e gestisce
+      // internamente il prefisso "sl " per attivare Super-Leles.
+      //
+      // NON trasformiamo più:
+      //   super_leles -> leles
+      //
+      // Questo è necessario perché Super-Leles ha una allowlist LLM
+      // diversa e può usare anche gpt-oss:20b.
+      const arenaCfg = {
+        ...cfg,
+        participants: cfg.participants.map((participant) => ({
+          ...participant,
+        })),
+      };
+
       // Inizio della funzione start con Auth Google + Payload Multi-Agente
       const response = await fetch(`${API}/api/agent-arena/start`, {
         method: "POST",
@@ -383,7 +402,7 @@ export default function B2B() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify(cfg),
+        body: JSON.stringify(arenaCfg),
       });
 
 
@@ -704,7 +723,7 @@ export default function B2B() {
                     setField("max_turns", Number(event.target.value))
                   }
                 >
-                  {[5, 10, 20, 50].map((number) => (
+                  {[1, 2, 3, 5, 10, 13, 20].map((number) => (
                     <option key={number} value={number}>
                       {number}
                     </option>
@@ -756,7 +775,7 @@ export default function B2B() {
                     </>
                   ) : (
                     <div style={styles.authHint}>
-                      GOOGLE_CLIENT_ID mancante in B2B.jsx
+                      GOOGLE_CLIENT_ID mancante in Test4.jsx
                     </div>
                   )}
                 </div>
