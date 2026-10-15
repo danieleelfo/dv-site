@@ -7,13 +7,14 @@ import Projects from './pages/Projects.jsx'
 import Console from './pages/Console.jsx'
 import Nav from './components/Nav.jsx'
 
-// Pagine ufficiali (copie dei sandbox)
+// Pagine ufficiali
 import AI_Lab from './pages/AI_Lab.jsx'
 import LeleAdmin from './pages/LeleAdmin.jsx'
 import Improve from './pages/Improve.jsx'
 import DagAdmin from './pages/DagAdmin.jsx'
 import GitAdmin from './pages/GitAdmin.jsx'
 import B2B from './pages/B2B.jsx'
+import ImageLab from './pages/ImageLab.jsx'
 
 // Sandbox
 import Test from './pages/Test.jsx'
@@ -38,7 +39,7 @@ function LangWrapper({ children }) {
   }, [lang, i18n])
 
   if (lang && !SUPPORTED_LANGS.includes(lang)) {
-    return <Navigate to="/en" replace />
+    return null
   }
 
   return children
@@ -48,10 +49,31 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Navigate to="/en" replace />} />
+        <Route path="/" element={<><Nav /><Home /></>} />
 
-        <Route path="/:lang" element={<><Nav /><LangWrapper><Home /></LangWrapper></>} />
-        <Route path="/:lang/projects" element={<><Nav /><LangWrapper><Projects /></LangWrapper></>} />
+        <Route
+          path="/:lang"
+          element={
+            <>
+              <Nav />
+              <LangWrapper>
+                <Home />
+              </LangWrapper>
+            </>
+          }
+        />
+
+        <Route
+          path="/:lang/projects"
+          element={
+            <>
+              <Nav />
+              <LangWrapper>
+                <Projects />
+              </LangWrapper>
+            </>
+          }
+        />
 
         <Route path="/ai-lab" element={<><Nav /><AI_Lab /></>} />
         <Route path="/:lang/ai-lab" element={<><Nav /><LangWrapper><AI_Lab /></LangWrapper></>} />
@@ -65,13 +87,17 @@ export default function App() {
 
         <Route path="/improve" element={<><Nav /><Improve /></>} />
 
-        {/* DAG Admin: pannello Airflow (già Test2), raggiungibile anche dalla tab in Improve */}
+        {/* AI Image Lab: generazione locale con Z-Image-Turbo */}
+        <Route path="/image-lab" element={<><Nav /><ImageLab /></>} />
+
+        {/* DAG Admin: pannello Airflow */}
         <Route path="/dag-admin" element={<><Nav /><DagAdmin /></>} />
         <Route path="/:lang/dag-admin" element={<><Nav /><LangWrapper><DagAdmin /></LangWrapper></>} />
 
-        {/* Git Admin: console git con preview+conferma (git_admin.py), da Improve */}
+        {/* Git Admin: console Git con preview e conferma */}
         <Route path="/git-admin" element={<><Nav /><GitAdmin /></>} />
         <Route path="/:lang/git-admin" element={<><Nav /><LangWrapper><GitAdmin /></LangWrapper></>} />
+
         <Route path="/:lang/console" element={<><Nav /><LangWrapper><Console /></LangWrapper></>} />
 
         <Route path="/test" element={<><Nav /><Test /></>} />
@@ -79,6 +105,7 @@ export default function App() {
 
         <Route path="/test2" element={<><Nav /><Test2 /></>} />
         <Route path="/:lang/test2" element={<><Nav /><LangWrapper><Test2 /></LangWrapper></>} />
+
         <Route path="/bar-ai-admin" element={<><Nav /><BarAiAdmin /></>} />
         <Route path="/:lang/bar-ai-admin" element={<><Nav /><LangWrapper><BarAiAdmin /></LangWrapper></>} />
 
@@ -95,7 +122,7 @@ export default function App() {
         <Route path="/test6" element={<><Nav /><Test6 /></>} />
         <Route path="/:lang/test6" element={<><Nav /><LangWrapper><Test6 /></LangWrapper></>} />
 
-        {/* Bar AI sandbox: usa solo il proxy /api/bar-ai/ask già presente. */}
+        {/* Bar AI sandbox */}
         <Route path="/testbarai" element={<><Nav /><TestBarAI /></>} />
         <Route path="/:lang/testbarai" element={<><Nav /><LangWrapper><TestBarAI /></LangWrapper></>} />
       </Routes>

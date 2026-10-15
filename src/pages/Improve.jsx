@@ -870,6 +870,13 @@ export default function Improve() {
         </button>
         <button
           className="imp-btn"
+          onClick={() => navigate("/image-lab")}
+          title="Generazione immagini con Z-Image-Turbo"
+        >
+          AI Image Lab ↗
+        </button>
+        <button
+          className="imp-btn"
           onClick={() => navigate("/dag-admin")}
           title="Pannello Airflow Admin 🌀"
         >

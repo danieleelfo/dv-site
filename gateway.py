@@ -5,6 +5,8 @@ import uuid
 
 import psycopg2
 
+import random
+
 from git_admin import build_git_admin_router
 
 import httpx
@@ -2087,6 +2089,520 @@ async def bar_ai_admin(path: str, request: Request):
 
     return response.json()
 
+
+# ==========================================================================
+# AI IMAGE LAB — GENERAZIONE ASINCRONA CON Z-IMAGE-TURBO
+# ==========================================================================
+#
+# Frontend: /image-lab
+#
+# API:
+#   POST /api/image/jobs
+#       Avvia una generazione e restituisce subito job_id.
+#
+#   GET /api/image/jobs/{job_id}
+#       Restituisce lo stato del job.
+#
+#   GET /api/image/jobs/{job_id}/result
+#       Restituisce l'immagine generata in base64.
+#
+# Architettura:
+#   Sito -> Gateway autenticato -> Z-Image-Turbo locale :8000
+#
+# La porta 8000 NON deve essere esposta pubblicamente.
+# Le generazioni vengono eseguite in background.
+# È consentita una sola generazione alla volta per evitare
+# di saturare la memoria del Mac.
+# ==========================================================================
+
+from pydantic import Field
+
+
+# --------------------------------------------------------------------------
+# CONFIGURAZIONE
+# --------------------------------------------------------------------------
+
+IMAGE_MODEL_URL = os.environ.get(
+    "IMAGE_MODEL_URL",
+    "http://127.0.0.1:8000",
+).rstrip("/")
+
+# Il modello ha impiegato circa 8 minuti per una generazione.
+# Il timeout viene portato a 15 minuti.
+IMAGE_GENERATION_TIMEOUT = 900.0
+
+# Evita generazioni simultanee sul Mac con 16 GB di RAM.
+_IMAGE_GENERATION_LOCK = asyncio.Lock()
+
+# Job conservati nella memoria del gateway.
+# I risultati restano disponibili finché il gateway è attivo.
+IMAGE_JOBS: dict[str, dict] = {}
+
+# Numero massimo di job conservati.
+IMAGE_MAX_JOBS = 30
+
+# Limiti per la richiesta.
+IMAGE_MAX_PROMPT_CHARS = 5000
+IMAGE_ALLOWED_WIDTHS = {512, 768, 1024, 1280}
+IMAGE_ALLOWED_HEIGHTS = {512, 768, 1024, 1280}
+IMAGE_MIN_STEPS = 1
+IMAGE_MAX_STEPS = 100
+
+
+# --------------------------------------------------------------------------
+# REQUEST
+# --------------------------------------------------------------------------
+
+class ImageGenerationRequest(BaseModel):
+    prompt: str = Field(
+        ...,
+        min_length=1,
+        max_length=IMAGE_MAX_PROMPT_CHARS,
+    )
+
+    width: int = 1024
+    height: int = 1024
+    steps: int = 8
+
+    # -1 = seed casuale.
+    seed: int = -1
+
+
+# --------------------------------------------------------------------------
+# PULIZIA JOB VECCHI
+# --------------------------------------------------------------------------
+
+def _image_cleanup_jobs() -> None:
+    """
+    Elimina i job conclusi più vecchi di un'ora.
+
+    Non elimina mai job ancora in esecuzione o in coda.
+    """
+
+    now = time.time()
+
+    for job_id, job in list(IMAGE_JOBS.items()):
+        if job.get("status") not in (
+            "COMPLETED",
+            "ERROR",
+        ):
+            continue
+
+        finished_at = job.get("finished_at")
+
+        if finished_at and now - finished_at > 3600:
+            IMAGE_JOBS.pop(job_id, None)
+
+    # Limita il numero totale di job conservati.
+    if len(IMAGE_JOBS) <= IMAGE_MAX_JOBS:
+        return
+
+    finished_jobs = sorted(
+        [
+            (job_id, job)
+            for job_id, job in IMAGE_JOBS.items()
+            if job.get("status") in ("COMPLETED", "ERROR")
+        ],
+        key=lambda item: item[1].get("finished_at") or 0,
+    )
+
+    while (
+        len(IMAGE_JOBS) > IMAGE_MAX_JOBS
+        and finished_jobs
+    ):
+        job_id, _ = finished_jobs.pop(0)
+        IMAGE_JOBS.pop(job_id, None)
+
+
+# --------------------------------------------------------------------------
+# ESECUZIONE ASINCRONA
+# --------------------------------------------------------------------------
+
+async def _image_run_job(
+    job_id: str,
+    prompt: str,
+    width: int,
+    height: int,
+    steps: int,
+    seed: int,
+) -> None:
+    """
+    Esegue la generazione in background.
+
+    Il frontend non deve restare collegato alla richiesta HTTP
+    durante gli 8-15 minuti necessari al modello.
+    """
+
+    job = IMAGE_JOBS.get(job_id)
+
+    if job is None:
+        return
+
+    try:
+        job["status"] = "QUEUED"
+        job["message"] = (
+            "In attesa che il generatore locale sia disponibile."
+        )
+
+        # Una generazione alla volta: protezione della RAM.
+        async with _IMAGE_GENERATION_LOCK:
+
+            # Il job potrebbe essere stato eliminato nel frattempo.
+            job = IMAGE_JOBS.get(job_id)
+
+            if job is None:
+                return
+
+            job["status"] = "RUNNING"
+            job["message"] = (
+                "Generazione in corso sul Mac."
+            )
+            job["started_at"] = time.time()
+
+            # Se seed=-1, scegliamo un seed effettivo e lo
+            # inviamo al modello per rendere riproducibile il risultato.
+            actual_seed = (
+                random.SystemRandom().randint(0, 2**31 - 1)
+                if seed == -1
+                else seed
+            )
+
+            payload = {
+                "prompt": prompt,
+                "width": width,
+                "height": height,
+                "steps": steps,
+                "seed": actual_seed,
+            }
+
+            timeout = httpx.Timeout(
+                timeout=IMAGE_GENERATION_TIMEOUT,
+                connect=10.0,
+            )
+
+            async with httpx.AsyncClient(
+                timeout=timeout,
+            ) as client:
+
+                response = await client.post(
+                    f"{IMAGE_MODEL_URL}/generate",
+                    json=payload,
+                )
+
+                if response.status_code >= 400:
+                    raise RuntimeError(
+                        "Il generatore ha restituito "
+                        f"HTTP {response.status_code}: "
+                        f"{response.text[:1500]}"
+                    )
+
+                data = response.json()
+
+            image_base64 = data.get("image_base64")
+
+            if not image_base64:
+                raise RuntimeError(
+                    "Il generatore non ha restituito l'immagine."
+                )
+
+            # Salviamo il risultato nel job.
+            job["result"] = {
+                "image_base64": image_base64,
+                "seed": data.get("seed", actual_seed),
+                "width": width,
+                "height": height,
+            }
+
+            job["status"] = "COMPLETED"
+            job["message"] = "Immagine generata."
+            job["finished_at"] = time.time()
+
+    except asyncio.CancelledError:
+        job = IMAGE_JOBS.get(job_id)
+
+        if job is not None:
+            job["status"] = "ERROR"
+            job["error"] = "Generazione interrotta."
+            job["finished_at"] = time.time()
+
+        raise
+
+    except Exception as e:
+        job = IMAGE_JOBS.get(job_id)
+
+        if job is not None:
+            job["status"] = "ERROR"
+            job["error"] = str(e)
+            job["finished_at"] = time.time()
+
+        print(
+            f"[image-lab] Errore job {job_id}: {e}",
+            flush=True,
+        )
+
+
+# --------------------------------------------------------------------------
+# AVVIO GENERAZIONE
+# --------------------------------------------------------------------------
+
+@app.post("/api/image/jobs", status_code=202)
+async def image_create_job(
+    req: ImageGenerationRequest,
+    authorization: str | None = Header(None),
+):
+    """
+    Avvia un job e restituisce subito il suo identificativo.
+
+    Richiede autenticazione Google come gli altri endpoint admin.
+    """
+
+    email = verify_admin_token(authorization)
+
+    prompt = req.prompt.strip()
+
+    if not prompt:
+        raise HTTPException(
+            status_code=400,
+            detail="Inserisci una descrizione dell'immagine.",
+        )
+
+    if len(prompt) > IMAGE_MAX_PROMPT_CHARS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Prompt troppo lungo. "
+                f"Massimo {IMAGE_MAX_PROMPT_CHARS} caratteri."
+            ),
+        )
+
+    if req.width not in IMAGE_ALLOWED_WIDTHS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Larghezza non consentita. "
+                f"Valori ammessi: {sorted(IMAGE_ALLOWED_WIDTHS)}"
+            ),
+        )
+
+    if req.height not in IMAGE_ALLOWED_HEIGHTS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Altezza non consentita. "
+                f"Valori ammessi: {sorted(IMAGE_ALLOWED_HEIGHTS)}"
+            ),
+        )
+
+    if not IMAGE_MIN_STEPS <= req.steps <= IMAGE_MAX_STEPS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"steps deve essere compreso tra "
+                f"{IMAGE_MIN_STEPS} e {IMAGE_MAX_STEPS}."
+            ),
+        )
+
+    if req.seed < -1 or req.seed > 2**31 - 1:
+        raise HTTPException(
+            status_code=400,
+            detail="Seed non valido.",
+        )
+
+    _image_cleanup_jobs()
+
+    # Un job per utente alla volta: evita di accodare involontariamente
+    # molte generazioni mentre il modello è occupato.
+    existing_job = next(
+        (
+            job
+            for job in IMAGE_JOBS.values()
+            if job.get("owner") == email
+            and job.get("status") in ("QUEUED", "RUNNING")
+        ),
+        None,
+    )
+
+    if existing_job:
+        return {
+            "job_id": existing_job["job_id"],
+            "status": existing_job["status"],
+            "message": (
+                "Hai già una generazione in corso. "
+                "Puoi seguirne lo stato."
+            ),
+        }
+
+    if len(IMAGE_JOBS) >= IMAGE_MAX_JOBS:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                "Troppi job conservati. "
+                "Attendi qualche minuto e riprova."
+            ),
+        )
+
+    job_id = str(uuid.uuid4())
+
+    IMAGE_JOBS[job_id] = {
+        "job_id": job_id,
+        "owner": email,
+        "status": "QUEUED",
+        "message": "Generazione accodata.",
+        "error": None,
+        "result": None,
+        "created_at": time.time(),
+        "started_at": None,
+        "finished_at": None,
+    }
+
+    # Il job continua anche dopo la risposta HTTP al browser.
+    asyncio.create_task(
+        _image_run_job(
+            job_id=job_id,
+            prompt=prompt,
+            width=req.width,
+            height=req.height,
+            steps=req.steps,
+            seed=req.seed,
+        )
+    )
+
+    return {
+        "job_id": job_id,
+        "status": "QUEUED",
+        "message": "Generazione avviata.",
+    }
+
+
+# --------------------------------------------------------------------------
+# STATO JOB
+# --------------------------------------------------------------------------
+
+@app.get("/api/image/jobs/{job_id}")
+async def image_get_job(
+    job_id: str,
+    authorization: str | None = Header(None),
+):
+    """
+    Restituisce lo stato del job senza trasferire l'immagine.
+    """
+
+    email = verify_admin_token(authorization)
+
+    job = IMAGE_JOBS.get(job_id)
+
+    if not job or job.get("owner") != email:
+        raise HTTPException(
+            status_code=404,
+            detail="Job non trovato.",
+        )
+
+    return {
+        "job_id": job_id,
+        "status": job["status"],
+        "message": job.get("message"),
+        "error": job.get("error"),
+        "created_at": job.get("created_at"),
+        "started_at": job.get("started_at"),
+        "finished_at": job.get("finished_at"),
+    }
+
+
+# --------------------------------------------------------------------------
+# RISULTATO IMMAGINE
+# --------------------------------------------------------------------------
+
+@app.get("/api/image/jobs/{job_id}/result")
+async def image_get_result(
+    job_id: str,
+    authorization: str | None = Header(None),
+):
+    """
+    Restituisce il risultato base64 solo quando la generazione è conclusa.
+    """
+
+    email = verify_admin_token(authorization)
+
+    job = IMAGE_JOBS.get(job_id)
+
+    if not job or job.get("owner") != email:
+        raise HTTPException(
+            status_code=404,
+            detail="Job non trovato.",
+        )
+
+    if job.get("status") != "COMPLETED":
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "status": job.get("status"),
+                "message": (
+                    "L'immagine non è ancora disponibile."
+                ),
+            },
+        )
+
+    result = job.get("result")
+
+    if not result:
+        raise HTTPException(
+            status_code=500,
+            detail="Risultato immagine non disponibile.",
+        )
+
+    return result
+
+
+# --------------------------------------------------------------------------
+# HEALTH CHECK IMAGE LAB
+# --------------------------------------------------------------------------
+
+@app.get("/api/image/health")
+async def image_health(
+    authorization: str | None = Header(None),
+):
+    """
+    Verifica che il generatore locale risponda.
+    Richiede autenticazione Google.
+    """
+
+    verify_admin_token(authorization)
+
+    try:
+        async with httpx.AsyncClient(
+            timeout=10.0,
+        ) as client:
+
+            response = await client.get(
+                f"{IMAGE_MODEL_URL}/health",
+            )
+
+        if response.status_code >= 400:
+            raise HTTPException(
+                status_code=502,
+                detail=(
+                    "Il generatore locale ha restituito "
+                    f"HTTP {response.status_code}."
+                ),
+            )
+
+        return {
+            "gateway": "ok",
+            "generator": response.json(),
+        }
+
+    except HTTPException:
+        raise
+
+    except httpx.RequestError as e:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Z-Image-Turbo non è raggiungibile. "
+                "Verifica che model_server.py sia in esecuzione. "
+                f"Dettaglio: {e}"
+            ),
+        )
 
 # --------------------------------------------------------------------------
 # AVVIO DIRETTO
