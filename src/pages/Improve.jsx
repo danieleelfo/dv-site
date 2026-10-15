@@ -62,8 +62,12 @@ const SL_MODELS = [
 const MAX_BOTS = 6;
 const MAX_ITERATIONS = 3;
 
-// Il gateway rifiuta file oltre 40.000 caratteri (_IMPROVE_MAX_CHARS).
+// Il gateway rifiuta file oltre 40.000 caratteri (_IMPROVE_MAX_CHARS)
+// per l'Arena improve (il file diventa il topic di OGNI turno).
 const MAX_FILE_BYTES = 40000;
+// Per il tab Diff il confronto avviene nel browser: si possono caricare
+// anche file piu' grandi (il gateway potra' leggerli con purpose=diff).
+const MAX_DIFF_BYTES = 120000;
 
 const ACTIVE_STATUSES = ["STARTING", "RUNNING", "PAUSED"];
 const FINISHED_STATUSES = ["COMPLETED", "STOPPED", "ERROR"];
@@ -698,7 +702,8 @@ export default function Improve() {
           "/api/improve/file?root=" +
           encodeURIComponent(diffRootSel) +
           "&path=" +
-          encodeURIComponent(path),
+          encodeURIComponent(path) +
+          "&purpose=diff",
         { headers: { Authorization: "Bearer " + idToken } }
       );
       if (!r.ok) {
@@ -972,8 +977,8 @@ export default function Improve() {
                 >
                   <option value="">— da progetto —</option>
                   {visibleDiffFiles.map((f) => (
-                    <option key={f.path} value={f.path} disabled={f.size > MAX_FILE_BYTES}>
-                      {f.path}{f.size > MAX_FILE_BYTES ? " · troppo grande" : ""}
+                    <option key={f.path} value={f.path} disabled={f.size > MAX_DIFF_BYTES}>
+                      {f.path}{f.size > MAX_DIFF_BYTES ? " · troppo grande" : ""}
                     </option>
                   ))}
                 </select>
@@ -1006,8 +1011,8 @@ export default function Improve() {
                 >
                   <option value="">— da progetto —</option>
                   {visibleDiffFiles.map((f) => (
-                    <option key={f.path} value={f.path} disabled={f.size > MAX_FILE_BYTES}>
-                      {f.path}{f.size > MAX_FILE_BYTES ? " · troppo grande" : ""}
+                    <option key={f.path} value={f.path} disabled={f.size > MAX_DIFF_BYTES}>
+                      {f.path}{f.size > MAX_DIFF_BYTES ? " · troppo grande" : ""}
                     </option>
                   ))}
                 </select>
