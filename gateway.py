@@ -5,6 +5,8 @@ import uuid
 
 import psycopg2
 
+from git_admin import build_git_admin_router
+
 import httpx
 from fastapi import FastAPI, Header, HTTPException, Request, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
@@ -122,6 +124,13 @@ def get_connection():
         password=os.environ.get("PGPASSWORD"),
     )
 
+
+# --------------------------------------------------------------------------
+# GIT ADMIN — API per Test2.jsx
+# --------------------------------------------------------------------------
+app.include_router(
+    build_git_admin_router(verify_admin_token)
+)
 
 # --------------------------------------------------------------------------
 # CONFIGURAZIONE AGENTE ADMIN
