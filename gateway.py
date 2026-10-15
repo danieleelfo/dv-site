@@ -1847,6 +1847,9 @@ _IMPROVE_SKIP_DIRS = {
 
 _IMPROVE_MAX_CHARS = 40_000
 _IMPROVE_MAX_SAVE_CHARS = 120_000
+# Solo lettura per il diff web (purpose=diff): il confronto avviene nel
+# browser, nessun LLM coinvolto, quindi il tetto puo' essere piu' alto.
+_IMPROVE_MAX_DIFF_CHARS = 120_000
 
 
 def _improve_root(root_name: str) -> tuple[str, dict]:
@@ -1927,21 +1930,30 @@ async def improve_list_files(authorization: str | None = Header(None)):
 async def improve_read_file(
     path: str,
     root: str = "leles",
+    purpose: str = "arena",
     authorization: str | None = Header(None),
 ):
-    """Contenuto di un file ammesso (per il topic Arena)."""
+    """Contenuto di un file ammesso (per il topic Arena o per il diff web)."""
     verify_admin_token(authorization)
 
     target = _improve_resolve(root, path)
     with open(target, "r", encoding="utf-8", errors="replace") as f:
         content = f.read()
 
-    if len(content) > _IMPROVE_MAX_CHARS:
+    # purpose=arena (default): tetto topic Arena, il file va a ogni bot.
+    # purpose=diff: solo lettura per il confronto nel browser.
+    max_chars = (
+        _IMPROVE_MAX_DIFF_CHARS
+        if purpose == "diff"
+        else _IMPROVE_MAX_CHARS
+    )
+
+    if len(content) > max_chars:
         raise HTTPException(
             status_code=400,
             detail=(
                 f"File troppo grande ({len(content)} caratteri, "
-                f"limite {_IMPROVE_MAX_CHARS}). Spezzalo in moduli più piccoli."
+                f"limite {max_chars}). Spezzalo in moduli più piccoli."
             ),
         )
 
