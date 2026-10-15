@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import bgImage from '../assets/DataInFlames.jpg'
+import SystemTiles, { parseSystem, parseOs, cleanRam, OsKpis, statLevel } from '../components/SystemPanel'
 
 const LELE_API_URL = 'https://api.danielevillanova.com'
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
@@ -18,10 +19,17 @@ const FORCED_ADMIN_CHAT_ID = 8733881519
 // ---------------------------------------------------------------------------
 
 // --- AUDIO: TTS + registrazione + risposta audio ---------------------------
-// Le API audio (/api/chat e /api/chat/audio) funzionano solo per questi due agenti.
+// Story Whisper e Night Story: API audio complete (/api/chat e /api/chat/audio).
+// Leles: console admin (login Google). Testo e TTS passano da /api/admin/chat.
+// ATTENZIONE: le due route qui sotto per audio in ingresso e file TTS sono
+// ASSUNTE (speculari a quelle pubbliche): da verificare lato gateway.
+const LELES_AGENT = 'Leles'
+const LELES_AUDIO_PATH = '/api/admin/chat/audio'
+const LELES_TTS_PATH = '/api/admin/chat/tts'
 const AUDIO_AGENTS = [
   { value: 'Story Whisper', label: 'Story Whisper 🌈' },
   { value: 'Night Story', label: 'Night Story 🌙' },
+  { value: LELES_AGENT, label: 'Leles 🏴‍☠️' },
 ]
 const AUDIO_CHAT_ID_KEY = 'lele_chat_id'
 const AUDIO_LANGUAGE = 'it'
@@ -30,12 +38,14 @@ const AUTO_SEND_RECORDING = true
 
 // Pagine di test raggiungibili al volo.
 const QUICK_LINKS = [
-  { to: '/test4', label: 'Bot to bot', main: true },
-  { to: '/test6', label: 'Test 6' },
-  { to: '/test3', label: 'Test 3' },
-  { to: '/test2', label: 'Test 2' },
-  { to: '/test', label: 'Test' },
-  { to: '/leles', label: 'Lele Admin' },
+  { to: '/improve', label: 'Improve 🛠️', main: true},
+  { to: '/test', label: 'Test 🕰️' },
+  { to: '/test2', label: 'Test2 🧜🏻‍♀️' },
+  { to: '/test3', label: 'Test3 🗺️' },
+  { to: '/test4', label: 'Test4 🔬' },
+  { to: '/test5', label: 'Test5 🧠' },
+  { to: '/test6', label: 'Test6 🍸' },
+  { to: '/leles', label: 'Leles Admin 🏴‍☠️', main: true  },
 ]
 
 // Comandi mostrati nel pannello di destra (si aggiornano con "Aggiorna").
@@ -155,6 +165,14 @@ const COMMAND_GROUPS = [
     ],
   },
   {
+    id: 'super', title: 'Super-Leles', icon: '⚡', color: '#a78bfa',
+    commands: [
+      c('Modello SL in uso', 'modellosl', 'mostra il modello corrente di Super-Leles'),
+      c('Cambia modello SL', 'modellosl ', 'nome modello (es. modellosl mistral)'),
+      c('Super domanda', 'super ', 'chiedi anything a Super-Leles'),
+    ],
+  },
+  {
     id: 'leles', title: 'Leles', icon: '🏴‍☠️', color: '#e2e8f0',
     commands: [
       c('Restart Lelé', 'restart Lelé', undefined, true),
@@ -266,6 +284,37 @@ async function callAdmin(idToken, prompt, timeoutMs = 310000) {
   }
 }
 
+// Chiamata admin generica (JSON o FormData) che restituisce il JSON grezzo.
+async function adminJson(idToken, path, init = {}, timeoutMs = 310000) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetch(`${LELE_API_URL}${path}`, {
+      ...init,
+      headers: { ...(init.headers || {}), Authorization: `Bearer ${idToken}` },
+      signal: controller.signal,
+    })
+    if (res.status === 401 || res.status === 403) {
+      const err = new Error(
+        res.status === 401
+          ? 'Sessione scaduta, effettua di nuovo il login.'
+          : 'Accesso non autorizzato per questo account Google. 🏴‍☠️'
+      )
+      err.status = res.status
+      throw err
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+    return await res.json()
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      throw new Error('Timeout: il server non ha risposto in tempo. 😵‍💫')
+    }
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 const timeLabel = (ts) =>
   new Date(ts).toLocaleTimeString('it-IT', {
     hour: '2-digit',
@@ -273,172 +322,6 @@ const timeLabel = (ts) =>
     second: '2-digit',
   })
 
-// ------------------------------------------------------------------
-// Dashboard "Sistema": parser del testo di `status sistema` + tessere.
-// ------------------------------------------------------------------
-const SYS_SECTIONS = {
-  'Projects': 'Progetti',
-  'Shared Services': 'Servizi',
-  'Models': 'Modelli',
-}
-
-// Trasforma l'output testuale di "status sistema" in dati per le tessere.
-// Ritorna null se il formato non è riconosciuto (si ripiega sul testo).
-function parseSystem(text) {
-  if (!text) return null
-  const sections = []
-  let cur = null
-  let git = null
-  let inGit = false
-
-  for (const raw of text.split('\n')) {
-    const line = raw.trim()
-    if (!line || /^[\u2500-]+$/.test(line)) continue
-
-    if (SYS_SECTIONS[line]) {
-      cur = { title: SYS_SECTIONS[line], items: [] }
-      sections.push(cur)
-      inGit = false
-      continue
-    }
-    if (line === 'Git') {
-      git = { branch: '', status: '', clean: false, files: [] }
-      cur = null
-      inGit = true
-      continue
-    }
-
-    if (inGit && git) {
-      if (line.startsWith('Branch:')) git.branch = line.slice(7).trim()
-      else if (line.startsWith('Status:')) {
-        git.status = line.slice(7).trim()
-        git.clean = /clean/i.test(git.status)
-      } else git.files.push(line)
-      continue
-    }
-
-    const m = line.match(/^(✅|❌|🟢|⚪️|⚪)\s*(.+)$/u)
-    if (m && cur) {
-      const state = m[1] === '✅' || m[1] === '🟢' ? 'ok' : m[1] === '❌' ? 'bad' : 'off'
-      const nm = m[2].match(/^(.*?)\s*\((.+)\)$/)
-      cur.items.push({
-        label: (nm ? nm[1] : m[2]).replace(/_/g, ' '),
-        sub: nm ? nm[2] : '',
-        state,
-      })
-    }
-  }
-
-  // Leles è sempre su (è lui che risponde): il suo stato diventa quello
-  // dell'intestazione "Progetti" e il suo box viene tolto.
-  for (const sec of sections) {
-    if (sec.title === 'Progetti') {
-      const i = sec.items.findIndex((it) => /^leles$/i.test(it.label))
-      if (i >= 0) {
-        sec.head = sec.items[i].state
-        sec.items.splice(i, 1)
-      }
-    }
-  }
-
-  // Ollama: i modelli diventano sotto-box del suo riquadro (a tutta
-  // larghezza, in fondo ai servizi). Se Ollama non c'è, i modelli
-  // restano una sezione a parte.
-  const services = sections.find((sec) => sec.title === 'Servizi')
-  const models = sections.find((sec) => sec.title === 'Modelli')
-  const ollama = services?.items.find((it) => /^ollama$/i.test(it.label))
-  if (ollama && models) {
-    ollama.children = models.items
-    sections.splice(sections.indexOf(models), 1)
-    services.items.splice(services.items.indexOf(ollama), 1)
-    services.items.push(ollama)
-  }
-
-  const filled = sections.filter((sec) => sec.items.length > 0)
-  if (filled.length === 0) return null
-  return { sections: filled, git }
-}
-
-// Schemino a quadratini: verde = su, rosso = giù, grigio = non caricato.
-function SystemTiles({ data }) {
-  const label = { ok: 'attivo', bad: 'non attivo', off: 'non caricato' }
-  return (
-    <div className="lc-sys">
-      {data.sections.map((sec) => {
-        const up = sec.items.filter((i) => i.state === 'ok').length
-        return (
-          <div key={sec.title} className="lc-sys-sec">
-            <div className="lc-sys-title">
-              <span
-                className={`lc-sys-name${sec.head ? ` is-${sec.head}` : ''}`}
-                title={sec.head ? `Leles: ${label[sec.head]}` : undefined}
-              >
-                {sec.title}
-                {sec.head && <span className="lc-sr"> (Leles {label[sec.head]})</span>}
-              </span>
-              <span>
-                {up}/{sec.items.length}
-              </span>
-            </div>
-            <div className="lc-tiles">
-              {sec.items.map((it) =>
-                it.children ? (
-                  <div
-                    key={it.label}
-                    className={`lc-tile lc-tile--wide is-${it.state}`}
-                    title={`${it.label}: ${label[it.state]}`}
-                  >
-                    <b>{it.label}</b>
-                    <span className="lc-sr">{label[it.state]}</span>
-                    <div className="lc-subs">
-                      {it.children.map((m) => (
-                        <span
-                          key={m.label}
-                          className={`lc-sub is-${m.state}`}
-                          title={`${m.label}: ${label[m.state]}`}
-                        >
-                          {m.label}
-                          <span className="lc-sr"> {label[m.state]}</span>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div
-                    key={it.label}
-                    className={`lc-tile is-${it.state}`}
-                    title={`${it.label}${it.sub ? ` (${it.sub})` : ''}: ${label[it.state]}`}
-                  >
-                    <b>{it.label}</b>
-                    {it.sub && <small>{it.sub}</small>}
-                    <span className="lc-sr">{label[it.state]}</span>
-                  </div>
-                )
-              )}
-            </div>
-          </div>
-        )
-      })}
-
-      {data.git && (
-        <div className="lc-sys-sec">
-          <div className="lc-sys-title">
-            <span>Git</span>
-          </div>
-          <div className="lc-sys-git">
-            {data.git.branch && <span className="lc-badge">{data.git.branch}</span>}
-            <span
-              className={`lc-badge ${data.git.clean ? 'is-ok' : 'is-warn'}`}
-              title={data.git.files.join('\n') || undefined}
-            >
-              {data.git.clean ? 'Clean' : data.git.status.replace(/^⚠️\s*/, '')}
-            </span>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
 
 export default function Test5() {
   const [idToken, setIdToken] = useState(() => {
@@ -455,6 +338,7 @@ export default function Test5() {
   const [gsiReady, setGsiReady] = useState(false)
 
   const [prompt, setPrompt] = useState('')
+  const [superMode, setSuperMode] = useState(false)
   const [armed, setArmed] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [history, setHistory] = useState([])
@@ -640,7 +524,10 @@ export default function Test5() {
 
   async function run(e) {
     e?.preventDefault()
-    const cmd = prompt.trim()
+    // Super-Leles: se il toggle e' attivo, il prompt parte come 'super <domanda>'
+    // (a meno che non sia gia' un comando super/sl/modellosl).
+    const raw = prompt.trim()
+    const cmd = superMode && !/^(super|super-leles|sl|modellosl)\b/i.test(raw) ? 'super ' + raw : raw
     if (!cmd || !idToken || isLoading) return
 
     // Comandi sensibili: serve una seconda pressione.
@@ -706,6 +593,7 @@ export default function Test5() {
   const chunksRef = useRef([])
   const recTimerRef = useRef(null)
   const recBlobRef = useRef(null)
+  const lelesAudioRef = useRef(null)
 
   useEffect(() => {
     return () => {
@@ -716,6 +604,7 @@ export default function Test5() {
   useEffect(() => {
     return () => {
       if (recTimerRef.current) clearInterval(recTimerRef.current)
+      if (lelesAudioRef.current) URL.revokeObjectURL(lelesAudioRef.current.url)
       const tracks = recorderRef.current?.stream?.getTracks?.() || []
       tracks.forEach((track) => track.stop())
     }
@@ -766,6 +655,40 @@ export default function Test5() {
     resetAudioReply()
     setAudioBusy(true)
 
+    // Leles: console admin (con token). I comandi sensibili passano solo
+    // dal prompt principale, che chiede la conferma.
+    if (audioAgent === LELES_AGENT) {
+      if (isDanger(text)) {
+        setAudioError(
+          'Comando sensibile: usa il prompt principale, che chiede la conferma.'
+        )
+        setAudioBusy(false)
+        return
+      }
+      const lelesClean = text.replace(/^(audio e testo|audio)\s*/i, '')
+      try {
+        const data = await adminJson(idToken, '/api/admin/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: wantsTts ? `audio e testo ${lelesClean}` : text,
+            language: 'en',
+            chat_id: FORCED_ADMIN_CHAT_ID,
+          }),
+        })
+        applyAudioReply(data, LELES_AGENT)
+      } catch (err) {
+        if (err.status === 401 || err.status === 403) {
+          logout(err.message)
+          return
+        }
+        setAudioError(err.message)
+      } finally {
+        setAudioBusy(false)
+      }
+      return
+    }
+
     const clean = text.replace(/^(audio e testo|audio)\s*/i, '')
     const promptToSend = wantsTts ? `audio e testo ${clean}` : audioPrompt
 
@@ -796,19 +719,27 @@ export default function Test5() {
     resetAudioReply()
     setAudioBusy(true)
 
+    const isLeles = audioAgent === LELES_AGENT
+
     try {
       const form = new FormData()
       form.append('audio', blob, 'recording.webm')
-      form.append('agent', audioAgent)
+      if (!isLeles) form.append('agent', audioAgent)
       form.append('language', AUDIO_LANGUAGE)
-      form.append('chat_id', String(audioChatIdRef.current))
+      form.append(
+        'chat_id',
+        String(isLeles ? FORCED_ADMIN_CHAT_ID : audioChatIdRef.current)
+      )
 
-      const data = await audioRequest('/api/chat/audio', {
-        method: 'POST',
-        body: form,
-      })
+      const data = isLeles
+        ? await adminJson(idToken, LELES_AUDIO_PATH, { method: 'POST', body: form })
+        : await audioRequest('/api/chat/audio', { method: 'POST', body: form })
       applyAudioReply(data, audioAgent)
     } catch (err) {
+      if (err.status === 401 || err.status === 403) {
+        logout(err.message)
+        return
+      }
       setAudioError(err.message)
     } finally {
       setAudioBusy(false)
@@ -845,7 +776,8 @@ export default function Test5() {
         stream.getTracks().forEach((track) => track.stop())
 
         // Invio automatico appena termina la registrazione.
-        if (AUTO_SEND_RECORDING) sendRecording(blob)
+        // Con Leles (admin) niente invio automatico: si invia a mano.
+        if (AUTO_SEND_RECORDING && audioAgent !== LELES_AGENT) sendRecording(blob)
       }
 
       recorder.start()
@@ -872,31 +804,52 @@ export default function Test5() {
     }
   }
 
+  // Audio TTS di Leles: richiede il token, quindi si scarica come blob.
+  async function getLelesAudioUrl(file) {
+    if (lelesAudioRef.current?.file === file) return lelesAudioRef.current.url
+    const res = await fetch(
+      `${LELE_API_URL}${LELES_TTS_PATH}/${encodeURIComponent(file)}`,
+      { headers: { Authorization: `Bearer ${idToken}` } }
+    )
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const url = URL.createObjectURL(await res.blob())
+    if (lelesAudioRef.current) URL.revokeObjectURL(lelesAudioRef.current.url)
+    lelesAudioRef.current = { file, url }
+    return url
+  }
+
   // Riproduzione audio generato dal backend
-  function togglePlayAudio() {
+  async function togglePlayAudio() {
     const player = audioPlayerRef.current
     if (!audioReplyFile || !player) return
-
-    const url = `${LELE_API_URL}/api/chat/tts/${encodeURIComponent(
-      audioReplyAgent
-    )}/${encodeURIComponent(audioReplyFile)}`
-
-    if (player.src !== url) {
-      player.src = url
-      player.playbackRate = playbackRate
-    }
 
     if (isSpeaking) {
       player.pause()
       setIsSpeaking(false)
-    } else {
-      player
-        .play()
-        .then(() => setIsSpeaking(true))
-        .catch(() => {
-          setIsSpeaking(false)
-          setAudioError('Riproduzione audio bloccata dal browser.')
-        })
+      return
+    }
+
+    const isLeles = audioReplyAgent === LELES_AGENT
+    try {
+      const url = isLeles
+        ? await getLelesAudioUrl(audioReplyFile)
+        : `${LELE_API_URL}/api/chat/tts/${encodeURIComponent(
+            audioReplyAgent
+          )}/${encodeURIComponent(audioReplyFile)}`
+
+      if (player.src !== url) {
+        player.src = url
+        player.playbackRate = playbackRate
+      }
+      await player.play()
+      setIsSpeaking(true)
+    } catch (err) {
+      setIsSpeaking(false)
+      setAudioError(
+        isLeles
+          ? `Audio di Leles non disponibile: ${err.message}`
+          : 'Riproduzione audio bloccata dal browser.'
+      )
     }
   }
 
@@ -946,7 +899,7 @@ export default function Test5() {
         {backdrop}
         <div className="lc-wrap">
           <div className="lc-top">
-            <h1 className="lc-title">Lele Admin Console</h1>
+            <h1 className="lc-title">Lele Admin Console · Test5 (Super-Leles)</h1>
             <div ref={buttonRef} className="lc-gbtn" />
           </div>
           <p className="lc-dim lc-small lc-login-msg">Accesso riservato.</p>
@@ -969,7 +922,7 @@ export default function Test5() {
 
       <div className="lc-wrap">
         <div className="lc-top">
-          <h1 className="lc-title">Lele Admin Console</h1>
+          <h1 className="lc-title">Lele Admin Console · Test5 (Super-Leles)</h1>
           <div className="lc-session">
             <span className="lc-ellipsis">{profile?.email || 'account Google'}</span>
             <button type="button" className="lc-btn lc-btn--sm" onClick={() => logout()}>
@@ -1003,6 +956,15 @@ export default function Test5() {
                 />
               </div>
               <div className="lc-prompt-foot">
+                <button
+                  type="button"
+                  className="lc-btn"
+                  onClick={() => setSuperMode((v) => !v)}
+                  style={superMode ? { borderColor: '#a78bfa', color: '#a78bfa' } : undefined}
+                  title="Quando attivo, il prompt viene inviato come 'super <domanda>' a Super-Leles (grounded)"
+                >
+                  {superMode ? '⚡ Super-Leles ON' : '⚡ Super-Leles'}
+                </button>
                 <span className="lc-dim lc-small">
                   {armed
                     ? 'Comando che cambia lo stato del sistema: premi di nuovo per confermare.'
@@ -1350,32 +1312,39 @@ export default function Test5() {
               {STATUS_CMDS.map(([key, label]) => {
                 const s = status[key]
                 const tiles = key === 'sys' && !rawSys ? parseSystem(s?.text) : null
+                const osData = key === 'os' ? parseOs(s?.text) : null
+                const ramText = key === 'ram' ? cleanRam(s?.text) : null
+                const lvl = statLevel(key, status)
                 return (
-                  <div key={key} className="lc-stat">
+                    <div key={key} className="lc-stat">
                     <div className="lc-stat-head">
-                      <h3>{label}</h3>
-                      {key === 'sys' && s?.text && parseSystem(s.text) && (
-                        <button
-                          type="button"
-                          className="lc-btn lc-btn--sm"
-                          onClick={() => setRawSys((v) => !v)}
-                        >
-                          {rawSys ? 'Schema' : 'Testo'}
-                        </button>
-                      )}
+                        <h3 className={`lc-stat-name${lvl ? ` is-${lvl}` : ''}`}>{label}</h3>
+                        {key === 'sys' && s?.text && parseSystem(s.text) && (
+                            <button
+                                type="button"
+                                className="lc-btn lc-btn--sm"
+                                onClick={() => setRawSys((v) => !v)}
+                            >
+                                {rawSys ? 'Schema' : 'Testo'}
+                            </button>
+                        )}
                     </div>
                     {s?.err ? (
-                      <p className="lc-err lc-small">{s.err}</p>
+                        <p className="lc-err lc-small">{s.err}</p>
                     ) : tiles ? (
-                      <SystemTiles data={tiles} />
+                        <SystemTiles data={tiles} />
+                    ) : osData ? (
+                        <OsKpis data={osData} />
                     ) : (
-                      <pre className="lc-pre lc-pre--sm">
-                        {s?.text || (statusLoading ? 'Carico…' : 'Nessun dato. Premi Aggiorna.')}
-                      </pre>
+                        <pre className="lc-pre lc-pre--sm">
+                            {(key === 'ram' && ramText) ||
+                                s?.text ||
+                                (statusLoading ? 'Carico…' : 'Nessun dato. Premi Aggiorna.')}
+                        </pre>
                     )}
-                  </div>
-                )
-              })}
+                </div>
+            )
+        })}
             </section>
           </aside>
         </div>
@@ -1403,7 +1372,7 @@ const css = `
   --mono:ui-monospace,'JetBrains Mono','SF Mono',Menlo,Consolas,monospace;
   position:relative;min-height:calc(100vh - 64px);overflow:hidden;color:var(--ink);font-family:var(--sans)}
 .lc-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.38}
-.lc-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,16,21,.5) 0%,rgba(11,16,21,.96) 70%)}
+.lc-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,16,21,.25) 0%,rgba(11,16,21,.40) 70%)}
 .lc-wrap{position:relative;max-width:1280px;margin:0 auto;padding:28px 24px 72px}
 .lc-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .lc-gbtn{min-height:32px;flex:none}
@@ -1485,15 +1454,27 @@ const css = `
 .lc-sys-title{display:flex;justify-content:space-between;font-size:10px;letter-spacing:.08em;text-transform:uppercase;
   color:var(--ink-dim);margin-bottom:5px}
 .lc-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
-.lc-tile{position:relative;display:flex;flex-direction:column;justify-content:center;gap:1px;min-height:38px;
+.lc-ollama-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
+.lc-ollama-box{position:relative;display:flex;align-items:center;min-height:38px;
+  padding:5px 12px 5px 8px;border-radius:8px;border:1px solid rgba(74,222,128,.4);
+  background:rgba(74,222,128,.1);line-height:1.2;word-break:break-word;color:var(--ok)}
+.lc-ollama-box::after{content:'';position:absolute;top:6px;right:6px;width:5px;height:5px;
+  border-radius:50%;background:currentColor}
+.lc-ollama-box b{font-size:10.5px;font-weight:650}
+.lc-ollama-wide{grid-column:1/-1}
+.lc-ollama-box.is-bad{color:var(--bad);background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.45)}
+.lc-ollama-box.is-warn{color:var(--warn);background:rgba(251,191,36,.1);border-color:rgba(251,191,36,.45)}
+.lc-ollama-box.is-off{color:var(--ink-dim);opacity:.8}.lc-tile{position:relative;display:flex;flex-direction:column;justify-content:center;gap:1px;min-height:38px;
   padding:5px 12px 5px 8px;border-radius:8px;border:1px solid var(--line);background:rgba(255,255,255,.04);
   line-height:1.2;word-break:break-word;color:var(--ink-dim)}
+
 .lc-tile::after{content:'';position:absolute;top:6px;right:6px;width:5px;height:5px;border-radius:50%;background:currentColor}
 .lc-tile b{font-size:10.5px;font-weight:650;color:var(--ink)}
 .lc-tile small{font-size:9.5px;color:var(--ink-dim);overflow:hidden;text-overflow:ellipsis}
 .lc-tile.is-ok{color:var(--ok);background:rgba(74,222,128,.1);border-color:rgba(74,222,128,.4)}
 .lc-tile.is-bad{color:var(--bad);background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.45)}
 .lc-tile.is-off{color:var(--ink-dim);opacity:.8}
+.lc-tile.is-warn{color:var(--warn);background:rgba(251,191,36,.1);border-color:rgba(251,191,36,.45)}
 .lc-sys-name{display:inline-flex;align-items:center;gap:5px}
 .lc-sys-name.is-ok,.lc-sys-name.is-bad{font-weight:700}
 .lc-sys-name.is-ok::before,.lc-sys-name.is-bad::before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor}
@@ -1546,6 +1527,7 @@ const css = `
 .lc-rec .lc-cmd-head{margin-bottom:8px}
 .lc-rec-audio{width:100%}
 .lc-audio .lc-err{margin-top:10px}
+.lc-audio-hint{margin-top:8px}
 .lc-audio-out{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.28);overflow:hidden}
 .lc-audio-out header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);font-size:13px;font-weight:600}
 .lc-player{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
