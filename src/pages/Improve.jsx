@@ -863,17 +863,15 @@ export default function Improve() {
           Diff file
         </button>
         <button
-          className={"imp-btn " + (mode === "git" ? "imp-tab-active" : "")}
-          onClick={() => setMode("git")}
-          role="tab"
-          aria-selected={mode === "git"}
-        >
-          Git
+          className="imp-btn"
+          onClick={() => navigate("/test2")}
+          title="Pannello Git Admin 🛠️ "        >
+          Git Admin ↗
         </button>
         <button
           className="imp-btn"
           onClick={() => navigate("/dag-admin")}
-          title="Pannello DAG Airflow (DagAdmin)"
+          title="Pannello Airflow Admin 🌀"
         >
           DAG Admin ↗
         </button>
