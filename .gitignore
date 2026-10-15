@@ -31,3 +31,5 @@ Nav_tmp.jsx
 !.dev.vars.example
 !.env.example
 gateway.env
+__pycache__/
+*.py[cod]
