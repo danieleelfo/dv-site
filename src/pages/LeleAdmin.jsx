@@ -1538,4 +1538,8 @@ const css = `
 .lc-btn--sm.is-on{background:var(--accent);border-color:var(--accent);color:#07201f}
 .lc-play.is-on{background:var(--bad);border-color:var(--bad);color:#fff}
 @media (max-width:560px){.lc-player-top{flex-wrap:wrap}.lc-seek{flex-basis:100%}}
+@media (max-width:560px){
+  .lc-bg{opacity:.55}
+  .lc-shade{background:linear-gradient(180deg,rgba(11,16,21,.10) 0%,rgba(11,16,21,.22) 70%)}
+}
 ` 
