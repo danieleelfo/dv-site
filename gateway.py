@@ -2755,6 +2755,137 @@ async def image_history_image(
 
     return FileResponse(image_path, media_type="image/png")
 
+# ==========================================================================
+# VISION OCR — estrazione testo da immagini con Qwen-VL via Ollama
+# ==========================================================================
+#
+# Architettura:
+#   Sito -> Gateway autenticato -> Ollama locale :11434 (modello vision)
+#
+# Il nome del modello è configurabile da env perché la versione
+# installata può cambiare (qwen2.5vl, qwen2-vl, qwen3-vl, ...).
+# ==========================================================================
+
+OLLAMA_URL = os.environ.get(
+    "OLLAMA_URL",
+    "http://127.0.0.1:11434",
+).rstrip("/")
+
+VISION_OCR_MODEL = os.environ.get("VISION_OCR_MODEL", "qwen2.5vl")
+
+# Peso massimo dell'immagine caricata (10 MB).
+VISION_MAX_IMAGE_BYTES = 10 * 1024 * 1024
+
+# Qwen-VL non è pesante quanto Z-Image, ma il Mac ha 16 GB:
+# una richiesta OCR alla volta.
+_VISION_LOCK = asyncio.Lock()
+
+VISION_TIMEOUT = 300.0
+
+
+class VisionOcrRequest(BaseModel):
+    image_base64: str = Field(..., min_length=1)
+
+    prompt: str = Field(
+        "Estrai tutto il testo presente in questa immagine. "
+        "Riportalo fedelmente, mantenendo l ordine di lettura.",
+        max_length=2000,
+    )
+
+
+@app.post("/api/vision/ocr")
+async def vision_ocr(
+    req: VisionOcrRequest,
+    authorization: str | None = Header(None),
+):
+    """
+    Estrae testo da un'immagine con il modello vision locale.
+
+    Il body è JSON: { image_base64, prompt? }.
+    """
+    verify_admin_token(authorization)
+
+    # Il base64 può avere il prefisso data:image/...;base64,
+    image_b64 = req.image_base64
+    if ";base64," in image_b64:
+        image_b64 = image_b64.split(";base64,", 1)[1]
+
+    try:
+        raw = base64.b64decode(image_b64, validate=False)
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="Immagine non valida (base64 corrotto).",
+        )
+
+    if not raw:
+        raise HTTPException(
+            status_code=400,
+            detail="Immagine vuota.",
+        )
+
+    if len(raw) > VISION_MAX_IMAGE_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Immagine troppo grande (massimo "
+                f"{VISION_MAX_IMAGE_BYTES // (1024 * 1024)} MB)."
+            ),
+        )
+
+    payload = {
+        "model": VISION_OCR_MODEL,
+        "prompt": req.prompt,
+        "images": [image_b64],
+        "stream": False,
+    }
+
+    timeout = httpx.Timeout(
+        timeout=VISION_TIMEOUT,
+        connect=10.0,
+    )
+
+    async with _VISION_LOCK:
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.post(
+                    f"{OLLAMA_URL}/api/generate",
+                    json=payload,
+                )
+
+                if response.status_code >= 400:
+                    raise HTTPException(
+                        status_code=502,
+                        detail=(
+                            f"Ollama ha restituito HTTP {response.status_code}: "
+                            f"{response.text[:1000]}"
+                        ),
+                    )
+
+                data = response.json()
+
+        except HTTPException:
+            raise
+
+        except httpx.RequestError as e:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Ollama non è raggiungibile su "
+                    f"{OLLAMA_URL}. Verifica che sia in esecuzione. Dettaglio: {e}"
+                ),
+            )
+
+    text = (data.get("response") or "").strip()
+
+    if not text:
+        text = "(Il modello non ha restituito testo.)"
+
+    return {
+        "text": text,
+        "model": VISION_OCR_MODEL,
+    }
+
 # --------------------------------------------------------------------------
 # HEALTH CHECK IMAGE LAB
 # --------------------------------------------------------------------------

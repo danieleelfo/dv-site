@@ -133,6 +133,11 @@ export default function Test4() {
   const [historyError, setHistoryError] = useState("");
   const [historyPreview, setHistoryPreview] = useState(null);
 
+  const [ocrImage, setOcrImage] = useState(null);
+  const [ocrStatus, setOcrStatus] = useState("idle");
+  const [ocrText, setOcrText] = useState("");
+  const [ocrError, setOcrError] = useState("");
+
   // ----------------------------------------------------------
   // Google login condiviso con Improve.jsx
   // ----------------------------------------------------------
@@ -285,6 +290,77 @@ export default function Test4() {
       return null;
     });
   }, []);
+
+  // ----------------------------------------------------------
+  // OCR — estrazione testo da foto (Qwen-VL via gateway)
+  // ----------------------------------------------------------
+
+  const onOcrFile = useCallback((event) => {
+    const file = event.target.files?.[0];
+
+    setOcrText("");
+    setOcrError("");
+
+    if (!file) {
+      setOcrImage(null);
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      setOcrError("Seleziona un file immagine.");
+      setOcrImage(null);
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setOcrError("Immagine troppo grande (massimo 10 MB).");
+      setOcrImage(null);
+      return;
+    }
+
+    setOcrImage(file);
+  }, []);
+
+  async function runOcr(event) {
+    event.preventDefault();
+
+    setOcrError("");
+    setOcrText("");
+
+    if (!ocrImage || !idToken) return;
+
+    setOcrStatus("running");
+
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error("Lettura file non riuscita."));
+        reader.readAsDataURL(ocrImage);
+      });
+
+      const response = await fetch(`${API}/api/vision/ocr`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ image_base64: base64 }),
+      });
+
+      const data = await readResponse(response);
+      setOcrText(data.text || "");
+      setOcrStatus("done");
+    } catch (err) {
+      setOcrError(err.message || String(err));
+      setOcrStatus("error");
+    }
+  }
+
+  function copyOcrText() {
+    if (!ocrText) return;
+    navigator.clipboard?.writeText(ocrText);
+  }
 
   const reuseHistoryParams = useCallback((item) => {
     setPrompt(item.prompt || "");
@@ -1042,6 +1118,56 @@ export default function Test4() {
           )}
         </section>
 
+        <section className="il-panel il-ocr-panel">
+          <div className="il-section-heading">
+            <div>
+              <p className="il-eyebrow">04 / OCR</p>
+              <h2>Estrai testo da una foto</h2>
+            </div>
+          </div>
+
+          <form onSubmit={runOcr} className="il-ocr-form">
+            <input
+              type="file"
+              accept="image/*"
+              onChange={onOcrFile}
+              disabled={ocrStatus === "running"}
+            />
+
+            {ocrImage && (
+              <p className="il-hint">
+                {ocrImage.name} ({Math.round(ocrImage.size / 1024)} KB)
+              </p>
+            )}
+
+            <button
+              className="il-button il-primary"
+              type="submit"
+              disabled={!ocrImage || ocrStatus === "running"}
+            >
+              {ocrStatus === "running" ? "Analizzo…" : "Estrai testo"}
+            </button>
+          </form>
+
+          {ocrError && (
+            <div className="il-error" role="alert">
+              {ocrError}
+            </div>
+          )}
+
+          {ocrText && (
+            <div className="il-ocr-result">
+              <div className="il-history-modal-meta">
+                <span>Testo estratto</span>
+                <button className="il-button" onClick={copyOcrText}>
+                  Copia
+                </button>
+              </div>
+              <pre className="il-ocr-pre">{ocrText}</pre>
+            </div>
+          )}
+        </section>
+
         <footer className="il-footer">
           <span>Z-Image-Turbo</span>
           <span>Local inference · Async jobs</span>
@@ -1463,6 +1589,33 @@ const STYLES = `
   gap: .5rem 1rem;
   color: var(--ink-dim, #8fa1ac);
   font-size: .76rem;
+}
+.il-ocr-panel {
+  margin-top: 1rem;
+}
+.il-ocr-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .6rem;
+}
+.il-ocr-result {
+  margin-top: .8rem;
+}
+.il-ocr-pre {
+  margin: .5rem 0 0;
+  padding: .8rem 1rem;
+  border: 1px solid var(--border, #1f2b35);
+  border-radius: 9px;
+  background: var(--bg-alt, #0f151c);
+  color: var(--ink, #e7edf1);
+  font-family: inherit;
+  font-size: .82rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 380px;
+  overflow-y: auto;
 }
 .il-footer {
   display: flex;
