@@ -137,6 +137,7 @@ export default function Test4() {
   const [ocrStatus, setOcrStatus] = useState("idle");
   const [ocrText, setOcrText] = useState("");
   const [ocrError, setOcrError] = useState("");
+  const [jcsInterpretation, setJcsInterpretation] = useState("");
 
   // ----------------------------------------------------------
   // Google login condiviso con Improve.jsx
@@ -300,6 +301,7 @@ export default function Test4() {
 
     setOcrText("");
     setOcrError("");
+    setJcsInterpretation("");
 
     if (!file) {
       setOcrImage(null);
@@ -350,6 +352,7 @@ export default function Test4() {
 
       const data = await readResponse(response);
       setOcrText(data.text || "");
+      setJcsInterpretation(data.is_jcs ? data.jcs || "" : "");
       setOcrStatus("done");
     } catch (err) {
       setOcrError(err.message || String(err));
@@ -1166,6 +1169,15 @@ export default function Test4() {
               <pre className="il-ocr-pre">{ocrText}</pre>
             </div>
           )}
+
+          {jcsInterpretation && (
+            <div className="il-ocr-result il-jcs-result">
+              <div className="il-history-modal-meta">
+                <span>🧾 Interpretazione JCS</span>
+              </div>
+              <pre className="il-ocr-pre">{jcsInterpretation}</pre>
+            </div>
+          )}
         </section>
 
         <footer className="il-footer">
@@ -1616,6 +1628,10 @@ const STYLES = `
   overflow-wrap: anywhere;
   max-height: 380px;
   overflow-y: auto;
+}
+.il-jcs-result {
+  border-left: 3px solid var(--accent, #6fe3dd);
+  padding-left: .8rem;
 }
 .il-footer {
   display: flex;

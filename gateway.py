@@ -2952,10 +2952,137 @@ async def vision_ocr(
     if not text:
         text = "(Il modello non ha restituito testo.)"
 
-    return {
+    result = {
         "text": text,
         "model": VISION_OCR_MODEL,
+        "is_jcs": False,
+        "jcs": "",
     }
+
+    # Agente JCS: se il testo è un timesheet, lo interpreta.
+    if _jcs_detect(text):
+        result["is_jcs"] = True
+        result["jcs"] = await _jcs_interpret(text)
+
+    return result
+
+
+
+# ==========================================================================
+# JCS AGENT — Jay Ca Sheet (timesheet)
+# ==========================================================================
+#
+# Se l'OCR riconosce un timesheet JCS, il testo estratto viene passato
+# a una seconda chiamata LLM con le istruzioni di interpretazione,
+# caricate da jcs_prompt.txt (accanto a gateway.py) così sono
+# modificabili senza toccare il codice.
+#
+# Rilevamento v1 (partiamo facile): euristica su parole chiave.
+# ==========================================================================
+
+JCS_DAYS = {
+    "lunes", "martes", "miercoles", "miércoles", "jueves",
+    "viernes", "sabado", "sábado", "domingo",
+}
+
+JCS_STATUS_LETTERS = re.compile(r"\b[FBVDX]\b")
+
+
+def _jcs_load_prompt() -> str:
+    """
+    Carica le istruzioni dell'agente JCS da jcs_prompt.txt.
+    Se il file non esiste, usa il prompt di default.
+    """
+    default_prompt = (
+        "Sei l'agente JCS (Jay Ca Sheet), specializzato in fogli di presenza. "\n
+        "Ricevi il testo estratto con OCR da un timesheet. "\n
+        "Ogni tabella corrisponde a un giorno (LUNES, MARTES, ...). "\n
+        "Per ogni persona ci sono lettere di stato, una per giorno del mese. "\n
+        "Interpreta il foglio: per ogni giorno riporta chi è presente/assente "\n
+        "secondo le lettere, segnala anomalie e riassumi le presenze. "\n
+        "Rispondi in italiano, in formato chiaro e strutturato."
+
+    )
+
+    prompt_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "jcs_prompt.txt",
+    )
+
+    try:
+        with open(prompt_path, encoding="utf-8") as f:
+            content = f.read().strip()
+        return content if content else default_prompt
+    except FileNotFoundError:
+        return default_prompt
+
+
+def _jcs_detect(text: str) -> bool:
+    """
+    Euristica di rilevamento timesheet JCS sul testo OCR.
+    """
+    if not text:
+        return False
+
+    lowered = text.lower()
+
+    # Serve almeno un giorno della settimana in spagnolo
+    # e un numero minimo di lettere di stato (F/V/B/D/X).
+    words = set(re.findall(r"[a-záéíóúñ]+", lowered))
+    has_day = bool(words & JCS_DAYS)
+    status_count = len(JCS_STATUS_LETTERS.findall(text))
+
+    return has_day and status_count >= 10
+
+
+async def _jcs_interpret(text: str) -> str:
+    """
+    Seconda chiamata LLM: l'agente JCS interpreta il timesheet.
+    """
+    prompt = (
+        _jcs_load_prompt()
+        + "\n\n=== TESTO ESTRATTO DAL FOGLIO ===\n"
+        + text
+        + "\n\n=== FINE TESTO ===\n"
+        + "Produci la tua interpretazione."
+    )
+
+    payload = {
+        "model": VISION_OCR_MODEL,
+        "prompt": prompt,
+        "stream": False,
+    }
+
+    timeout = httpx.Timeout(
+        timeout=VISION_TIMEOUT,
+        connect=10.0,
+    )
+
+    async with _VISION_LOCK:
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.post(
+                    f"{OLLAMA_URL}/api/generate",
+                    json=payload,
+                )
+
+                if response.status_code >= 400:
+                    # L'interpretazione è opzionale: se fallisce,
+                    # il testo OCR resta valido.
+                    print(
+                        f"[jcs] Errore interpretazione: HTTP {response.status_code} "
+                        f"{response.text[:500]}",
+                        flush=True,
+                    )
+                    return ""
+
+                data = response.json()
+
+        except httpx.RequestError as e:
+            print(f"[jcs] Errore interpretazione: {e}", flush=True)
+            return ""
+
+    return (data.get("response") or "").strip()
 
 # --------------------------------------------------------------------------
 # HEALTH CHECK IMAGE LAB
