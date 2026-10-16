@@ -1,64 +1,55 @@
+// src/pages/Test4.jsx
+// ANTEPRIMA: ImageLab + history persistente (da promuovere su ImageLab.jsx)
 // ============================================================
-// PROJECT TEST — Agent Arena / Bot to Bot
-// Layout ispirato a Emergence Lab.
+// AI IMAGE LAB — Z-Image-Turbo
 //
-// Agenti selezionabili:
-//   - Night Story (8 generi da prompts/genre_*.txt)
-//   - Story Whisper (nessun genere)
-//   - Leles (orchestratore)
-//   - Super-Leles
-//   - QE / Emergence (12 ruoli dal DB)
+// Frontend per la generazione asincrona di immagini sul Mac.
 //
-// Modalità N partecipanti (2..12), round-robin.
-// Ogni partecipante ha il suo LLM.
+// API previste sul gateway:
+//   POST /api/image/jobs
+//       { prompt, width, height, steps, seed }
+//       -> { job_id, status }
 //
-// Dipende SOLO dal gateway (https://api.danielevillanova.com):
-//   POST /api/agent-arena/start    -> { run_id }        (Google auth)
-//   GET  /api/agent-arena/{run_id} -> { status, turns } (aperto)
-//   POST /api/agent-arena/{run_id}/stop                 (Google auth)
-//   POST /api/agent-arena/{run_id}/hand                 (Google auth)
-//   POST /api/agent-arena/{run_id}/intervene            (Google auth)
+//   GET /api/image/jobs/{job_id}
+//       -> { job_id, status, progress?, error? }
 //
-// RAISE HAND: durante un run l'umano alza la mano; il turno in corso
-// finisce, il run va in PAUSED e si può scrivere un messaggio che il
-// prossimo bot legge insieme all'ultima risposta. Il GET restituisce
-// anche hand_raised. I turni umani arrivano con agent === "human".
+//   GET /api/image/jobs/{job_id}/result
+//       -> { image_base64, seed, width, height }
 //
-// AUTH: login Google (Google Identity Services) direttamente in pagina.
-// Il GOOGLE_CLIENT_ID deve essere LO STESSO del gateway
-// (env GOOGLE_CLIENT_ID) e l'origin del sito deve essere tra le
-// "Authorized JavaScript origins" del client OAuth.
+// AUTH: stesso login Google di Improve.jsx.
 // ============================================================
 
-import { useState, useEffect, useRef } from "react";
-import bgImage from "../assets/B2B.jpeg";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 const API = "https://api.danielevillanova.com";
-
-// <-- INSERISCI il tuo Google OAuth Client ID (stesso del gateway)
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-
 const TOKEN_STORAGE_KEY = "dv_google_id_token";
 
-// Deve combaciare con MAX_TOTAL_MESSAGES del gateway.
-const MAX_TOTAL_MESSAGES = 120;
+const POLL_INTERVAL = 5000;
 
-// Deve combaciare con MAX_HUMAN_CHARS del gateway.
-const MAX_HUMAN_CHARS = 2000;
-
-// ============================================================
-// GOOGLE AUTH
-// ============================================================
+const RESOLUTIONS = {
+  square: { width: 512, height: 512, label: "Quadrata · 512 × 512" },
+  portrait: { width: 512, height: 768, label: "Verticale · 512 × 768" },
+  landscape: { width: 768, height: 512, label: "Orizzontale · 768 × 512" },
+  square768: { width: 768, height: 768, label: "Quadrata · 768 × 768" },
+  square1024: { width: 1024, height: 1024, label: "Quadrata · 1024 × 1024" },
+};
 
 function parseJwt(token) {
   try {
-    const base64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const base64 = token
+      .split(".")[1]
+      .replace(/-/g, "+")
+      .replace(/_/g, "/");
+
     const json = decodeURIComponent(
       atob(base64)
         .split("")
         .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
         .join("")
     );
+
     return JSON.parse(json);
   } catch {
     return null;
@@ -72,1787 +63,1603 @@ function isTokenValid(token) {
 
 function readStoredToken() {
   try {
-    const stored = localStorage.getItem(TOKEN_STORAGE_KEY);
-    return isTokenValid(stored) ? stored : null;
+    const token = localStorage.getItem(TOKEN_STORAGE_KEY);
+    return isTokenValid(token) ? token : null;
   } catch {
     return null;
   }
 }
 
-function useGoogleAuth() {
-  const [idToken, setIdToken] = useState(readStoredToken);
+function formatDuration(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return "—";
 
-  // Sync login tra pagine/tab: se un'altra pagina fa login/logout,
-  // l'evento "storage" ci arriva subito e aggiorniamo lo stato.
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = Math.floor(seconds % 60);
+
+  if (minutes === 0) return `${remainingSeconds} s`;
+
+  return `${minutes} min ${String(remainingSeconds).padStart(2, "0")} s`;
+}
+
+function normalizeStatus(value) {
+  return String(value || "").toLowerCase();
+}
+
+async function readResponse(response) {
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    const detail =
+      typeof data.detail === "string"
+        ? data.detail
+        : data.detail
+          ? JSON.stringify(data.detail)
+          : `HTTP ${response.status}`;
+
+    throw new Error(detail);
+  }
+
+  return data;
+}
+
+export default function Test4() {
+  const navigate = useNavigate();
+  const loginButtonRef = useRef(null);
+  const pollControllerRef = useRef(null);
+  const startedAtRef = useRef(null);
+
+  const [idToken, setIdToken] = useState(readStoredToken);
+  const [email, setEmail] = useState("");
+
+  const [prompt, setPrompt] = useState("");
+  const [resolution, setResolution] = useState("square");
+  const [steps, setSteps] = useState(8);
+  const [randomSeed, setRandomSeed] = useState(true);
+  const [seed, setSeed] = useState("12345");
+
+  const [jobId, setJobId] = useState("");
+  const [status, setStatus] = useState("idle");
+  const [progress, setProgress] = useState(null);
+  const [error, setError] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
+  const [usedSeed, setUsedSeed] = useState(null);
+  const [elapsed, setElapsed] = useState(0);
+  const [startedAt, setStartedAt] = useState(null);
+
+  const busy = ["submitting", "queued", "running"].includes(status);
+
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const [historyPreview, setHistoryPreview] = useState(null);
+
+  const [ocrImage, setOcrImage] = useState(null);
+  const [ocrStatus, setOcrStatus] = useState("idle");
+  const [ocrText, setOcrText] = useState("");
+  const [ocrError, setOcrError] = useState("");
+
+  // ----------------------------------------------------------
+  // Google login condiviso con Improve.jsx
+  // ----------------------------------------------------------
+
   useEffect(() => {
-    function onStorage(e) {
-      if (e.key !== TOKEN_STORAGE_KEY) return;
-      setIdToken(e.newValue && isTokenValid(e.newValue) ? e.newValue : null);
+    function onStorage(event) {
+      if (event.key !== TOKEN_STORAGE_KEY) return;
+
+      const token =
+        event.newValue && isTokenValid(event.newValue)
+          ? event.newValue
+          : null;
+
+      setIdToken(token);
     }
+
     window.addEventListener("storage", onStorage);
+
     return () => window.removeEventListener("storage", onStorage);
   }, []);
-  const [authError, setAuthError] = useState("");
-  const buttonRef = useRef(null);
 
-  const email = idToken ? parseJwt(idToken)?.email || "" : "";
-
-  const logout = () => {
-    try {
-      localStorage.removeItem(TOKEN_STORAGE_KEY);
-      if (window.google?.accounts?.id) {
-        window.google.accounts.id.disableAutoSelect();
-      }
-    } catch {
-      /* ignore */
-    }
-    setIdToken(null);
-  };
-
-  // Scadenza automatica del token
   useEffect(() => {
-    if (!idToken) return;
-    const payload = parseJwt(idToken);
-    if (!payload?.exp) return;
-    const ms = payload.exp * 1000 - Date.now();
-    if (ms <= 0) {
-      logout();
+    if (!idToken) {
+      setEmail("");
       return;
     }
-    const timer = setTimeout(logout, ms);
-    return () => clearTimeout(timer);
+
+    setEmail(parseJwt(idToken)?.email || "");
   }, [idToken]);
 
-  // Caricamento resiliente SDK Google (stesso approccio della Console)
   useEffect(() => {
-    if (idToken) return;
+    if (idToken || !GOOGLE_CLIENT_ID) return;
 
     let cancelled = false;
+    let attempts = 0;
+    let timer;
 
-    function tryInit() {
+    function initializeGoogle() {
       if (cancelled) return;
 
       if (!window.google?.accounts?.id) {
-        setTimeout(tryInit, 150);
-        return;
-      }
-
-      if (!GOOGLE_CLIENT_ID) {
-        setAuthError("GOOGLE_CLIENT_ID mancante (VITE_GOOGLE_CLIENT_ID).");
+        if (++attempts < 80) {
+          timer = window.setTimeout(initializeGoogle, 150);
+        }
         return;
       }
 
       window.google.accounts.id.initialize({
         client_id: GOOGLE_CLIENT_ID,
         callback: (response) => {
-          const credential = response?.credential;
-          if (!isTokenValid(credential)) return;
+          const token = response?.credential;
+
+          if (!token || !isTokenValid(token)) return;
+
           try {
-            localStorage.setItem(TOKEN_STORAGE_KEY, credential);
+            localStorage.setItem(TOKEN_STORAGE_KEY, token);
           } catch {
-            /* ignore */
+            // Lo stato della pagina viene comunque aggiornato.
           }
-          setIdToken(credential);
+
+          setIdToken(token);
         },
       });
 
-      if (buttonRef.current) {
-        window.google.accounts.id.renderButton(buttonRef.current, {
+      if (loginButtonRef.current) {
+        loginButtonRef.current.innerHTML = "";
+
+        window.google.accounts.id.renderButton(loginButtonRef.current, {
           theme: "filled_black",
           size: "large",
-          text: "signin_with",
           shape: "pill",
+          text: "signin_with",
         });
       }
     }
 
-    tryInit();
+    initializeGoogle();
 
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
   }, [idToken]);
 
-  return { idToken, email, buttonRef, logout, authError };
-}
-
-
-// ============================================================
-// DATI AGENTI
-// ============================================================
-
-const AGENTS = [
-  { id: "night_story", label: "Night Story", port: 8666, hasCharacters: true },
-  { id: "story_whisper", label: "Story Whisper", port: 8088, hasCharacters: false },
-  { id: "leles", label: "Leles", port: 8082, hasCharacters: false },
-  { id: "super_leles", label: "Super-Leles", port: 8082, hasCharacters: false },
-  { id: "qe", label: "QE (Emergence)", port: 8082, hasCharacters: false, hasRoles: true },
-];
-
-// Night Story: prompts/genre_*.txt
-const NS_CHARACTERS = [
-  "horror",
-  "drammatica",
-  "comico",
-  "ose",
-  "ricerca",
-  "random",
-  "amore",
-  "culturale",
-];
-
-// QE: ruoli Emergence (leles/core/db_init_exp.py)
-const QE_ROLES = [
-  "Planner",
-  "Scientist",
-  "Builder",
-  "Critic",
-  "Observer",
-  "Architect",
-  "Developer",
-  "Tester",
-  "Reviewer",
-  "Sheriff",
-  "Outlaw",
-  "Explorer",
-];
-
-const LLM_MODELS = ["gemma4", "llama3", "mistral", "qwen2.5", "deepseek-r1", "qwen2.5-coder:7b", "gpt-oss:20b"];
-
-const CHARACTER_EMOJI = {
-  horror: "💀",
-  drammatica: "🎭",
-  comico: "😂",
-  ose: "🔥",
-  ricerca: "🔍",
-  random: "🎲",
-  amore: "❤️",
-  culturale: "📚",
-};
-
-const ROLE_EMOJI = {
-  Planner: "🧭",
-  Scientist: "🔬",
-  Builder: "🔨",
-  Critic: "🧐",
-  Observer: "👁️",
-  Architect: "📐",
-  Developer: "👨‍💻",
-  Tester: "🧪",
-  Reviewer: "📝",
-  Sheriff: "⭐",
-  Outlaw: "🤠",
-  Explorer: "🧭",
-};
-
-const AGENT_EMOJI = {
-  night_story: "🌙",
-  story_whisper: "🌬️",
-  leles: "🏴‍☠️",
-  super_leles: "🧠",
-  qe: "🌱",
-};
-
-const MAX_PARTICIPANTS = 12;
-const MIN_PARTICIPANTS = 2;
-
-const DEFAULT_PARTICIPANT = {
-  agent: "night_story",
-  character: "horror",
-  role: "",
-  model: "gemma4",
-};
-
-const DEFAULT_CFG = {
-  participants: [
-    { ...DEFAULT_PARTICIPANT },
-    { agent: "qe", character: "", role: "Planner", model: "mistral" },
-  ],
-  world_source: "free",
-  world_ref: "",
-  topic: "",
-  max_turns: 10,
-};
-
-// ============================================================
-// MAIN
-// ============================================================
-
-export default function Test4() {
-  const [cfg, setCfg] = useState(DEFAULT_CFG);
-  const [runId, setRunId] = useState(null);
-  const [data, setData] = useState({ status: "IDLE", turns: [] });
-  const [starting, setStarting] = useState(false);
-  const [startError, setStartError] = useState("");
-  const [notice, setNotice] = useState("");
-  const convRef = useRef(null);
-
-  // Raise hand
-  const [humanText, setHumanText] = useState("");
-  const [handBusy, setHandBusy] = useState(false);
-  const [handError, setHandError] = useState("");
-
-  const { idToken, email, buttonRef, logout } = useGoogleAuth();
-
-  const setField = (key, value) =>
-    setCfg((current) => ({ ...current, [key]: value }));
-
-  const setParticipant = (idx, key, value) => {
-    setCfg((current) => {
-      const next = [...current.participants];
-      next[idx] = { ...next[idx], [key]: value };
-      return { ...current, participants: next };
-    });
-  };
-
-  const addParticipant = () => {
-    setCfg((current) =>
-      current.participants.length >= MAX_PARTICIPANTS
-        ? current
-        : {
-            ...current,
-            participants: [
-              ...current.participants,
-              { ...DEFAULT_PARTICIPANT, agent: "leles", character: "", model: "llama3" },
-            ],
-          }
-    );
-  };
-
-  const removeParticipant = (idx) => {
-    setCfg((current) =>
-      current.participants.length <= MIN_PARTICIPANTS
-        ? current
-        : {
-            ...current,
-            participants: current.participants.filter((_, i) => i !== idx),
-          }
-    );
-  };
-
-  const totalMessages = cfg.max_turns * cfg.participants.length;
-  const overLimit = totalMessages > MAX_TOTAL_MESSAGES;
-
-  // Messaggio d'errore leggibile da una risposta del gateway.
-  const readError = (result, fallback) => {
-    const detail = result?.detail;
-    if (typeof detail === "string") return detail;
-    if (detail) return JSON.stringify(detail);
-    return fallback;
-  };
-
-  // ---- START ----
-  const start = async () => {
-    setStartError("");
-
-    if (!idToken) {
-      setStartError("Accedi con Google per avviare un esperimento.");
-      return;
-    }
-
-    if (overLimit) {
-      setStartError(
-        `Troppi messaggi (${totalMessages}, massimo ${MAX_TOTAL_MESSAGES}). ` +
-          "Riduci i giri o i partecipanti."
-      );
-      return;
-    }
-
-    setStarting(true);
+  const logout = useCallback(() => {
     try {
-      // DOPO (mappatura retrocompatibile per agent_a e agent_b):
-      const p1 = cfg.participants[0] || {};
-      const p2 = cfg.participants[1] || {};
+      localStorage.removeItem(TOKEN_STORAGE_KEY);
+      window.google?.accounts?.id?.disableAutoSelect?.();
+    } catch {
+      // Nessuna azione necessaria.
+    }
 
-      const payload = {
-        agent_a: p1.agent,
-        agent_b: p2.agent,
-        character_a: p1.character || undefined,
-        character_b: p2.character || undefined,
-        role_a: p1.role || undefined,
-        role_b: p2.role || undefined,
-        model_a: p1.model,
-        model_b: p2.model,
-        world_source: cfg.world_source,
-        world_ref: cfg.world_ref,
-        topic: cfg.topic,
-        max_turns: cfg.max_turns,
-      };
+    setIdToken(null);
+  }, []);
 
-      // Super-Leles viene inviato direttamente come "super_leles".
-      // Il gateway lo riconosce come agente separato e gestisce
-      // internamente il prefisso "sl " per attivare Super-Leles.
-      //
-      // NON trasformiamo più:
-      //   super_leles -> leles
-      //
-      // Questo è necessario perché Super-Leles ha una allowlist LLM
-      // diversa e può usare anche gpt-oss:20b.
-      const arenaCfg = {
-        ...cfg,
-        participants: cfg.participants.map((participant) => ({
-          ...participant,
-        })),
-      };
+  // ----------------------------------------------------------
+  // History delle generazioni (persistente sul gateway)
+  // ----------------------------------------------------------
 
-      // Inizio della funzione start con Auth Google + Payload Multi-Agente
-      const response = await fetch(`${API}/api/agent-arena/start`, {
+  const loadHistory = useCallback(async () => {
+    if (!idToken) return;
+
+    setHistoryLoading(true);
+    setHistoryError("");
+
+    try {
+      const response = await fetch(`${API}/api/image/history`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+
+      const data = await readResponse(response);
+      setHistory(Array.isArray(data.items) ? data.items : []);
+    } catch (err) {
+      setHistoryError(err.message || String(err));
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [idToken]);
+
+  useEffect(() => {
+    if (idToken) loadHistory();
+  }, [idToken, loadHistory]);
+
+  // Ricarica la history dopo una generazione completata.
+  useEffect(() => {
+    if (status === "completed") loadHistory();
+  }, [status, loadHistory]);
+
+  const openHistoryItem = useCallback(async (item) => {
+    setHistoryError("");
+
+    try {
+      const response = await fetch(
+        `${API}/api/image/history/${encodeURIComponent(item.job_id)}/image`,
+        { headers: { Authorization: `Bearer ${idToken}` } }
+      );
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const blob = await response.blob();
+      setHistoryPreview({ item, url: URL.createObjectURL(blob) });
+    } catch (err) {
+      setHistoryError(err.message || String(err));
+    }
+  }, [idToken]);
+
+  const closeHistoryPreview = useCallback(() => {
+    setHistoryPreview((current) => {
+      if (current?.url) URL.revokeObjectURL(current.url);
+      return null;
+    });
+  }, []);
+
+  // ----------------------------------------------------------
+  // OCR — estrazione testo da foto (Qwen-VL via gateway)
+  // ----------------------------------------------------------
+
+  const onOcrFile = useCallback((event) => {
+    const file = event.target.files?.[0];
+
+    setOcrText("");
+    setOcrError("");
+
+    if (!file) {
+      setOcrImage(null);
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      setOcrError("Seleziona un file immagine.");
+      setOcrImage(null);
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setOcrError("Immagine troppo grande (massimo 10 MB).");
+      setOcrImage(null);
+      return;
+    }
+
+    setOcrImage(file);
+  }, []);
+
+  async function runOcr(event) {
+    event.preventDefault();
+
+    setOcrError("");
+    setOcrText("");
+
+    if (!ocrImage || !idToken) return;
+
+    setOcrStatus("running");
+
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error("Lettura file non riuscita."));
+        reader.readAsDataURL(ocrImage);
+      });
+
+      const response = await fetch(`${API}/api/vision/ocr`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify(arenaCfg),
+        body: JSON.stringify({ image_base64: base64 }),
       });
 
+      const data = await readResponse(response);
+      setOcrText(data.text || "");
+      setOcrStatus("done");
+    } catch (err) {
+      setOcrError(err.message || String(err));
+      setOcrStatus("error");
+    }
+  }
 
-      const result = await response.json().catch(() => ({}));
+  function copyOcrText() {
+    if (!ocrText) return;
+    navigator.clipboard?.writeText(ocrText);
+  }
 
-      if (response.status === 401 || response.status === 403) {
-        logout();
-        throw new Error(
-          response.status === 403
-            ? "Account Google non autorizzato."
-            : "Sessione scaduta: accedi di nuovo con Google."
+  const reuseHistoryParams = useCallback((item) => {
+    setPrompt(item.prompt || "");
+
+    if (Number.isFinite(item.seed)) {
+      setSeed(String(item.seed));
+      setRandomSeed(false);
+    }
+
+    if (Number.isFinite(item.steps)) setSteps(item.steps);
+
+    const match = Object.entries(RESOLUTIONS).find(
+      ([, r]) => r.width === item.width && r.height === item.height
+    );
+
+    if (match) setResolution(match[0]);
+
+    closeHistoryPreview();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [closeHistoryPreview]);
+
+  // ----------------------------------------------------------
+  // Pulizia del polling se la pagina viene chiusa o smontata
+  // ----------------------------------------------------------
+
+  useEffect(() => {
+    return () => {
+      pollControllerRef.current?.abort();
+    };
+  }, []);
+
+  // ----------------------------------------------------------
+  // Timer della generazione
+  // ----------------------------------------------------------
+
+  useEffect(() => {
+    if (!busy || !startedAt) return;
+
+    const updateElapsed = () => {
+      setElapsed(Math.floor((Date.now() - startedAt) / 1000));
+    };
+
+    updateElapsed();
+
+    const timer = window.setInterval(updateElapsed, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [busy, startedAt]);
+
+  // ----------------------------------------------------------
+  // Polling asincrono
+  // ----------------------------------------------------------
+
+  useEffect(() => {
+    if (!jobId || !idToken) return;
+
+    const controller = new AbortController();
+    pollControllerRef.current = controller;
+
+    let cancelled = false;
+    let timer = null;
+
+    async function poll() {
+      if (cancelled || controller.signal.aborted) return;
+
+      try {
+        const response = await fetch(
+          `${API}/api/image/jobs/${encodeURIComponent(jobId)}`,
+          {
+            headers: {
+              Authorization: `Bearer ${idToken}`,
+            },
+            signal: controller.signal,
+          }
+        );
+
+        const data = await readResponse(response);
+
+        if (cancelled) return;
+
+        const nextStatus = normalizeStatus(data.status);
+
+        setProgress(
+          Number.isFinite(data.progress)
+            ? Math.max(0, Math.min(100, data.progress))
+            : null
+        );
+
+        if (data.error) {
+          setError(String(data.error));
+        }
+
+        if (
+          ["queued", "pending", "starting"].includes(nextStatus)
+        ) {
+          setStatus("queued");
+        } else if (
+          ["running", "processing"].includes(nextStatus)
+        ) {
+          setStatus("running");
+        } else if (
+          ["completed", "complete", "succeeded", "success"].includes(
+            nextStatus
+          )
+        ) {
+          setStatus("loading-result");
+
+          const resultResponse = await fetch(
+            `${API}/api/image/jobs/${encodeURIComponent(jobId)}/result`,
+            {
+              headers: {
+                Authorization: `Bearer ${idToken}`,
+              },
+              signal: controller.signal,
+            }
+          );
+
+          const result = await readResponse(resultResponse);
+
+          if (cancelled) return;
+
+          if (!result.image_base64) {
+            throw new Error(
+              "Il lavoro è terminato, ma il server non ha restituito l'immagine."
+            );
+          }
+
+          const base64 = String(result.image_base64).replace(
+            /^data:image\/png;base64,/i,
+            ""
+          );
+
+          setImageUrl(`data:image/png;base64,${base64}`);
+          setUsedSeed(result.seed ?? null);
+          setProgress(100);
+          setStatus("completed");
+          return;
+        } else if (
+          ["failed", "error", "cancelled", "canceled"].includes(nextStatus)
+        ) {
+          setStatus("error");
+
+          if (!data.error) {
+            setError("La generazione non è riuscita.");
+          }
+
+          return;
+        } else {
+          throw new Error(
+            `Stato del lavoro non riconosciuto: ${data.status || "vuoto"}`
+          );
+        }
+      } catch (err) {
+        if (cancelled || controller.signal.aborted) return;
+
+        // Un errore di rete temporaneo non interrompe subito il lavoro.
+        setError(
+          `Connessione temporaneamente non disponibile: ${
+            err.message || String(err)
+          }. Nuovo tentativo in corso…`
         );
       }
 
-      if (!response.ok) throw new Error(readError(result, "Gateway error"));
-
-      if (result.run_id) {
-        setRunId(result.run_id);
-        setNotice("");
-        setHumanText("");
-        setHandError("");
-        setData({ status: "RUNNING", turns: [] });
+      if (!cancelled && !controller.signal.aborted) {
+        timer = window.setTimeout(poll, POLL_INTERVAL);
       }
-    } catch (error) {
-      console.error("Agent Arena start error:", error);
-      setStartError(error?.message || "Unable to start experiment");
-    } finally {
-      setStarting(false);
     }
-  };
 
-  // ---- STOP ----
-  const stop = async () => {
-    if (!runId) return;
-    setNotice("");
+    poll();
 
-    if (!idToken) {
-      setNotice("Sessione scaduta: accedi di nuovo per fermare il run.");
+    return () => {
+      cancelled = true;
+
+      if (timer) window.clearTimeout(timer);
+
+      controller.abort();
+
+      if (pollControllerRef.current === controller) {
+        pollControllerRef.current = null;
+      }
+    };
+  }, [jobId, idToken]);
+
+  // ----------------------------------------------------------
+  // Generazione
+  // ----------------------------------------------------------
+
+  async function generateImage(event) {
+    event.preventDefault();
+
+    setError("");
+    setImageUrl("");
+    setUsedSeed(null);
+    setProgress(null);
+    setJobId("");
+    setElapsed(0);
+
+    if (!prompt.trim()) {
+      setError("Scrivi una descrizione dell'immagine.");
       return;
     }
 
+    const dimensions = RESOLUTIONS[resolution];
+
+    if (!dimensions) {
+      setError("Risoluzione non valida.");
+      return;
+    }
+
+    const selectedSeed = randomSeed
+      ? Math.floor(Math.random() * (2 ** 31 - 1))
+      : Number(seed);
+
+    if (
+      !Number.isSafeInteger(selectedSeed) ||
+      selectedSeed < 0 ||
+      selectedSeed > 2147483647
+    ) {
+      setError("Il seed deve essere un intero tra 0 e 2147483647.");
+      return;
+    }
+
+    setStatus("submitting");
+
+    const now = Date.now();
+
+    startedAtRef.current = now;
+    setStartedAt(now);
+
     try {
-      const response = await fetch(`${API}/api/agent-arena/${runId}/stop`, {
+      const response = await fetch(`${API}/api/image/jobs`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${idToken}` },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          prompt: prompt.trim(),
+          width: dimensions.width,
+          height: dimensions.height,
+          steps: Number(steps),
+          seed: selectedSeed,
+        }),
       });
 
-      if (response.status === 401 || response.status === 403) {
-        logout();
-        setNotice("Sessione scaduta: accedi di nuovo per fermare il run.");
-      }
-    } catch (error) {
-      console.error("Agent Arena stop error:", error);
-      setNotice("Impossibile contattare il gateway per lo stop.");
-    }
-  };
+      const data = await readResponse(response);
 
-  // ---- RAISE HAND ----
-  // Il turno in corso finisce, poi il gateway mette il run in PAUSED.
-  const raiseHand = async () => {
-    if (!runId || handBusy) return;
-    setNotice("");
-    setHandError("");
-
-    if (!idToken) {
-      setNotice("Sessione scaduta: accedi di nuovo per intervenire.");
-      return;
-    }
-
-    setHandBusy(true);
-    try {
-      const response = await fetch(`${API}/api/agent-arena/${runId}/hand`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-
-      const result = await response.json().catch(() => ({}));
-
-      if (response.status === 401 || response.status === 403) {
-        logout();
-        setNotice("Sessione scaduta: accedi di nuovo per intervenire.");
-        return;
+      if (!data.job_id) {
+        throw new Error("Il server non ha restituito job_id.");
       }
 
-      if (!response.ok) throw new Error(readError(result, "Gateway error"));
-
-      setData((current) => ({ ...current, hand_raised: true }));
-    } catch (error) {
-      console.error("Agent Arena hand error:", error);
-      setHandError(error?.message || "Impossibile alzare la mano.");
-    } finally {
-      setHandBusy(false);
-    }
-  };
-
-  // ---- INTERVENE ----
-  // withText = true  -> invia il messaggio e riprende
-  // withText = false -> riprende senza scrivere
-  const sendIntervention = async (withText) => {
-    if (!runId || handBusy) return;
-    setNotice("");
-    setHandError("");
-
-    if (!idToken) {
-      setNotice("Sessione scaduta: accedi di nuovo per intervenire.");
-      return;
-    }
-
-    const text = withText ? humanText.trim() : "";
-
-    setHandBusy(true);
-    try {
-      const response = await fetch(
-        `${API}/api/agent-arena/${runId}/intervene`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${idToken}`,
-          },
-          body: JSON.stringify({ text }),
-        }
+      setProgress(
+        Number.isFinite(data.progress) ? data.progress : 0
       );
 
-      const result = await response.json().catch(() => ({}));
-
-      if (response.status === 401 || response.status === 403) {
-        logout();
-        setNotice("Sessione scaduta: accedi di nuovo per intervenire.");
-        return;
-      }
-
-      if (!response.ok) throw new Error(readError(result, "Gateway error"));
-
-      setHumanText("");
-      setData((current) => ({
-        ...current,
-        status: "RUNNING",
-        hand_raised: false,
-      }));
-    } catch (error) {
-      console.error("Agent Arena intervene error:", error);
-      setHandError(error?.message || "Impossibile inviare l'intervento.");
-    } finally {
-      setHandBusy(false);
+      setStatus("queued");
+      setJobId(String(data.job_id));
+    } catch (err) {
+      setStatus("error");
+      setError(err.message || String(err));
     }
-  };
+  }
 
-  // ---- POLLING LIVE ----
-  useEffect(() => {
-    if (!runId) return;
-    let stopped = false;
-    const tick = async () => {
-      try {
-        const response = await fetch(`${API}/api/agent-arena/${runId}`);
-        const result = await response.json();
-        if (!stopped) setData(result);
-        if (["COMPLETED", "STOPPED", "ERROR"].includes(result.status)) {
-          clearInterval(timer);
-          stopped = true;
-        }
-      } catch (error) {
-        console.warn("Agent Arena polling:", error);
-      }
-    };
-    const timer = setInterval(tick, 2000);
-    tick();
-    return () => {
-      stopped = true;
-      clearInterval(timer);
-    };
-  }, [runId]);
+  function downloadImage() {
+    if (!imageUrl) return;
 
-  // ---- AUTOSCROLL ----
-  useEffect(() => {
-    if (convRef.current) convRef.current.scrollTop = convRef.current.scrollHeight;
-  }, [data.turns.length]);
+    const link = document.createElement("a");
 
-  // ---- RESET ----
-  const reset = () => {
-    setRunId(null);
-    setStartError("");
-    setNotice("");
-    setHumanText("");
-    setHandError("");
-    setData({ status: "IDLE", turns: [] });
-  };
+    link.href = imageUrl;
+    link.download = `z-image-${usedSeed ?? "generated"}.png`;
 
-  const running = data.status === "RUNNING";
-  const paused = data.status === "PAUSED";
-  const active = running || paused;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
 
-  // I turni umani non contano nel limite di messaggi dei bot.
-  const botTurns = data.turns.filter((turn) => turn.agent !== "human").length;
-  const humanTurns = data.turns.length - botTurns;
+  function startAnotherVersion() {
+    setImageUrl("");
+    setUsedSeed(null);
+    setError("");
+    setProgress(null);
+    setJobId("");
+    setStatus("idle");
+    setElapsed(0);
+    setStartedAt(null);
 
-  // ---- HELPERS ----
-  const getTurnIdentity = (turn) => {
-    if (turn.agent === "human") {
-      return { emoji: "🙋", identity: "You" };
-    }
-    const emoji = turn.character
-      ? CHARACTER_EMOJI[turn.character] || "🤖"
-      : turn.role
-        ? ROLE_EMOJI[turn.role] || "🌱"
-        : AGENT_EMOJI[turn.agent] || "🤖";
-    const identity =
-      turn.character ||
-      turn.role ||
-      AGENTS.find((agent) => agent.id === turn.agent)?.label ||
-      turn.agent ||
-      "Agent";
-    return { emoji, identity };
-  };
+    // Il prompt e le altre impostazioni vengono conservati.
+  }
 
-  const getAgentLabel = (agentId) =>
-    AGENTS.find((agent) => agent.id === agentId)?.label || agentId;
+  // ----------------------------------------------------------
+  // Login richiesto
+  // ----------------------------------------------------------
 
-  // ---- RENDER ----
-  return (
-    <div style={styles.page}>
-      <div
-        style={{
-          ...styles.background,
-          backgroundImage: `url(${bgImage})`,
-        }}
-      />
-      <div style={styles.overlay} />
-      <div style={styles.content}>
-        {!runId ? (
-          <>
-            {/* HEADER */}
-            <div style={styles.header}>
-              <div style={styles.eyebrow}>AGENT ARENA</div>
-              <h1 style={styles.title}>Bot to Bot</h1>
-              <p style={styles.subtitle}>
-                Configure 2 to 12 autonomous agents and let them interact
-                inside the same world.
+  if (!idToken) {
+    return (
+      <main className="il-page">
+        <div className="il-container">
+          <header className="il-header">
+            <div>
+              <p className="il-eyebrow">D. VILLANOVA · AI SYSTEMS</p>
+              <h1>AI Image Lab</h1>
+            </div>
+            <button
+              className="il-button"
+              onClick={() => navigate("/improve")}
+            >
+              ← Improve
+            </button>
+          </header>
+
+          <section className="il-panel il-login">
+            <h2>Accedi per continuare</h2>
+            <p>
+              AI Image Lab utilizza lo stesso accesso Google della
+              console amministrativa.
+            </p>
+
+            {!GOOGLE_CLIENT_ID && (
+              <p className="il-error">
+                VITE_GOOGLE_CLIENT_ID non è configurato.
               </p>
-            </div>
+            )}
 
-            {/* AGENTS */}
-            <div style={styles.participantsStack}>
-              {cfg.participants.map((participant, idx) => (
-                <AgentPane
-                  key={idx}
-                  idx={idx}
-                  participant={participant}
-                  setParticipant={setParticipant}
-                  onRemove={() => removeParticipant(idx)}
-                  canRemove={cfg.participants.length > MIN_PARTICIPANTS}
-                />
-              ))}
+            <div ref={loginButtonRef} />
+          </section>
+        </div>
 
-              {cfg.participants.length < MAX_PARTICIPANTS && (
-                <button onClick={addParticipant} style={styles.addButton}>
-                  + ADD PARTICIPANT ({cfg.participants.length}/{MAX_PARTICIPANTS})
-                </button>
-              )}
-            </div>
+        <style>{STYLES}</style>
+      </main>
+    );
+  }
 
-            {/* WORLD */}
-            <section style={styles.card}>
-              <div style={styles.sectionHeader}>
-                <span style={styles.sectionIcon}>🌍</span>
-                <div>
-                  <div style={styles.sectionTitle}>WORLD</div>
-                  <div style={styles.sectionSubtitle}>
-                    Define the environment for the experiment
-                  </div>
-                </div>
-              </div>
-              <div style={styles.radioRow}>
-                <label style={styles.radioLabel}>
-                  <input
-                    type="radio"
-                    checked={cfg.world_source === "free"}
-                    onChange={() => setField("world_source", "free")}
-                  />
-                  <span>Free topic</span>
-                </label>
-                <label style={styles.radioLabel}>
-                  <input
-                    type="radio"
-                    checked={cfg.world_source === "emergence"}
-                    onChange={() => setField("world_source", "emergence")}
-                  />
-                  <span>Emergence World</span>
-                </label>
-              </div>
-              {cfg.world_source === "free" ? (
-                <textarea
-                  style={styles.textarea}
-                  placeholder="Two characters meet on a ghost ship during a storm..."
-                  value={cfg.topic}
-                  maxLength={4000}
-                  onChange={(event) => setField("topic", event.target.value)}
-                />
-              ) : (
-                <input
-                  style={styles.input}
-                  type="number"
-                  placeholder="World # (Emergence run id)"
-                  value={cfg.world_ref}
-                  onChange={(event) => setField("world_ref", event.target.value)}
-                />
-              )}
-            </section>
+  // ----------------------------------------------------------
+  // Pagina principale
+  // ----------------------------------------------------------
 
-            {/* RUN OPTIONS */}
-            <section style={styles.runCard}>
+  return (
+    <main className="il-page">
+      <div className="il-container">
+        <header className="il-header">
+          <div>
+            <p className="il-eyebrow">D. VILLANOVA · AI SYSTEMS</p>
+            <h1>AI Image Lab</h1>
+            <p className="il-subtitle">
+              Generazione locale con Z-Image-Turbo
+            </p>
+          </div>
+
+          <div className="il-account">
+            <span title={email}>{email}</span>
+
+            <button
+              className="il-button"
+              onClick={() => navigate("/improve")}
+            >
+              Improve ↗
+            </button>
+
+            <button className="il-button" onClick={logout}>
+              Logout
+            </button>
+          </div>
+        </header>
+
+        <div className="il-notice">
+          <span className="il-status-dot" />
+          Motore locale · Elaborazione sul Mac · Coda asincrona
+        </div>
+
+        <div className="il-layout">
+          <section className="il-panel">
+            <div className="il-section-heading">
               <div>
-                <div style={styles.optionLabel}>MAX TURNS (ROUNDS)</div>
-                <select
-                  style={styles.smallSelect}
-                  value={cfg.max_turns}
-                  onChange={(event) =>
-                    setField("max_turns", Number(event.target.value))
-                  }
-                >
-                  {[1, 2, 3, 5, 10, 13, 20].map((number) => (
-                    <option key={number} value={number}>
-                      {number}
-                    </option>
-                  ))}
-                </select>
-                <div
-                  style={{
-                    ...styles.turnsHint,
-                    ...(overLimit ? styles.turnsHintError : {}),
-                  }}
-                >
-                  {totalMessages} total messages
-                  {overLimit ? ` (max ${MAX_TOTAL_MESSAGES})` : ""}
+                <p className="il-eyebrow">01 / PROMPT</p>
+                <h2>Crea un'immagine</h2>
+              </div>
+            </div>
+
+            <form onSubmit={generateImage}>
+              <label className="il-label" htmlFor="il-prompt">
+                Descrizione
+              </label>
+
+              <textarea
+                id="il-prompt"
+                className="il-input il-prompt"
+                placeholder="Es. Un faro sulla costa mediterranea al tramonto, mare mosso, luce cinematografica, fotografia realistica…"
+                value={prompt}
+                onChange={(event) => setPrompt(event.target.value)}
+                rows={6}
+                maxLength={12000}
+                disabled={busy}
+                required
+              />
+
+              <div className="il-char-count">
+                {prompt.length.toLocaleString()} / 12.000
+              </div>
+
+              <div className="il-form-grid">
+                <div>
+                  <label className="il-label" htmlFor="il-resolution">
+                    Risoluzione
+                  </label>
+
+                  <select
+                    id="il-resolution"
+                    className="il-input"
+                    value={resolution}
+                    onChange={(event) => setResolution(event.target.value)}
+                    disabled={busy}
+                  >
+                    {Object.entries(RESOLUTIONS).map(([key, item]) => (
+                      <option key={key} value={key}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="il-label" htmlFor="il-steps">
+                    Passaggi
+                  </label>
+
+                  <select
+                    id="il-steps"
+                    className="il-input"
+                    value={steps}
+                    onChange={(event) =>
+                      setSteps(Number(event.target.value))
+                    }
+                    disabled={busy}
+                  >
+                    <option value={4}>4 · Test rapido</option>
+                    <option value={8}>8 · Standard</option>
+                    <option value={9}>9 · Sperimentale</option>
+                  </select>
                 </div>
               </div>
 
-              {idToken ? (
-                <div style={styles.startColumn}>
-                  <button
-                    onClick={start}
-                    disabled={starting || overLimit}
-                    style={{
-                      ...styles.startButton,
-                      opacity: starting || overLimit ? 0.55 : 1,
-                      cursor: starting
-                        ? "wait"
-                        : overLimit
-                          ? "not-allowed"
-                          : "pointer",
-                    }}
-                  >
-                    {starting ? "STARTING..." : "▶️ START EXPERIMENT"}
-                  </button>
-                  <div style={styles.userRow}>
-                    <span>{email}</span>
-                    <button onClick={logout} style={styles.linkButton}>
-                      sign out
-                    </button>
-                  </div>
+              <div className="il-seed-row">
+                <div className="il-seed-heading">
+                  <label className="il-label" htmlFor="il-seed">
+                    Seed
+                  </label>
+
+                  <label className="il-checkbox">
+                    <input
+                      type="checkbox"
+                      checked={randomSeed}
+                      onChange={(event) =>
+                        setRandomSeed(event.target.checked)
+                      }
+                      disabled={busy}
+                    />
+                    Casuale
+                  </label>
                 </div>
-              ) : (
-                <div style={styles.startColumn}>
-                  {GOOGLE_CLIENT_ID ? (
-                    <>
-                      <div ref={buttonRef} />
-                      <div style={styles.authHint}>
-                        Sign in with Google to start an experiment
-                      </div>
-                    </>
-                  ) : (
-                    <div style={styles.authHint}>
-                      GOOGLE_CLIENT_ID mancante in Test4.jsx
-                    </div>
-                  )}
+
+                <input
+                  id="il-seed"
+                  className="il-input"
+                  type="number"
+                  min="0"
+                  max="2147483647"
+                  step="1"
+                  value={seed}
+                  onChange={(event) => setSeed(event.target.value)}
+                  disabled={busy || randomSeed}
+                />
+              </div>
+
+              <p className="il-hint">
+                Sul Mac da 16 GB, inizia con 512 × 512. Le risoluzioni
+                maggiori possono richiedere diversi minuti.
+              </p>
+
+              {error && (
+                <div className="il-error" role="alert">
+                  {error}
                 </div>
               )}
-            </section>
 
-            {/* START ERROR (visibile anche prima che esista un run) */}
-            {startError && (
-              <div style={{ ...styles.errorBox, marginTop: 14 }}>
-                <strong>⚠ ERROR</strong>
-                <div>{startError}</div>
+              <div className="il-actions">
+                <button
+                  className="il-button il-primary"
+                  type="submit"
+                  disabled={busy || !prompt.trim()}
+                >
+                  {busy ? "Generazione in corso…" : "Generate image →"}
+                </button>
+
+                {imageUrl && (
+                  <button
+                    className="il-button"
+                    type="button"
+                    onClick={startAnotherVersion}
+                  >
+                    Nuova variante
+                  </button>
+                )}
+              </div>
+            </form>
+          </section>
+
+          <section className="il-panel il-result-panel">
+            <div className="il-section-heading">
+              <div>
+                <p className="il-eyebrow">02 / OUTPUT</p>
+                <h2>Risultato</h2>
+              </div>
+
+              {busy && (
+                <span className="il-live">
+                  <span className="il-status-dot" />
+                  LIVE
+                </span>
+              )}
+            </div>
+
+            {status === "idle" && !imageUrl && (
+              <div className="il-empty">
+                <div className="il-empty-icon">✳</div>
+                <h3>La prossima immagine inizia qui</h3>
+                <p>
+                  Scrivi un prompt e avvia la generazione. Il risultato
+                  apparirà in questa area.
+                </p>
               </div>
             )}
-          </>
-        ) : (
-          <>
-            {/* LIVE HEADER */}
-            <div style={styles.liveHeader}>
-              <div>
-                <div style={styles.eyebrow}>AGENT ARENA</div>
-                <h1 style={styles.liveTitle}>Run #{runId}</h1>
-                <div style={styles.statusRow}>
-                  <span
+
+            {status === "submitting" && (
+              <div className="il-progress">
+                <div className="il-spinner" />
+                <h3>Invio della richiesta</h3>
+                <p>Sto creando il lavoro sul server.</p>
+              </div>
+            )}
+
+            {(status === "queued" || status === "running") && (
+              <div className="il-progress">
+                <div className="il-spinner" />
+
+                <h3>
+                  {status === "queued"
+                    ? "In coda"
+                    : "Generazione in corso"}
+                </h3>
+
+                <p>
+                  Il modello sta lavorando sul Mac. Puoi lasciare aperta
+                  questa pagina: non serve mantenere una richiesta HTTP
+                  aperta per tutta la generazione.
+                </p>
+
+                <div className="il-progress-track">
+                  <div
+                    className="il-progress-fill"
                     style={{
-                      ...styles.statusDot,
-                      ...(running
-                        ? styles.statusRunning
-                        : styles.statusFinished),
+                      width:
+                        progress === null ? "35%" : `${progress}%`,
                     }}
                   />
-                  <span>{data.status}</span>
-                  <span style={styles.statusSeparator}>·</span>
-                  <span>
-                    {botTurns} / {totalMessages} messages
-                  </span>
-                  {humanTurns > 0 && (
-                    <>
-                      <span style={styles.statusSeparator}>·</span>
-                      <span>{humanTurns} from you</span>
-                    </>
-                  )}
                 </div>
-                {notice && <div style={styles.noticeText}>{notice}</div>}
-                {handError && !paused && (
-                  <div style={styles.noticeText}>{handError}</div>
-                )}
+
+                <div className="il-progress-meta">
+                  <span>
+                    {progress === null
+                      ? "Elaborazione"
+                      : `${Math.round(progress)}%`}
+                  </span>
+
+                  <span>{formatDuration(elapsed)}</span>
+                </div>
+
+                <p className="il-hint">
+                  Il tempo dipende dalla risoluzione e dal carico del Mac.
+                </p>
               </div>
-              <div style={styles.liveActions}>
-                {running && (
+            )}
+
+            {status === "loading-result" && (
+              <div className="il-progress">
+                <div className="il-spinner" />
+                <h3>Caricamento del risultato</h3>
+              </div>
+            )}
+
+            {status === "completed" && imageUrl && (
+              <div className="il-output">
+                <img
+                  className="il-generated-image"
+                  src={imageUrl}
+                  alt={prompt}
+                />
+
+                <div className="il-result-meta">
+                  <span>PNG</span>
+                  <span>{formatDuration(elapsed)}</span>
+                  {usedSeed !== null && <span>Seed: {usedSeed}</span>}
+                </div>
+
+                <div className="il-actions">
                   <button
-                    onClick={raiseHand}
-                    disabled={handBusy || data.hand_raised}
-                    style={{
-                      ...styles.handButton,
-                      opacity: handBusy || data.hand_raised ? 0.6 : 1,
-                      cursor:
-                        handBusy || data.hand_raised
-                          ? "not-allowed"
-                          : "pointer",
-                    }}
+                    className="il-button il-primary"
+                    onClick={downloadImage}
                   >
-                    {data.hand_raised ? "✋ HAND RAISED" : "✋ RAISE HAND"}
+                    ↓ Scarica PNG
                   </button>
-                )}
-                {active && (
-                  <button onClick={stop} style={styles.stopButton}>
-                    ⏹ STOP
+
+                  <button
+                    className="il-button"
+                    onClick={startAnotherVersion}
+                  >
+                    Crea variante
                   </button>
-                )}
-                <button onClick={reset} style={styles.resetButton}>
-                  ↺ NEW EXPERIMENT
+                </div>
+              </div>
+            )}
+
+            {status === "error" && (
+              <div className="il-error-panel">
+                <h3>Generazione non riuscita</h3>
+                <p>
+                  {error || "Il server non ha completato il lavoro."}
+                </p>
+
+                <button
+                  className="il-button"
+                  onClick={() => {
+                    setError("");
+                    setStatus("idle");
+                    setJobId("");
+                  }}
+                >
+                  Torna al prompt
                 </button>
               </div>
-            </div>
+            )}
 
-            {/* RUN CONFIG SUMMARY */}
-            <section style={styles.summaryGrid}>
-              {cfg.participants.map((participant, idx) => (
-                <SummaryCard
-                  key={idx}
-                  label={`PARTICIPANT ${idx + 1}`}
-                  value={getAgentLabel(participant.agent)}
-                  detail={
-                    (participant.agent === "night_story" &&
-                      participant.character) ||
-                    (participant.agent === "qe" && participant.role) ||
-                    participant.model
-                  }
-                />
-              ))}
-              <SummaryCard
-                label="WORLD"
-                value={
-                  cfg.world_source === "emergence"
-                    ? `Emergence #${cfg.world_ref}`
-                    : "Free topic"
-                }
-                detail={
-                  cfg.world_source === "free"
-                    ? cfg.topic || "No topic"
-                    : "Emergence experiment"
-                }
-              />
-              <SummaryCard
-                label="ROUNDS"
-                value={`${cfg.max_turns} × ${cfg.participants.length}`}
-                detail={`${totalMessages} messages max`}
-              />
-            </section>
-
-            {/* WORLD LIVE */}
-            <section style={styles.worldLiveCard}>
-              <div style={styles.worldLiveTitle}>🌍 WORLD</div>
-              <div style={styles.worldLiveText}>
-                {cfg.world_source === "emergence"
-                  ? `Emergence World #${cfg.world_ref}`
-                  : cfg.topic || "Free topic"}
-              </div>
-            </section>
-
-            {/* CONVERSATION */}
-            <section style={styles.conversationCard}>
-              <div style={styles.conversationHeader}>
-                <div>
-                  <div style={styles.sectionTitle}>LIVE CONVERSATION</div>
-                  <div style={styles.sectionSubtitle}>
-                    Autonomous agent interaction
-                  </div>
-                </div>
-                {running && <div style={styles.liveBadge}>● LIVE</div>}
-                {paused && <div style={styles.liveBadge}>✋ PAUSED</div>}
-              </div>
-              <div ref={convRef} style={styles.conversation}>
-                {data.turns.map((turn, index) => {
-                  const { emoji, identity } = getTurnIdentity(turn);
-                  const isHuman = turn.agent === "human";
-                  const isEven = (turn.idx ?? index) % 2 === 0;
-                  return (
-                    <div
-                      key={turn.id || index}
-                      style={{
-                        ...styles.messageRow,
-                        justifyContent: isHuman
-                          ? "center"
-                          : isEven
-                            ? "flex-start"
-                            : "flex-end",
-                      }}
-                    >
-                      <div
-                        style={{
-                          ...styles.message,
-                          ...(isHuman
-                            ? styles.messageHuman
-                            : isEven
-                              ? styles.messageA
-                              : styles.messageB),
-                        }}
-                      >
-                        <div style={styles.messageMeta}>
-                          <span style={styles.messageIdentity}>
-                            {isHuman
-                              ? `${emoji} ${identity}`
-                              : `${emoji} ${identity} · P${(turn.idx ?? 0) + 1}`}
-                          </span>
-                          <span style={styles.messageModel}>
-                            {isHuman ? "human" : turn.model}
-                          </span>
-                        </div>
-                        <div style={styles.messageText}>{turn.text}</div>
-                      </div>
-                    </div>
-                  );
-                })}
-                {running && !data.hand_raised && (
-                  <div style={styles.thinking}>
-                    <span>●</span>
-                    <span>●</span>
-                    <span>●</span>
-                    <em>agents are thinking...</em>
-                  </div>
-                )}
-                {running && data.hand_raised && (
-                  <div style={styles.thinking}>
-                    <span>✋</span>
-                    <em>
-                      hand raised — the run pauses when the current turn ends...
-                    </em>
-                  </div>
-                )}
-                {data.status === "ERROR" && (
-                  <div style={styles.errorBox}>
-                    <strong>⚠ ERROR</strong>
-                    <div>
-                      {data.error ||
-                        "Gateway error — check gateway logs."}
-                    </div>
-                  </div>
-                )}
-                {!running && data.status === "COMPLETED" && (
-                  <div style={styles.completedBox}>✓ Experiment completed</div>
-                )}
-                {!running && data.status === "STOPPED" && (
-                  <div style={styles.stoppedBox}>⏹ Experiment stopped</div>
-                )}
-              </div>
-
-              {/* HUMAN INTERVENTION (solo con il run in pausa) */}
-              {paused && (
-                <div style={styles.humanPanel}>
-                  <div style={styles.humanTitle}>
-                    ✋ RUN PAUSED — YOUR TURN
-                  </div>
-                  <div style={styles.humanHint}>
-                    The next agent reads your message together with the last
-                    answer.
-                  </div>
-                  <textarea
-                    style={{ ...styles.textarea, minHeight: 80 }}
-                    placeholder="Write something for the next agent..."
-                    value={humanText}
-                    maxLength={MAX_HUMAN_CHARS}
-                    disabled={handBusy}
-                    onChange={(event) => setHumanText(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (
-                        event.key === "Enter" &&
-                        (event.ctrlKey || event.metaKey) &&
-                        humanText.trim()
-                      ) {
-                        sendIntervention(true);
-                      }
-                    }}
-                  />
-                  {handError && (
-                    <div style={{ ...styles.noticeText, marginBottom: 10 }}>
-                      {handError}
-                    </div>
-                  )}
-                  <div style={styles.humanActions}>
-                    <span style={styles.humanCounter}>
-                      {humanText.length} / {MAX_HUMAN_CHARS}
-                    </span>
-                    <button
-                      onClick={() => sendIntervention(false)}
-                      disabled={handBusy}
-                      style={{
-                        ...styles.resetButton,
-                        opacity: handBusy ? 0.6 : 1,
-                        cursor: handBusy ? "wait" : "pointer",
-                      }}
-                    >
-                      RESUME WITHOUT MESSAGE
-                    </button>
-                    <button
-                      onClick={() => sendIntervention(true)}
-                      disabled={handBusy || !humanText.trim()}
-                      style={{
-                        ...styles.handButton,
-                        opacity: handBusy || !humanText.trim() ? 0.55 : 1,
-                        cursor: handBusy
-                          ? "wait"
-                          : !humanText.trim()
-                            ? "not-allowed"
-                            : "pointer",
-                      }}
-                    >
-                      {handBusy ? "SENDING..." : "SEND & RESUME"}
-                    </button>
-                  </div>
-                </div>
-              )}
-            </section>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-// AGENT PANE — singolo partecipante
-// ============================================================
-
-function AgentPane({ idx, participant, setParticipant, onRemove, canRemove }) {
-  const agent = AGENTS.find((item) => item.id === participant.agent);
-  const agentEmoji = AGENT_EMOJI[agent?.id] || "🤖";
-
-  return (
-    <section style={styles.agentCard}>
-      <div style={styles.agentHeader}>
-        <div>
-          <div style={styles.agentSide}>PARTICIPANT {idx + 1}</div>
-          <div style={styles.agentName}>
-            {agentEmoji} {agent?.label || "Agent"}
-          </div>
+            {jobId && (
+              <p className="il-job-id">
+                Job ID: <code>{jobId}</code>
+              </p>
+            )}
+          </section>
         </div>
-        {canRemove && (
+
+        <section className="il-panel il-history-panel">
+          <div className="il-section-heading">
+            <div>
+              <p className="il-eyebrow">03 / GALLERY</p>
+              <h2>Storico generazioni</h2>
+            </div>
+            <button
+              className="il-button"
+              onClick={loadHistory}
+              disabled={historyLoading}
+            >
+              {historyLoading ? "Carico…" : "↻ Aggiorna"}
+            </button>
+          </div>
+
+          {historyError && (
+            <div className="il-error" role="alert">
+              {historyError}
+            </div>
+          )}
+
+          {!historyLoading && history.length === 0 && !historyError && (
+            <p className="il-hint">
+              Nessuna generazione salvata. Le immagini completate vengono
+              conservate qui (ultime 100).
+            </p>
+          )}
+
+          <div className="il-history-grid">
+            {history.map((item) => (
+              <article key={item.job_id} className="il-history-card">
+                <p className="il-history-prompt">
+                  {String(item.prompt || "").length > 160
+                    ? String(item.prompt).slice(0, 160) + "…"
+                    : item.prompt}
+                </p>
+                <div className="il-history-meta">
+                  <span>
+                    {item.width} × {item.height}
+                  </span>
+                  <span>{item.steps} step</span>
+                  <span>Seed: {item.seed}</span>
+                </div>
+                <div className="il-history-actions">
+                  <button
+                    className="il-button"
+                    onClick={() => openHistoryItem(item)}
+                  >
+                    Guarda
+                  </button>
+                  <button
+                    className="il-button"
+                    onClick={() => reuseHistoryParams(item)}
+                  >
+                    ↻ Parametri
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+
+          {historyPreview && (
+            <div
+              className="il-history-overlay"
+              onClick={closeHistoryPreview}
+            >
+              <div
+                className="il-history-modal"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <img
+                  className="il-generated-image"
+                  src={historyPreview.url}
+                  alt={historyPreview.item.prompt}
+                />
+                <div className="il-history-modal-meta">
+                  <span>
+                    {historyPreview.item.width} × {historyPreview.item.height}
+                  </span>
+                  <span>Seed: {historyPreview.item.seed}</span>
+                  <span>{historyPreview.item.steps} step</span>
+                </div>
+                <div className="il-actions">
+                  <a
+                    className="il-button il-primary"
+                    href={historyPreview.url}
+                    download={"z-image-" + historyPreview.item.seed + ".png"}
+                  >
+                    ↓ Scarica PNG
+                  </a>
+                  <button
+                    className="il-button"
+                    onClick={() => reuseHistoryParams(historyPreview.item)}
+                  >
+                    ↻ Riusa parametri
+                  </button>
+                  <button
+                    className="il-button"
+                    onClick={closeHistoryPreview}
+                  >
+                    Chiudi
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
+
+        <section className="il-panel il-ocr-panel">
+          <div className="il-section-heading">
+            <div>
+              <p className="il-eyebrow">04 / OCR</p>
+              <h2>Estrai testo da una foto</h2>
+            </div>
+          </div>
+
+          <form onSubmit={runOcr} className="il-ocr-form">
+            <input
+              type="file"
+              accept="image/*"
+              onChange={onOcrFile}
+              disabled={ocrStatus === "running"}
+            />
+
+            {ocrImage && (
+              <p className="il-hint">
+                {ocrImage.name} ({Math.round(ocrImage.size / 1024)} KB)
+              </p>
+            )}
+
+            <button
+              className="il-button il-primary"
+              type="submit"
+              disabled={!ocrImage || ocrStatus === "running"}
+            >
+              {ocrStatus === "running" ? "Analizzo…" : "Estrai testo"}
+            </button>
+          </form>
+
+          {ocrError && (
+            <div className="il-error" role="alert">
+              {ocrError}
+            </div>
+          )}
+
+          {ocrText && (
+            <div className="il-ocr-result">
+              <div className="il-history-modal-meta">
+                <span>Testo estratto</span>
+                <button className="il-button" onClick={copyOcrText}>
+                  Copia
+                </button>
+              </div>
+              <pre className="il-ocr-pre">{ocrText}</pre>
+            </div>
+          )}
+        </section>
+
+        <footer className="il-footer">
+          <span>Z-Image-Turbo</span>
+          <span>Local inference · Async jobs</span>
           <button
-            onClick={onRemove}
-            style={styles.removeButton}
-            title="Remove participant"
+            className="il-text-button"
+            onClick={() => navigate("/improve")}
           >
-            ✕
+            Torna a Improve ↗
           </button>
-        )}
+        </footer>
       </div>
 
-      {/* Agent */}
-      <Field label="AGENT">
-        <select
-          value={participant.agent}
-          onChange={(event) => {
-            const id = event.target.value;
-            const next = AGENTS.find((item) => item.id === id);
-            setParticipant(idx, "agent", id);
-            setParticipant(
-              idx,
-              "character",
-              next?.hasCharacters ? NS_CHARACTERS[0] : ""
-            );
-            setParticipant(
-              idx,
-              "role",
-              next?.hasRoles ? QE_ROLES[0] : ""
-            );
-          }}
-          style={styles.select}
-        >
-          {AGENTS.map((item) => (
-            <option key={item.id} value={item.id}>
-              {AGENT_EMOJI[item.id] || "🤖"} {item.label}
-            </option>
-          ))}
-        </select>
-      </Field>
-
-      {/* Night Story genre */}
-      {agent?.hasCharacters && (
-        <Field label="GENRE">
-          <select
-            value={participant.character}
-            onChange={(event) =>
-              setParticipant(idx, "character", event.target.value)
-            }
-            style={styles.select}
-          >
-            {NS_CHARACTERS.map((character) => (
-              <option key={character} value={character}>
-                {CHARACTER_EMOJI[character] || "🎭"} {character}
-              </option>
-            ))}
-          </select>
-        </Field>
-      )}
-
-      {/* QE role */}
-      {agent?.hasRoles && (
-        <Field label="EMERGENCE ROLE">
-          <select
-            value={participant.role}
-            onChange={(event) =>
-              setParticipant(idx, "role", event.target.value)
-            }
-            style={styles.select}
-          >
-            {QE_ROLES.map((role) => (
-              <option key={role} value={role}>
-                {ROLE_EMOJI[role] || "🌱"} {role}
-              </option>
-            ))}
-          </select>
-        </Field>
-      )}
-
-      {/* LLM */}
-      <Field label="LLM">
-        <select
-          value={participant.model}
-          onChange={(event) =>
-            setParticipant(idx, "model", event.target.value)
-          }
-          style={styles.select}
-        >
-          {LLM_MODELS.map((model) => (
-            <option key={model} value={model}>
-              {model}
-            </option>
-          ))}
-        </select>
-      </Field>
-    </section>
+      <style>{STYLES}</style>
+    </main>
   );
 }
 
-// ============================================================
-// FIELD
-// ============================================================
-
-function Field({ label, children }) {
-  return (
-    <label style={styles.field}>
-      <span style={styles.fieldLabel}>{label}</span>
-      {children}
-    </label>
-  );
+const STYLES = `
+.il-page {
+  min-height: 100vh;
+  padding: 2rem 1.5rem 3rem;
+  background: var(--bg, #0b1015);
+  color: var(--ink, #e7edf1);
+  font-family: var(--sans, Inter, system-ui, sans-serif);
 }
-
-// ============================================================
-// SUMMARY CARD
-// ============================================================
-
-function SummaryCard({ label, value, detail }) {
-  return (
-    <div style={styles.summaryCard}>
-      <div style={styles.summaryLabel}>{label}</div>
-      <div style={styles.summaryValue}>{value}</div>
-      <div style={styles.summaryDetail}>{detail}</div>
-    </div>
-  );
+.il-container {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
 }
-
-// ============================================================
-// STYLES
-// ============================================================
-
-const styles = {
-  page: {
-    minHeight: "100vh",
-    position: "relative",
-    color: "#e7edf2",
-    fontFamily:
-      '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-    overflowX: "hidden",
-  },
-
-  background: {
-    position: "fixed",
-    inset: 0,
-    backgroundSize: "cover",
-    backgroundPosition: "center",
-    backgroundAttachment: "fixed",
-    zIndex: 0,
-  },
-
-  overlay: {
-    position: "fixed",
-    inset: 0,
-    background:
-      "linear-gradient(180deg, rgba(5,10,14,.20) 0%, rgba(7,13,18,.30) 48%, rgba(4,8,12,.40) 100%)",
-    zIndex: 1,
-  },
-
-  content: {
-    position: "relative",
-    zIndex: 2,
-    width: "min(960px, calc(100% - 32px))",
-    margin: "0 auto",
-    padding: "48px 0 72px",
-  },
-
-  header: {
-    textAlign: "center",
-    marginBottom: 34,
-  },
-
-  eyebrow: {
-    fontSize: 11,
-    letterSpacing: "3px",
-    fontWeight: 700,
-    color: "#7f9aaa",
-    marginBottom: 9,
-    textTransform: "uppercase",
-  },
-
-  title: {
-    margin: 0,
-    fontSize: "clamp(34px, 6vw, 54px)",
-    lineHeight: 1,
-    fontWeight: 700,
-    letterSpacing: "-1.5px",
-    color: "#f1f5f7",
-  },
-
-  subtitle: {
-    maxWidth: 650,
-    margin: "16px auto 0",
-    color: "#93a3ad",
-    fontSize: 15,
-    lineHeight: 1.6,
-  },
-
-  // Stack verticale di partecipanti (sostituisce agentsGrid A/B)
-  participantsStack: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 12,
-  },
-
-  agentCard: {
-    minWidth: 0,
-    padding: 22,
-    borderRadius: 18,
-    background:
-      "linear-gradient(145deg, rgba(20,29,37,.92), rgba(11,17,23,.92))",
-    border: "1px solid #354955",
-    boxShadow: "0 18px 50px rgba(0,0,0,.24)",
-  },
-
-  agentHeader: {
-    display: "flex",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 12,
-    marginBottom: 22,
-  },
-
-  agentSide: {
-    fontSize: 10,
-    letterSpacing: "2px",
-    color: "#748994",
-    fontWeight: 700,
-    marginBottom: 5,
-  },
-
-  agentName: {
-    fontSize: 20,
-    fontWeight: 650,
-    color: "#edf2f4",
-  },
-
-  removeButton: {
-    border: "1px solid #674a4a",
-    background: "transparent",
-    color: "#e5bebe",
-    borderRadius: 999,
-    width: 28,
-    height: 28,
-    cursor: "pointer",
-    fontSize: 13,
-    lineHeight: 1,
-  },
-
-  addButton: {
-    border: "1px dashed #3a4d58",
-    background: "transparent",
-    color: "#9bacb5",
-    borderRadius: 12,
-    padding: "12px",
-    fontSize: 12,
-    fontWeight: 700,
-    letterSpacing: ".7px",
-    cursor: "pointer",
-  },
-
-  field: {
-    display: "block",
-    marginTop: 15,
-  },
-
-  fieldLabel: {
-    display: "block",
-    fontSize: 10,
-    letterSpacing: "1.5px",
-    fontWeight: 700,
-    color: "#82949e",
-    marginBottom: 7,
-  },
-
-  select: {
-    width: "100%",
-    boxSizing: "border-box",
-    appearance: "auto",
-    background: "#101920",
-    color: "#e4ebef",
-    border: "1px solid #2d404b",
-    borderRadius: 10,
-    padding: "11px 12px",
-    fontSize: 14,
-    outline: "none",
-  },
-
-  card: {
-    marginTop: 18,
-    padding: 22,
-    borderRadius: 18,
-    background: "rgba(15,23,30,.9)",
-    border: "1px solid #273640",
-    boxShadow: "0 18px 50px rgba(0,0,0,.2)",
-  },
-
-  sectionHeader: {
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-    marginBottom: 18,
-  },
-
-  sectionIcon: {
-    width: 38,
-    height: 38,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 10,
-    background: "#17232b",
-    border: "1px solid #2b3d47",
-    fontSize: 18,
-  },
-
-  sectionTitle: {
-    fontSize: 12,
-    fontWeight: 750,
-    letterSpacing: "1.8px",
-    color: "#dce5e9",
-  },
-
-  sectionSubtitle: {
-    marginTop: 3,
-    fontSize: 12,
-    color: "#71838d",
-  },
-
-  radioRow: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: 18,
-    marginBottom: 14,
-  },
-
-  radioLabel: {
-    display: "flex",
-    alignItems: "center",
-    gap: 7,
-    color: "#aebcc4",
-    fontSize: 13,
-    cursor: "pointer",
-  },
-
-  textarea: {
-    width: "100%",
-    minHeight: 100,
-    boxSizing: "border-box",
-    resize: "vertical",
-    background: "#0d151b",
-    color: "#e5ecef",
-    border: "1px solid #2b3d47",
-    borderRadius: 11,
-    padding: 13,
-    fontFamily: "inherit",
-    fontSize: 14,
-    lineHeight: 1.5,
-    outline: "none",
-  },
-
-  input: {
-    width: "100%",
-    boxSizing: "border-box",
-    background: "#0d151b",
-    color: "#e5ecef",
-    border: "1px solid #2b3d47",
-    borderRadius: 11,
-    padding: "12px 13px",
-    fontFamily: "inherit",
-    fontSize: 14,
-    outline: "none",
-  },
-
-  runCard: {
-    marginTop: 18,
-    padding: 18,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 18,
-    borderRadius: 18,
-    background: "rgba(15,23,30,.9)",
-    border: "1px solid #273640",
-    flexWrap: "wrap",
-  },
-
-  optionLabel: {
-    fontSize: 10,
-    letterSpacing: "1.5px",
-    color: "#82949e",
-    fontWeight: 700,
-    marginBottom: 7,
-  },
-
-  turnsHint: {
-    marginTop: 6,
-    fontSize: 11,
-    color: "#71838d",
-  },
-
-  turnsHintError: {
-    color: "#e5bebe",
-  },
-
-  smallSelect: {
-    minWidth: 110,
-    background: "#101920",
-    color: "#e4ebef",
-    border: "1px solid #2d404b",
-    borderRadius: 9,
-    padding: "10px 12px",
-    fontSize: 14,
-  },
-
-  startButton: {
-    border: "1px solid #4a626e",
-    background: "linear-gradient(135deg, #263943, #17262f)",
-    color: "#eef4f6",
-    borderRadius: 999,
-    padding: "13px 24px",
-    fontSize: 12,
-    fontWeight: 750,
-    letterSpacing: ".7px",
-    boxShadow: "0 8px 25px rgba(0,0,0,.22)",
-  },
-
-  startColumn: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "flex-end",
-    gap: 8,
-  },
-
-  userRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    fontSize: 11,
-    color: "#71838d",
-  },
-
-  linkButton: {
-    border: "none",
-    background: "transparent",
-    color: "#9bacb5",
-    fontSize: 11,
-    textDecoration: "underline",
-    cursor: "pointer",
-    padding: 0,
-  },
-
-  authHint: {
-    fontSize: 11,
-    color: "#71838d",
-    textAlign: "right",
-  },
-
-  noticeText: {
-    marginTop: 8,
-    fontSize: 12,
-    color: "#e5bebe",
-  },
-
-  liveHeader: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 20,
-    marginBottom: 24,
-    paddingBottom: 20,
-    borderBottom: "1px solid #25343d",
-    flexWrap: "wrap",
-  },
-
-  liveTitle: {
-    margin: 0,
-    fontSize: "clamp(28px, 5vw, 42px)",
-    color: "#f1f5f7",
-    letterSpacing: "-1px",
-  },
-
-  statusRow: {
-    display: "flex",
-    alignItems: "center",
-    flexWrap: "wrap",
-    gap: 7,
-    marginTop: 9,
-    color: "#83959f",
-    fontSize: 12,
-  },
-
-  statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: "50%",
-    display: "inline-block",
-  },
-
-  statusRunning: {
-    background: "#8aaebc",
-    boxShadow: "0 0 10px rgba(138,174,188,.7)",
-  },
-
-  statusFinished: {
-    background: "#667780",
-  },
-
-  statusSeparator: {
-    color: "#465862",
-  },
-
-  liveActions: {
-    display: "flex",
-    flexWrap: "wrap",
-    justifyContent: "flex-end",
-    gap: 8,
-  },
-
-  stopButton: {
-    border: "1px solid #674a4a",
-    background: "#241719",
-    color: "#e5bebe",
-    borderRadius: 999,
-    padding: "10px 15px",
-    fontSize: 11,
-    fontWeight: 700,
-    cursor: "pointer",
-  },
-
-  // Raise hand: stesso formato dei bottoni live, tono ambra.
-  handButton: {
-    border: "1px solid #6b5a3a",
-    background: "#241f14",
-    color: "#e5d3a8",
-    borderRadius: 999,
-    padding: "10px 15px",
-    fontSize: 11,
-    fontWeight: 700,
-    cursor: "pointer",
-  },
-
-  resetButton: {
-    border: "1px solid #344853",
-    background: "#121c23",
-    color: "#b6c4ca",
-    borderRadius: 999,
-    padding: "10px 15px",
-    fontSize: 11,
-    fontWeight: 700,
-    cursor: "pointer",
-  },
-
-  summaryGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-    gap: 10,
-    marginBottom: 14,
-  },
-
-  summaryCard: {
-    minWidth: 0,
-    padding: 14,
-    borderRadius: 13,
-    background: "rgba(15,23,30,.82)",
-    border: "1px solid #25353f",
-  },
-
-  summaryLabel: {
-    fontSize: 9,
-    letterSpacing: "1.5px",
-    color: "#71848e",
-    fontWeight: 750,
-    marginBottom: 7,
-  },
-
-  summaryValue: {
-    fontSize: 13,
-    color: "#dce5e9",
-    fontWeight: 650,
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-  },
-
-  summaryDetail: {
-    marginTop: 4,
-    fontSize: 11,
-    color: "#71838d",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-  },
-
-  worldLiveCard: {
-    padding: 18,
-    marginBottom: 14,
-    borderRadius: 16,
-    background: "rgba(15,23,30,.88)",
-    border: "1px solid #293b45",
-  },
-
-  worldLiveTitle: {
-    fontSize: 10,
-    fontWeight: 750,
-    letterSpacing: "1.6px",
-    color: "#7e929d",
-    marginBottom: 8,
-  },
-
-  worldLiveText: {
-    color: "#c7d2d7",
-    fontSize: 14,
-    lineHeight: 1.55,
-    whiteSpace: "pre-wrap",
-  },
-
-  conversationCard: {
-    borderRadius: 18,
-    background: "rgba(11,18,24,.9)",
-    border: "1px solid #273640",
-    overflow: "hidden",
-  },
-
-  conversationHeader: {
-    padding: "18px 20px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderBottom: "1px solid #263640",
-  },
-
-  liveBadge: {
-    border: "1px solid #38505a",
-    background: "#142229",
-    color: "#9cb4bd",
-    borderRadius: 999,
-    padding: "5px 9px",
-    fontSize: 9,
-    letterSpacing: "1px",
-    fontWeight: 800,
-  },
-
-  conversation: {
-    maxHeight: "58vh",
-    overflowY: "auto",
-    padding: 20,
-    display: "flex",
-    flexDirection: "column",
-    gap: 13,
-  },
-
-  messageRow: {
-    display: "flex",
-    width: "100%",
-  },
-
-  message: {
-    maxWidth: "82%",
-    padding: "13px 15px",
-    borderRadius: 14,
-    border: "1px solid #293b45",
-    boxShadow: "0 8px 25px rgba(0,0,0,.25)",
-  },
-
-  messageA: {
-    background:
-      "linear-gradient(145deg, rgba(20,29,37,.95), rgba(15,23,30,.95))",
-    borderBottomLeftRadius: 4,
-  },
-
-  messageB: {
-    background:
-      "linear-gradient(145deg, rgba(24,34,44,.95), rgba(16,25,32,.95))",
-    borderBottomRightRadius: 4,
-  },
-
-  // Messaggio umano (raise hand): centrato, tono ambra.
-  messageHuman: {
-    background:
-      "linear-gradient(145deg, rgba(38,32,20,.95), rgba(26,22,14,.95))",
-    border: "1px solid #6b5a3a",
-  },
-
-  messageMeta: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-    marginBottom: 6,
-  },
-
-  messageIdentity: {
-    fontSize: 11,
-    fontWeight: 700,
-    color: "#9db2bd",
-    letterSpacing: ".4px",
-  },
-
-  messageModel: {
-    fontSize: 10,
-    color: "#5f7480",
-  },
-
-  messageText: {
-    color: "#dbe4e9",
-    fontSize: 14,
-    lineHeight: 1.55,
-    whiteSpace: "pre-wrap",
-  },
-
-  thinking: {
-    display: "flex",
-    alignItems: "center",
-    gap: 6,
-    color: "#71838d",
-    fontSize: 12,
-    padding: "4px 2px",
-  },
-
-  // Pannello di intervento umano (run in PAUSED).
-  humanPanel: {
-    padding: 20,
-    borderTop: "1px solid #3d3626",
-    background: "rgba(28,24,15,.9)",
-  },
-
-  humanTitle: {
-    fontSize: 11,
-    fontWeight: 750,
-    letterSpacing: "1.6px",
-    color: "#e5d3a8",
-    marginBottom: 5,
-  },
-
-  humanHint: {
-    fontSize: 12,
-    color: "#9c8f6c",
-    marginBottom: 12,
-  },
-
-  humanActions: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "flex-end",
-    flexWrap: "wrap",
-    gap: 8,
-    marginTop: 12,
-  },
-
-  humanCounter: {
-    marginRight: "auto",
-    fontSize: 11,
-    color: "#7d7358",
-  },
-
-  errorBox: {
-    padding: 14,
-    borderRadius: 12,
-    border: "1px solid #5c3a3a",
-    background: "rgba(35,16,18,.9)",
-    color: "#e5bebe",
-    fontSize: 13,
-    lineHeight: 1.5,
-  },
-
-  completedBox: {
-    padding: 14,
-    borderRadius: 12,
-    border: "1px solid #2f4a3a",
-    background: "rgba(14,26,20,.9)",
-    color: "#a9d3b8",
-    fontSize: 13,
-    textAlign: "center",
-  },
-
-  stoppedBox: {
-    padding: 14,
-    borderRadius: 12,
-    border: "1px solid #3a4a55",
-    background: "rgba(16,24,30,.9)",
-    color: "#9bacb5",
-    fontSize: 13,
-    textAlign: "center",
-  },
-};
+.il-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border, #1f2b35);
+}
+.il-header h1 {
+  font-family: var(--serif, Georgia, serif);
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 400;
+  letter-spacing: -.035em;
+}
+.il-eyebrow {
+  color: var(--accent, #3fd0c9);
+  font-size: .7rem;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  margin-bottom: .35rem;
+}
+.il-subtitle {
+  color: var(--ink-dim, #8fa1ac);
+  font-size: .9rem;
+}
+.il-account {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: .6rem;
+}
+.il-account > span {
+  color: var(--ink-dim, #8fa1ac);
+  font-size: .8rem;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.il-notice {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  margin: 1.25rem 0;
+  padding: .8rem 1rem;
+  border: 1px solid var(--border, #1f2b35);
+  border-radius: 8px;
+  background: var(--bg-alt, #0f151c);
+  color: var(--ink-dim, #8fa1ac);
+  font-size: .82rem;
+}
+.il-status-dot {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 7px #4ade8055;
+}
+.il-layout {
+  display: grid;
+  grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr);
+  align-items: start;
+  gap: 1rem;
+}
+.il-panel {
+  min-width: 0;
+  padding: 1.25rem;
+  border: 1px solid var(--border, #1f2b35);
+  border-radius: 12px;
+  background: var(--panel, #121a22);
+}
+.il-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+.il-section-heading h2 {
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+.il-label {
+  display: block;
+  margin-bottom: .45rem;
+  color: var(--ink-dim, #8fa1ac);
+  font-size: .78rem;
+  font-weight: 600;
+}
+.il-input {
+  width: 100%;
+  min-width: 0;
+  padding: .8rem .85rem;
+  border: 1px solid var(--border, #1f2b35);
+  border-radius: 7px;
+  outline: none;
+  background: var(--bg, #0b1015);
+  color: var(--ink, #e7edf1);
+  font: inherit;
+  font-size: .9rem;
+}
+.il-input:focus {
+  border-color: var(--accent, #3fd0c9);
+  box-shadow: 0 0 0 2px #3fd0c91a;
+}
+.il-input:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
+.il-prompt {
+  resize: vertical;
+  min-height: 145px;
+  line-height: 1.6;
+}
+.il-char-count {
+  margin-top: .3rem;
+  color: var(--ink-dim, #8fa1ac);
+  text-align: right;
+  font-size: .72rem;
+}
+.il-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .8rem;
+  margin-top: 1rem;
+}
+.il-seed-row {
+  margin-top: 1rem;
+}
+.il-seed-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+}
+.il-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  color: var(--ink-dim, #8fa1ac);
+  font-size: .8rem;
+}
+.il-checkbox input {
+  accent-color: var(--accent, #3fd0c9);
+}
+.il-hint {
+  margin-top: .7rem;
+  color: var(--ink-dim, #8fa1ac);
+  font-size: .76rem;
+  line-height: 1.55;
+}
+.il-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .6rem;
+  margin-top: 1rem;
+}
+.il-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  padding: .65rem .9rem;
+  border: 1px solid var(--border, #1f2b35);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink, #e7edf1);
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+}
+.il-button:hover:not(:disabled) {
+  border-color: var(--accent, #3fd0c9);
+}
+.il-button:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+.il-primary {
+  border-color: var(--accent, #3fd0c9);
+  background: var(--accent, #3fd0c9);
+  color: #071212;
+}
+.il-primary:hover:not(:disabled) {
+  background: #68e0da;
+}
+.il-result-panel {
+  min-height: 490px;
+}
+.il-live {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  color: #4ade80;
+  font-size: .7rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+}
+.il-empty, .il-progress {
+  display: flex;
+  min-height: 340px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 1.5rem;
+}
+.il-empty-icon {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  place-items: center;
+  margin-bottom: 1rem;
+  border: 1px solid var(--border, #1f2b35);
+  border-radius: 50%;
+  color: var(--accent, #3fd0c9);
+  font-size: 1.7rem;
+}
+.il-empty h3, .il-progress h3 {
+  margin-bottom: .4rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.il-empty p, .il-progress p {
+  max-width: 360px;
+  color: var(--ink-dim, #8fa1ac);
+  font-size: .82rem;
+  line-height: 1.6;
+}
+.il-spinner {
+  width: 32px;
+  height: 32px;
+  margin-bottom: 1rem;
+  border: 3px solid var(--border, #1f2b35);
+  border-top-color: var(--accent, #3fd0c9);
+  border-radius: 50%;
+  animation: il-spin .8s linear infinite;
+}
+@keyframes il-spin {
+  to { transform: rotate(360deg); }
+}
+.il-progress-track {
+  width: 100%;
+  max-width: 360px;
+  height: 5px;
+  margin-top: 1.25rem;
+  overflow: hidden;
+  border-radius: 99px;
+  background: var(--border, #1f2b35);
+}
+.il-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent, #3fd0c9);
+  transition: width .35s ease;
+}
+.il-progress-meta {
+  display: flex;
+  width: 100%;
+  max-width: 360px;
+  justify-content: space-between;
+  margin-top: .5rem;
+  color: var(--ink-dim, #8fa1ac);
+  font-size: .75rem;
+}
+.il-output {
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+}
+.il-generated-image {
+  display: block;
+  width: 100%;
+  max-height: 680px;
+  object-fit: contain;
+  border: 1px solid var(--border, #1f2b35);
+  border-radius: 8px;
+  background: #080c10;
+}
+.il-result-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem 1rem;
+  color: var(--ink-dim, #8fa1ac);
+  font-size: .76rem;
+}
+.il-error, .il-error-panel {
+  margin-top: 1rem;
+  padding: .8rem;
+  border: 1px solid #7f1d1d;
+  border-radius: 7px;
+  background: #7f1d1d20;
+  color: #fca5a5;
+  font-size: .82rem;
+  overflow-wrap: anywhere;
+}
+.il-error-panel h3 {
+  margin-bottom: .5rem;
+}
+.il-job-id {
+  margin-top: 1rem;
+  color: var(--ink-dim, #8fa1ac);
+  font-size: .7rem;
+  overflow-wrap: anywhere;
+}
+.il-job-id code {
+  color: var(--ink, #e7edf1);
+}
+.il-login {
+  max-width: 560px;
+  margin: 2rem auto;
+}
+.il-login h2 {
+  margin-bottom: .5rem;
+}
+.il-login p {
+  margin-bottom: 1rem;
+  color: var(--ink-dim, #8fa1ac);
+}
+.il-history-panel {
+  margin-top: 1rem;
+}
+.il-history-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: .8rem;
+}
+.il-history-card {
+  display: flex;
+  flex-direction: column;
+  gap: .55rem;
+  min-width: 0;
+  padding: .85rem;
+  border: 1px solid var(--border, #1f2b35);
+  border-radius: 9px;
+  background: var(--bg-alt, #0f151c);
+}
+.il-history-prompt {
+  color: var(--ink, #e7edf1);
+  font-size: .8rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.il-history-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem .75rem;
+  color: var(--ink-dim, #8fa1ac);
+  font-size: .7rem;
+}
+.il-history-actions {
+  display: flex;
+  gap: .45rem;
+  margin-top: auto;
+}
+.il-history-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(4, 8, 12, .82);
+}
+.il-history-modal {
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+  width: min(760px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 1.1rem;
+  border: 1px solid var(--border, #1f2b35);
+  border-radius: 12px;
+  background: var(--panel, #121a22);
+}
+.il-history-modal-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem 1rem;
+  color: var(--ink-dim, #8fa1ac);
+  font-size: .76rem;
+}
+.il-ocr-panel {
+  margin-top: 1rem;
+}
+.il-ocr-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .6rem;
+}
+.il-ocr-result {
+  margin-top: .8rem;
+}
+.il-ocr-pre {
+  margin: .5rem 0 0;
+  padding: .8rem 1rem;
+  border: 1px solid var(--border, #1f2b35);
+  border-radius: 9px;
+  background: var(--bg-alt, #0f151c);
+  color: var(--ink, #e7edf1);
+  font-family: inherit;
+  font-size: .82rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 380px;
+  overflow-y: auto;
+}
+.il-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border, #1f2b35);
+  color: var(--ink-dim, #8fa1ac);
+  font-size: .75rem;
+}
+.il-text-button {
+  border: 0;
+  background: transparent;
+  color: var(--accent, #3fd0c9);
+  font: inherit;
+  cursor: pointer;
+}
+@media (max-width: 850px) {
+  .il-layout {
+    grid-template-columns: 1fr;
+  }
+  .il-result-panel {
+    min-height: 360px;
+  }
+}
+@media (max-width: 560px) {
+  .il-page {
+    padding: 1.1rem .75rem 2rem;
+  }
+  .il-panel {
+    padding: .9rem;
+  }
+  .il-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .il-account {
+    justify-content: flex-start;
+  }
+  .il-account > span {
+    width: 100%;
+    max-width: none;
+  }
+}
+`;
