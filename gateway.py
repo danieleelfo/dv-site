@@ -5,14 +5,17 @@ import uuid
 
 import psycopg2
 
+import base64
+import json
 import random
+import re
 
 from git_admin import build_git_admin_router
 
 import httpx
 from fastapi import FastAPI, Header, HTTPException, Request, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
 from pydantic import BaseModel
@@ -2317,6 +2320,16 @@ async def _image_run_job(
             job["message"] = "Immagine generata."
             job["finished_at"] = time.time()
 
+            _image_save_history(
+                job_id=job_id,
+                prompt=prompt,
+                width=width,
+                height=height,
+                steps=steps,
+                seed=data.get("seed", actual_seed),
+                image_base64=image_base64,
+            )
+
     except asyncio.CancelledError:
         job = IMAGE_JOBS.get(job_id)
 
@@ -2552,6 +2565,195 @@ async def image_get_result(
 
     return result
 
+
+# --------------------------------------------------------------------------
+# IMAGE HISTORY — persistenza su disco delle generazioni
+# --------------------------------------------------------------------------
+
+# Directory dove vengono salvati i PNG e i metadati JSON.
+IMAGE_HISTORY_DIR = os.environ.get(
+    "IMAGE_HISTORY_DIR",
+    os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "image_history",
+    ),
+)
+
+# Numero massimo di generazioni conservate su disco.
+IMAGE_HISTORY_MAX = int(os.environ.get("IMAGE_HISTORY_MAX", "100"))
+
+
+def _image_save_history(
+    job_id: str,
+    prompt: str,
+    width: int,
+    height: int,
+    steps: int,
+    seed: int,
+    image_base64: str,
+) -> None:
+    """
+    Salva su disco il risultato di una generazione (PNG + JSON).
+
+    Gli errori vengono solo loggati: la history non deve mai
+    compromettere la generazione appena completata.
+    """
+    try:
+        os.makedirs(IMAGE_HISTORY_DIR, exist_ok=True)
+
+        image_path = os.path.join(IMAGE_HISTORY_DIR, f"{job_id}.png")
+
+        with open(image_path, "wb") as f:
+            f.write(base64.b64decode(image_base64))
+
+        meta = {
+            "job_id": job_id,
+            "prompt": prompt,
+            "width": width,
+            "height": height,
+            "steps": steps,
+            "seed": seed,
+            "created_at": time.time(),
+        }
+
+        with open(
+            os.path.join(IMAGE_HISTORY_DIR, f"{job_id}.json"),
+            "w",
+            encoding="utf-8",
+        ) as f:
+            json.dump(meta, f, ensure_ascii=False, indent=2)
+
+        _image_cleanup_history()
+
+    except Exception as e:
+        print(
+            f"[image-lab] Errore salvataggio history {job_id}: {e}",
+            flush=True,
+        )
+
+
+def _image_cleanup_history() -> None:
+    """
+    Mantiene al massimo IMAGE_HISTORY_MAX generazioni,
+    eliminando le più vecchie.
+    """
+    try:
+        json_files = [
+            filename
+            for filename in os.listdir(IMAGE_HISTORY_DIR)
+            if filename.endswith(".json")
+        ]
+
+        if len(json_files) <= IMAGE_HISTORY_MAX:
+            return
+
+        entries = sorted(
+            (
+                (
+                    filename,
+                    os.path.getmtime(
+                        os.path.join(IMAGE_HISTORY_DIR, filename)
+                    ),
+                )
+                for filename in json_files
+            ),
+            key=lambda item: item[1],
+        )
+
+        excess = len(entries) - IMAGE_HISTORY_MAX
+
+        for filename, _ in entries[:excess]:
+            job_id = filename[:-5]
+            try:
+                os.remove(
+                    os.path.join(IMAGE_HISTORY_DIR, filename)
+                )
+                os.remove(
+                    os.path.join(IMAGE_HISTORY_DIR, f"{job_id}.png")
+                )
+            except FileNotFoundError:
+                pass
+
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        print(f"[image-lab] Errore cleanup history: {e}", flush=True)
+
+
+@app.get("/api/image/history")
+async def image_history_list(
+    authorization: str | None = Header(None),
+):
+    """
+    Restituisce i metadati delle generazioni salvate,
+    dalla più recente alla più vecchia.
+    """
+    verify_admin_token(authorization)
+
+    items = []
+
+    try:
+        json_files = [
+            filename
+            for filename in os.listdir(IMAGE_HISTORY_DIR)
+            if filename.endswith(".json")
+        ]
+
+        entries = sorted(
+            (
+                (
+                    filename,
+                    os.path.getmtime(
+                        os.path.join(IMAGE_HISTORY_DIR, filename)
+                    ),
+                )
+                for filename in json_files
+            ),
+            key=lambda item: item[1],
+            reverse=True,
+        )
+
+        for filename, _ in entries:
+            try:
+                with open(
+                    os.path.join(IMAGE_HISTORY_DIR, filename),
+                    encoding="utf-8",
+                ) as f:
+                    items.append(json.load(f))
+            except Exception:
+                continue
+
+    except FileNotFoundError:
+        pass
+
+    return {"items": items, "max": IMAGE_HISTORY_MAX}
+
+
+@app.get("/api/image/history/{job_id}/image")
+async def image_history_image(
+    job_id: str,
+    authorization: str | None = Header(None),
+):
+    """
+    Restituisce il PNG di una generazione salvata.
+    """
+    verify_admin_token(authorization)
+
+    if not re.fullmatch(r"[0-9a-f-]{36}", job_id):
+        raise HTTPException(
+            status_code=400,
+            detail="job_id non valido.",
+        )
+
+    image_path = os.path.join(IMAGE_HISTORY_DIR, f"{job_id}.png")
+
+    if not os.path.isfile(image_path):
+        raise HTTPException(
+            status_code=404,
+            detail="Immagine non trovata.",
+        )
+
+    return FileResponse(image_path, media_type="image/png")
 
 # --------------------------------------------------------------------------
 # HEALTH CHECK IMAGE LAB
