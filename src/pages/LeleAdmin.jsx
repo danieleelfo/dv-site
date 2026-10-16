@@ -899,7 +899,7 @@ export default function Test5() {
         {backdrop}
         <div className="lc-wrap">
           <div className="lc-top">
-            <h1 className="lc-title">Lele Admin Console · Test5 (Super-Leles)</h1>
+            <h1 className="lc-title">Leles Admin Console</h1>
             <div ref={buttonRef} className="lc-gbtn" />
           </div>
           <p className="lc-dim lc-small lc-login-msg">Accesso riservato.</p>
@@ -922,7 +922,7 @@ export default function Test5() {
 
       <div className="lc-wrap">
         <div className="lc-top">
-          <h1 className="lc-title">Lele Admin Console · Test5 (Super-Leles)</h1>
+          <h1 className="lc-title">Leles Admin Console</h1>
           <div className="lc-session">
             <span className="lc-ellipsis">{profile?.email || 'account Google'}</span>
             <button type="button" className="lc-btn lc-btn--sm" onClick={() => logout()}>
