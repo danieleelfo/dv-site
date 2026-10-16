@@ -2842,7 +2842,7 @@ OLLAMA_URL = os.environ.get(
     "http://127.0.0.1:11434",
 ).rstrip("/")
 
-VISION_OCR_MODEL = os.environ.get("VISION_OCR_MODEL", "qwen2.5vl")
+VISION_OCR_MODEL = os.environ.get("VISION_OCR_MODEL", "qwen2.5vl:3b")
 
 # Peso massimo dell'immagine caricata (10 MB).
 VISION_MAX_IMAGE_BYTES = 10 * 1024 * 1024
@@ -2977,7 +2977,7 @@ async def image_health(
         if response.status_code >= 400:
             raise HTTPException(
                 status_code=502,
-                detail=f"Gradio ha restituito HTTP {response.status_code}.",
+                detail=f"Gradio DV ha restituito HTTP {response.status_code}.",
             )
 
         info = response.json()
@@ -2996,7 +2996,7 @@ async def image_health(
     except Exception as exc:
         raise HTTPException(
             status_code=503,
-            detail=f"Gradio non è raggiungibile su {IMAGE_MODEL_URL}: {exc}",
+            detail=f"Gradio DV non è raggiungibile su {IMAGE_MODEL_URL}: {exc}",
         )
 
 # AVVIO DIRETTO
