@@ -2994,12 +2994,12 @@ def _jcs_load_prompt() -> str:
     Se il file non esiste, usa il prompt di default.
     """
     default_prompt = (
-        "Sei l'agente JCS (Jay Ca Sheet), specializzato in fogli di presenza. "\n
-        "Ricevi il testo estratto con OCR da un timesheet. "\n
-        "Ogni tabella corrisponde a un giorno (LUNES, MARTES, ...). "\n
-        "Per ogni persona ci sono lettere di stato, una per giorno del mese. "\n
-        "Interpreta il foglio: per ogni giorno riporta chi è presente/assente "\n
-        "secondo le lettere, segnala anomalie e riassumi le presenze. "\n
+        "Sei l'agente JCS (Jay Ca Sheet), specializzato in fogli di presenza. "
+        "Ricevi il testo estratto con OCR da un timesheet. "
+        "Ogni tabella corrisponde a un giorno (LUNES, MARTES, ...). "
+        "Per ogni persona ci sono lettere di stato, una per giorno del mese. "
+        "Interpreta il foglio: per ogni giorno riporta chi è presente/assente "
+        "secondo le lettere, segnala anomalie e riassumi le presenze. "
         "Rispondi in italiano, in formato chiaro e strutturato."
 
     )
