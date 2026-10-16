@@ -2463,8 +2463,8 @@ async def _image_run_job(
                 width=width,
                 height=height,
                 steps=steps,
-                seed=data.get("seed", actual_seed),
-                image_base64=image_base64,
+                seed=result["seed"],
+                image_base64=result["image_base64"],
             )
 
     except asyncio.CancelledError:
