@@ -74,6 +74,7 @@ const QUICK_LINKS = [
 // Pagine di test/laboratorio: in fondo, si validano da qui.
 const TEST_LINKS = [
   { to: '/test', label: 'Test 🕰️', desc: 'Pagina test storica' },
+  { to: '/test2', label: 'Test2 🏴‍☠️', desc: 'Leles Admin Console (questa pagina)' },
   { to: '/test3', label: 'Test3 🗺️', desc: 'Arena multi-agente' },
   { to: '/test4', label: 'Test4 🔬', desc: 'ImageLab preview · gallery · OCR/JCS' },
   { to: '/test5', label: 'Test5 🧠', desc: 'Image-to-image (img2img)' },
