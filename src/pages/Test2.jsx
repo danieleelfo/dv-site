@@ -93,7 +93,7 @@ const GROUPS = [
         method: "POST", path: "/api/chat", auth: false,
         summary: "Chat testuale con un agente pubblico.",
         request: 'Content-Type: application/json\n\n{\n  "agent": "Lele I | Bar_AI demo | Story Whisper | Night Story",\n  "prompt": "...",\n  "chat_id": 1010101010,\n  "language": "en"\n}',
-        response: '{ ...risposta JSON dell'agente... }',
+        response: "{ ...risposta JSON dell'agente... }",
         notes: "Il gateway inoltra su 127.0.0.1:{porta}/ask del rispettivo agente.",
       },
       {
