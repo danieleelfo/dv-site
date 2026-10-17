@@ -616,11 +616,81 @@ export default function Test2() {
     )
   }
 
+  // IMMAGINI: prompt che inizia con "immagina ..." non passa da Leles:
+  // la console chiama direttamente il gateway (POST /api/image/jobs),
+  // fa polling e mostra il PNG in Sessione. Zero modifiche a lele_api.
+  const [imageBusy, setImageBusy] = useState(false)
+
+  async function runImage(imagePrompt) {
+    const t0 = Date.now()
+    const entry = { id: t0, cmd: 'immagina ' + imagePrompt, at: t0, ms: 0, text: '🎨 Generazione avviata…' }
+    setHistory((h) => [entry, ...h].slice(0, 30))
+    setImageBusy(true)
+    try {
+      const created = await adminJson(idToken, '/api/image/jobs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: imagePrompt, width: 512, height: 512, steps: 8, seed: -1 }),
+      })
+      const jobId = created.job_id
+      if (!jobId) throw new Error('Il gateway non ha restituito job_id.')
+
+      // Polling (max ~10 minuti).
+      const deadline = Date.now() + 600000
+      let result = null
+      while (Date.now() < deadline) {
+        await new Promise((r2) => setTimeout(r2, 5000))
+        const job = await adminJson(idToken, '/api/image/jobs/' + jobId, { timeoutMs: 30000 })
+        const st = String(job.status || '').toLowerCase()
+        if (['completed', 'complete', 'succeeded', 'success'].includes(st)) {
+          result = await adminJson(idToken, '/api/image/jobs/' + jobId + '/result', { timeoutMs: 60000 })
+          break
+        }
+        if (['failed', 'error', 'cancelled', 'canceled'].includes(st)) {
+          throw new Error(job.error || job.message || 'Generazione non riuscita.')
+        }
+      }
+      if (!result?.image_base64) throw new Error('Timeout o risultato senza immagine.')
+
+      const b64 = String(result.image_base64).replace(/^data:image\/png;base64,/i, '')
+      setHistory((h) =>
+        h.map((x) =>
+          x.id === t0
+            ? {
+                ...x,
+                ms: Date.now() - t0,
+                text: '🖼️ Immagine generata (seed ' + (result.seed ?? '?') + ') — salvata anche in ImageLab.',
+                img: 'data:image/png;base64,' + b64,
+              }
+            : x
+        )
+      )
+    } catch (err) {
+      if (err.status === 401 || err.status === 403) {
+        logout(err.message)
+        return
+      }
+      setHistory((h) =>
+        h.map((x) => (x.id === t0 ? { ...x, ms: Date.now() - t0, err: err.message } : x))
+      )
+    } finally {
+      setImageBusy(false)
+    }
+  }
+
   async function run(e) {
     e?.preventDefault()
     // Super-Leles: se il toggle e' attivo, il prompt parte come 'super <domanda>'
     // (a meno che non sia gia' un comando super/sl/modellosl).
     const raw = prompt.trim()
+    // "immagina <prompt>" → generazione immagini via gateway (no Leles).
+    const imgMatch = raw.match(/^immagina\s+(.+)$/i)
+    if (imgMatch) {
+      if (!idToken || imageBusy) return
+      setPrompt('')
+      await runImage(imgMatch[1].trim())
+      return
+    }
     const cmd = superMode && !/^(super|super-leles|sl|modellosl)\b/i.test(raw) ? 'super ' + raw : raw
     if (!cmd || !idToken || isLoading) return
 
@@ -1076,6 +1146,18 @@ export default function Test2() {
                 {modelSwitching && (
                   <span className="lc-dim lc-small">Switch modello…</span>
                 )}
+                <button
+                  type="button"
+                  className="lc-btn"
+                  disabled={imageBusy || isLoading}
+                  title="Prefissa il prompt con immagina: la console genera un immagine con Z-Image-Turbo (via gateway), senza passare da Leles"
+                  onClick={() => {
+                    setPrompt((v) => (v.startsWith('immagina ') ? v : 'immagina ' + v))
+                    textareaRef.current?.focus()
+                  }}
+                >
+                  🖼️ Immagina
+                </button>
                 <span className="lc-dim lc-small">
                   {armed
                     ? 'Comando che cambia lo stato del sistema: premi di nuovo per confermare.'
@@ -1427,6 +1509,7 @@ export default function Test2() {
                         Copia
                       </button>
                     </header>
+                    {h.img && <img src={h.img} alt="Immagine generata" className="lc-gen-img" />}
                     <pre className="lc-pre">{h.text || h.err}</pre>
                   </article>
                 ))}
@@ -1590,6 +1673,7 @@ const css = `
 .lc-dim{color:var(--ink-dim)}.lc-small{font-size:12px}
 .lc-model-select{max-width:170px;font-size:12px}
 .lc-model-row{display:flex;gap:14px;flex-wrap:wrap;margin:2px 0 12px}
+.lc-gen-img{display:block;width:100%;max-width:420px;margin:10px 12px 0;border:1px solid var(--line);border-radius:10px}
 .lc-model-row label{display:flex;flex-direction:column;gap:4px}
 .lc-err{color:var(--bad);font-size:14px}
 .lc-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
