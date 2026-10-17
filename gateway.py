@@ -2149,6 +2149,10 @@ class ImageGenerationRequest(BaseModel):
     steps: int = 8
     seed: int = -1
 
+    # IMG2IMG (opzionale): se image_base64 è vuoto il job è txt2img.
+    image_base64: str = Field(default="", max_length=20_000_000)
+    strength: float = Field(default=0.5, gt=0.0, le=1.0)
+
 
 def _image_cleanup_jobs() -> None:
     now = time.time()
@@ -2413,6 +2417,245 @@ async def _image_gradio_generate(
         }
 
 
+async def _image_gradio_upload(
+    client: httpx.AsyncClient,
+    image_bytes: bytes,
+) -> str:
+    """
+    Carica l'immagine di partenza su Gradio (/gradio_api/upload)
+    e ritorna il percorso del file sul server (handle per l'API).
+    """
+    files = {
+        "files": (
+            "init_image",
+            image_bytes,
+            "image/png",
+        )
+    }
+
+    response = await client.post(
+        f"{IMAGE_MODEL_URL}/gradio_api/upload",
+        files=files,
+    )
+
+    if response.status_code >= 400:
+        raise RuntimeError(
+            f"Upload Gradio HTTP {response.status_code}: {response.text[:500]}"
+        )
+
+    try:
+        paths = response.json()
+    except Exception as exc:
+        raise RuntimeError(
+            f"Risposta upload Gradio non valida: {response.text[:500]}"
+        ) from exc
+
+    if not isinstance(paths, list) or not paths:
+        raise RuntimeError("Upload Gradio senza percorso file.")
+
+    return str(paths[0])
+
+
+async def _image_gradio_img2img(
+    prompt: str,
+    width: int,
+    height: int,
+    steps: int,
+    seed: int,
+    image_b64: str,
+    strength: float,
+) -> dict:
+    """
+    Come _image_gradio_generate, ma verso l'endpoint direct_img2img:
+    prima carica l'immagine di partenza su Gradio, poi invoca
+    [prompt, category, resolution, seed, False, steps, handle, strength].
+    """
+    category, resolution = _image_resolution(width, height)
+
+    raw = base64.b64decode(image_b64, validate=False)
+    if not raw:
+        raise RuntimeError("Immagine di partenza vuota.")
+
+    timeout = httpx.Timeout(
+        timeout=IMAGE_GENERATION_TIMEOUT,
+        connect=10.0,
+    )
+
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        handle = await _image_gradio_upload(client, raw)
+
+        # Avvia il lavoro Gradio.
+        response = await client.post(
+            f"{IMAGE_MODEL_URL}/gradio_api/call/direct_img2img",
+            json={
+                "data": [
+                    prompt,
+                    category,
+                    resolution,
+                    seed,
+                    False,  # Seed esplicito: non richiedere un altro seed casuale.
+                    steps,
+                    handle,
+                    strength,
+                ]
+            },
+        )
+
+        if response.status_code >= 400:
+            raise RuntimeError(
+                f"Gradio HTTP {response.status_code}: {response.text[:1500]}"
+            )
+
+        try:
+            event_id = response.json().get("event_id")
+        except Exception as exc:
+            raise RuntimeError(
+                f"Risposta Gradio di avvio non valida: {response.text[:1000]}"
+            ) from exc
+
+        if not event_id:
+            raise RuntimeError(
+                f"Gradio non ha restituito event_id: {response.text[:1000]}"
+            )
+
+        event_url = (
+            f"{IMAGE_MODEL_URL}/gradio_api/call/direct_img2img/"
+            f"{quote(str(event_id), safe='')}"
+        )
+
+        result_payload = None
+        current_event = None
+
+        async with client.stream("GET", event_url) as stream:
+            if stream.status_code >= 400:
+                body = await stream.aread()
+                raise RuntimeError(
+                    f"Gradio stream HTTP {stream.status_code}: "
+                    f"{body.decode('utf-8', errors='replace')[:1500]}"
+                )
+
+            async for line in stream.aiter_lines():
+                if line.startswith("event:"):
+                    current_event = line[len("event:"):].strip()
+                    continue
+
+                if not line.startswith("data:"):
+                    continue
+
+                raw_data = line[len("data:"):].strip()
+
+                if current_event == "error":
+                    raise RuntimeError(f"Errore generazione Gradio: {raw_data}")
+
+                if current_event != "complete":
+                    continue
+
+                try:
+                    result_payload = json.loads(raw_data)
+                except json.JSONDecodeError as exc:
+                    raise RuntimeError(
+                        f"Risultato Gradio non JSON: {raw_data[:1000]}"
+                    ) from exc
+
+                break
+
+        if result_payload is None:
+            raise RuntimeError(
+                "Lo stream Gradio è terminato senza un evento complete."
+            )
+
+        # Normalizza i diversi formati di risposta Gradio.
+        if isinstance(result_payload, dict):
+            outputs = result_payload.get("data", [])
+        else:
+            outputs = result_payload
+
+        if not isinstance(outputs, list) or len(outputs) < 1:
+            raise RuntimeError(
+                f"Formato output Gradio inatteso: {str(result_payload)[:1500]}"
+            )
+
+        image_output = outputs[0]
+        seed_output = outputs[1] if len(outputs) > 1 else seed
+
+        if isinstance(image_output, str) and image_output.startswith(
+            "data:image/"
+        ):
+            encoded = image_output.split(",", 1)[1]
+            return {
+                "image_base64": encoded,
+                "seed": seed_output,
+                "width": width,
+                "height": height,
+            }
+
+        if isinstance(image_output, str) and re.fullmatch(
+            r"[A-Za-z0-9+/=\r\n]+", image_output
+        ):
+            return {
+                "image_base64": image_output,
+                "seed": seed_output,
+                "width": width,
+                "height": height,
+            }
+
+        if not isinstance(image_output, dict):
+            raise RuntimeError(
+                "Gradio non ha restituito un oggetto immagine riconoscibile: "
+                f"{str(image_output)[:1000]}"
+            )
+
+        image_url = image_output.get("url")
+        image_path = image_output.get("path")
+
+        if image_url:
+            if image_url.startswith(("http://", "https://")):
+                from urllib.parse import urlparse
+
+                parsed = urlparse(image_url)
+                base = urlparse(IMAGE_MODEL_URL)
+
+                if (parsed.hostname, parsed.port) != (base.hostname, base.port):
+                    raise RuntimeError(
+                        "Gradio ha restituito un URL immagine su un host diverso."
+                    )
+
+                download_url = image_url
+            elif image_url.startswith("/"):
+                download_url = IMAGE_MODEL_URL + image_url
+            else:
+                download_url = IMAGE_MODEL_URL + "/" + image_url
+        elif image_path:
+            download_url = (
+                f"{IMAGE_MODEL_URL}/gradio_api/file="
+                f"{quote(str(image_path), safe='/')}"
+            )
+        else:
+            raise RuntimeError(
+                "Output Gradio senza URL o percorso dell'immagine."
+            )
+
+        image_response = await client.get(download_url)
+
+        if image_response.status_code >= 400:
+            raise RuntimeError(
+                "Impossibile scaricare l'immagine da Gradio: "
+                f"HTTP {image_response.status_code} "
+                f"{image_response.text[:500]}"
+            )
+
+        image_bytes = image_response.content
+        if not image_bytes:
+            raise RuntimeError("Gradio ha restituito un'immagine vuota.")
+
+        return {
+            "image_base64": base64.b64encode(image_bytes).decode("ascii"),
+            "seed": seed_output,
+            "width": width,
+            "height": height,
+        }
+
+
 async def _image_run_job(
     job_id: str,
     prompt: str,
@@ -2420,6 +2663,8 @@ async def _image_run_job(
     height: int,
     steps: int,
     seed: int,
+    image_base64: str = "",
+    strength: float = 0.5,
 ) -> None:
     job = IMAGE_JOBS.get(job_id)
     if job is None:
@@ -2444,13 +2689,24 @@ async def _image_run_job(
                 else seed
             )
 
-            result = await _image_gradio_generate(
-                prompt=prompt,
-                width=width,
-                height=height,
-                steps=steps,
-                seed=actual_seed,
-            )
+            if image_base64:
+                result = await _image_gradio_img2img(
+                    prompt=prompt,
+                    width=width,
+                    height=height,
+                    steps=steps,
+                    seed=actual_seed,
+                    image_b64=image_base64,
+                    strength=strength,
+                )
+            else:
+                result = await _image_gradio_generate(
+                    prompt=prompt,
+                    width=width,
+                    height=height,
+                    steps=steps,
+                    seed=actual_seed,
+                )
 
             job["result"] = result
             job["status"] = "COMPLETED"
@@ -2465,6 +2721,7 @@ async def _image_run_job(
                 steps=steps,
                 seed=result["seed"],
                 image_base64=result["image_base64"],
+                strength=strength if image_base64 else None,
             )
 
     except asyncio.CancelledError:
@@ -2582,6 +2839,143 @@ async def image_create_job(
     }
 
 
+@app.post("/api/image/img2img", status_code=202)
+async def image_img2img(
+    image: UploadFile = File(...),
+    prompt: str = Form(...),
+    strength: float = Form(0.65),
+    width: int = Form(512),
+    height: int = Form(512),
+    steps: int = Form(8),
+    seed: int = Form(-1),
+    authorization: str | None = Header(None),
+):
+    """
+    Image-to-image: parte da una foto caricata (multipart) e la modifica
+    secondo il prompt, con la strength richiesta.
+
+    Contratto Test5.jsx: FormData con image, prompt, strength, width,
+    height, steps, seed. Il risultato segue la stessa coda e lo stesso
+    polling di /api/image/jobs (GET jobs/{id} + jobs/{id}/result).
+    """
+    email = verify_admin_token(authorization)
+
+    prompt = prompt.strip()
+
+    if not prompt:
+        raise HTTPException(
+            status_code=400,
+            detail="Inserisci una descrizione della modifica.",
+        )
+
+    if len(prompt) > IMAGE_MAX_PROMPT_CHARS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Prompt troppo lungo: massimo {IMAGE_MAX_PROMPT_CHARS} caratteri.",
+        )
+
+    if not 0.0 < strength <= 1.0:
+        raise HTTPException(
+            status_code=400,
+            detail="strength deve essere compresa tra 0 e 1.",
+        )
+
+    if width not in IMAGE_ALLOWED_WIDTHS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Larghezza non consentita: {sorted(IMAGE_ALLOWED_WIDTHS)}",
+        )
+
+    if height not in IMAGE_ALLOWED_HEIGHTS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Altezza non consentita: {sorted(IMAGE_ALLOWED_HEIGHTS)}",
+        )
+
+    if not IMAGE_MIN_STEPS <= steps <= IMAGE_MAX_STEPS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"steps deve essere compreso tra {IMAGE_MIN_STEPS} e {IMAGE_MAX_STEPS}.",
+        )
+
+    if seed < -1 or seed > 2**32 - 1:
+        raise HTTPException(status_code=400, detail="Seed non valido.")
+
+    raw = await image.read()
+
+    if not raw:
+        raise HTTPException(
+            status_code=400,
+            detail="Immagine di partenza vuota.",
+        )
+
+    # Allineato con il limite lato frontend (15 MB).
+    if len(raw) > 15 * 1024 * 1024:
+        raise HTTPException(
+            status_code=413,
+            detail="Immagine troppo grande (massimo 15 MB).",
+        )
+
+    init_b64 = base64.b64encode(raw).decode("ascii")
+
+    _image_cleanup_jobs()
+
+    existing_job = next(
+        (
+            job for job in IMAGE_JOBS.values()
+            if job.get("owner") == email
+            and job.get("status") in ("QUEUED", "RUNNING")
+        ),
+        None,
+    )
+
+    if existing_job:
+        return {
+            "job_id": existing_job["job_id"],
+            "status": existing_job["status"],
+            "message": "Hai già una generazione in corso.",
+        }
+
+    if len(IMAGE_JOBS) >= IMAGE_MAX_JOBS:
+        raise HTTPException(
+            status_code=429,
+            detail="Troppi job conservati. Attendi e riprova.",
+        )
+
+    job_id = str(uuid.uuid4())
+
+    IMAGE_JOBS[job_id] = {
+        "job_id": job_id,
+        "owner": email,
+        "status": "QUEUED",
+        "message": "Modifica immagine accodata.",
+        "error": None,
+        "result": None,
+        "created_at": time.time(),
+        "started_at": None,
+        "finished_at": None,
+    }
+
+    asyncio.create_task(
+        _image_run_job(
+            job_id=job_id,
+            prompt=prompt,
+            width=width,
+            height=height,
+            steps=steps,
+            seed=seed,
+            image_base64=init_b64,
+            strength=strength,
+        )
+    )
+
+    return {
+        "job_id": job_id,
+        "status": "QUEUED",
+        "message": "Modifica immagine avviata.",
+    }
+
+
 @app.get("/api/image/jobs/{job_id}")
 async def image_get_job(
     job_id: str,
@@ -2662,6 +3056,7 @@ def _image_save_history(
     steps: int,
     seed: int,
     image_base64: str,
+    strength: float | None = None,
 ) -> None:
     """
     Salva su disco il risultato di una generazione (PNG + JSON).
@@ -2686,6 +3081,10 @@ def _image_save_history(
             "seed": seed,
             "created_at": time.time(),
         }
+
+        if strength is not None:
+            meta["mode"] = "img2img"
+            meta["strength"] = strength
 
         with open(
             os.path.join(IMAGE_HISTORY_DIR, f"{job_id}.json"),
@@ -2960,9 +3359,18 @@ async def vision_ocr(
     }
 
     # Agente JCS: se il testo è un timesheet, lo interpreta.
+    # Il prefisso "Jai Ca sheet" rende evidente che l'agente JCS
+    # è stato attivato con il prompt di jcs_prompt.txt.
     if _jcs_detect(text):
         result["is_jcs"] = True
-        result["jcs"] = await _jcs_interpret(text)
+        jcs_text = await _jcs_interpret(text)
+        if jcs_text:
+            result["jcs"] = f"Jai Ca sheet\n\n{jcs_text}"
+        else:
+            result["jcs"] = (
+                "Jai Ca sheet\n\n"
+                "(Interpretazione non riuscita: vedi testo OCR.)"
+            )
 
     return result
 
@@ -3028,9 +3436,19 @@ def _jcs_detect(text: str) -> bool:
 
     # Serve almeno un giorno della settimana in spagnolo
     # e un numero minimo di lettere di stato (F/V/B/D/X).
-    words = set(re.findall(r"[a-záéíóúñ]+", lowered))
-    has_day = bool(words & JCS_DAYS)
-    status_count = len(JCS_STATUS_LETTERS.findall(text))
+    #
+    # Rilassato rispetto alla v1: l'OCR di una foto spesso attacca le
+    # parole, quindi i giorni valgono anche come sottostringhe e le
+    # lettere di stato contano anche in sequenze attaccate (FVBDX...).
+    has_day = any(day in lowered for day in JCS_DAYS)
+
+    isolated = len(JCS_STATUS_LETTERS.findall(text))
+    attached = sum(
+        len(seq)
+        for seq in re.findall(r"[FBVDXfbvdx]{4,}", text)
+    )
+
+    status_count = isolated + attached
 
     return has_day and status_count >= 10
 
