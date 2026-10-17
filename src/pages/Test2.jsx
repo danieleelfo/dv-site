@@ -642,13 +642,22 @@ export default function Test2() {
         await new Promise((r2) => setTimeout(r2, 5000))
         const job = await adminJson(idToken, '/api/image/jobs/' + jobId, { timeoutMs: 30000 })
         const st = String(job.status || '').toLowerCase()
+        const elapsed = Math.round((Date.now() - t0) / 1000)
         if (['completed', 'complete', 'succeeded', 'success'].includes(st)) {
-          result = await adminJson(idToken, '/api/image/jobs/' + jobId + '/result', { timeoutMs: 60000 })
+          result = await adminJson(idToken, '/api/image/jobs/' + jobId + '/result')
           break
         }
         if (['failed', 'error', 'cancelled', 'canceled'].includes(st)) {
           throw new Error(job.error || job.message || 'Generazione non riuscita.')
         }
+        // Stato intermedio: la entry mostra che il job lavora.
+        const label =
+          st === 'running' || st === 'processing'
+            ? '🎨 Generazione in corso… (' + elapsed + 's)'
+            : '🎨 In coda… (' + elapsed + 's)'
+        setHistory((h) =>
+          h.map((x) => (x.id === t0 ? { ...x, ms: Date.now() - t0, text: label } : x))
+        )
       }
       if (!result?.image_base64) throw new Error('Timeout o risultato senza immagine.')
 
