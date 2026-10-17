@@ -44,21 +44,26 @@ const AUDIO_LANGUAGE = 'it'
 const AUTO_SEND_RECORDING = true
 // ---------------------------------------------------------------------------
 
-// Pagine e console del sito, raggiungibili al volo.
-// Le rotte esistono tutte in App.jsx (verificate 17 ottobre 2026).
+// Pagine e console ufficiali del sito.
 const QUICK_LINKS = [
   { to: '/improve', label: 'Improve 🛠️', desc: 'Editor file + revisione AI', main: true },
   { to: '/api-contracts', label: 'API Contracts 📡', desc: 'Contratti API del gateway', main: true },
   { to: '/image-lab', label: 'Image Lab 🖼️', desc: 'Z-Image-Turbo · generazione + gallery', main: true },
-  { to: '/test4', label: 'Test4 🔬', desc: 'ImageLab preview · gallery · OCR/JCS' },
-  { to: '/test5', label: 'Test5 🧠', desc: 'Image-to-image (img2img)' },
   { to: '/git-admin', label: 'Git Admin ⑂', desc: 'Status · diff · commit · push con conferma' },
   { to: '/dag-admin', label: 'DAG Admin 🌬️', desc: 'Pannello Airflow' },
   { to: '/b2b', label: 'B2B Arena ◎', desc: 'Bot-to-bot lab' },
-  { to: '/test3', label: 'Test3 🗺️', desc: 'Arena multi-agente' },
-  { to: '/bar-ai-admin', label: 'Bar AI Admin 🍸', desc: 'CRUD tabelle bar (Test6)' },
-  { to: '/test6', label: 'Test6 🍹', desc: 'Endpoint admin futuri' },
+  { to: '/bar-ai-admin', label: 'Bar AI Admin 🍸', desc: 'CRUD tabelle bar' },
   { to: '/ai-lab', label: 'AI Lab ◈', desc: 'Pagina pubblica degli agenti' },
+]
+
+// Pagine di test/laboratorio: in fondo, si validano da qui.
+const TEST_LINKS = [
+  { to: '/test', label: 'Test 🕰️', desc: 'Pagina test storica' },
+  { to: '/test3', label: 'Test3 🗺️', desc: 'Arena multi-agente' },
+  { to: '/test4', label: 'Test4 🔬', desc: 'ImageLab preview · gallery · OCR/JCS' },
+  { to: '/test5', label: 'Test5 🧠', desc: 'Image-to-image (img2img)' },
+  { to: '/test6', label: 'Test6 🍹', desc: 'CRUD bar AI (promossa su /bar-ai-admin)' },
+  { to: '/testbarai', label: 'TestBarAI 🧪', desc: 'Variante Bar AI in test' },
 ]
 
 // Comandi mostrati nel pannello di destra (si aggiornano con "Aggiorna").
@@ -102,17 +107,6 @@ const COMMAND_GROUPS = [
     ],
   },
   {
-    id: 'airflow', title: 'Airflow', icon: '🌬️', color: '#38bdf8',
-    commands: [
-      c('Status Airflow', 'status airflow'),
-      c('Status DAG', 'status dag ', 'Opzionale: dag_id'),
-      c('Log task', 'log task ', 'dag_id task_id'),
-      c('Pausa DAG', 'pausa dag ', 'dag_id', true),
-      c('Attiva DAG', 'attiva dag ', 'dag_id'),
-      c('Lancia DAG', 'exec airflow lancia ', 'dag_id e conf se necessario', true),
-    ],
-  },
-  {
     id: 'emergence', title: 'Emergence / QE', icon: '🧠', color: '#a78bfa',
     commands: [
       c('QE last 10', 'QE last 10'),
@@ -133,6 +127,7 @@ const COMMAND_GROUPS = [
       c('LS', 'ls ', 'progetto [subpath]'),
       c('Invia file', 'invia file ', 'path assoluto'),
       c('Esporta file', 'esporta file ', 'path del file remoto (via Lele Admin)'),
+      c('Esporta record', 'esporta ', 'record in formato yaml'),
       c('Remoto test', 'remoto test'),
       c('Remoto LS', 'remoto ls ', 'path'),
       c('Remoto download', 'remoto download ', 'file'),
@@ -140,42 +135,18 @@ const COMMAND_GROUPS = [
     ],
   },
   {
-    id: 'ai', title: 'AI / Code', icon: '✨', color: '#f472b6',
-    commands: [
-      c('Query', 'query ', 'Scrivi la query'),
-      c('Esporta', 'esporta ', 'record in formato yaml'),
-      c('Improve', 'improve ', 'file o richiesta'),
-      c('Verifica', 'verifica ', 'file o richiesta'),
-      c('Review', 'review ', 'file o richiesta'),
-      c('Gemma', 'gemma ', 'prompt'),
-      c('Llama', 'llama ', 'prompt'),
-    ],
-  },
-  {
-    id: 'modelli', title: 'Modelli e review', icon: '🎛️', color: '#c4b5fd',
+    id: 'modelli', title: 'Modelli & LLM', icon: '🎛️', color: '#c4b5fd',
     commands: [
       c('Modelli attivi', 'modelli'),
       c('Cambia modello', 'modello ', 'nome (es. mistral)'),
       c('Cambia reviewer', 'reviewer ', 'nome modello'),
+      c('Query', 'query ', 'Scrivi la query'),
+      c('Gemma', 'gemma ', 'prompt'),
+      c('Llama', 'llama ', 'prompt'),
       c('Edita', 'edita'),
       c('Roast', 'roast'),
       c('Critica', 'critica'),
       c('Pirata', 'pirata'),
-    ],
-  },
-  {
-    id: 'git', title: 'Git', icon: '🔀', color: '#fb923c',
-    commands: [
-      c('Status leles', 'status leles'),
-      c('Status gateway', 'status gateway'),
-      c('Diff leles', 'diff leles'),
-      c('Diff gateway', 'diff gateway'),
-      c('Pull report leles', 'pull report leles'),
-      c('Pull force leles', 'pull force leles', undefined, true),
-      c('Pull report gateway', 'pull report gateway'),
-      c('Pull force gateway', 'pull force gateway', undefined, true),
-      c('Ultimo commit leles', 'commit leles'),
-      c('Ultimo commit gateway', 'commit gateway'),
     ],
   },
   {
@@ -1027,6 +998,11 @@ export default function Test2() {
                   onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
+              <p className="lc-dim lc-small lc-cmd-note">
+                Git, Airflow e revisione file (improve/verifica/review) sono
+                passati alle pagine dedicate — Git Admin · DAG Admin · Improve:
+                link in fondo alla console.
+              </p>
 
               {!q && (
                 <div className="lc-tabs" role="tablist">
@@ -1383,6 +1359,21 @@ export default function Test2() {
               </Link>
             ))}
           </div>
+
+          <div className="lc-pages-head lc-pages-head--sub">
+            <h3>🧪 Test &amp; Laboratorio</h3>
+            <span className="lc-dim lc-small">
+              Si validano da qui, poi si promuovono tra le pagine ufficiali
+            </span>
+          </div>
+          <div className="lc-pages-grid lc-pages-grid--test">
+            {TEST_LINKS.map((l) => (
+              <Link key={l.to} to={l.to} className="lc-pagecard">
+                <span className="lc-pagecard-label">{l.label}</span>
+                <small>{l.desc}</small>
+              </Link>
+            ))}
+          </div>
         </nav>
       </div>
     </div>
@@ -1417,6 +1408,11 @@ const css = `
 .lc-pagecard--main{border-color:rgba(63,208,201,.45);background:rgba(63,208,201,.09)}
 .lc-pagecard--main:hover{background:rgba(63,208,201,.16);border-color:var(--accent)}
 .lc-pagecard-label{font-size:13px;font-weight:600}
+.lc-cmd-note{margin:-2px 0 12px}
+.lc-pages-head--sub{margin-top:16px;margin-bottom:10px}
+.lc-pages-head--sub h3{font-size:12px;font-weight:650;color:var(--ink-dim)}
+.lc-pages-grid--test .lc-pagecard{opacity:.82}
+.lc-pages-grid--test .lc-pagecard:hover{opacity:1}
 .lc-link{padding:6px 13px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04);
   color:var(--ink);transition:background .15s,border-color .15s}
 .lc-link:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25)}
