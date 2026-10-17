@@ -59,6 +59,12 @@ const SUPER_MODELS = [
 ]
 const SUPER_MODEL_KEY = 'lc_super_model'
 
+// Modelli permessi per gli agenti normali (ALLOWED_MODELS in gateway.py).
+// Usati sia dal selettore "modello" (Leles) sia dal "reviewer".
+const LELE_MODELS = ['mistral', 'gemma4', 'llama3', 'qwen2.5', 'deepseek-r1']
+const LELE_MODEL_KEY = 'lc_lele_model'
+const REVIEWER_MODEL_KEY = 'lc_reviewer_model'
+
 // Pagine e console ufficiali del sito.
 const QUICK_LINKS = [
   { to: '/improve', label: 'Improve 🛠️', desc: 'Editor file + revisione AI', main: true },
@@ -346,6 +352,22 @@ export default function Test2() {
     }
   })
   const [modelSwitching, setModelSwitching] = useState(false)
+  const [leleModel, setLeleModel] = useState(() => {
+    try {
+      const stored = window.localStorage.getItem(LELE_MODEL_KEY)
+      return LELE_MODELS.includes(stored) ? stored : LELE_MODELS[0]
+    } catch (e) {
+      return LELE_MODELS[0]
+    }
+  })
+  const [reviewerModel, setReviewerModel] = useState(() => {
+    try {
+      const stored = window.localStorage.getItem(REVIEWER_MODEL_KEY)
+      return LELE_MODELS.includes(stored) ? stored : LELE_MODELS[0]
+    } catch (e) {
+      return LELE_MODELS[0]
+    }
+  })
   const [armed, setArmed] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [history, setHistory] = useState([])
@@ -541,6 +563,41 @@ export default function Test2() {
 
     setModelSwitching(true)
     const cmd = `modellosl ${model}`
+    const t0 = Date.now()
+    let outcome
+    try {
+      outcome = { text: await callAdmin(idToken, cmd) }
+    } catch (err) {
+      if (err.status === 401 || err.status === 403) {
+        logout(err.message)
+        return
+      }
+      outcome = { err: err.message }
+    } finally {
+      setModelSwitching(false)
+    }
+    setHistory((h) =>
+      [{ id: t0, cmd, at: t0, ms: Date.now() - t0, ...outcome }, ...h].slice(0, 30)
+    )
+  }
+
+  // Selettore modello Leles / reviewer: invia "modello <nome>" o
+  // "reviewer <nome>" e logga la risposta in Sessione.
+  async function switchModel(kind, model) {
+    if (kind === 'lele') setLeleModel(model)
+    else setReviewerModel(model)
+    try {
+      window.localStorage.setItem(
+        kind === 'lele' ? LELE_MODEL_KEY : REVIEWER_MODEL_KEY,
+        model
+      )
+    } catch (e) {
+      /* no-op */
+    }
+    if (!idToken || modelSwitching) return
+
+    setModelSwitching(true)
+    const cmd = (kind === 'lele' ? 'modello ' : 'reviewer ') + model
     const t0 = Date.now()
     let outcome
     try {
@@ -1092,6 +1149,41 @@ export default function Test2() {
                 </div>
               )}
 
+              {!q && group.id === 'modelli' && (
+                <div className="lc-model-row">
+                  <label>
+                    <span className="lc-dim lc-small">Modello Leles</span>
+                    <select
+                      className="lc-select lc-model-select"
+                      aria-label="Modello Leles"
+                      value={leleModel}
+                      disabled={modelSwitching || isLoading}
+                      onChange={(e) => switchModel('lele', e.target.value)}
+                      title="Invia il comando modello <nome> e mostra la conferma in Sessione"
+                    >
+                      {LELE_MODELS.map((m) => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span className="lc-dim lc-small">Reviewer</span>
+                    <select
+                      className="lc-select lc-model-select"
+                      aria-label="Modello reviewer"
+                      value={reviewerModel}
+                      disabled={modelSwitching || isLoading}
+                      onChange={(e) => switchModel('reviewer', e.target.value)}
+                      title="Invia il comando reviewer <nome> e mostra la conferma in Sessione"
+                    >
+                      {LELE_MODELS.map((m) => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              )}
+
               <div className="lc-chips">
                 {visible.length === 0 && (
                   <p className="lc-dim">
@@ -1497,6 +1589,8 @@ const css = `
 .lc-panel h3{font-size:12px;font-weight:600;color:var(--ink-dim);margin-bottom:4px}
 .lc-dim{color:var(--ink-dim)}.lc-small{font-size:12px}
 .lc-model-select{max-width:170px;font-size:12px}
+.lc-model-row{display:flex;gap:14px;flex-wrap:wrap;margin:2px 0 12px}
+.lc-model-row label{display:flex;flex-direction:column;gap:4px}
 .lc-err{color:var(--bad);font-size:14px}
 .lc-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .lc-row{display:flex;gap:8px;align-items:center}
