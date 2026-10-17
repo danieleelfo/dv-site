@@ -1002,8 +1002,7 @@ export default function Test2() {
                 >
                   {superMode ? '⚡ Super-Leles ON' : '⚡ Super-Leles'}
                 </button>
-                {superMode && (
-                  <select
+                <select
                     className="lc-select lc-model-select"
                     aria-label="Modello Super-Leles"
                     value={superModel}
@@ -1016,9 +1015,8 @@ export default function Test2() {
                         {m}
                       </option>
                     ))}
-                  </select>
-                )}
-                {superMode && modelSwitching && (
+                </select>
+                {modelSwitching && (
                   <span className="lc-dim lc-small">Switch modello…</span>
                 )}
                 <span className="lc-dim lc-small">
