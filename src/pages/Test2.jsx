@@ -44,6 +44,21 @@ const AUDIO_LANGUAGE = 'it'
 const AUTO_SEND_RECORDING = true
 // ---------------------------------------------------------------------------
 
+// --- SUPER-LELES: selettore modello nel prompt ------------------------------
+// La lista combacia con SUPER_LELES_ALLOWED_MODELS del gateway (gateway.py).
+// Il cambio modello viene inviato come comando "modellosl <nome>", già
+// supportato dal backend: nessuna sintassi nuova.
+const SUPER_MODELS = [
+  'mistral',
+  'gemma4',
+  'llama3',
+  'qwen2.5',
+  'deepseek-r1',
+  'qwen2.5-coder:7b',
+  'gpt-oss:20b',
+]
+const SUPER_MODEL_KEY = 'lc_super_model'
+
 // Pagine e console ufficiali del sito.
 const QUICK_LINKS = [
   { to: '/improve', label: 'Improve 🛠️', desc: 'Editor file + revisione AI', main: true },
@@ -138,7 +153,6 @@ const COMMAND_GROUPS = [
     id: 'modelli', title: 'Modelli & LLM', icon: '🎛️', color: '#c4b5fd',
     commands: [
       c('Modelli attivi', 'modelli'),
-      c('Cambia modello', 'modello ', 'nome (es. mistral)'),
       c('Cambia reviewer', 'reviewer ', 'nome modello'),
       c('Query', 'query ', 'Scrivi la query'),
       c('Gemma', 'gemma ', 'prompt'),
@@ -152,8 +166,6 @@ const COMMAND_GROUPS = [
   {
     id: 'super', title: 'Super-Leles', icon: '⚡', color: '#a78bfa',
     commands: [
-      c('Modello SL in uso', 'modellosl', 'mostra il modello corrente di Super-Leles'),
-      c('Cambia modello SL', 'modellosl ', 'nome modello (es. modellosl mistral)'),
       c('Super domanda', 'super ', 'chiedi anything a Super-Leles'),
     ],
   },
@@ -324,6 +336,15 @@ export default function Test2() {
 
   const [prompt, setPrompt] = useState('')
   const [superMode, setSuperMode] = useState(false)
+  const [superModel, setSuperModel] = useState(() => {
+    try {
+      const stored = window.localStorage.getItem(SUPER_MODEL_KEY)
+      return SUPER_MODELS.includes(stored) ? stored : SUPER_MODELS[0]
+    } catch (e) {
+      return SUPER_MODELS[0]
+    }
+  })
+  const [modelSwitching, setModelSwitching] = useState(false)
   const [armed, setArmed] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [history, setHistory] = useState([])
@@ -505,6 +526,36 @@ export default function Test2() {
         ta.setSelectionRange(ta.value.length, ta.value.length)
       }
     }, 30)
+  }
+
+  // Selettore modello Super-Leles: invia subito "modellosl <nome>".
+  async function switchSuperModel(model) {
+    setSuperModel(model)
+    try {
+      window.localStorage.setItem(SUPER_MODEL_KEY, model)
+    } catch (e) {
+      /* no-op */
+    }
+    if (!idToken || modelSwitching) return
+
+    setModelSwitching(true)
+    const cmd = `modellosl ${model}`
+    const t0 = Date.now()
+    let outcome
+    try {
+      outcome = { text: await callAdmin(idToken, cmd) }
+    } catch (err) {
+      if (err.status === 401 || err.status === 403) {
+        logout(err.message)
+        return
+      }
+      outcome = { err: err.message }
+    } finally {
+      setModelSwitching(false)
+    }
+    setHistory((h) =>
+      [{ id: t0, cmd, at: t0, ms: Date.now() - t0, ...outcome }, ...h].slice(0, 30)
+    )
   }
 
   async function run(e) {
@@ -950,6 +1001,25 @@ export default function Test2() {
                 >
                   {superMode ? '⚡ Super-Leles ON' : '⚡ Super-Leles'}
                 </button>
+                {superMode && (
+                  <select
+                    className="lc-select lc-model-select"
+                    aria-label="Modello Super-Leles"
+                    value={superModel}
+                    disabled={modelSwitching || isLoading}
+                    onChange={(e) => switchSuperModel(e.target.value)}
+                    title="Cambia il modello di Super-Leles: invia il comando modellosl <nome> e mostra la conferma in Sessione"
+                  >
+                    {SUPER_MODELS.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {superMode && modelSwitching && (
+                  <span className="lc-dim lc-small">Switch modello…</span>
+                )}
                 <span className="lc-dim lc-small">
                   {armed
                     ? 'Comando che cambia lo stato del sistema: premi di nuovo per confermare.'
@@ -1427,6 +1497,7 @@ const css = `
 .lc-panel h2{font-size:15px;font-weight:650}
 .lc-panel h3{font-size:12px;font-weight:600;color:var(--ink-dim);margin-bottom:4px}
 .lc-dim{color:var(--ink-dim)}.lc-small{font-size:12px}
+.lc-model-select{max-width:170px;font-size:12px}
 .lc-err{color:var(--bad);font-size:14px}
 .lc-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .lc-row{display:flex;gap:8px;align-items:center}
