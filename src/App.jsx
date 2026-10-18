@@ -19,6 +19,7 @@ import ImageLab from './pages/ImageLab.jsx'
 // Sandbox
 import Test from './pages/Test.jsx'
 import Test2 from './pages/Test2.jsx'
+import Test7 from './pages/Test7.jsx'
 import ApiContracts from './pages/ApiContracts.jsx'
 import BarAiAdmin from './pages/BarAiAdmin.jsx'
 import Test3 from './pages/Test3.jsx'
@@ -106,6 +107,10 @@ export default function App() {
 
         <Route path="/test2" element={<><Nav /><Test2 /></>} />
         <Route path="/:lang/test2" element={<><Nav /><LangWrapper><Test2 /></LangWrapper></>} />
+
+        {/* Test7: admin preview isolata, senza modificare Test2 */}
+        <Route path="/test7" element={<><Nav /><Test7 /></>} />
+        <Route path="/:lang/test7" element={<><Nav /><LangWrapper><Test7 /></LangWrapper></>} />
 
         {/* API Contracts: riferimento dei contratti API del gateway */}
         <Route path="/api-contracts" element={<><Nav /><ApiContracts /></>} />
