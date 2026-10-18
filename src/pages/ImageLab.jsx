@@ -1,4 +1,5 @@
 // src/pages/ImageLab.jsx
+// AI IMAGE LAB — fusione di Test4 (txt2img + history + OCR) e Test5 (img2img)
 // ============================================================
 // AI IMAGE LAB — Z-Image-Turbo
 //
@@ -27,12 +28,14 @@ const TOKEN_STORAGE_KEY = "dv_google_id_token";
 
 const POLL_INTERVAL = 5000;
 
-const RESOLUTIONS = {
-  square: { width: 512, height: 512, label: "Quadrata · 512 × 512" },
-  portrait: { width: 512, height: 768, label: "Verticale · 512 × 768" },
-  landscape: { width: 768, height: 512, label: "Orizzontale · 768 × 512" },
-  square768: { width: 768, height: 768, label: "Quadrata · 768 × 768" },
-  square1024: { width: 1024, height: 1024, label: "Quadrata · 1024 × 1024" },
+// Griglia identica a RESOLUTION_OPTIONS dell'app Gradio (main.py):
+// cosi' il gateway non deve snappare e l'output ha ESATTAMENTE
+// le dimensioni scelte. Struttura: categoria -> [ [label, w, h], ... ]
+const GRADIO_FORMATS = {
+  512: [["512 × 512 (1:1)", 512, 512], ["640 × 384 (5:3)", 640, 384], ["384 × 640 (3:5)", 384, 640], ["512 × 384 (4:3)", 512, 384], ["384 × 512 (3:4)", 384, 512], ["640 × 368 (16:9)", 640, 368], ["368 × 640 (9:16)", 368, 640]],
+  768: [["768 × 768 (1:1)", 768, 768], ["960 × 576 (5:3)", 960, 576], ["576 × 960 (3:5)", 576, 960], ["768 × 576 (4:3)", 768, 576], ["576 × 768 (3:4)", 576, 768], ["960 × 544 (16:9)", 960, 544], ["544 × 960 (9:16)", 544, 960]],
+  1024: [["1024 × 1024 (1:1)", 1024, 1024], ["1280 × 768 (5:3)", 1280, 768], ["768 × 1280 (3:5)", 768, 1280], ["1024 × 768 (4:3)", 1024, 768], ["768 × 1024 (3:4)", 768, 1024], ["1280 × 720 (16:9)", 1280, 720], ["720 × 1280 (9:16)", 720, 1280], ["1024 × 576 (16:9)", 1024, 576], ["576 × 1024 (9:16)", 576, 1024]],
+  1280: [["1280 × 1280 (1:1)", 1280, 1280], ["1536 × 1024 (3:2)", 1536, 1024], ["1024 × 1536 (2:3)", 1024, 1536], ["1536 × 864 (16:9)", 1536, 864], ["864 × 1536 (9:16)", 864, 1536]],
 };
 
 function parseJwt(token) {
@@ -111,10 +114,20 @@ export default function ImageLab() {
   const [email, setEmail] = useState("");
 
   const [prompt, setPrompt] = useState("");
-  const [resolution, setResolution] = useState("square");
+  const [size, setSize] = useState(512);
+  const [formatIdx, setFormatIdx] = useState(0);
+  const formats = GRADIO_FORMATS[size] || GRADIO_FORMATS[512];
+  const dimensions = formats[Math.min(formatIdx, formats.length - 1)].slice(1);
   const [steps, setSteps] = useState(8);
   const [randomSeed, setRandomSeed] = useState(true);
   const [seed, setSeed] = useState("12345");
+
+  const [tab, setTab] = useState("genera");
+  const [initFile, setInitFile] = useState(null);
+  const [initPreview, setInitPreview] = useState("");
+  const [strength, setStrength] = useState(0.65);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const [jobId, setJobId] = useState("");
   const [status, setStatus] = useState("idle");
@@ -126,6 +139,24 @@ export default function ImageLab() {
   const [startedAt, setStartedAt] = useState(null);
 
   const busy = ["submitting", "queued", "running"].includes(status);
+
+  const totalPages = Math.max(1, Math.ceil(history.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pageItems = history.slice(
+    (safePage - 1) * pageSize,
+    safePage * pageSize
+  );
+
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const [historyPreview, setHistoryPreview] = useState(null);
+
+  const [ocrImage, setOcrImage] = useState(null);
+  const [ocrStatus, setOcrStatus] = useState("idle");
+  const [ocrText, setOcrText] = useState("");
+  const [ocrError, setOcrError] = useState("");
+  const [jcsInterpretation, setJcsInterpretation] = useState("");
 
   // ----------------------------------------------------------
   // Google login condiviso con Improve.jsx
@@ -221,6 +252,163 @@ export default function ImageLab() {
 
     setIdToken(null);
   }, []);
+
+  // ----------------------------------------------------------
+  // History delle generazioni (persistente sul gateway)
+  // ----------------------------------------------------------
+
+  const loadHistory = useCallback(async () => {
+    if (!idToken) return;
+
+    setHistoryLoading(true);
+    setHistoryError("");
+
+    try {
+      const response = await fetch(`${API}/api/image/history`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+
+      const data = await readResponse(response);
+      setHistory(Array.isArray(data.items) ? data.items : []);
+    } catch (err) {
+      setHistoryError(err.message || String(err));
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [idToken]);
+
+  useEffect(() => {
+    if (idToken) loadHistory();
+  }, [idToken, loadHistory]);
+
+  // Ricarica la history dopo una generazione completata.
+  useEffect(() => {
+    if (status === "completed") loadHistory();
+  }, [status, loadHistory]);
+
+  const openHistoryItem = useCallback(async (item) => {
+    setHistoryError("");
+
+    try {
+      const response = await fetch(
+        `${API}/api/image/history/${encodeURIComponent(item.job_id)}/image`,
+        { headers: { Authorization: `Bearer ${idToken}` } }
+      );
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+      const blob = await response.blob();
+      setHistoryPreview({ item, url: URL.createObjectURL(blob) });
+    } catch (err) {
+      setHistoryError(err.message || String(err));
+    }
+  }, [idToken]);
+
+  const closeHistoryPreview = useCallback(() => {
+    setHistoryPreview((current) => {
+      if (current?.url) URL.revokeObjectURL(current.url);
+      return null;
+    });
+  }, []);
+
+  // ----------------------------------------------------------
+  // OCR — estrazione testo da foto (Qwen-VL via gateway)
+  // ----------------------------------------------------------
+
+  const onOcrFile = useCallback((event) => {
+    const file = event.target.files?.[0];
+
+    setOcrText("");
+    setOcrError("");
+    setJcsInterpretation("");
+
+    if (!file) {
+      setOcrImage(null);
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      setOcrError("Seleziona un file immagine.");
+      setOcrImage(null);
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setOcrError("Immagine troppo grande (massimo 10 MB).");
+      setOcrImage(null);
+      return;
+    }
+
+    setOcrImage(file);
+  }, []);
+
+  async function runOcr(event) {
+    event.preventDefault();
+
+    setOcrError("");
+    setOcrText("");
+
+    if (!ocrImage || !idToken) return;
+
+    setOcrStatus("running");
+
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error("Lettura file non riuscita."));
+        reader.readAsDataURL(ocrImage);
+      });
+
+      const response = await fetch(`${API}/api/vision/ocr`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ image_base64: base64 }),
+      });
+
+      const data = await readResponse(response);
+      setOcrText(data.text || "");
+      setJcsInterpretation(data.is_jcs ? data.jcs || "" : "");
+      setOcrStatus("done");
+    } catch (err) {
+      setOcrError(err.message || String(err));
+      setOcrStatus("error");
+    }
+  }
+
+  function copyOcrText() {
+    if (!ocrText) return;
+    navigator.clipboard?.writeText(ocrText);
+  }
+
+  const reuseHistoryParams = useCallback((item) => {
+    setPrompt(item.prompt || "");
+
+    if (Number.isFinite(item.seed)) {
+      setSeed(String(item.seed));
+      setRandomSeed(false);
+    }
+
+    if (Number.isFinite(item.steps)) setSteps(item.steps);
+
+    for (const [cat, list] of Object.entries(GRADIO_FORMATS)) {
+      const idx = list.findIndex(
+        (f) => f[1] === item.width && f[2] === item.height
+      );
+      if (idx >= 0) {
+        setSize(Number(cat));
+        setFormatIdx(idx);
+        break;
+      }
+    }
+
+    closeHistoryPreview();
+    setTab("genera");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [closeHistoryPreview]);
 
   // ----------------------------------------------------------
   // Pulizia del polling se la pagina viene chiusa o smontata
@@ -385,6 +573,38 @@ export default function ImageLab() {
   }, [jobId, idToken]);
 
   // ----------------------------------------------------------
+  // Selezione immagine originale (img2img)
+  // ----------------------------------------------------------
+
+  function pickInitFile(file) {
+    setInitPreview((current) => {
+      if (current) URL.revokeObjectURL(current);
+      return "";
+    });
+
+    if (!file) {
+      setInitFile(null);
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      setError("Seleziona un file immagine.");
+      setInitFile(null);
+      return;
+    }
+
+    if (file.size > 15 * 1024 * 1024) {
+      setError("Immagine troppo grande (massimo 15 MB).");
+      setInitFile(null);
+      return;
+    }
+
+    setError("");
+    setInitFile(file);
+    setInitPreview(URL.createObjectURL(file));
+  }
+
+  // ----------------------------------------------------------
   // Generazione
   // ----------------------------------------------------------
 
@@ -398,28 +618,26 @@ export default function ImageLab() {
     setJobId("");
     setElapsed(0);
 
-    if (!prompt.trim()) {
-      setError("Scrivi una descrizione dell'immagine.");
+    if (!prompt.trim() && !initFile) {
+      setError(
+        "Scrivi una descrizione o carica un'immagine da modificare."
+      );
       return;
     }
 
-    const dimensions = RESOLUTIONS[resolution];
-
-    if (!dimensions) {
-      setError("Risoluzione non valida.");
-      return;
-    }
+    // dimensions = [width, height] dal formato Gradio selezionato
+    const [outWidth, outHeight] = dimensions;
 
     const selectedSeed = randomSeed
-      ? Math.floor(Math.random() * 2 ** 32)
+      ? Math.floor(Math.random() * (2 ** 31 - 1))
       : Number(seed);
 
     if (
       !Number.isSafeInteger(selectedSeed) ||
       selectedSeed < 0 ||
-      selectedSeed > 4294967295
+      selectedSeed > 2147483647
     ) {
-      setError("Il seed deve essere un intero tra 0 e 4294967295.");
+      setError("Il seed deve essere un intero tra 0 e 2147483647.");
       return;
     }
 
@@ -431,20 +649,41 @@ export default function ImageLab() {
     setStartedAt(now);
 
     try {
-      const response = await fetch(`${API}/api/image/jobs`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({
-          prompt: prompt.trim(),
-          width: dimensions.width,
-          height: dimensions.height,
-          steps: Number(steps),
-          seed: selectedSeed,
-        }),
-      });
+      let response;
+
+      if (initFile) {
+        // img2img: immagine originale + prompt + forza di trasformazione
+        const body = new FormData();
+
+        body.append("image", initFile);
+        body.append("prompt", prompt.trim());
+        body.append("strength", String(strength));
+        body.append("width", String(outWidth));
+        body.append("height", String(outHeight));
+        body.append("steps", String(Number(steps)));
+        body.append("seed", String(selectedSeed));
+
+        response = await fetch(`${API}/api/image/img2img`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${idToken}` },
+          body,
+        });
+      } else {
+        response = await fetch(`${API}/api/image/jobs`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            prompt: prompt.trim(),
+            width: outWidth,
+            height: outHeight,
+            steps: Number(steps),
+            seed: selectedSeed,
+          }),
+        });
+      }
 
       const data = await readResponse(response);
 
@@ -534,7 +773,7 @@ export default function ImageLab() {
   }
 
   // ----------------------------------------------------------
-  // Pagina principale
+  // Pagina principale — tab GENERA / STORICO / OCR
   // ----------------------------------------------------------
 
   return (
@@ -570,285 +809,643 @@ export default function ImageLab() {
           Motore locale · Elaborazione sul Mac · Coda asincrona
         </div>
 
-        <div className="il-layout">
-          <section className="il-panel">
-            <div className="il-section-heading">
-              <div>
-                <p className="il-eyebrow">01 / PROMPT</p>
-                <h2>Crea un'immagine</h2>
-              </div>
-            </div>
+        <div className="il-tabs" role="tablist">
+          <button
+            type="button"
+            className={"il-tab" + (tab === "genera" ? " il-tab-active" : "")}
+            onClick={() => setTab("genera")}
+          >
+            ✦ Genera
+          </button>
+          <button
+            type="button"
+            className={"il-tab" + (tab === "storico" ? " il-tab-active" : "")}
+            onClick={() => {
+              setTab("storico");
+              loadHistory();
+            }}
+          >
+            🖼 Storico
+          </button>
+          <button
+            type="button"
+            className={"il-tab" + (tab === "ocr" ? " il-tab-active" : "")}
+            onClick={() => setTab("ocr")}
+          >
+            📄 OCR
+          </button>
+        </div>
 
-            <form onSubmit={generateImage}>
-              <label className="il-label" htmlFor="il-prompt">
-                Descrizione
-              </label>
-
-              <textarea
-                id="il-prompt"
-                className="il-input il-prompt"
-                placeholder="Es. Un faro sulla costa mediterranea al tramonto, mare mosso, luce cinematografica, fotografia realistica…"
-                value={prompt}
-                onChange={(event) => setPrompt(event.target.value)}
-                rows={6}
-                maxLength={12000}
-                disabled={busy}
-                required
-              />
-
-              <div className="il-char-count">
-                {prompt.length.toLocaleString()} / 12.000
-              </div>
-
-              <div className="il-form-grid">
+        {tab === "genera" && (
+          <div className="il-layout">
+            <section className="il-panel">
+              <div className="il-section-heading">
                 <div>
-                  <label className="il-label" htmlFor="il-resolution">
-                    Risoluzione
-                  </label>
-
-                  <select
-                    id="il-resolution"
-                    className="il-input"
-                    value={resolution}
-                    onChange={(event) => setResolution(event.target.value)}
-                    disabled={busy}
-                  >
-                    {Object.entries(RESOLUTIONS).map(([key, item]) => (
-                      <option key={key} value={key}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="il-label" htmlFor="il-steps">
-                    Passaggi
-                  </label>
-
-                  <select
-                    id="il-steps"
-                    className="il-input"
-                    value={steps}
-                    onChange={(event) =>
-                      setSteps(Number(event.target.value))
-                    }
-                    disabled={busy}
-                  >
-                    <option value={4}>4 · Test rapido</option>
-                    <option value={8}>8 · Standard</option>
-                    <option value={9}>9 · Sperimentale</option>
-                  </select>
+                  <p className="il-eyebrow">01 / PROMPT</p>
+                  <h2>{initFile ? "Modifica un'immagine" : "Crea un'immagine"}</h2>
                 </div>
               </div>
 
-              <div className="il-seed-row">
-                <div className="il-seed-heading">
-                  <label className="il-label" htmlFor="il-seed">
-                    Seed
+              <form onSubmit={generateImage}>
+                <div className="il-upload">
+                  <label className="il-label" htmlFor="il-init-file">
+                    {initFile
+                      ? "Immagine originale (img2img)"
+                      : "Immagine da modificare (opzionale · img2img)"}
                   </label>
 
-                  <label className="il-checkbox">
+                  <div className="il-init-row">
                     <input
-                      type="checkbox"
-                      checked={randomSeed}
+                      id="il-init-file"
+                      type="file"
+                      accept="image/*"
                       onChange={(event) =>
-                        setRandomSeed(event.target.checked)
+                        pickInitFile(event.target.files?.[0] || null)
                       }
                       disabled={busy}
                     />
-                    Casuale
-                  </label>
+
+                    {initPreview && (
+                      <>
+                        <img
+                          className="il-init-preview"
+                          src={initPreview}
+                          alt="Immagine originale"
+                        />
+                        <button
+                          className="il-button"
+                          type="button"
+                          onClick={() => pickInitFile(null)}
+                          disabled={busy}
+                        >
+                          ✕ Rimuovi
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
 
-                <input
-                  id="il-seed"
-                  className="il-input"
-                  type="number"
-                  min="0"
-                  max="4294967295"
-                  step="1"
-                  value={seed}
-                  onChange={(event) => setSeed(event.target.value)}
-                  disabled={busy || randomSeed}
-                />
-              </div>
-
-              <p className="il-hint">
-                Sul Mac da 16 GB, inizia con 512 × 512. Le risoluzioni
-                maggiori possono richiedere diversi minuti.
-              </p>
-
-              {error && (
-                <div className="il-error" role="alert">
-                  {error}
-                </div>
-              )}
-
-              <div className="il-actions">
-                <button
-                  className="il-button il-primary"
-                  type="submit"
-                  disabled={busy || !prompt.trim()}
-                >
-                  {busy ? "Generazione in corso…" : "Generate image →"}
-                </button>
-
-                {imageUrl && (
-                  <button
-                    className="il-button"
-                    type="button"
-                    onClick={startAnotherVersion}
-                  >
-                    Nuova variante
-                  </button>
+                {initFile && (
+                  <div className="il-strength">
+                    <label className="il-label" htmlFor="il-strength">
+                      Forza modifica: {strength.toFixed(2)} ·{" "}
+                      {strength < 0.35
+                        ? "più fedele"
+                        : strength > 0.7
+                          ? "più trasformata"
+                          : "equilibrata"}
+                    </label>
+                    <input
+                      id="il-strength"
+                      className="il-range"
+                      type="range"
+                      min="0.15"
+                      max="0.95"
+                      step="0.05"
+                      value={strength}
+                      onChange={(event) =>
+                        setStrength(Number(event.target.value))
+                      }
+                      disabled={busy}
+                    />
+                  </div>
                 )}
-              </div>
-            </form>
-          </section>
 
-          <section className="il-panel il-result-panel">
-            <div className="il-section-heading">
-              <div>
-                <p className="il-eyebrow">02 / OUTPUT</p>
-                <h2>Risultato</h2>
-              </div>
+                <label className="il-label" htmlFor="il-prompt">
+                  {initFile ? "Istruzioni per la modifica" : "Descrizione"}
+                </label>
 
-              {busy && (
-                <span className="il-live">
-                  <span className="il-status-dot" />
-                  LIVE
-                </span>
-              )}
-            </div>
+                <textarea
+                  id="il-prompt"
+                  className="il-input il-prompt"
+                  placeholder={
+                    initFile
+                      ? "Es. Keep the main subject and composition, add a pirate in the sea swimming…"
+                      : "Es. Un faro sulla costa mediterranea al tramonto, mare mosso, luce cinematografica, fotografia realistica…"
+                  }
+                  value={prompt}
+                  onChange={(event) => setPrompt(event.target.value)}
+                  rows={6}
+                  maxLength={12000}
+                  disabled={busy}
+                />
 
-            {status === "idle" && !imageUrl && (
-              <div className="il-empty">
-                <div className="il-empty-icon">✳</div>
-                <h3>La prossima immagine inizia qui</h3>
-                <p>
-                  Scrivi un prompt e avvia la generazione. Il risultato
-                  apparirà in questa area.
-                </p>
-              </div>
-            )}
-
-            {status === "submitting" && (
-              <div className="il-progress">
-                <div className="il-spinner" />
-                <h3>Invio della richiesta</h3>
-                <p>Sto creando il lavoro sul server.</p>
-              </div>
-            )}
-
-            {(status === "queued" || status === "running") && (
-              <div className="il-progress">
-                <div className="il-spinner" />
-
-                <h3>
-                  {status === "queued"
-                    ? "In coda"
-                    : "Generazione in corso"}
-                </h3>
-
-                <p>
-                  Il modello sta lavorando sul Mac. Puoi lasciare aperta
-                  questa pagina: non serve mantenere una richiesta HTTP
-                  aperta per tutta la generazione.
-                </p>
-
-                <div className="il-progress-track">
-                  <div
-                    className="il-progress-fill"
-                    style={{
-                      width:
-                        progress === null ? "35%" : `${progress}%`,
-                    }}
-                  />
+                <div className="il-char-count">
+                  {prompt.length.toLocaleString()} / 12.000
                 </div>
 
-                <div className="il-progress-meta">
-                  <span>
-                    {progress === null
-                      ? "Elaborazione"
-                      : `${Math.round(progress)}%`}
-                  </span>
+                <div className="il-form-grid">
+                  <div>
+                    <label className="il-label" htmlFor="il-category">
+                      Categoria
+                    </label>
 
-                  <span>{formatDuration(elapsed)}</span>
+                    <select
+                      id="il-category"
+                      className="il-input"
+                      value={size}
+                      onChange={(event) => {
+                        setSize(Number(event.target.value));
+                        setFormatIdx(0);
+                      }}
+                      disabled={busy}
+                    >
+                      {Object.keys(GRADIO_FORMATS).map((c) => (
+                        <option key={c} value={c}>
+                          {c}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="il-label" htmlFor="il-format">
+                      Formato
+                    </label>
+
+                    <select
+                      id="il-format"
+                      className="il-input"
+                      value={formatIdx}
+                      onChange={(event) =>
+                        setFormatIdx(Number(event.target.value))
+                      }
+                      disabled={busy}
+                    >
+                      {formats.map((f, i) => (
+                        <option key={f[0]} value={i}>
+                          {f[0]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="il-label" htmlFor="il-steps">
+                      Passaggi
+                    </label>
+
+                    <select
+                      id="il-steps"
+                      className="il-input"
+                      value={steps}
+                      onChange={(event) =>
+                        setSteps(Number(event.target.value))
+                      }
+                      disabled={busy}
+                    >
+                      <option value={4}>4 · Test rapido</option>
+                      <option value={8}>8 · Standard</option>
+                      <option value={9}>9 · Sperimentale</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="il-seed-row">
+                  <div className="il-seed-heading">
+                    <label className="il-label" htmlFor="il-seed">
+                      Seed
+                    </label>
+
+                    <label className="il-checkbox">
+                      <input
+                        type="checkbox"
+                        checked={randomSeed}
+                        onChange={(event) =>
+                          setRandomSeed(event.target.checked)
+                        }
+                         disabled={busy}
+                       /?
+                      Casuale
+                    </label>
+                  </div>
+
+                  <input
+                      id="il-seed"
+                      className="il-input"
+                      type="number"
+                      min="0"
+                      max="2147483647"
+                      step="1"
+                     value={seed}
+                      onChange={(event) => setSeed(event.target.value)}
+                      disabled={busy || randomSeed}
+                    />
                 </div>
 
                 <p className="il-hint">
-                  Il tempo dipende dalla risoluzione e dal carico del Mac.
+                  Sul Mac da 16 GB, inizia con 512 × 512. Le risoluzioni
+                  maggiori possono richiedere diversi minuti.
                 </p>
-              </div>
-            )}
 
-            {status === "loading-result" && (
-              <div className="il-progress">
-                <div className="il-spinner" />
-                <h3>Caricamento del risultato</h3>
-              </div>
-            )}
-
-            {status === "completed" && imageUrl && (
-              <div className="il-output">
-                <img
-                  className="il-generated-image"
-                  src={imageUrl}
-                  alt={prompt}
-                />
-
-                <div className="il-result-meta">
-                  <span>PNG</span>
-                  <span>{formatDuration(elapsed)}</span>
-                  {usedSeed !== null && <span>Seed: {usedSeed}</span>}
-                </div>
+                {error && (
+                  <div className="il-error" role="alert">
+                    {error}
+                  </div>
+                )}
 
                 <div className="il-actions">
                   <button
                     className="il-button il-primary"
-                    onClick={downloadImage}
+                    type="submit"
+                    disabled={busy || (!prompt.trim() && !initFile)}
                   >
-                    ↓ Scarica PNG
+                    {busy
+                      ? "Generazione in corso…"
+                      : initFile
+                        ? "✦ Modifica immagine →"
+                        : "Generate image →"}
                   </button>
+
+                  {imageUrl && (
+                    <button
+                      className="il-button"
+                      type="button"
+                      onClick={startAnotherVersion}
+                    >
+                      Nuova variante
+                    </button>
+                  )}
+                </div>
+              </form>
+            </section>
+
+            <section className="il-panel il-result-panel">
+              <div className="il-section-heading">
+                <div>
+                  <p className="il-eyebrow">02 / OUTPUT</p>
+                  <h2>Risultato</h2>
+                </div>
+
+                {busy && (
+                  <span className="il-live">
+                    <span className="il-status-dot" />
+                    LIVE
+                  </span>
+                )}
+              </div>
+
+              {status === "idle" && !imageUrl && (
+                <div className="il-empty">
+                  <div className="il-empty-icon">✳</div>
+                  <h3>La prossima immagine inizia qui</h3>
+                  <p>
+                    Scrivi un prompt e avvia la generazione, oppure carica
+                    un'immagine per modificarla. Il risultato apparirà in
+                    questa area.
+                  </p>
+                </div>
+              )}
+
+              {status === "submitting" && (
+                <div className="il-progress">
+                  <div className="il-spinner" />
+                  <h3>Invio della richiesta</h3>
+                  <p>Sto creando il lavoro sul server.</p>
+                </div>
+              )}
+
+              {(status === "queued" || status === "running") && (
+                <div className="il-progress">
+                  <div className="il-spinner" />
+
+                  <h3>
+                    {status === "queued"
+                      ? "In coda"
+                      : "Generazione in corso"}
+                  </h3>
+
+                  <p>
+                    Il modello sta lavorando sul Mac. Puoi lasciare aperta
+                    questa pagina: non serve mantenere una richiesta HTTP
+                    aperta per tutta la generazione.
+                  </p>
+
+                  <div className="il-progress-track">
+                    <div
+                      className="il-progress-fill"
+                      style={{
+                        width:
+                          progress === null ? "35%" : `${progress}%`,
+                      }}
+                    />
+                  </div>
+
+                  <div className="il-progress-meta">
+                    <span>
+                      {progress === null
+                        ? "Elaborazione"
+                        : `${Math.round(progress)}%`}
+                    </span>
+
+                    <span>{formatDuration(elapsed)}</span>
+                  </div>
+
+                  <p className="il-hint">
+                    Il tempo dipende dalla risoluzione e dal carico del Mac.
+                  </p>
+                </div>
+              )}
+
+              {status === "loading-result" && (
+                <div className="il-progress">
+                  <div className="il-spinner" />
+                  <h3>Caricamento del risultato</h3>
+                </div>
+              )}
+
+              {status === "completed" && imageUrl && (
+                <div className="il-output">
+                  <img
+                    className="il-generated-image"
+                    src={imageUrl}
+                    alt={prompt}
+                  />
+
+                  <div className="il-result-meta">
+                    <span>PNG</span>
+                    <span>{formatDuration(elapsed)}</span>
+                    {usedSeed !== null && <span>Seed: {usedSeed}</span>}
+                  </div>
+
+                  <div className="il-actions">
+                    <button
+                      className="il-button il-primary"
+                      onClick={downloadImage}
+                    >
+                      ↓ Scarica PNG
+                    </button>
+
+                    <button
+                      className="il-button"
+                      onClick={startAnotherVersion}
+                    >
+                      Crea variante
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {status === "error" && (
+                <div className="il-error-panel">
+                  <h3>Generazione non riuscita</h3>
+                  <p>
+                    {error || "Il server non ha completato il lavoro."}
+                  </p>
 
                   <button
                     className="il-button"
-                    onClick={startAnotherVersion}
+                    onClick={() => {
+                      setError("");
+                      setStatus("idle");
+                      setJobId("");
+                    }}
                   >
-                    Crea variante
+                    Torna al prompt
                   </button>
+                </div>
+              )}
+
+              {jobId && (
+                <p className="il-job-id">
+                  Job ID: <code>{jobId}</code>
+                </p>
+              )}
+            </section>
+          </div>
+        )}
+
+        {tab === "storico" && (
+          <section className="il-panel il-history-panel">
+            <div className="il-section-heading">
+              <div>
+                <p className="il-eyebrow">03 / GALLERY</p>
+                <h2>Storico generazioni</h2>
+              </div>
+              <button
+                className="il-button"
+                onClick={loadHistory}
+                disabled={historyLoading}
+              >
+                {historyLoading ? "Carico…" : "↻ Aggiorna"}
+              </button>
+            </div>
+
+            {historyError && (
+              <div className="il-error" role="alert">
+                {historyError}
+              </div>
+            )}
+
+            {!historyLoading && history.length === 0 && !historyError && (
+              <p className="il-hint">
+                Nessuna generazione salvata. Le immagini completate vengono
+                conservate qui (ultime 100).
+              </p>
+            )}
+
+            {history.length > 0 && (
+              <div className="il-page-size">
+                <span>Per pagina:</span>
+                <select
+                  value={pageSize}
+                  onChange={(event) => {
+                    setPageSize(Number(event.target.value));
+                    setPage(1);
+                  }}
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                </select>
+                <span className="il-page-info">
+                  {history.length} generazioni totali
+                </span>
+              </div>
+            )}
+
+            <div className="il-history-grid">
+              {pageItems.map((item) => (
+                <article key={item.job_id} className="il-history-card">
+                  <p className="il-history-prompt">
+                    {String(item.prompt || "").length > 160
+                      ? String(item.prompt).slice(0, 160) + "…"
+                      : item.prompt}
+                  </p>
+                  <div className="il-history-meta">
+                    <span>
+                      {item.width} × {item.height}
+                    </span>
+                    <span>{item.steps} step</span>
+                    <span>Seed: {item.seed}</span>
+                  </div>
+                  <div className="il-history-actions">
+                    <button
+                      className="il-button"
+                      onClick={() => openHistoryItem(item)}
+                    >
+                      Guarda
+                    </button>
+                    <button
+                      className="il-button"
+                      onClick={() => reuseHistoryParams(item)}
+                    >
+                      ↻ Parametri
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            {history.length > 0 && (
+              <div className="il-pagination">
+                <button
+                  className="il-page-btn"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage <= 1}
+                >
+                  ← Precedente
+                </button>
+
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                  (n) => (
+                    <button
+                      key={n}
+                      className={
+                        "il-page-btn" +
+                        (n === safePage ? " il-page-btn-active" : "")
+                      }
+                      onClick={() => setPage(n)}
+                    >
+                      {n}
+                    </button>
+                  )
+                )}
+
+                <button
+                  className="il-page-btn"
+                  onClick={() =>
+                    setPage((p) => Math.min(totalPages, p + 1))
+                  }
+                  disabled={safePage >= totalPages}
+                >
+                  Successiva →
+                </button>
+
+                <span className="il-page-info">
+                  Pagina {safePage} di {totalPages}
+                </span>
+              </div>
+            )}
+
+            {historyPreview && (
+              <div
+                className="il-history-overlay"
+                onClick={closeHistoryPreview}
+              >
+                <div
+                  className="il-history-modal"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <img
+                    className="il-generated-image"
+                    src={historyPreview.url}
+                    alt={historyPreview.item.prompt}
+                  />
+                  <div className="il-history-modal-meta">
+                    <span>
+                      {historyPreview.item.width} × {historyPreview.item.height}
+                    </span>
+                    <span>Seed: {historyPreview.item.seed}</span>
+                    <span>{historyPreview.item.steps} step</span>
+                  </div>
+                  <div className="il-actions">
+                    <a
+                      className="il-button il-primary"
+                      href={historyPreview.url}
+                      download={"z-image-" + historyPreview.item.seed + ".png"}
+                    >
+                      ↓ Scarica PNG
+                    </a>
+                    <button
+                      className="il-button"
+                      onClick={() => reuseHistoryParams(historyPreview.item)}
+                    >
+                      ↻ Riusa parametri
+                    </button>
+                    <button
+                      className="il-button"
+                      onClick={closeHistoryPreview}
+                    >
+                      Chiudi
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
+          </section>
+        )}
 
-            {status === "error" && (
-              <div className="il-error-panel">
-                <h3>Generazione non riuscita</h3>
-                <p>
-                  {error || "Il server non ha completato il lavoro."}
+        {tab === "ocr" && (
+          <section className="il-panel il-ocr-panel">
+            <div className="il-section-heading">
+              <div>
+                <p className="il-eyebrow">04 / OCR</p>
+                <h2>Estrai testo da una foto</h2>
+              </div>
+            </div>
+
+            <form onSubmit={runOcr} className="il-ocr-form">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={onOcrFile}
+                disabled={ocrStatus === "running"}
+              />
+
+              {ocrImage && (
+                <p className="il-hint">
+                  {ocrImage.name} ({Math.round(ocrImage.size / 1024)} KB)
                 </p>
+              )}
 
-                <button
-                  className="il-button"
-                  onClick={() => {
-                    setError("");
-                    setStatus("idle");
-                    setJobId("");
-                  }}
-                >
-                  Torna al prompt
-                </button>
+              <button
+                className="il-button il-primary"
+                type="submit"
+                disabled={!ocrImage || ocrStatus === "running"}
+              >
+                {ocrStatus === "running" ? "Analizzo…" : "Estrai testo"}
+              </button>
+            </form>
+
+            {ocrError && (
+              <div className="il-error" role="alert">
+                {ocrError}
               </div>
             )}
 
-            {jobId && (
-              <p className="il-job-id">
-                Job ID: <code>{jobId}</code>
-              </p>
+            {ocrText && (
+              <div className="il-ocr-result">
+                <div className="il-history-modal-meta">
+                  <span>Testo estratto</span>
+                  <button className="il-button" onClick={copyOcrText}>
+                    Copia
+                  </button>
+                </div>
+                <pre className="il-ocr-pre">{ocrText}</pre>
+              </div>
+            )}
+
+            {jcsInterpretation && (
+              <div className="il-ocr-result il-jcs-result">
+                <div className="il-history-modal-meta">
+                  <span>🧾 Interpretazione JCS</span>
+                </div>
+                <pre className="il-ocr-pre">{jcsInterpretation}</pre>
+              </div>
             )}
           </section>
-        </div>
+        )}
 
         <footer className="il-footer">
           <span>Z-Image-Turbo</span>
@@ -866,7 +1463,6 @@ export default function ImageLab() {
     </main>
   );
 }
-
 const STYLES = `
 .il-page {
   min-height: 100vh;
@@ -1207,6 +1803,102 @@ const STYLES = `
   margin-bottom: 1rem;
   color: var(--ink-dim, #8fa1ac);
 }
+.il-history-panel {
+  margin-top: 1rem;
+}
+.il-history-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: .8rem;
+}
+.il-history-card {
+  display: flex;
+  flex-direction: column;
+  gap: .55rem;
+  min-width: 0;
+  padding: .85rem;
+  border: 1px solid var(--border, #1f2b35);
+  border-radius: 9px;
+  background: var(--bg-alt, #0f151c);
+}
+.il-history-prompt {
+  color: var(--ink, #e7edf1);
+  font-size: .8rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.il-history-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem .75rem;
+  color: var(--ink-dim, #8fa1ac);
+  font-size: .7rem;
+}
+.il-history-actions {
+  display: flex;
+  gap: .45rem;
+  margin-top: auto;
+}
+.il-history-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: rgba(4, 8, 12, .82);
+}
+.il-history-modal {
+  display: flex;
+  flex-direction: column;
+  gap: .75rem;
+  width: min(760px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 1.1rem;
+  border: 1px solid var(--border, #1f2b35);
+  border-radius: 12px;
+  background: var(--panel, #121a22);
+}
+.il-history-modal-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem 1rem;
+  color: var(--ink-dim, #8fa1ac);
+  font-size: .76rem;
+}
+.il-ocr-panel {
+  margin-top: 1rem;
+}
+.il-ocr-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .6rem;
+}
+.il-ocr-result {
+  margin-top: .8rem;
+}
+.il-ocr-pre {
+  margin: .5rem 0 0;
+  padding: .8rem 1rem;
+  border: 1px solid var(--border, #1f2b35);
+  border-radius: 9px;
+  background: var(--bg-alt, #0f151c);
+  color: var(--ink, #e7edf1);
+  font-family: inherit;
+  font-size: .82rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 380px;
+  overflow-y: auto;
+}
+.il-jcs-result {
+  border-left: 3px solid var(--accent, #6fe3dd);
+  padding-left: .8rem;
+}
 .il-footer {
   display: flex;
   flex-wrap: wrap;
@@ -1225,6 +1917,130 @@ const STYLES = `
   color: var(--accent, #3fd0c9);
   font: inherit;
   cursor: pointer;
+}
+.il-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin-bottom: 1rem;
+}
+.il-tab {
+  padding: .55rem 1rem;
+  border: 1px solid var(--border, #1f2b35);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink-dim, #8fa1ac);
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease, color .15s ease;
+}
+.il-tab:hover {
+  border-color: var(--accent, #3fd0c9);
+  color: var(--ink, #e7edf1);
+}
+.il-tab-active {
+  border-color: var(--accent, #3fd0c9);
+  background: var(--accent, #3fd0c9);
+  color: #071212;
+}
+.il-tab-active:hover {
+  color: #071212;
+}
+.il-upload {
+  margin-bottom: 1rem;
+  padding: .8rem;
+  border: 1px dashed var(--border, #1f2b35);
+  border-radius: 9px;
+  background: var(--bg-alt, #0f151c);
+}
+.il-upload .il-label {
+  margin-bottom: .5rem;
+}
+.il-init-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .75rem;
+}
+.il-init-row input[type="file"] {
+  max-width: 280px;
+  color: var(--ink-dim, #8fa1ac);
+  font-size: .8rem;
+}
+.il-init-preview {
+  width: 84px;
+  height: 84px;
+  object-fit: cover;
+  border: 1px solid var(--border, #1f2b35);
+  border-radius: 7px;
+}
+.il-strength {
+  margin-bottom: 1rem;
+}
+.il-range {
+  width: 100%;
+  accent-color: var(--accent, #3fd0c9);
+}
+.il-page-size {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin-bottom: .9rem;
+  color: var(--ink-dim, #8fa1ac);
+  font-size: .78rem;
+}
+.il-page-size select {
+  padding: .35rem .5rem;
+  border: 1px solid var(--border, #1f2b35);
+  border-radius: 6px;
+  background: var(--bg, #0b1015);
+  color: var(--ink, #e7edf1);
+  font: inherit;
+  font-size: .8rem;
+  cursor: pointer;
+}
+.il-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: .4rem;
+  margin-top: 1.1rem;
+}
+.il-page-btn {
+  min-width: 34px;
+  padding: .4rem .55rem;
+  border: 1px solid var(--border, #1f2b35);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink, #e7edf1);
+  font: inherit;
+  font-size: .78rem;
+  cursor: pointer;
+}
+.il-page-btn:hover:not(:disabled) {
+  border-color: var(--accent, #3fd0c9);
+}
+.il-page-btn:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+.il-page-btn-active {
+  border-color: var(--accent, #3fd0c9);
+  background: var(--accent, #3fd0c9);
+  color: #071212;
+  font-weight: 700;
+}
+.il-page-btn-active:hover:not(:disabled) {
+  color: #071212;
+}
+.il-page-info {
+  margin-left: .5rem;
+  color: var(--ink-dim, #8fa1ac);
+  font-size: .75rem;
 }
 @media (max-width: 850px) {
   .il-layout {
