@@ -140,17 +140,18 @@ export default function ImageLab() {
 
   const busy = ["submitting", "queued", "running"].includes(status);
 
+
+  const [history, setHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const [historyPreview, setHistoryPreview] = useState(null);
+
   const totalPages = Math.max(1, Math.ceil(history.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const pageItems = history.slice(
     (safePage - 1) * pageSize,
     safePage * pageSize
   );
-
-  const [history, setHistory] = useState([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyError, setHistoryError] = useState("");
-  const [historyPreview, setHistoryPreview] = useState(null);
 
   const [ocrImage, setOcrImage] = useState(null);
   const [ocrStatus, setOcrStatus] = useState("idle");
@@ -1014,8 +1015,8 @@ export default function ImageLab() {
                         onChange={(event) =>
                           setRandomSeed(event.target.checked)
                         }
-                         disabled={busy}
-                       /?
+                        disabled={busy}
+                      />
                       Casuale
                     </label>
                   </div>
