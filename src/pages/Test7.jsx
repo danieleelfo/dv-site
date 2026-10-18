@@ -100,6 +100,20 @@ const c = (label, command, hint, danger) => ({ label, command, hint, danger })
 
 const COMMAND_GROUPS = [
   {
+    id: 'modelli', title: 'Modelli & LLM', icon: '🎛️', color: '#c4b5fd',
+    commands: [
+      c('Modelli attivi', 'modelli'),
+      c('Cambia reviewer', 'reviewer ', 'nome modello'),
+      c('Query', 'query ', 'Scrivi la query'),
+      c('Gemma', 'gemma ', 'prompt'),
+      c('Llama', 'llama ', 'prompt'),
+      c('Edita', 'edita'),
+      c('Roast', 'roast'),
+      c('Critica', 'critica'),
+      c('Pirata', 'pirata'),
+    ],
+  },
+  {
     id: 'system', title: 'Sistema', icon: '⚙️', color: '#3fd0c9',
     commands: [
       c('Status IP LAN', 'status ip'),
@@ -164,20 +178,6 @@ const COMMAND_GROUPS = [
       c('Remoto LS', 'remoto ls ', 'path'),
       c('Remoto download', 'remoto download ', 'file'),
       c('Remoto upload', 'remoto upload ', 'file', true),
-    ],
-  },
-  {
-    id: 'modelli', title: 'Modelli & LLM', icon: '🎛️', color: '#c4b5fd',
-    commands: [
-      c('Modelli attivi', 'modelli'),
-      c('Cambia reviewer', 'reviewer ', 'nome modello'),
-      c('Query', 'query ', 'Scrivi la query'),
-      c('Gemma', 'gemma ', 'prompt'),
-      c('Llama', 'llama ', 'prompt'),
-      c('Edita', 'edita'),
-      c('Roast', 'roast'),
-      c('Critica', 'critica'),
-      c('Pirata', 'pirata'),
     ],
   },
 ]
@@ -1669,7 +1669,10 @@ const css = `
 .lc-panel h2{font-size:15px;font-weight:650}
 .lc-panel h3{font-size:12px;font-weight:600;color:var(--ink-dim);margin-bottom:4px}
 .lc-dim{color:var(--ink-dim)}.lc-small{font-size:12px}
-.lc-model-select{max-width:170px;font-size:12px}
+.lc-model-select{max-width:170px;font-size:12px;font-weight:650;color:#86efac;
+  border-color:rgba(134,239,172,.55);background:rgba(74,222,128,.12)}
+.lc-model-select:hover:not(:disabled){background:rgba(74,222,128,.2);border-color:#86efac}
+.lc-model-select:focus-visible{outline:2px solid #86efac;outline-offset:2px}
 .lc-model-row{display:flex;gap:14px;flex-wrap:wrap;margin:2px 0 12px}
 .lc-gen-img{display:block;width:100%;max-width:420px;margin:10px 12px 0;border:1px solid var(--line);border-radius:10px}
 .lc-model-row label{display:flex;flex-direction:column;gap:4px}
@@ -1818,4 +1821,4 @@ const css = `
   .lc-bg{opacity:.55}
   .lc-shade{background:linear-gradient(180deg,rgba(11,16,21,.10) 0%,rgba(11,16,21,.22) 70%)}
 }
-` 
+`
