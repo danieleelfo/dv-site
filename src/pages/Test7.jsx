@@ -88,7 +88,7 @@ const COMMAND_GROUPS = [
   {
     id: 'system', title: 'Sistema', icon: '⚙️', color: '#3fd0c9',
     commands: [
-      c('Status IP LAN', 'status ip'),
+      c('Status IP LAN', 'status ip lan'),
       c('Uvicorn status', 'uvicorn status'),
       c('Telegram status', 'telegram status'),
       c('Restart Lelé', 'restart Lelé', undefined, true),
@@ -140,7 +140,7 @@ const COMMAND_GROUPS = [
       c('Remoto LS', 'remoto ls ', 'path'),
       c('Remoto download', 'remoto download ', 'file'),
       c('Remoto upload', 'remoto upload ', 'file', true),
-      c('Copia più file', 'process multiple files ', 'parametri del workflow; verificare destinazione'),
+      c('Copia più file', 'exec airflow lancia process_multiple_files con parametri ', 'file_paths, target_paths e overwrite: true'),
     ],
   },
   {
