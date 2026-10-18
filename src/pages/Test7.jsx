@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import bgImage from '../assets/DataInFlames.jpg'
+import SystemTiles, { parseSystem, parseOs, cleanRam, OsKpis, statLevel } from '../components/SystemPanel'
 
 const LELE_API_URL = 'https://api.danielevillanova.com'
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
@@ -69,6 +70,7 @@ const QUICK_LINKS = [
   { to: '/git-admin', label: 'Git Admin ⑂', desc: 'Status · diff · commit · push con conferma' },
   { to: '/dag-admin', label: 'DAG Admin 🌬️', desc: 'Pannello Airflow' },
   { to: '/b2b', label: 'B2B Arena ◎', desc: 'Bot-to-bot lab' },
+  { to: '/bar-ai-admin', label: 'Bar AI Admin 🍸', desc: 'CRUD tabelle bar' },
   { to: '/ai-lab', label: 'AI Lab ◈', desc: 'Pagina pubblica degli agenti' },
 ]
 
@@ -79,9 +81,18 @@ const TEST_LINKS = [
   { to: '/test3', label: 'Test3 🗺️', desc: 'Arena multi-agente' },
   { to: '/test4', label: 'Test4 🔬', desc: 'ImageLab preview · gallery · OCR/JCS' },
   { to: '/test5', label: 'Test5 🧠', desc: 'Image-to-image (img2img)' },
+  { to: '/test6', label: 'Test6 🍹', desc: 'CRUD bar AI (promossa su /bar-ai-admin)' },
+  { to: '/testbarai', label: 'TestBarAI 🧪', desc: 'Variante Bar AI in test' },
 ]
 
 // Comandi mostrati nel pannello di destra (si aggiornano con "Aggiorna").
+// Comandi mostrati nel pannello di destra (si aggiornano con "Aggiorna").
+const STATUS_CMDS = [
+  ['sys', 'Sistema', 'status sistema'],
+  ['os', 'OS', 'status os'],
+  ['ram', 'RAM', 'status ram'],
+]
+
 const c = (label, command, hint, danger) => ({ label, command, hint, danger })
 
 const COMMAND_GROUPS = [
@@ -496,6 +507,31 @@ export default function Test7() {
       clearInterval(id)
     }
   }, [idToken])
+
+  // Status sistema/OS/RAM: un comando alla volta, via console admin.
+  const refreshStatus = useCallback(async () => {
+    if (!idToken) return
+    setStatusLoading(true)
+    for (const [key, , cmd] of STATUS_CMDS) {
+      try {
+        const text = await callAdmin(idToken, cmd, 60000)
+        setStatus((s) => ({ ...s, [key]: { text } }))
+      } catch (err) {
+        if (err.status === 401 || err.status === 403) {
+          logout(err.message)
+          break
+        }
+        setStatus((s) => ({ ...s, [key]: { err: err.message } }))
+      }
+    }
+    setStatusLoading(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idToken])
+
+  useEffect(() => {
+    refreshStatus()
+  }, [refreshStatus])
+
 
   function selectCommand(command) {
     setPrompt(command.command)
@@ -1087,6 +1123,23 @@ export default function Test7() {
                 />
               </div>
               <div className="lc-prompt-foot">
+                <select
+                    className="lc-select lc-model-select"
+                    aria-label="Modello Super-Leles"
+                    value={superModel}
+                    disabled={modelSwitching || isLoading}
+                    onChange={(e) => switchSuperModel(e.target.value)}
+                    title="Cambia il modello di Super-Leles: invia il comando modellosl <nome> e mostra la conferma in Sessione"
+                  >
+                    {SUPER_MODELS.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                </select>
+                {modelSwitching && (
+                  <span className="lc-dim lc-small">Switch modello…</span>
+                )}
                 <button
                   type="button"
                   className="lc-btn"
@@ -1467,6 +1520,72 @@ export default function Test7() {
 
         </div>
 
+          {/* DASHBOARD DESTRA: Sistema + OS + RAM + Gateway in un solo pannello */}
+          <aside className="lc-side" aria-label="Stato del sistema">
+            <section className="lc-panel lc-pad lc-status">
+              <div className="lc-cmd-head">
+                <h2>Stato del sistema</h2>
+                <div className="lc-row">
+                  <span
+                    className={`lc-pill ${
+                      ping.ok === null ? '' : ping.ok ? 'is-ok' : 'is-bad'
+                    }`}
+                    title="Gateway"
+                  >
+                    <span className={`lc-dot${ping.ok ? ' lc-pulse' : ''}`} />
+                    {ping.ok === null ? '…' : ping.ok ? `${ping.ms} ms` : 'offline'}
+                  </span>
+                  <button
+                    type="button"
+                    className="lc-btn lc-btn--sm"
+                    onClick={refreshStatus}
+                    disabled={statusLoading}
+                  >
+                    {statusLoading ? 'Carico…' : 'Aggiorna'}
+                  </button>
+                </div>
+              </div>
+
+              {STATUS_CMDS.map(([key, label]) => {
+                const s = status[key]
+                const tiles = key === 'sys' && !rawSys ? parseSystem(s?.text) : null
+                const osData = key === 'os' ? parseOs(s?.text) : null
+                const ramText = key === 'ram' ? cleanRam(s?.text) : null
+                const lvl = statLevel(key, status)
+                return (
+                    <div key={key} className="lc-stat">
+                    <div className="lc-stat-head">
+                        <h3 className={`lc-stat-name${lvl ? ` is-${lvl}` : ''}`}>{label}</h3>
+                        {key === 'sys' && s?.text && parseSystem(s.text) && (
+                            <button
+                                type="button"
+                                className="lc-btn lc-btn--sm"
+                                onClick={() => setRawSys((v) => !v)}
+                            >
+                                {rawSys ? 'Schema' : 'Testo'}
+                            </button>
+                        )}
+                    </div>
+                    {s?.err ? (
+                        <p className="lc-err lc-small">{s.err}</p>
+                    ) : tiles ? (
+                        <SystemTiles data={tiles} />
+                    ) : osData ? (
+                        <OsKpis data={osData} />
+                    ) : (
+                        <pre className="lc-pre lc-pre--sm">
+                            {(key === 'ram' && ramText) ||
+                                s?.text ||
+                                (statusLoading ? 'Carico…' : 'Nessun dato. Premi Aggiorna.')}
+                        </pre>
+                    )}
+                </div>
+            )
+        })}
+            </section>
+          </aside>
+        </div>
+
         {/* PAGINE DEL SITO: link alle console esistenti */}
         <nav className="lc-pages" aria-label="Pagine del sito">
           <div className="lc-pages-head">
@@ -1546,7 +1665,7 @@ const css = `
 .lc-link:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25)}
 .lc-link--main{background:var(--accent);border-color:var(--accent);color:#07201f;font-weight:600}
 .lc-link--main:hover{background:#6fe3dd;border-color:#6fe3dd}
-.lc-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:18px;align-items:start;margin-top:18px}
+.lc-grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;align-items:start;margin-top:18px}
 .lc-main{display:flex;flex-direction:column;gap:18px;min-width:0}
 .lc-side{display:flex;flex-direction:column;gap:18px;position:sticky;top:80px;max-height:calc(100vh - 100px);overflow:auto}
 .lc-panel{background:var(--glass);border:1px solid var(--line);border-radius:16px;backdrop-filter:blur(14px);
