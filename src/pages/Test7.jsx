@@ -1,6 +1,9 @@
 // ============================================================
-// TEST7 — Leles Admin Preview
-// Sandbox isolata: non modifica Test2 né la pagina ufficiale.
+// TEST7 — Leles Admin Console: PREVIEW basata su Test2.jsx
+// Sandbox isolata: non modifica Test2 né la pagina ufficiale /leles.
+// Cambi vs Test2: nota comandi via, toggle Super-Leles via,
+// selettore modellosl in Modelli & LLM, gruppo Logs separato,
+// bar_ai nei processi, comandi Leles dentro Sistema, tab Super via.
 // ============================================================
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -77,7 +80,8 @@ const QUICK_LINKS = [
 // Pagine di test/laboratorio: in fondo, si validano da qui.
 const TEST_LINKS = [
   { to: '/test', label: 'Test 🕰️', desc: 'Pagina test storica' },
-  { to: '/test2', label: 'Test2 🏴‍☠️', desc: 'Leles Admin Console (questa pagina)' },
+  { to: '/test2', label: 'Test2 🏴‍☠️', desc: 'Leles Admin Console' },
+  { to: '/test7', label: 'Test7 🧪', desc: 'Admin Console preview (questa pagina)' },
   { to: '/test3', label: 'Test3 🗺️', desc: 'Arena multi-agente' },
   { to: '/test4', label: 'Test4 🔬', desc: 'ImageLab preview · gallery · OCR/JCS' },
   { to: '/test5', label: 'Test5 🧠', desc: 'Image-to-image (img2img)' },
@@ -85,7 +89,6 @@ const TEST_LINKS = [
   { to: '/testbarai', label: 'TestBarAI 🧪', desc: 'Variante Bar AI in test' },
 ]
 
-// Comandi mostrati nel pannello di destra (si aggiornano con "Aggiorna").
 // Comandi mostrati nel pannello di destra (si aggiornano con "Aggiorna").
 const STATUS_CMDS = [
   ['sys', 'Sistema', 'status sistema'],
@@ -99,7 +102,7 @@ const COMMAND_GROUPS = [
   {
     id: 'system', title: 'Sistema', icon: '⚙️', color: '#3fd0c9',
     commands: [
-      c('Status IP LAN', 'status ip lan'),
+      c('Status IP LAN', 'status ip'),
       c('Uvicorn status', 'uvicorn status'),
       c('Telegram status', 'telegram status'),
       c('Restart Lelé', 'restart Lelé', undefined, true),
@@ -119,10 +122,20 @@ const COMMAND_GROUPS = [
       c('Start Night Story', 'start night story'),
       c('Stop Night Story', 'stop night story', undefined, true),
       c('Restart Night Story', 'restart night story', undefined, true),
-      c('Restart Gateway', 'restart gateway', undefined, true),
       c('Start Bar AI', 'start bar_ai'),
       c('Stop Bar AI', 'stop bar_ai', undefined, true),
       c('Restart Bar AI', 'restart bar_ai', undefined, true),
+      c('Restart Gateway', 'restart gateway', undefined, true),
+    ],
+  },
+  {
+    id: 'logs', title: 'Logs', icon: '📜', color: '#94a3b8',
+    commands: [
+      c('Logs Lele', 'logs lele'),
+      c('Logs Story Whisper', 'logs story whisper'),
+      c('Logs Night Story', 'logs night story'),
+      c('Logs Leles', 'logs leles'),
+      c('Logs Bar AI', 'logs bar_ai'),
     ],
   },
   {
@@ -151,22 +164,12 @@ const COMMAND_GROUPS = [
       c('Remoto LS', 'remoto ls ', 'path'),
       c('Remoto download', 'remoto download ', 'file'),
       c('Remoto upload', 'remoto upload ', 'file', true),
-      c('Copia più file', 'exec airflow lancia process_multiple_files con parametri ', 'file_paths, target_paths e overwrite: true'),
-    ],
-  },
-  {
-    id: 'logs', title: 'Logs', icon: '📜', color: '#94a3b8',
-    commands: [
-      c('Logs Lele', 'logs lele'),
-      c('Logs Story Whisper', 'logs story whisper'),
-      c('Logs Night Story', 'logs night story'),
-      c('Logs Leles', 'logs leles'),
-      c('Logs Bar AI', 'logs bar_ai'),
     ],
   },
   {
     id: 'modelli', title: 'Modelli & LLM', icon: '🎛️', color: '#c4b5fd',
     commands: [
+      c('Super domanda', 'super ', 'chiedi anything a Super-Leles'),
       c('Modelli attivi', 'modelli'),
       c('Cambia reviewer', 'reviewer ', 'nome modello'),
       c('Query', 'query ', 'Scrivi la query'),
@@ -532,7 +535,6 @@ export default function Test7() {
     refreshStatus()
   }, [refreshStatus])
 
-
   function selectCommand(command) {
     setPrompt(command.command)
     setArmed(false)
@@ -683,8 +685,7 @@ export default function Test7() {
 
   async function run(e) {
     e?.preventDefault()
-    // Super-Leles: se il toggle e' attivo, il prompt parte come 'super <domanda>'
-    // (a meno che non sia gia' un comando super/sl/modellosl).
+    // Per Super-Leles scrivi direttamente 'super <domanda>' nel prompt.
     const raw = prompt.trim()
     // "immagina <prompt>" → generazione immagini via gateway (no Leles).
     const imgMatch = raw.match(/^immagina\s+(.+)$/i)
@@ -1123,20 +1124,6 @@ export default function Test7() {
                 />
               </div>
               <div className="lc-prompt-foot">
-                <select
-                    className="lc-select lc-model-select"
-                    aria-label="Modello Super-Leles"
-                    value={superModel}
-                    disabled={modelSwitching || isLoading}
-                    onChange={(e) => switchSuperModel(e.target.value)}
-                    title="Cambia il modello di Super-Leles: invia il comando modellosl <nome> e mostra la conferma in Sessione"
-                  >
-                    {SUPER_MODELS.map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                </select>
                 {modelSwitching && (
                   <span className="lc-dim lc-small">Switch modello…</span>
                 )}
@@ -1517,8 +1504,6 @@ export default function Test7() {
               </div>
             </section>
           </main>
-
-        </div>
 
           {/* DASHBOARD DESTRA: Sistema + OS + RAM + Gateway in un solo pannello */}
           <aside className="lc-side" aria-label="Stato del sistema">
