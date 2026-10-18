@@ -6,6 +6,16 @@ const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const TOKEN_KEY = "dv_google_id_token";
 const POLL_MS = 4000;
 
+// Griglia identica a RESOLUTION_OPTIONS dell'app Gradio (main.py):
+// cosi' il gateway non deve snappare e l'output ha ESATTAMENTE
+// le dimensioni scelte qui. Struttura: categoria -> [ [label, w, h], ... ]
+const GRADIO_FORMATS = {
+  512: [["512 × 512 (1:1)", 512, 512], ["640 × 384 (5:3)", 640, 384], ["384 × 640 (3:5)", 384, 640], ["512 × 384 (4:3)", 512, 384], ["384 × 512 (3:4)", 384, 512], ["640 × 368 (16:9)", 640, 368], ["368 × 640 (9:16)", 368, 640]],
+  768: [["768 × 768 (1:1)", 768, 768], ["960 × 576 (5:3)", 960, 576], ["576 × 960 (3:5)", 576, 960], ["768 × 576 (4:3)", 768, 576], ["576 × 768 (3:4)", 576, 768], ["960 × 544 (16:9)", 960, 544], ["544 × 960 (9:16)", 544, 960]],
+  1024: [["1024 × 1024 (1:1)", 1024, 1024], ["1280 × 768 (5:3)", 1280, 768], ["768 × 1280 (3:5)", 768, 1280], ["1024 × 768 (4:3)", 1024, 768], ["768 × 1024 (3:4)", 768, 1024], ["1280 × 720 (16:9)", 1280, 720], ["720 × 1280 (9:16)", 720, 1280], ["1024 × 576 (16:9)", 1024, 576], ["576 × 1024 (9:16)", 576, 1024]],
+  1280: [["1280 × 1280 (1:1)", 1280, 1280], ["1536 × 1024 (3:2)", 1536, 1024], ["1024 × 1536 (2:3)", 1024, 1536], ["1536 × 864 (16:9)", 1536, 864], ["864 × 1536 (9:16)", 864, 1536]],
+};
+
 function decodeJwt(token) {
   try {
     const part = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
@@ -33,7 +43,10 @@ export default function Test5() {
   const [preview, setPreview] = useState("");
   const [prompt, setPrompt] = useState("Keep the main subject and composition, improve the lighting and details.");
   const [strength, setStrength] = useState(0.65);
-  const [size, setSize] = useState("512");
+  const [size, setSize] = useState(512);
+  const [formatIdx, setFormatIdx] = useState(0);
+  const formats = GRADIO_FORMATS[size] || GRADIO_FORMATS[512];
+  const [outW, outH] = formats[Math.min(formatIdx, formats.length - 1)].slice(1);
   const [steps, setSteps] = useState("8");
   const [seed, setSeed] = useState("");
   const [status, setStatus] = useState("idle");
@@ -114,7 +127,7 @@ export default function Test5() {
     const now = Date.now(); setStarted(now); setElapsed(0);
     const body = new FormData();
     body.append("image", file); body.append("prompt", prompt.trim());
-    body.append("strength", String(strength)); body.append("width", size); body.append("height", size);
+    body.append("strength", String(strength)); body.append("width", String(outW)); body.append("height", String(outH));
     body.append("steps", steps); body.append("seed", seed.trim() || "-1");
     try {
       // Contract planned for the gateway's image-to-image route.
@@ -138,7 +151,7 @@ export default function Test5() {
         {file && <p className="i2i-muted">{file.name} · {Math.round(file.size / 1024)} KB</p>}
         <label className="i2i-label" htmlFor="i2i-prompt">Istruzioni per la modifica</label><textarea id="i2i-prompt" className="i2i-input i2i-prompt" value={prompt} onChange={e => setPrompt(e.target.value)} maxLength={3000} required disabled={busy} />
         <div className="i2i-field"><label className="i2i-label" htmlFor="i2i-strength">Forza modifica: {strength.toFixed(2)}</label><input id="i2i-strength" type="range" min=".1" max="1" step=".05" value={strength} onChange={e => setStrength(Number(e.target.value))} disabled={busy} /><div className="i2i-range"><span>Più fedele</span><span>Più trasformata</span></div></div>
-        <div className="i2i-fields"><label className="i2i-field"><span className="i2i-label">Risoluzione</span><select className="i2i-input" value={size} onChange={e => setSize(e.target.value)} disabled={busy}><option value="512">512 × 512</option><option value="768">768 × 768</option><option value="1024">1024 × 1024</option></select></label>
+        <div className="i2i-fields"><label className="i2i-field"><span className="i2i-label">Categoria</span><select className="i2i-input" value={size} onChange={e => { setSize(Number(e.target.value)); setFormatIdx(0); }} disabled={busy}>{Object.keys(GRADIO_FORMATS).map(c => <option key={c} value={c}>{c}</option>)}</select></label><label className="i2i-field"><span className="i2i-label">Formato</span><select className="i2i-input" value={formatIdx} onChange={e => setFormatIdx(Number(e.target.value))} disabled={busy}>{formats.map((f, i) => <option key={f[0]} value={i}>{f[0]}</option>)}</select></label>
         <label className="i2i-field"><span className="i2i-label">Steps</span><select className="i2i-input" value={steps} onChange={e => setSteps(e.target.value)} disabled={busy}><option>4</option><option>8</option><option>12</option></select></label></div>
         <label className="i2i-label" htmlFor="i2i-seed">Seed (facoltativo)</label><input id="i2i-seed" className="i2i-input" placeholder="Casuale" value={seed} onChange={e => setSeed(e.target.value.replace(/[^0-9-]/g, ""))} disabled={busy} />
         <div className="i2i-actions"><button className="i2i-btn i2i-primary" type="submit" disabled={!file || !prompt.trim() || busy}>{busy ? "Elaborazione…" : "✦ Modifica immagine"}</button><button className="i2i-btn" type="button" onClick={reset} disabled={busy}>Reset risultato</button></div>

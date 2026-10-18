@@ -2128,8 +2128,25 @@ IMAGE_MODEL_URL = os.environ.get(
 
 IMAGE_GENERATION_TIMEOUT = 900.0
 IMAGE_MAX_PROMPT_CHARS = 12000
-IMAGE_ALLOWED_WIDTHS = {512, 768, 1024, 1280}
-IMAGE_ALLOWED_HEIGHTS = {512, 768, 1024, 1280}
+# Tutte le dimensioni (larghezze E altezze) della griglia
+# RESOLUTION_OPTIONS di Gradio (z-image-inference/main.py).
+# Il set vale per entrambe: una dimensione puo' comparire come width
+# in un formato e come height in un altro.
+_GRADIO_DIMS = set()
+for _cat in (
+    (512, 512), (640, 384), (384, 640), (512, 384), (384, 512),
+    (640, 368), (368, 640),
+    (768, 768), (960, 576), (576, 960), (768, 576), (576, 768),
+    (960, 544), (544, 960),
+    (1024, 1024), (1280, 768), (768, 1280), (1024, 768), (768, 1024),
+    (1280, 720), (720, 1280), (1024, 576), (576, 1024),
+    (1280, 1280), (1536, 1024), (1024, 1536), (1536, 864), (864, 1536),
+):
+    _GRADIO_DIMS.add(_cat[0])
+    _GRADIO_DIMS.add(_cat[1])
+
+IMAGE_ALLOWED_WIDTHS = _GRADIO_DIMS
+IMAGE_ALLOWED_HEIGHTS = _GRADIO_DIMS
 IMAGE_MIN_STEPS = 1
 IMAGE_MAX_STEPS = 100
 IMAGE_MAX_JOBS = 30

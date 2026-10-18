@@ -28,12 +28,14 @@ const TOKEN_STORAGE_KEY = "dv_google_id_token";
 
 const POLL_INTERVAL = 5000;
 
-const RESOLUTIONS = {
-  square: { width: 512, height: 512, label: "Quadrata · 512 × 512" },
-  portrait: { width: 512, height: 768, label: "Verticale · 512 × 768" },
-  landscape: { width: 768, height: 512, label: "Orizzontale · 768 × 512" },
-  square768: { width: 768, height: 768, label: "Quadrata · 768 × 768" },
-  square1024: { width: 1024, height: 1024, label: "Quadrata · 1024 × 1024" },
+// Griglia identica a RESOLUTION_OPTIONS dell'app Gradio (main.py):
+// cosi' il gateway non deve snappare e l'output ha ESATTAMENTE
+// le dimensioni scelte. Struttura: categoria -> [ [label, w, h], ... ]
+const GRADIO_FORMATS = {
+  512: [["512 × 512 (1:1)", 512, 512], ["640 × 384 (5:3)", 640, 384], ["384 × 640 (3:5)", 384, 640], ["512 × 384 (4:3)", 512, 384], ["384 × 512 (3:4)", 384, 512], ["640 × 368 (16:9)", 640, 368], ["368 × 640 (9:16)", 368, 640]],
+  768: [["768 × 768 (1:1)", 768, 768], ["960 × 576 (5:3)", 960, 576], ["576 × 960 (3:5)", 576, 960], ["768 × 576 (4:3)", 768, 576], ["576 × 768 (3:4)", 576, 768], ["960 × 544 (16:9)", 960, 544], ["544 × 960 (9:16)", 544, 960]],
+  1024: [["1024 × 1024 (1:1)", 1024, 1024], ["1280 × 768 (5:3)", 1280, 768], ["768 × 1280 (3:5)", 768, 1280], ["1024 × 768 (4:3)", 1024, 768], ["768 × 1024 (3:4)", 768, 1024], ["1280 × 720 (16:9)", 1280, 720], ["720 × 1280 (9:16)", 720, 1280], ["1024 × 576 (16:9)", 1024, 576], ["576 × 1024 (9:16)", 576, 1024]],
+  1280: [["1280 × 1280 (1:1)", 1280, 1280], ["1536 × 1024 (3:2)", 1536, 1024], ["1024 × 1536 (2:3)", 1024, 1536], ["1536 × 864 (16:9)", 1536, 864], ["864 × 1536 (9:16)", 864, 1536]],
 };
 
 function parseJwt(token) {
@@ -112,7 +114,10 @@ export default function Test4() {
   const [email, setEmail] = useState("");
 
   const [prompt, setPrompt] = useState("");
-  const [resolution, setResolution] = useState("square");
+  const [size, setSize] = useState(512);
+  const [formatIdx, setFormatIdx] = useState(0);
+  const formats = GRADIO_FORMATS[size] || GRADIO_FORMATS[512];
+  const dimensions = formats[Math.min(formatIdx, formats.length - 1)].slice(1);
   const [steps, setSteps] = useState(8);
   const [randomSeed, setRandomSeed] = useState(true);
   const [seed, setSeed] = useState("12345");
@@ -375,11 +380,16 @@ export default function Test4() {
 
     if (Number.isFinite(item.steps)) setSteps(item.steps);
 
-    const match = Object.entries(RESOLUTIONS).find(
-      ([, r]) => r.width === item.width && r.height === item.height
-    );
-
-    if (match) setResolution(match[0]);
+    for (const [cat, list] of Object.entries(GRADIO_FORMATS)) {
+      const idx = list.findIndex(
+        (f) => f[1] === item.width && f[2] === item.height
+      );
+      if (idx >= 0) {
+        setSize(Number(cat));
+        setFormatIdx(idx);
+        break;
+      }
+    }
 
     closeHistoryPreview();
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -566,12 +576,8 @@ export default function Test4() {
       return;
     }
 
-    const dimensions = RESOLUTIONS[resolution];
-
-    if (!dimensions) {
-      setError("Risoluzione non valida.");
-      return;
-    }
+    // dimensions = [width, height] dal formato Gradio selezionato
+    const [outWidth, outHeight] = dimensions;
 
     const selectedSeed = randomSeed
       ? Math.floor(Math.random() * (2 ** 31 - 1))
@@ -602,8 +608,8 @@ export default function Test4() {
         },
         body: JSON.stringify({
           prompt: prompt.trim(),
-          width: dimensions.width,
-          height: dimensions.height,
+          width: outWidth,
+          height: outHeight,
           steps: Number(steps),
           seed: selectedSeed,
         }),
@@ -765,20 +771,45 @@ export default function Test4() {
 
               <div className="il-form-grid">
                 <div>
-                  <label className="il-label" htmlFor="il-resolution">
-                    Risoluzione
+                  <label className="il-label" htmlFor="il-category">
+                    Categoria
                   </label>
 
                   <select
-                    id="il-resolution"
+                    id="il-category"
                     className="il-input"
-                    value={resolution}
-                    onChange={(event) => setResolution(event.target.value)}
+                    value={size}
+                    onChange={(event) => {
+                      setSize(Number(event.target.value));
+                      setFormatIdx(0);
+                    }}
                     disabled={busy}
                   >
-                    {Object.entries(RESOLUTIONS).map(([key, item]) => (
-                      <option key={key} value={key}>
-                        {item.label}
+                    {Object.keys(GRADIO_FORMATS).map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="il-label" htmlFor="il-format">
+                    Formato
+                  </label>
+
+                  <select
+                    id="il-format"
+                    className="il-input"
+                    value={formatIdx}
+                    onChange={(event) =>
+                      setFormatIdx(Number(event.target.value))
+                    }
+                    disabled={busy}
+                  >
+                    {formats.map((f, i) => (
+                      <option key={f[0]} value={i}>
+                        {f[0]}
                       </option>
                     ))}
                   </select>
