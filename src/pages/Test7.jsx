@@ -169,7 +169,6 @@ const COMMAND_GROUPS = [
   {
     id: 'modelli', title: 'Modelli & LLM', icon: '🎛️', color: '#c4b5fd',
     commands: [
-      c('Super domanda', 'super ', 'chiedi anything a Super-Leles'),
       c('Modelli attivi', 'modelli'),
       c('Cambia reviewer', 'reviewer ', 'nome modello'),
       c('Query', 'query ', 'Scrivi la query'),
@@ -339,6 +338,7 @@ export default function Test7() {
   const [gsiReady, setGsiReady] = useState(false)
 
   const [prompt, setPrompt] = useState('')
+  const [superMode, setSuperMode] = useState(false)
   const [superModel, setSuperModel] = useState(() => {
     try {
       const stored = window.localStorage.getItem(SUPER_MODEL_KEY)
@@ -685,7 +685,8 @@ export default function Test7() {
 
   async function run(e) {
     e?.preventDefault()
-    // Per Super-Leles scrivi direttamente 'super <domanda>' nel prompt.
+    // Super-Leles: se il toggle e' attivo, il prompt parte come 'super <domanda>'
+    // (a meno che non sia gia' un comando super/sl/modellosl).
     const raw = prompt.trim()
     // "immagina <prompt>" → generazione immagini via gateway (no Leles).
     const imgMatch = raw.match(/^immagina\s+(.+)$/i)
@@ -695,7 +696,7 @@ export default function Test7() {
       await runImage(imgMatch[1].trim())
       return
     }
-    const cmd = raw
+    const cmd = superMode && !/^(super|super-leles|sl|modellosl)\b/i.test(raw) ? 'super ' + raw : raw
     if (!cmd || !idToken || isLoading) return
 
     // Comandi sensibili: serve una seconda pressione.
@@ -1127,6 +1128,15 @@ export default function Test7() {
                 {modelSwitching && (
                   <span className="lc-dim lc-small">Switch modello…</span>
                 )}
+                <button
+                  type="button"
+                  className="lc-btn"
+                  onClick={() => setSuperMode((v) => !v)}
+                  style={superMode ? { borderColor: '#a78bfa', color: '#a78bfa' } : undefined}
+                  title="Quando attivo, il prompt viene inviato come 'super <domanda>' a Super-Leles (grounded)"
+                >
+                  {superMode ? '⚡ Super-Leles ON' : '⚡ Super-Leles'}
+                </button>
                 <button
                   type="button"
                   className="lc-btn"
