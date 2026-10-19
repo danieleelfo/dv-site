@@ -1,3 +1,8 @@
+// ============================================================
+// LELES ADMIN CONSOLE — pagina ufficiale /leles
+// Promossa da Test7 (che resta come sandbox di anteprima).
+// ============================================================
+
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import bgImage from '../assets/DataInFlames.jpg'
@@ -36,16 +41,49 @@ const AUDIO_LANGUAGE = 'it'
 const AUTO_SEND_RECORDING = true
 // ---------------------------------------------------------------------------
 
-// Pagine di test raggiungibili al volo.
+// --- SUPER-LELES: selettore modello nel prompt ------------------------------
+// La lista combacia con SUPER_LELES_ALLOWED_MODELS del gateway (gateway.py).
+// Il cambio modello viene inviato come comando "modellosl <nome>", già
+// supportato dal backend: nessuna sintassi nuova.
+const SUPER_MODELS = [
+  'mistral',
+  'gemma4',
+  'llama3',
+  'qwen2.5',
+  'deepseek-r1',
+  'qwen2.5-coder:7b',
+  'gpt-oss:20b',
+]
+const SUPER_MODEL_KEY = 'lc_super_model'
+
+// Modelli permessi per gli agenti normali (ALLOWED_MODELS in gateway.py).
+// Usati sia dal selettore "modello" (Leles) sia dal "reviewer".
+const LELE_MODELS = ['mistral', 'gemma4', 'llama3', 'qwen2.5', 'deepseek-r1']
+const LELE_MODEL_KEY = 'lc_lele_model'
+const REVIEWER_MODEL_KEY = 'lc_reviewer_model'
+
+// Pagine e console ufficiali del sito.
 const QUICK_LINKS = [
-  { to: '/improve', label: 'Improve 🛠️', main: true},
+  { to: '/improve', label: 'Improve 🛠️', main: true },
+  { to: '/api-contracts', label: 'API Contracts 📡', main: true },
+  { to: '/git-admin', label: 'Git Admin ⑂' },
+  { to: '/dag-admin', label: 'DAG Admin 🌬️' },
+  { to: '/bar-ai-admin', label: 'Bar AI Admin 🍸' },
+  { to: '/image-lab', label: 'Image Lab 🖼️', main: true },
+  { to: '/ai-lab', label: 'AI Lab ◈', desc: 'Emergence experiment' },
+  { to: '/b2b', label: 'B2B Arena ◎' },
+]
+
+// Pagine di test/laboratorio: in fondo, si validano da qui.
+const TEST_LINKS = [
   { to: '/test', label: 'Test 🕰️' },
-  { to: '/test2', label: 'Test2 🧜🏻‍♀️' },
+  { to: '/test2', label: 'Test2 🏴‍☠️' },
   { to: '/test3', label: 'Test3 🗺️' },
   { to: '/test4', label: 'Test4 🔬' },
   { to: '/test5', label: 'Test5 🧠' },
-  { to: '/test6', label: 'Test6 🍸' },
-  { to: '/leles', label: 'Leles Admin 🏴‍☠️', main: true  },
+  { to: '/test6', label: 'Test6 🍹' },
+  { to: '/test7', label: 'Test7 🧪' },
+  { to: '/testbarai', label: 'TestBarAI 🧪' },
 ]
 
 // Comandi mostrati nel pannello di destra (si aggiornano con "Aggiorna").
@@ -59,14 +97,28 @@ const c = (label, command, hint, danger) => ({ label, command, hint, danger })
 
 const COMMAND_GROUPS = [
   {
+    id: 'modelli', title: 'Modelli & LLM', icon: '🎛️', color: '#c4b5fd',
+    commands: [
+      c('Modelli attivi', 'modelli'),
+      c('Cambia reviewer', 'reviewer ', 'nome modello'),
+      c('Query', 'query ', 'Scrivi la query'),
+      c('Gemma', 'gemma ', 'prompt'),
+      c('Llama', 'llama ', 'prompt'),
+      c('Edita', 'edita'),
+      c('Roast', 'roast'),
+      c('Critica', 'critica'),
+      c('Pirata', 'pirata'),
+    ],
+  },
+  {
     id: 'system', title: 'Sistema', icon: '⚙️', color: '#3fd0c9',
     commands: [
-      c('Status sistema', 'status sistema'),
-      c('Status OS', 'status os'),
-      c('Status RAM', 'status ram'),
-      c('Status IP', 'status ip'),
+      c('Status IP LAN', 'status ip'),
       c('Uvicorn status', 'uvicorn status'),
       c('Telegram status', 'telegram status'),
+      c('Restart Lelé', 'restart Lelé', undefined, true),
+      c('Export DAG', 'export dag ', 'filename'),
+      c('Crea DAG', 'crea dag ', 'Descrivi il DAG'),
     ],
   },
   {
@@ -81,22 +133,21 @@ const COMMAND_GROUPS = [
       c('Start Night Story', 'start night story'),
       c('Stop Night Story', 'stop night story', undefined, true),
       c('Restart Night Story', 'restart night story', undefined, true),
+      c('Start Bar AI', 'start bar_ai'),
+      c('Stop Bar AI', 'stop bar_ai', undefined, true),
+      c('Restart Bar AI', 'restart bar_ai', undefined, true),
       c('Restart Gateway', 'restart gateway', undefined, true),
+    ],
+  },
+  {
+    id: 'logs', title: 'Logs', icon: '📜', color: '#94a3b8',
+    commands: [
       c('Logs Lele', 'logs lele'),
       c('Logs Story Whisper', 'logs story whisper'),
       c('Logs Night Story', 'logs night story'),
       c('Logs Leles', 'logs leles'),
-    ],
-  },
-  {
-    id: 'airflow', title: 'Airflow', icon: '🌬️', color: '#38bdf8',
-    commands: [
-      c('Status Airflow', 'status airflow'),
-      c('Status DAG', 'status dag ', 'Opzionale: dag_id'),
-      c('Log task', 'log task ', 'dag_id task_id'),
-      c('Pausa DAG', 'pausa dag ', 'dag_id', true),
-      c('Attiva DAG', 'attiva dag ', 'dag_id'),
-      c('Lancia DAG', 'exec airflow lancia ', 'dag_id e conf se necessario', true),
+      c('Logs Bar AI', 'logs bar_ai'),
+      c('Logs dv-site', 'logs dv-site'),
     ],
   },
   {
@@ -119,65 +170,12 @@ const COMMAND_GROUPS = [
       c('Directory leles', 'directory leles'),
       c('LS', 'ls ', 'progetto [subpath]'),
       c('Invia file', 'invia file ', 'path assoluto'),
+      c('Esporta file', 'esporta file ', 'path del file remoto (via Lele Admin)'),
+      c('Esporta record', 'esporta ', 'record in formato yaml'),
       c('Remoto test', 'remoto test'),
       c('Remoto LS', 'remoto ls ', 'path'),
       c('Remoto download', 'remoto download ', 'file'),
       c('Remoto upload', 'remoto upload ', 'file', true),
-    ],
-  },
-  {
-    id: 'ai', title: 'AI / Code', icon: '✨', color: '#f472b6',
-    commands: [
-      c('Query', 'query ', 'Scrivi la query'),
-      c('Esporta', 'esporta ', 'record in formato yaml'),
-      c('Improve', 'improve ', 'file o richiesta'),
-      c('Verifica', 'verifica ', 'file o richiesta'),
-      c('Review', 'review ', 'file o richiesta'),
-      c('Gemma', 'gemma ', 'prompt'),
-      c('Llama', 'llama ', 'prompt'),
-    ],
-  },
-  {
-    id: 'modelli', title: 'Modelli e review', icon: '🎛️', color: '#c4b5fd',
-    commands: [
-      c('Modelli attivi', 'modelli'),
-      c('Cambia modello', 'modello ', 'nome (es. mistral)'),
-      c('Cambia reviewer', 'reviewer ', 'nome modello'),
-      c('Edita', 'edita'),
-      c('Roast', 'roast'),
-      c('Critica', 'critica'),
-      c('Pirata', 'pirata'),
-    ],
-  },
-  {
-    id: 'git', title: 'Git', icon: '🔀', color: '#fb923c',
-    commands: [
-      c('Status leles', 'status leles'),
-      c('Status gateway', 'status gateway'),
-      c('Diff leles', 'diff leles'),
-      c('Diff gateway', 'diff gateway'),
-      c('Pull report leles', 'pull report leles'),
-      c('Pull force leles', 'pull force leles', undefined, true),
-      c('Pull report gateway', 'pull report gateway'),
-      c('Pull force gateway', 'pull force gateway', undefined, true),
-      c('Ultimo commit leles', 'commit leles'),
-      c('Ultimo commit gateway', 'commit gateway'),
-    ],
-  },
-  {
-    id: 'super', title: 'Super-Leles', icon: '⚡', color: '#a78bfa',
-    commands: [
-      c('Modello SL in uso', 'modellosl', 'mostra il modello corrente di Super-Leles'),
-      c('Cambia modello SL', 'modellosl ', 'nome modello (es. modellosl mistral)'),
-      c('Super domanda', 'super ', 'chiedi anything a Super-Leles'),
-    ],
-  },
-  {
-    id: 'leles', title: 'Leles', icon: '🏴‍☠️', color: '#e2e8f0',
-    commands: [
-      c('Restart Lelé', 'restart Lelé', undefined, true),
-      c('Export DAG', 'export dag ', 'filename'),
-      c('Crea DAG', 'crea dag ', 'Descrivi il DAG'),
     ],
   },
 ]
@@ -323,7 +321,7 @@ const timeLabel = (ts) =>
   })
 
 
-export default function Test5() {
+export default function LeleAdmin() {
   const [idToken, setIdToken] = useState(() => {
     try {
       return window.sessionStorage.getItem(TOKEN_STORAGE_KEY) || null
@@ -339,6 +337,31 @@ export default function Test5() {
 
   const [prompt, setPrompt] = useState('')
   const [superMode, setSuperMode] = useState(false)
+  const [superModel, setSuperModel] = useState(() => {
+    try {
+      const stored = window.localStorage.getItem(SUPER_MODEL_KEY)
+      return SUPER_MODELS.includes(stored) ? stored : SUPER_MODELS[0]
+    } catch (e) {
+      return SUPER_MODELS[0]
+    }
+  })
+  const [modelSwitching, setModelSwitching] = useState(false)
+  const [leleModel, setLeleModel] = useState(() => {
+    try {
+      const stored = window.localStorage.getItem(LELE_MODEL_KEY)
+      return LELE_MODELS.includes(stored) ? stored : LELE_MODELS[0]
+    } catch (e) {
+      return LELE_MODELS[0]
+    }
+  })
+  const [reviewerModel, setReviewerModel] = useState(() => {
+    try {
+      const stored = window.localStorage.getItem(REVIEWER_MODEL_KEY)
+      return LELE_MODELS.includes(stored) ? stored : LELE_MODELS[0]
+    } catch (e) {
+      return LELE_MODELS[0]
+    }
+  })
   const [armed, setArmed] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [history, setHistory] = useState([])
@@ -522,11 +545,155 @@ export default function Test5() {
     }, 30)
   }
 
+  // Selettore modello Super-Leles: invia subito "modellosl <nome>".
+  async function switchSuperModel(model) {
+    setSuperModel(model)
+    try {
+      window.localStorage.setItem(SUPER_MODEL_KEY, model)
+    } catch (e) {
+      /* no-op */
+    }
+    if (!idToken || modelSwitching) return
+
+    setModelSwitching(true)
+    const cmd = `modellosl ${model}`
+    const t0 = Date.now()
+    let outcome
+    try {
+      outcome = { text: await callAdmin(idToken, cmd) }
+    } catch (err) {
+      if (err.status === 401 || err.status === 403) {
+        logout(err.message)
+        return
+      }
+      outcome = { err: err.message }
+    } finally {
+      setModelSwitching(false)
+    }
+    setHistory((h) =>
+      [{ id: t0, cmd, at: t0, ms: Date.now() - t0, ...outcome }, ...h].slice(0, 30)
+    )
+  }
+
+  // Selettore modello Leles / reviewer: invia "modello <nome>" o
+  // "reviewer <nome>" e logga la risposta in Sessione.
+  async function switchModel(kind, model) {
+    if (kind === 'lele') setLeleModel(model)
+    else setReviewerModel(model)
+    try {
+      window.localStorage.setItem(
+        kind === 'lele' ? LELE_MODEL_KEY : REVIEWER_MODEL_KEY,
+        model
+      )
+    } catch (e) {
+      /* no-op */
+    }
+    if (!idToken || modelSwitching) return
+
+    setModelSwitching(true)
+    const cmd = (kind === 'lele' ? 'modello ' : 'reviewer ') + model
+    const t0 = Date.now()
+    let outcome
+    try {
+      outcome = { text: await callAdmin(idToken, cmd) }
+    } catch (err) {
+      if (err.status === 401 || err.status === 403) {
+        logout(err.message)
+        return
+      }
+      outcome = { err: err.message }
+    } finally {
+      setModelSwitching(false)
+    }
+    setHistory((h) =>
+      [{ id: t0, cmd, at: t0, ms: Date.now() - t0, ...outcome }, ...h].slice(0, 30)
+    )
+  }
+
+  // IMMAGINI: prompt che inizia con "immagina ..." non passa da Leles:
+  // la console chiama direttamente il gateway (POST /api/image/jobs),
+  // fa polling e mostra il PNG in Sessione. Zero modifiche a lele_api.
+  const [imageBusy, setImageBusy] = useState(false)
+
+  async function runImage(imagePrompt) {
+    const t0 = Date.now()
+    const entry = { id: t0, cmd: 'immagina ' + imagePrompt, at: t0, ms: 0, text: '🎨 Generazione avviata…' }
+    setHistory((h) => [entry, ...h].slice(0, 30))
+    setImageBusy(true)
+    try {
+      const created = await adminJson(idToken, '/api/image/jobs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: imagePrompt, width: 512, height: 512, steps: 8, seed: -1 }),
+      })
+      const jobId = created.job_id
+      if (!jobId) throw new Error('Il gateway non ha restituito job_id.')
+
+      // Polling (max ~10 minuti).
+      const deadline = Date.now() + 600000
+      let result = null
+      while (Date.now() < deadline) {
+        await new Promise((r2) => setTimeout(r2, 5000))
+        const job = await adminJson(idToken, '/api/image/jobs/' + jobId, { timeoutMs: 30000 })
+        const st = String(job.status || '').toLowerCase()
+        const elapsed = Math.round((Date.now() - t0) / 1000)
+        if (['completed', 'complete', 'succeeded', 'success'].includes(st)) {
+          result = await adminJson(idToken, '/api/image/jobs/' + jobId + '/result')
+          break
+        }
+        if (['failed', 'error', 'cancelled', 'canceled'].includes(st)) {
+          throw new Error(job.error || job.message || 'Generazione non riuscita.')
+        }
+        // Stato intermedio: la entry mostra che il job lavora.
+        const label =
+          st === 'running' || st === 'processing'
+            ? '🎨 Generazione in corso… (' + elapsed + 's)'
+            : '🎨 In coda… (' + elapsed + 's)'
+        setHistory((h) =>
+          h.map((x) => (x.id === t0 ? { ...x, ms: Date.now() - t0, text: label } : x))
+        )
+      }
+      if (!result?.image_base64) throw new Error('Timeout o risultato senza immagine.')
+
+      const b64 = String(result.image_base64).replace(/^data:image\/png;base64,/i, '')
+      setHistory((h) =>
+        h.map((x) =>
+          x.id === t0
+            ? {
+                ...x,
+                ms: Date.now() - t0,
+                text: '🖼️ Immagine generata (seed ' + (result.seed ?? '?') + ') — salvata anche in ImageLab.',
+                img: 'data:image/png;base64,' + b64,
+              }
+            : x
+        )
+      )
+    } catch (err) {
+      if (err.status === 401 || err.status === 403) {
+        logout(err.message)
+        return
+      }
+      setHistory((h) =>
+        h.map((x) => (x.id === t0 ? { ...x, ms: Date.now() - t0, err: err.message } : x))
+      )
+    } finally {
+      setImageBusy(false)
+    }
+  }
+
   async function run(e) {
     e?.preventDefault()
     // Super-Leles: se il toggle e' attivo, il prompt parte come 'super <domanda>'
     // (a meno che non sia gia' un comando super/sl/modellosl).
     const raw = prompt.trim()
+    // "immagina <prompt>" → generazione immagini via gateway (no Leles).
+    const imgMatch = raw.match(/^immagina\s+(.+)$/i)
+    if (imgMatch) {
+      if (!idToken || imageBusy) return
+      setPrompt('')
+      await runImage(imgMatch[1].trim())
+      return
+    }
     const cmd = superMode && !/^(super|super-leles|sl|modellosl)\b/i.test(raw) ? 'super ' + raw : raw
     if (!cmd || !idToken || isLoading) return
 
@@ -956,6 +1123,9 @@ export default function Test5() {
                 />
               </div>
               <div className="lc-prompt-foot">
+                {modelSwitching && (
+                  <span className="lc-dim lc-small">Switch modello…</span>
+                )}
                 <button
                   type="button"
                   className="lc-btn"
@@ -964,6 +1134,18 @@ export default function Test5() {
                   title="Quando attivo, il prompt viene inviato come 'super <domanda>' a Super-Leles (grounded)"
                 >
                   {superMode ? '⚡ Super-Leles ON' : '⚡ Super-Leles'}
+                </button>
+                <button
+                  type="button"
+                  className="lc-btn"
+                  disabled={imageBusy || isLoading}
+                  title="Prefissa il prompt con immagina: la console genera un immagine con Z-Image-Turbo (via gateway), senza passare da Leles"
+                  onClick={() => {
+                    setPrompt((v) => (v.startsWith('immagina ') ? v : 'immagina ' + v))
+                    textareaRef.current?.focus()
+                  }}
+                >
+                  🖼️ Immagina
                 </button>
                 <span className="lc-dim lc-small">
                   {armed
@@ -1013,7 +1195,6 @@ export default function Test5() {
                   onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
-
               {!q && (
                 <div className="lc-tabs" role="tablist">
                   {COMMAND_GROUPS.map((g) => (
@@ -1030,6 +1211,54 @@ export default function Test5() {
                       <span className="lc-count">{g.commands.length}</span>
                     </button>
                   ))}
+                </div>
+              )}
+
+              {!q && group.id === 'modelli' && (
+                <div className="lc-model-row">
+                  <label>
+                    <span className="lc-dim lc-small">Modello Super-Leles</span>
+                    <select
+                      className="lc-select lc-model-select"
+                      aria-label="Modello Super-Leles"
+                      value={superModel}
+                      disabled={modelSwitching || isLoading}
+                      onChange={(e) => switchSuperModel(e.target.value)}
+                      title="Invia modellosl <nome> per cambiare il modello Super-Leles"
+                    >
+                      {SUPER_MODELS.map((m) => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </label>
+                  <label>
+                    <span className="lc-dim lc-small">Modello Leles</span>
+                    <select
+                      className="lc-select lc-model-select"
+                      aria-label="Modello Leles"
+                      value={leleModel}
+                      disabled={modelSwitching || isLoading}
+                      onChange={(e) => switchModel('lele', e.target.value)}
+                      title="Invia il comando modello <nome> e mostra la conferma in Sessione"
+                    >
+                      {LELE_MODELS.map((m) => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    <span className="lc-dim lc-small">Reviewer</span>
+                    <select
+                      className="lc-select lc-model-select"
+                      aria-label="Modello reviewer"
+                      value={reviewerModel}
+                      disabled={modelSwitching || isLoading}
+                      onChange={(e) => switchModel('reviewer', e.target.value)}
+                      title="Invia il comando reviewer <nome> e mostra la conferma in Sessione"
+                    >
+                      {LELE_MODELS.map((m) => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
               )}
 
@@ -1276,6 +1505,7 @@ export default function Test5() {
                         Copia
                       </button>
                     </header>
+                    {h.img && <img src={h.img} alt="Immagine generata" className="lc-gen-img" />}
                     <pre className="lc-pre">{h.text || h.err}</pre>
                   </article>
                 ))}
@@ -1349,18 +1579,39 @@ export default function Test5() {
           </aside>
         </div>
 
-        {/* VAI A (temporanei): in fondo alla pagina */}
-        <nav className="lc-links" aria-label="Altre pagine">
-          <span className="lc-dim">Vai a</span>
-          {QUICK_LINKS.map((l) => (
-            <Link
-              key={l.to}
-              to={l.to}
-              className={`lc-link${l.main ? ' lc-link--main' : ''}`}
-            >
-              {l.label}
-            </Link>
-          ))}
+        {/* PAGINE DEL SITO: link alle console esistenti */}
+        <nav className="lc-pages" aria-label="Pagine del sito">
+          <div className="lc-pages-head">
+            <h2>Pagine &amp; Console</h2>
+            <span className="lc-dim lc-small">Rotte da integrare in Nav</span>
+          </div>
+          <div className="lc-pages-grid">
+            {QUICK_LINKS.map((l) => (
+              <Link
+                key={l.to}
+                to={l.to}
+                className={`lc-pagecard${l.main ? ' lc-pagecard--main' : ''}`}
+              >
+                <span className="lc-pagecard-label">{l.label}</span>
+                {l.desc && <small>{l.desc}</small>}
+              </Link>
+            ))}
+          </div>
+
+          <div className="lc-pages-head lc-pages-head--sub">
+            <h3>🧪 Test &amp; Laboratorio</h3>
+            <span className="lc-dim lc-small">
+              Si validano da qui, poi si promuovono tra le pagine ufficiali
+            </span>
+          </div>
+          <div className="lc-pages-grid lc-pages-grid--test">
+            {TEST_LINKS.map((l) => (
+              <Link key={l.to} to={l.to} className="lc-pagecard">
+                <span className="lc-pagecard-label">{l.label}</span>
+                {l.desc && <small>{l.desc}</small>}
+              </Link>
+            ))}
+          </div>
         </nav>
       </div>
     </div>
@@ -1383,6 +1634,23 @@ const css = `
 .lc-ellipsis{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
 .lc-links{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:28px;padding-top:16px;
   border-top:1px solid var(--line);font-size:13px}
+.lc-pages{margin-top:28px;padding-top:16px;border-top:1px solid var(--line)}
+.lc-pages-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.lc-pages-head h2{font-size:15px;font-weight:650}
+.lc-pages-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
+.lc-pagecard{display:flex;flex-direction:column;gap:3px;padding:11px 14px;border-radius:12px;
+  border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--ink);
+  text-decoration:none;transition:background .15s,border-color .15s,transform .15s}
+.lc-pagecard:hover{background:rgba(255,255,255,.1);border-color:var(--accent);transform:translateY(-1px)}
+.lc-pagecard small{color:var(--ink-dim);font-size:11px;line-height:1.35}
+.lc-pagecard--main{border-color:rgba(63,208,201,.45);background:rgba(63,208,201,.09)}
+.lc-pagecard--main:hover{background:rgba(63,208,201,.16);border-color:var(--accent)}
+.lc-pagecard-label{font-size:13px;font-weight:600}
+.lc-cmd-note{margin:-2px 0 12px}
+.lc-pages-head--sub{margin-top:16px;margin-bottom:10px}
+.lc-pages-head--sub h3{font-size:12px;font-weight:650;color:var(--ink-dim)}
+.lc-pages-grid--test .lc-pagecard{opacity:.82}
+.lc-pages-grid--test .lc-pagecard:hover{opacity:1}
 .lc-link{padding:6px 13px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04);
   color:var(--ink);transition:background .15s,border-color .15s}
 .lc-link:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25)}
@@ -1397,6 +1665,13 @@ const css = `
 .lc-panel h2{font-size:15px;font-weight:650}
 .lc-panel h3{font-size:12px;font-weight:600;color:var(--ink-dim);margin-bottom:4px}
 .lc-dim{color:var(--ink-dim)}.lc-small{font-size:12px}
+.lc-model-select{max-width:170px;font-size:12px;font-weight:650;color:#86efac;
+  border-color:rgba(134,239,172,.55);background:rgba(74,222,128,.12)}
+.lc-model-select:hover:not(:disabled){background:rgba(74,222,128,.2);border-color:#86efac}
+.lc-model-select:focus-visible{outline:2px solid #86efac;outline-offset:2px}
+.lc-model-row{display:flex;gap:14px;flex-wrap:wrap;margin:2px 0 12px}
+.lc-gen-img{display:block;width:100%;max-width:420px;margin:10px 12px 0;border:1px solid var(--line);border-radius:10px}
+.lc-model-row label{display:flex;flex-direction:column;gap:4px}
 .lc-err{color:var(--bad);font-size:14px}
 .lc-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .lc-row{display:flex;gap:8px;align-items:center}
@@ -1542,4 +1817,4 @@ const css = `
   .lc-bg{opacity:.55}
   .lc-shade{background:linear-gradient(180deg,rgba(11,16,21,.10) 0%,rgba(11,16,21,.22) 70%)}
 }
-` 
+`

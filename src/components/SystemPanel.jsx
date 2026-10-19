@@ -126,14 +126,15 @@ function SystemTiles({ data }) {
       {data.sections.map((sec) => {
         const isOllama = sec.title === 'Ollama'
 
-        // Per Ollama vogliamo 7 box:
+        // Per Ollama vogliamo 8 box:
         // 1. Gemma4
         // 2. Llama3
         // 3. Qwen2.5
         // 4. Deepseek-R1
         // 5. Mistral
         // 6. Qwen Coder
-        // 7. Super Leles available only -->      GPT-OSS:20b
+        // 7. Qwen2.5-VL (OCR — gateway /api/vision/ocr)
+        // 8. Super Leles available only -->      GPT-OSS:20b
         //
         // Il backend continua a fornire i modelli raggruppati in 3 righe.
         // Qui li spacchettiamo solo per la visualizzazione.
@@ -164,6 +165,18 @@ function SystemTiles({ data }) {
             })
           }
 
+          // Qwen VL (OCR): se il backend lo elenca, eredita il suo stato;
+          // altrimenti resta grigio ("non caricato").
+          const vl = sec.items.find((item) =>
+            /qwen[^\s]*\s*vl|qwen2\.5[-\s]?vl/i.test(item.label)
+          )
+
+          ollamaItems.push({
+            label: 'Qwen2.5-VL (OCR)',
+            state: vl?.state || 'off',
+            sub: '',
+          })
+
           // Senza ^ : l'etichetta è "Superleles available only: GPT-OSS",
           // quindi GPT-OSS non è all'inizio della stringa.
           const gpt = sec.items.find((item) =>
@@ -174,7 +187,6 @@ function SystemTiles({ data }) {
             label: 'Superleles available only: -->  GPT-OSS',
             state: gpt?.state || 'off',
             sub: '',
-            wide: true,
           })
         }
 
