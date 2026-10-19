@@ -67,26 +67,26 @@ const REVIEWER_MODEL_KEY = 'lc_reviewer_model'
 
 // Pagine e console ufficiali del sito.
 const QUICK_LINKS = [
-  { to: '/improve', label: 'Improve 🛠️', desc: 'Editor file + revisione AI', main: true },
-  { to: '/api-contracts', label: 'API Contracts 📡', desc: 'Contratti API del gateway', main: true },
-  { to: '/image-lab', label: 'Image Lab 🖼️', desc: 'Z-Image-Turbo · generazione + gallery', main: true },
-  { to: '/git-admin', label: 'Git Admin ⑂', desc: 'Status · diff · commit · push con conferma' },
-  { to: '/dag-admin', label: 'DAG Admin 🌬️', desc: 'Pannello Airflow' },
-  { to: '/b2b', label: 'B2B Arena ◎', desc: 'Bot-to-bot lab' },
-  { to: '/bar-ai-admin', label: 'Bar AI Admin 🍸', desc: 'CRUD tabelle bar' },
-  { to: '/ai-lab', label: 'AI Lab ◈', desc: 'Pagina pubblica degli agenti' },
+  { to: '/improve', label: 'Improve 🛠️', main: true },
+  { to: '/api-contracts', label: 'API Contracts 📡', main: true },
+  { to: '/git-admin', label: 'Git Admin ⑂' },
+  { to: '/dag-admin', label: 'DAG Admin 🌬️' },
+  { to: '/bar-ai-admin', label: 'Bar AI Admin 🍸' },
+  { to: '/image-lab', label: 'Image Lab 🖼️', main: true },
+  { to: '/ai-lab', label: 'AI Lab ◈', desc: 'Emergence experiment' },
+  { to: '/b2b', label: 'B2B Arena ◎' },
 ]
 
 // Pagine di test/laboratorio: in fondo, si validano da qui.
 const TEST_LINKS = [
-  { to: '/test', label: 'Test 🕰️', desc: 'Pagina test storica' },
-  { to: '/test2', label: 'Test2 🏴‍☠️', desc: 'Leles Admin Console' },
-  { to: '/test7', label: 'Test7 🧪', desc: 'Admin Console preview (questa pagina)' },
-  { to: '/test3', label: 'Test3 🗺️', desc: 'Arena multi-agente' },
-  { to: '/test4', label: 'Test4 🔬', desc: 'ImageLab preview · gallery · OCR/JCS' },
-  { to: '/test5', label: 'Test5 🧠', desc: 'Image-to-image (img2img)' },
-  { to: '/test6', label: 'Test6 🍹', desc: 'CRUD bar AI (promossa su /bar-ai-admin)' },
-  { to: '/testbarai', label: 'TestBarAI 🧪', desc: 'Variante Bar AI in test' },
+  { to: '/test', label: 'Test 🕰️' },
+  { to: '/test2', label: 'Test2 🏴‍☠️' },
+  { to: '/test3', label: 'Test3 🗺️' },
+  { to: '/test4', label: 'Test4 🔬' },
+  { to: '/test5', label: 'Test5 🧠' },
+  { to: '/test6', label: 'Test6 🍹' },
+  { to: '/test7', label: 'Test7 🧪' },
+  { to: '/testbarai', label: 'TestBarAI 🧪' },
 ]
 
 // Comandi mostrati nel pannello di destra (si aggiornano con "Aggiorna").
@@ -150,6 +150,7 @@ const COMMAND_GROUPS = [
       c('Logs Night Story', 'logs night story'),
       c('Logs Leles', 'logs leles'),
       c('Logs Bar AI', 'logs bar_ai'),
+      c('Logs dv-site', 'logs dv-site'),
     ],
   },
   {
@@ -1068,7 +1069,7 @@ export default function Test7() {
         {backdrop}
         <div className="lc-wrap">
           <div className="lc-top">
-            <h1 className="lc-title">Leles Admin Preview · Test7</h1>
+            <h1 className="lc-title">Leles Admin Console</h1>
             <div ref={buttonRef} className="lc-gbtn" />
           </div>
           <p className="lc-dim lc-small lc-login-msg">Accesso riservato.</p>
@@ -1091,7 +1092,7 @@ export default function Test7() {
 
       <div className="lc-wrap">
         <div className="lc-top">
-          <h1 className="lc-title">Leles Admin Preview · Test7</h1>
+          <h1 className="lc-title">Leles Admin Console</h1>
           <div className="lc-session">
             <span className="lc-ellipsis">{profile?.email || 'account Google'}</span>
             <button type="button" className="lc-btn lc-btn--sm" onClick={() => logout()}>
@@ -1597,7 +1598,7 @@ export default function Test7() {
                 className={`lc-pagecard${l.main ? ' lc-pagecard--main' : ''}`}
               >
                 <span className="lc-pagecard-label">{l.label}</span>
-                <small>{l.desc}</small>
+                {l.desc && <small>{l.desc}</small>}
               </Link>
             ))}
           </div>
@@ -1612,7 +1613,7 @@ export default function Test7() {
             {TEST_LINKS.map((l) => (
               <Link key={l.to} to={l.to} className="lc-pagecard">
                 <span className="lc-pagecard-label">{l.label}</span>
-                <small>{l.desc}</small>
+                {l.desc && <small>{l.desc}</small>}
               </Link>
             ))}
           </div>
