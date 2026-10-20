@@ -11,7 +11,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 const API = 'https://api.danielevillanova.com'
-const GOOGLE_CLIENT_ID = import.meta.env.VIDE_GOOGLE_CLIENT_ID
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
 const TOKEN_STORAGE_KEY = 'dv_google_id_token'
 
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
