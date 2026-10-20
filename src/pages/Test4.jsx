@@ -1,13 +1,13 @@
 // src/pages/Test4.jsx
-// TEST4 — ANTEPRIMA: ImageLab completo + OCR Lab potenziato
+// TEST4  ANTEPRIMA: ImageLab completo + OCR Lab potenziato
 // (txt2img + img2img + history) con tab OCR avanzato: prompt
 // personalizzato + 4 preset (da Test7). Se approvata, il file viene
 // promosso su ImageLab.jsx (rotta /image-lab). L'OCR chiama
 // POST /api/vision/ocr con { image_base64, prompt } e mostra il
 // pannello JCS se il gateway risponde is_jcs.
-// AI IMAGE LAB â fusione di Test4 (txt2img + history + OCR) e Test5 (img2img)
+// AI IMAGE LAB — fusione di Test4 (txt2img + history + OCR) e Test5 (img2img)
 // ============================================================
-// AI IMAGE LAB â Z-Image-Turbo
+// AI IMAGE LAB — Z-Image-Turbo
 //
 // Frontend per la generazione asincrona di immagini sul Mac.
 //
@@ -38,10 +38,10 @@ const POLL_INTERVAL = 5000;
 // cosi' il gateway non deve snappare e l'output ha ESATTAMENTE
 // le dimensioni scelte. Struttura: categoria -> [ [label, w, h], ... ]
 const GRADIO_FORMATS = {
-  512: [["512 Ã 512 (1:1)", 512, 512], ["640 Ã 384 (5:3)", 640, 384], ["384 Ã 640 (3:5)", 384, 640], ["512 Ã 384 (4:3)", 512, 384], ["384 Ã 512 (3:4)", 384, 512], ["640 Ã 368 (16:9)", 640, 368], ["368 Ã 640 (9:16)", 368, 640]],
-  768: [["768 Ã 768 (1:1)", 768, 768], ["960 Ã 576 (5:3)", 960, 576], ["576 Ã 960 (3:5)", 576, 960], ["768 Ã 576 (4:3)", 768, 576], ["576 Ã 768 (3:4)", 576, 768], ["960 Ã 544 (16:9)", 960, 544], ["544 Ã 960 (9:16)", 544, 960]],
-  1024: [["1024 Ã 1024 (1:1)", 1024, 1024], ["1280 Ã 768 (5:3)", 1280, 768], ["768 Ã 1280 (3:5)", 768, 1280], ["1024 Ã 768 (4:3)", 1024, 768], ["768 Ã 1024 (3:4)", 768, 1024], ["1280 Ã 720 (16:9)", 1280, 720], ["720 Ã 1280 (9:16)", 720, 1280], ["1024 Ã 576 (16:9)", 1024, 576], ["576 Ã 1024 (9:16)", 576, 1024]],
-  1280: [["1280 Ã 1280 (1:1)", 1280, 1280], ["1536 Ã 1024 (3:2)", 1536, 1024], ["1024 Ã 1536 (2:3)", 1024, 1536], ["1536 Ã 864 (16:9)", 1536, 864], ["864 Ã 1536 (9:16)", 864, 1536]],
+  512: [["512 × 512 (1:1)", 512, 512], ["640 × 384 (5:3)", 640, 384], ["384 × 640 (3:5)", 384, 640], ["512 × 384 (4:3)", 512, 384], ["384 × 512 (3:4)", 384, 512], ["640 × 368 (16:9)", 640, 368], ["368 × 640 (9:16)", 368, 640]],
+  768: [["768 × 768 (1:1)", 768, 768], ["960 × 576 (5:3)", 960, 576], ["576 × 960 (3:5)", 576, 960], ["768 × 576 (4:3)", 768, 576], ["576 × 768 (3:4)", 576, 768], ["960 × 544 (16:9)", 960, 544], ["544 × 960 (9:16)", 544, 960]],
+  1024: [["1024 × 1024 (1:1)", 1024, 1024], ["1280 × 768 (5:3)", 1280, 768], ["768 × 1280 (3:5)", 768, 1280], ["1024 × 768 (4:3)", 1024, 768], ["768 × 1024 (3:4)", 768, 1024], ["1280 × 720 (16:9)", 1280, 720], ["720 × 1280 (9:16)", 720, 1280], ["1024 × 576 (16:9)", 1024, 576], ["576 × 1024 (9:16)", 576, 1024]],
+  1280: [["1280 × 1280 (1:1)", 1280, 1280], ["1536 × 1024 (3:2)", 1536, 1024], ["1024 × 1536 (2:3)", 1024, 1536], ["1536 × 864 (16:9)", 1536, 864], ["864 × 1536 (9:16)", 864, 1536]],
 };
 
 // Preset di prompt per il tab OCR: clic = inserisce il testo nell'area,
@@ -104,7 +104,7 @@ function readStoredToken() {
 }
 
 function formatDuration(seconds) {
-  if (!Number.isFinite(seconds) || seconds < 0) return "â";
+  if (!Number.isFinite(seconds) || seconds < 0) return "—";
 
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = Math.floor(seconds % 60);
@@ -346,7 +346,7 @@ export default function ImageLab() {
   }, []);
 
   // ----------------------------------------------------------
-  // OCR â estrazione testo da foto (Qwen-VL via gateway)
+  // OCR — estrazione testo da foto (Qwen-VL via gateway)
   // ----------------------------------------------------------
 
   const onOcrFile = useCallback((event) => {
@@ -576,7 +576,7 @@ export default function ImageLab() {
 
           if (!result.image_base64) {
             throw new Error(
-              "Il lavoro Ã¨ terminato, ma il server non ha restituito l'immagine."
+              "Il lavoro è terminato, ma il server non ha restituito l'immagine."
             );
           }
 
@@ -596,7 +596,7 @@ export default function ImageLab() {
           setStatus("error");
 
           if (!data.error) {
-            setError("La generazione non Ã¨ riuscita.");
+            setError("La generazione non è riuscita.");
           }
 
           return;
@@ -612,7 +612,7 @@ export default function ImageLab() {
         setError(
           `Connessione temporaneamente non disponibile: ${
             err.message || String(err)
-          }. Nuovo tentativo in corsoâ¦`
+          }. Nuovo tentativo in corso…`
         );
       }
 
@@ -803,14 +803,14 @@ export default function ImageLab() {
         <div className="il-container">
           <header className="il-header">
             <div>
-              <p className="il-eyebrow">D. VILLANOVA Â· AI SYSTEMS</p>
+              <p className="il-eyebrow">D. VILLANOVA · AI SYSTEMS</p>
               <h1>AI Image Lab</h1>
             </div>
             <button
               className="il-button"
               onClick={() => navigate("/improve")}
             >
-              â Improve
+              ← Improve
             </button>
           </header>
 
@@ -823,7 +823,7 @@ export default function ImageLab() {
 
             {!GOOGLE_CLIENT_ID && (
               <p className="il-error">
-                VITE_GOOGLE_CLIENT_ID non Ã¨ configurato.
+                VITE_GOOGLE_CLIENT_ID non è configurato.
               </p>
             )}
 
@@ -837,7 +837,7 @@ export default function ImageLab() {
   }
 
   // ----------------------------------------------------------
-  // Pagina principale â tab GENERA / STORICO / OCR
+  // Pagina principale — tab GENERA / STORICO / OCR
   // ----------------------------------------------------------
 
   return (
@@ -845,7 +845,7 @@ export default function ImageLab() {
       <div className="il-container">
         <header className="il-header">
           <div>
-            <p className="il-eyebrow">D. VILLANOVA Â· AI SYSTEMS</p>
+            <p className="il-eyebrow">D. VILLANOVA · AI SYSTEMS</p>
             <h1>AI Image Lab</h1>
             <p className="il-subtitle">
               Generazione locale con Z-Image-Turbo
@@ -859,7 +859,7 @@ export default function ImageLab() {
               className="il-button"
               onClick={() => navigate("/improve")}
             >
-              Improve â
+              Improve ↗
             </button>
 
             <button className="il-button" onClick={logout}>
@@ -870,7 +870,7 @@ export default function ImageLab() {
 
         <div className="il-notice">
           <span className="il-status-dot" />
-          Motore locale Â· Elaborazione sul Mac Â· Coda asincrona
+          Motore locale · Elaborazione sul Mac · Coda asincrona
         </div>
 
         <div className="il-tabs" role="tablist">
@@ -879,7 +879,7 @@ export default function ImageLab() {
             className={"il-tab" + (tab === "genera" ? " il-tab-active" : "")}
             onClick={() => setTab("genera")}
           >
-            â¦ Genera
+            ✦ Genera
           </button>
           <button
             type="button"
@@ -889,14 +889,14 @@ export default function ImageLab() {
               loadHistory();
             }}
           >
-            ð¼ Storico
+            🖼 Storico
           </button>
           <button
             type="button"
             className={"il-tab" + (tab === "ocr" ? " il-tab-active" : "")}
             onClick={() => setTab("ocr")}
           >
-            ð OCR
+            📄 OCR
           </button>
         </div>
 
@@ -915,7 +915,7 @@ export default function ImageLab() {
                   <label className="il-label" htmlFor="il-init-file">
                     {initFile
                       ? "Immagine originale (img2img)"
-                      : "Immagine da modificare (opzionale Â· img2img)"}
+                      : "Immagine da modificare (opzionale · img2img)"}
                   </label>
 
                   <div className="il-init-row">
@@ -942,7 +942,7 @@ export default function ImageLab() {
                           onClick={() => pickInitFile(null)}
                           disabled={busy}
                         >
-                          â Rimuovi
+                          ✕ Rimuovi
                         </button>
                       </>
                     )}
@@ -952,11 +952,11 @@ export default function ImageLab() {
                 {initFile && (
                   <div className="il-strength">
                     <label className="il-label" htmlFor="il-strength">
-                      Forza modifica: {strength.toFixed(2)} Â·{" "}
+                      Forza modifica: {strength.toFixed(2)} ·{" "}
                       {strength < 0.35
-                        ? "piÃ¹ fedele"
+                        ? "più fedele"
                         : strength > 0.7
-                          ? "piÃ¹ trasformata"
+                          ? "più trasformata"
                           : "equilibrata"}
                     </label>
                     <input
@@ -984,8 +984,8 @@ export default function ImageLab() {
                   className="il-input il-prompt"
                   placeholder={
                     initFile
-                      ? "Es. Keep the main subject and composition, add a pirate in the sea swimmingâ¦"
-                      : "Es. Un faro sulla costa mediterranea al tramonto, mare mosso, luce cinematografica, fotografia realisticaâ¦"
+                      ? "Es. Keep the main subject and composition, add a pirate in the sea swimming…"
+                      : "Es. Un faro sulla costa mediterranea al tramonto, mare mosso, luce cinematografica, fotografia realistica…"
                   }
                   value={prompt}
                   onChange={(event) => setPrompt(event.target.value)}
@@ -1058,9 +1058,9 @@ export default function ImageLab() {
                       }
                       disabled={busy}
                     >
-                      <option value={4}>4 Â· Test rapido</option>
-                      <option value={8}>8 Â· Standard</option>
-                      <option value={9}>9 Â· Sperimentale</option>
+                      <option value={4}>4 · Test rapido</option>
+                      <option value={8}>8 · Standard</option>
+                      <option value={9}>9 · Sperimentale</option>
                     </select>
                   </div>
                 </div>
@@ -1098,7 +1098,7 @@ export default function ImageLab() {
                 </div>
 
                 <p className="il-hint">
-                  Sul Mac da 16 GB, inizia con 512 Ã 512. Le risoluzioni
+                  Sul Mac da 16 GB, inizia con 512 × 512. Le risoluzioni
                   maggiori possono richiedere diversi minuti.
                 </p>
 
@@ -1115,10 +1115,10 @@ export default function ImageLab() {
                     disabled={busy || (!prompt.trim() && !initFile)}
                   >
                     {busy
-                      ? "Generazione in corsoâ¦"
+                      ? "Generazione in corso…"
                       : initFile
-                        ? "â¦ Modifica immagine â"
-                        : "Generate image â"}
+                        ? "✦ Modifica immagine →"
+                        : "Generate image →"}
                   </button>
 
                   {imageUrl && (
@@ -1151,11 +1151,11 @@ export default function ImageLab() {
 
               {status === "idle" && !imageUrl && (
                 <div className="il-empty">
-                  <div className="il-empty-icon">â³</div>
+                  <div className="il-empty-icon">✳</div>
                   <h3>La prossima immagine inizia qui</h3>
                   <p>
                     Scrivi un prompt e avvia la generazione, oppure carica
-                    un'immagine per modificarla. Il risultato apparirÃ  in
+                    un'immagine per modificarla. Il risultato apparirà in
                     questa area.
                   </p>
                 </div>
@@ -1237,7 +1237,7 @@ export default function ImageLab() {
                       className="il-button il-primary"
                       onClick={downloadImage}
                     >
-                      â Scarica PNG
+                      ↓ Scarica PNG
                     </button>
 
                     <button
@@ -1291,7 +1291,7 @@ export default function ImageLab() {
                 onClick={loadHistory}
                 disabled={historyLoading}
               >
-                {historyLoading ? "Caricoâ¦" : "â» Aggiorna"}
+                {historyLoading ? "Carico…" : "↻ Aggiorna"}
               </button>
             </div>
 
@@ -1333,12 +1333,12 @@ export default function ImageLab() {
                 <article key={item.job_id} className="il-history-card">
                   <p className="il-history-prompt">
                     {String(item.prompt || "").length > 160
-                      ? String(item.prompt).slice(0, 160) + "â¦"
+                      ? String(item.prompt).slice(0, 160) + "…"
                       : item.prompt}
                   </p>
                   <div className="il-history-meta">
                     <span>
-                      {item.width} Ã {item.height}
+                      {item.width} × {item.height}
                     </span>
                     <span>{item.steps} step</span>
                     <span>Seed: {item.seed}</span>
@@ -1354,7 +1354,7 @@ export default function ImageLab() {
                       className="il-button"
                       onClick={() => reuseHistoryParams(item)}
                     >
-                      â» Parametri
+                      ↻ Parametri
                     </button>
                   </div>
                 </article>
@@ -1368,7 +1368,7 @@ export default function ImageLab() {
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={safePage <= 1}
                 >
-                  â Precedente
+                  ← Precedente
                 </button>
 
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map(
@@ -1393,7 +1393,7 @@ export default function ImageLab() {
                   }
                   disabled={safePage >= totalPages}
                 >
-                  Successiva â
+                  Successiva →
                 </button>
 
                 <span className="il-page-info">
@@ -1418,7 +1418,7 @@ export default function ImageLab() {
                   />
                   <div className="il-history-modal-meta">
                     <span>
-                      {historyPreview.item.width} Ã {historyPreview.item.height}
+                      {historyPreview.item.width} × {historyPreview.item.height}
                     </span>
                     <span>Seed: {historyPreview.item.seed}</span>
                     <span>{historyPreview.item.steps} step</span>
@@ -1429,13 +1429,13 @@ export default function ImageLab() {
                       href={historyPreview.url}
                       download={"z-image-" + historyPreview.item.seed + ".png"}
                     >
-                      â Scarica PNG
+                      ↓ Scarica PNG
                     </a>
                     <button
                       className="il-button"
                       onClick={() => reuseHistoryParams(historyPreview.item)}
                     >
-                      â» Riusa parametri
+                      ↻ Riusa parametri
                     </button>
                     <button
                       className="il-button"
@@ -1509,7 +1509,7 @@ export default function ImageLab() {
                 maxLength={2000}
                 value={ocrPrompt}
                 disabled={ocrStatus === "running"}
-                placeholder="Es. Estrai solo i totali di questa fattura…"
+                placeholder="Es. Estrai solo i totali di questa fattura"
                 onChange={(e) => setOcrPrompt(e.target.value)}
                 style={{
                   width: "100%",
@@ -1557,7 +1557,7 @@ export default function ImageLab() {
                 type="submit"
                 disabled={!ocrImage || ocrStatus === "running"}
               >
-                {ocrStatus === "running" ? "Analizzoâ¦" : "Estrai testo"}
+                {ocrStatus === "running" ? "Analizzo…" : "Estrai testo"}
               </button>
             </form>
 
@@ -1582,7 +1582,7 @@ export default function ImageLab() {
             {jcsInterpretation && (
               <div className="il-ocr-result il-jcs-result">
                 <div className="il-history-modal-meta">
-                  <span>ð§¾ Interpretazione JCS</span>
+                  <span>🧾 Interpretazione JCS</span>
                 </div>
                 <pre className="il-ocr-pre">{jcsInterpretation}</pre>
               </div>
@@ -1592,12 +1592,12 @@ export default function ImageLab() {
 
         <footer className="il-footer">
           <span>Z-Image-Turbo</span>
-          <span>Local inference Â· Async jobs</span>
+          <span>Local inference · Async jobs</span>
           <button
             className="il-text-button"
             onClick={() => navigate("/improve")}
           >
-            Torna a Improve â
+            Torna a Improve ↗
           </button>
         </footer>
       </div>
