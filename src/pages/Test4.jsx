@@ -190,6 +190,7 @@ export default function ImageLab() {
   const [ocrError, setOcrError] = useState("");
   const [jcsInterpretation, setJcsInterpretation] = useState("");
   const [ocrPrompt, setOcrPrompt] = useState(OCR_PROMPT_PRESETS[0].prompt);
+  const [ocrPreview, setOcrPreview] = useState(null);
 
   // ----------------------------------------------------------
   // Google login condiviso con Improve.jsx
@@ -356,24 +357,38 @@ export default function ImageLab() {
     setJcsInterpretation("");
 
     if (!file) {
+      if (ocrPreview) URL.revokeObjectURL(ocrPreview);
+      setOcrPreview(null);
       setOcrImage(null);
       return;
     }
 
     if (!file.type.startsWith("image/")) {
       setOcrError("Seleziona un file immagine.");
+      if (ocrPreview) URL.revokeObjectURL(ocrPreview);
+      setOcrPreview(null);
       setOcrImage(null);
       return;
     }
 
     if (file.size > 10 * 1024 * 1024) {
       setOcrError("Immagine troppo grande (massimo 10 MB).");
+      if (ocrPreview) URL.revokeObjectURL(ocrPreview);
+      setOcrPreview(null);
       setOcrImage(null);
       return;
     }
 
+    if (ocrPreview) URL.revokeObjectURL(ocrPreview);
+    setOcrPreview(URL.createObjectURL(file));
     setOcrImage(file);
-  }, []);
+  }, [ocrPreview]);
+
+  useEffect(() => {
+    return () => {
+      if (ocrPreview) URL.revokeObjectURL(ocrPreview);
+    };
+  }, [ocrPreview]);
 
   async function runOcr(event) {
     event.preventDefault();
@@ -393,24 +408,37 @@ export default function ImageLab() {
         reader.readAsDataURL(ocrImage);
       });
 
-      const response = await fetch(`${API}/api/vision/ocr`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({
-          image_base64: base64,
-          prompt: ocrPrompt.trim() || OCR_PROMPT_PRESETS[0].prompt,
-        }),
-      });
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 320000);
+
+      let response;
+      try {
+        response = await fetch(`${API}/api/vision/ocr`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${idToken}`,
+          },
+          signal: controller.signal,
+          body: JSON.stringify({
+            image_base64: base64,
+            prompt: ocrPrompt.trim() || OCR_PROMPT_PRESETS[0].prompt,
+          }),
+        });
+      } finally {
+        clearTimeout(timer);
+      }
 
       const data = await readResponse(response);
       setOcrText(data.text || "");
       setJcsInterpretation(data.is_jcs ? data.jcs || "" : "");
       setOcrStatus("done");
     } catch (err) {
-      setOcrError(err.message || String(err));
+      setOcrError(
+        err.name === "AbortError"
+          ? "Timeout: il modello non ha risposto in 5 minuti."
+          : err.message || String(err)
+      );
       setOcrStatus("error");
     }
   }
@@ -1429,6 +1457,18 @@ export default function ImageLab() {
                 <p className="il-eyebrow">04 / OCR</p>
                 <h2>Estrai testo da una foto</h2>
               </div>
+              {ocrStatus === "running" && (
+                <span
+                  style={{
+                    color: "#3fd0c9",
+                    fontSize: ".75rem",
+                    fontWeight: 700,
+                    letterSpacing: ".12em",
+                  }}
+                >
+                  ● LIVE
+                </span>
+              )}
             </div>
 
             <form onSubmit={runOcr} className="il-ocr-form">
@@ -1441,6 +1481,21 @@ export default function ImageLab() {
 
               {ocrImage && (
                 <p className="il-hint">
+                  {ocrPreview && (
+                    <img
+                      src={ocrPreview}
+                      alt="Anteprima"
+                      style={{
+                        width: "76px",
+                        height: "76px",
+                        objectFit: "cover",
+                        borderRadius: "7px",
+                        border: "1px solid rgba(255,255,255,.14)",
+                        verticalAlign: "middle",
+                        marginRight: ".6rem",
+                      }}
+                    />
+                  )}
                   {ocrImage.name} ({Math.round(ocrImage.size / 1024)} KB)
                 </p>
               )}
