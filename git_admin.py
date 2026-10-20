@@ -46,7 +46,8 @@ log = logging.getLogger("git_admin")
 # --------------------------------------------------------------------------
 # CONFIG
 # --------------------------------------------------------------------------
-BASE_DIR = os.environ.get("GIT_ADMIN_BASE", "/Users/danny/Desktop/Danny")
+BASE_
+DIR = os.environ.get("GIT_ADMIN_BASE", "/Users/danny/Desktop/Danny")
 
 # id (come in Test2.jsx) -> nome cartella sotto BASE_DIR.
 # VERIFICA i nomi delle cartelle sul tuo Mac, oppure usa GIT_REPO_<ID>.
@@ -57,6 +58,7 @@ REPO_DIRS = {
     "lele_story_whisper": "lele_story_whisper",
     "lele_night_story": "lele_night_story",
     "dv_site": "dv-site",
+    "gradv": "GraDV",
 }
 
 # Variabili d'ambiente già usate altrove nel gateway, come fallback.
@@ -108,7 +110,8 @@ def _scrub(text: str) -> str:
     return _CRED_RE.sub(r"\1***@", text or "")
 
 
-def _cap(text: str, limit: int) -> str:
+def _cap(text: str, limit: int) -
+> str:
     if len(text) <= limit:
         return text
     return text[:limit] + f"\n… [troncato: {len(text) - limit} caratteri omessi]"
@@ -166,7 +169,8 @@ async def _run(path: str, *args: str, timeout: int = 30) -> tuple[int, str, str]
     except asyncio.TimeoutError:
         proc.kill()
         await proc.wait()
-        raise HTTPException(status_code=504, detail=f"Timeout: git {args[0]} oltre {timeout}s.")
+        raise HTTPException(status_code=504
+, detail=f"Timeout: git {args[0]} oltre {timeout}s.")
     except asyncio.CancelledError:
         proc.kill()
         raise
@@ -228,6 +232,7 @@ async def _porcelain(path: str) -> list[dict]:
 
 
 def _is_conflict(xy: str) -> bool:
+
     return "U" in xy or xy in ("AA", "DD")
 
 
@@ -289,7 +294,8 @@ async def _fetch(path: str, project: str, force: bool = False) -> str | None:
 
     error: str | None = None
     try:
-        rc, out, err = await _run(path, "fetch", "--quiet", timeout=FETCH_TIMEOUT)
+        rc, out, err = a
+wait _run(path, "fetch", "--quiet", timeout=FETCH_TIMEOUT)
         if rc != 0:
             error = _scrub((err or out).strip()) or "git fetch fallito."
     except HTTPException as e:
@@ -348,7 +354,8 @@ def _clean_message(message: str | None) -> str:
 # --------------------------------------------------------------------------
 # STATUS / DIFF
 # --------------------------------------------------------------------------
-async def _status_payload(path: str, project: str) -> dict:
+async def _st
+atus_payload(path: str, project: str) -> dict:
     fetch_error = await _fetch(path, project)
 
     head = await _head(path)
@@ -403,7 +410,8 @@ async def _status_payload(path: str, project: str) -> dict:
 
 
 async def _diff_payload(path: str, project: str, scope: str) -> dict:
-    header = ""
+   
+ header = ""
 
     if scope == "working":
         files = await _files(path, [])
@@ -454,7 +462,8 @@ async def _diff_payload(path: str, project: str, scope: str) -> dict:
     }
 
 
-# --------------------------------------------------------------------------
+# --------------------------------------------------------------
+------------
 # PREVIEW
 # --------------------------------------------------------------------------
 def _phrase(action: str, project: str) -> str:
@@ -504,7 +513,8 @@ async def _build_preview(project: str, path: str, action: str, message: str | No
             warnings.append("HEAD è detached: il commit non appartiene a nessun branch.")
 
         summary = (
-            f"Verrà eseguito `git add -A` e un commit su {branch or 'HEAD detached'} "
+            f"Verrà eseguito `git add -A` e un commit 
+su {branch or 'HEAD detached'} "
             f"({len(entries)} file) con messaggio: «{msg}»."
         )
 
@@ -548,7 +558,8 @@ async def _build_preview(project: str, path: str, action: str, message: str | No
             reasons.append(f"Fetch non riuscito: {fetch_err}")
         if not upstream:
             reasons.append("Il branch non ha un upstream configurato.")
-        elif not fetch_err:
+        elif
+ not fetch_err:
             if conflicts:
                 reasons.append("Conflitti non risolti: " + ", ".join(conflicts[:10]))
             if not behind:
@@ -589,7 +600,8 @@ async def _build_preview(project: str, path: str, action: str, message: str | No
         elif not fetch_err:
             if not ahead and not behind and not entries:
                 reasons.append("Locale e remoto coincidono e non ci sono modifiche: niente da forzare.")
-            files = [_entry_file(e) for e in entries]
+        
+    files = [_entry_file(e) for e in entries]
             lost = await _try(path, "log", "--format=%h %s (%an)", "@{u}..HEAD") or ""
             output = (
                 f"# Il branch locale verrà portato esattamente a {upstream}\n"
@@ -640,7 +652,8 @@ async def _build_preview(project: str, path: str, action: str, message: str | No
 
 # --------------------------------------------------------------------------
 # ESECUZIONE
-# --------------------------------------------------------------------------
+# -----------------------------------------------------
+---------------------
 def _tail(text: str, n: int = 600) -> str:
     text = _scrub((text or "").strip())
     return text[-n:]
@@ -690,7 +703,8 @@ async def _exec_force_pull(path: str) -> str:
             path, "stash", "push", "--include-untracked", "-m", f"git-admin force_pull {stamp}",
             timeout=60,
         )
-        notes.append(f"stash: «git-admin force_pull {stamp}»")
+        notes.append(f"stash: «git
+-admin force_pull {stamp}»")
 
     await _ok(path, "reset", "--hard", "@{u}", timeout=60)
     return (
@@ -745,7 +759,8 @@ def build_git_admin_router(verify_admin_token: Callable[[str | None], str]) -> A
         path = _repo_path(req.project)
 
         async with _lock(req.project):
-            built = await _build_preview(req.project, path, req.action, req.message)
+            built = await _build_preview(req.project, path, req.action, req.me
+ssage)
 
         _gc_previews()
         pub, internal = built["public"], built["_internal"]
@@ -791,7 +806,8 @@ def build_git_admin_router(verify_admin_token: Callable[[str | None], str]) -> A
             if msg != pv["message"]:
                 raise HTTPException(status_code=409, detail="Il messaggio è cambiato dopo l'anteprima: rigenerala.")
             if not pv["safe"]:
-                raise HTTPException(status_code=409, detail=pv["block_reason"] or "Operazione bloccata.")
+               
+ raise HTTPException(status_code=409, detail=pv["block_reason"] or "Operazione bloccata.")
             if not secrets.compare_digest(req.confirmation_phrase.strip(), pv["phrase"]):
                 raise HTTPException(status_code=400, detail=f"Frase di conferma errata: scrivi {pv['phrase']}")
 
