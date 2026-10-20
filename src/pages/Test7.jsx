@@ -17,7 +17,7 @@ const TOKEN_STORAGE_KEY = 'dv_google_id_token'
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
 // Prompt preconfezionati: clic ne inserisce uno nell'area di testo,
-// dove resta modificabile prima dell'intio.
+// dove resta modificabile prima dell'invio.
 const PROMPT_PRESETS = [
   {
     label: 'Leggi tutto',
@@ -49,7 +49,7 @@ function parseJwt(token) {
     const json = decodeURIComponent(
       atob(base64)
         .split('')
-        .map((c) => '%%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
          .join('')
     )
     return JSON.parse(json)
