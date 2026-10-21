@@ -68,6 +68,7 @@ const QUICK_LINKS = [
   { to: '/api-contracts', label: 'API Contracts 📡', main: true },
   { to: '/git-admin', label: 'Git Admin ⑂' },
   { to: '/querydb', label: 'QueryDB 🗄️' },
+  { to: '/dagforge', label: 'DagForge 🔨' },
   { to: '/dag-admin', label: 'DAG Admin 🌬️' },
   { to: '/bar-ai-admin', label: 'Bar AI Admin 🍸' },
   { to: '/image-lab', label: 'Image Lab 🖼️', main: true },

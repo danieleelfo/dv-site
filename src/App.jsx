@@ -16,6 +16,7 @@ import GitAdmin from './pages/GitAdmin.jsx'
 import B2B from './pages/B2B.jsx'
 import ImageLab from './pages/ImageLab.jsx'
 import QueryDb from './pages/QueryDb.jsx'
+import DagForge from './pages/DagForge.jsx'
 
 // Sandbox
 import Test from './pages/Test.jsx'
@@ -102,6 +103,10 @@ export default function App() {
         {/* QueryDB: browser read-only dei database (Leles, Emergence) */}
         <Route path="/querydb" element={<><Nav /><QueryDb /></>} />
         <Route path="/:lang/querydb" element={<><Nav /><LangWrapper><QueryDb /></LangWrapper></>} />
+
+        {/* DagForge: editor per salvare DAG Airflow lunghi (via /api/improve/save) */}
+        <Route path="/dagforge" element={<><Nav /><DagForge /></>} />
+        <Route path="/:lang/dagforge" element={<><Nav /><LangWrapper><DagForge /></LangWrapper></>} />
         <Route path="/git-admin" element={<><Nav /><GitAdmin /></>} />
         <Route path="/:lang/git-admin" element={<><Nav /><LangWrapper><GitAdmin /></LangWrapper></>} />
 
