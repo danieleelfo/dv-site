@@ -2,7 +2,7 @@
 // API CONTRACTS (promossa da Test2) (contratti API del gateway)
 // Pagina statica di documentazione: nessuna chiamata al backend
 // oltre alla verifica del login Google. Nessuna modifica backend.
-// Dati allineati a gateway.py / git_admin.py (17 ottobre 2026).
+// Dati allineati a gateway.py / git_admin.py / query_db.py (21 ottobre 2026).
 // ============================================================
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -276,7 +276,7 @@ const GROUPS = [
       {
         method: "GET", path: "/api/git/admin/status", auth: true,
         summary: "Stato repo (branch, ahead/behind, working tree).",
-        request: '?project=leles|bar_ai|lele|lele_story_whisper|lele_night_story|dv_site',
+        request: '?project=leles|bar_ai|lele|lele_story_whisper|lele_night_story|dv_site|gradv',
         response: '{ "branch", "ahead", "behind", "dirty", "last_commit", ... }',
       },
       {
@@ -297,6 +297,26 @@ const GROUPS = [
         request: '{ "project", "action", "message?", "confirmation_phrase", "preview_id" }',
         response: '{ "ok", "message" }',
         notes: "Richiede GIT_ADMIN_ALLOW_WRITE=1 (e GIT_ADMIN_ALLOW_FORCE=1 per il pull forzato).",
+      },
+    ],
+  },
+  {
+    id: "querydb", label: "QueryDB", icon: "🗄️",
+    note: "Browse read-only dei database PostgreSQL (query_db.py).",
+    endpoints: [
+      {
+        method: "GET", path: "/api/db/status", auth: true,
+        summary: "Tabelle dell'area con stima righe e ultime attività.",
+        request: '?area=leles|emergence',
+        response: '{ "area", "tables": [{ "name", "rows", "detail" }], "recent": [{ "what", "when" }] }',
+        notes: "Sessione Postgres readonly=True: il DB rifiuta ogni scrittura. Leles = tutte le tabelle public, Emergence = tabelle emergence_*.",
+      },
+      {
+        method: "GET", path: "/api/db/table", auth: true,
+        summary: "Anteprima paginata di una tabella (50 righe per pagina).",
+        request: '?area=...&table=nome_tabella&page=0',
+        response: '{ "table", "columns", "rows", "page" }',
+        notes: "Nome tabella validato contro information_schema (solo schema public): nessuna query libera.",
       },
     ],
   },
@@ -437,7 +457,7 @@ export default function ApiContracts() {
       ))}
 
       <footer className="api-footer muted">
-        <span>Fonte: gateway.py + git_admin.py · aggiornato 17 ottobre 2026</span>
+        <span>Fonte: gateway.py + git_admin.py + query_db.py · aggiornato 21 ottobre 2026</span>
         <span>Pagina statica: nessuna dipendenza dal backend</span>
       </footer>
     </main>
