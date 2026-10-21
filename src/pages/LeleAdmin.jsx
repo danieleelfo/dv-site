@@ -67,6 +67,7 @@ const QUICK_LINKS = [
   { to: '/improve', label: 'Improve 🛠️', main: true },
   { to: '/api-contracts', label: 'API Contracts 📡', main: true },
   { to: '/git-admin', label: 'Git Admin ⑂' },
+  { to: '/querydb', label: 'QueryDB 🗄️' },
   { to: '/dag-admin', label: 'DAG Admin 🌬️' },
   { to: '/bar-ai-admin', label: 'Bar AI Admin 🍸' },
   { to: '/image-lab', label: 'Image Lab 🖼️', main: true },
