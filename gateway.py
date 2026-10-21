@@ -12,6 +12,7 @@ import random
 import re
 
 from git_admin import build_git_admin_router
+from query_db import build_query_db_router
 
 import httpx
 from fastapi import FastAPI, Header, HTTPException, Request, UploadFile, File, Form
@@ -136,6 +137,11 @@ def get_connection():
 # --------------------------------------------------------------------------
 app.include_router(
     build_git_admin_router(verify_admin_token)
+)
+
+# QUERYDB — browse DB read-only per QueryDb.jsx
+app.include_router(
+    build_query_db_router(verify_admin_token, get_connection)
 )
 
 # --------------------------------------------------------------------------
