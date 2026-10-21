@@ -165,8 +165,7 @@ export default function DagForge() {
     return m ? m[1] : '<dag_id>'
   }
 
-  const lines = code.split('
-').length
+  const lines = code.split('\n').length
 
   const backdrop = (
     <>
