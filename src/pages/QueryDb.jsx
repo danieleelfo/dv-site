@@ -114,6 +114,9 @@ export default function QueryDb() {
   const [table, setTable] = useState("");
   const [page, setPage] = useState(0);
   const [tableData, setTableData] = useState(null);
+  const [fUser, setFUser] = useState("");
+  const [fFrom, setFFrom] = useState("");
+  const [fTo, setFTo] = useState("");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
 
@@ -156,7 +159,10 @@ export default function QueryDb() {
       const data = await api(
         "/api/db/table?area=" + encodeURIComponent(selectedArea) +
         "&table=" + encodeURIComponent(selectedTable) +
-        "&page=" + selectedPage
+        "&page=" + selectedPage +
+        (fUser ? "&user=" + encodeURIComponent(fUser) : "") +
+        (fFrom ? "&date_from=" + fFrom : "") +
+        (fTo ? "&date_to=" + fTo : "")
       );
       setTableData(data);
     } catch (e) {
@@ -175,6 +181,9 @@ export default function QueryDb() {
     setTable(name);
     setPage(0);
     setTableData(null);
+    setFUser("");
+    setFFrom("");
+    setFTo("");
     loadTable(area, name, 0);
   }
 
@@ -289,7 +298,22 @@ export default function QueryDb() {
       {table && (
         <section className="panel preview-panel">
           <div className="section-heading">
-            <div><p className="eyebrow">ANTEPRIMA</p><h2><code>{table}</code> · pagina {page + 1}</h2></div>
+            <div><p className="eyebrow">ANTEPRIMA</p><h2><code>{table}</code> · pagina {page + 1}{tableData?.order ? <span className="order-badge" title="Ordinamento lato server">{tableData.order}</span> : null}</h2></div>
+            {(tableData?.filterable?.user_col || tableData?.filterable?.time_col) && (
+              <div className="filter-bar">
+                {tableData?.filterable?.user_col && (
+                  <input className="text-input filter-input" type="text" placeholder={"Filtro " + tableData.filterable.user_col + " (contiene)"} value={fUser} onChange={(e) => setFUser(e.target.value)} />
+                )}
+                {tableData?.filterable?.time_col && (
+                  <>
+                    <input className="text-input filter-input" type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} title="Da" />
+                    <input className="text-input filter-input" type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} title="A" />
+                  </>
+                )}
+                <button className="btn btn-primary" disabled={busy === "table"} onClick={() => { setPage(0); loadTable(area, table, 0); }}>Applica</button>
+                {(fUser || fFrom || fTo) && <button className="btn btn-quiet" onClick={() => { setFUser(""); setFFrom(""); setFTo(""); setPage(0); loadTable(area, table, 0); }}>Azzera</button>}
+              </div>
+            )}
             <div className="btn-row">
               <button className="btn" onClick={copyCsv} disabled={!tableData}>Copia CSV</button>
               <button className="btn" disabled={page === 0 || busy === "table"} onClick={() => { const p = page - 1; setPage(p); loadTable(area, table, p); }}>← Precedente</button>
@@ -364,6 +388,10 @@ function QdbStyles() {
     .recent-what{overflow-wrap:anywhere}.recent-when{color:#74869a;font-size:10.5px;white-space:nowrap}
     .preview-panel{max-width:1500px;margin:0 auto 18px}
     .btn-row{display:flex;gap:8px;flex-wrap:wrap}
+    .order-badge{display:inline-block;margin-left:9px;font-size:9.5px;color:var(--teal);border:1px solid #38564f;border-radius:5px;padding:3px 6px;vertical-align:middle;font-family:ui-monospace,Menlo,monospace}
+    .filter-bar{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:4px}
+    .filter-input{width:auto;min-width:150px;padding:8px 10px;font-size:11px}
+    .text-input{background:#0a1119;color:var(--text);border:1px solid #304153;border-radius:8px;padding:11px 12px;outline:none;font-size:12px}
     .data-table-wrap{overflow:auto;max-height:480px;border:1px solid #202e3a;border-radius:0 0 10px 10px}
     .data-table{border-collapse:collapse;width:100%;font-size:11.5px}
     .data-table th{position:sticky;top:0;background:#0d1720;color:var(--teal);text-align:left;padding:9px 12px;border-bottom:1px solid #273644;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
