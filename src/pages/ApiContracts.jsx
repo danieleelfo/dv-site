@@ -2,7 +2,7 @@
 // API CONTRACTS (promossa da Test2) (contratti API del gateway)
 // Pagina statica di documentazione: nessuna chiamata al backend
 // oltre alla verifica del login Google. Nessuna modifica backend.
-// Dati allineati a gateway.py / git_admin.py / query_db.py (21 ottobre 2026).
+// Dati allineati a gateway.py / git_admin.py / query_db.py (22 ottobre 2026).
 // ============================================================
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -313,10 +313,17 @@ const GROUPS = [
       },
       {
         method: "GET", path: "/api/db/table", auth: true,
-        summary: "Anteprima paginata di una tabella (50 righe per pagina).",
-        request: '?area=...&table=nome_tabella&page=0',
+        summary: "Anteprima paginata di una tabella (50 righe per pagina) con filtri.",
+        request: "?area=...&table=nome_tabella&page=0&user=testo&users=val1,val2&date_from=YYYY-MM-DD&date_to=YYYY-MM-DD",
         response: '{ "table", "columns", "rows", "page" }',
-        notes: "Nome tabella validato contro information_schema (solo schema public): nessuna query libera.",
+        notes: "Nome tabella validato contro information_schema (solo schema public): nessuna query libera. Filtri opzionali: user = testo sulla colonna utente; users = lista di valori da includere (checkbox del pannello UTENTI); date_from / date_to = intervallo date.",
+      },
+      {
+        method: "GET", path: "/api/db/users", auth: true,
+        summary: "Valori distinti della colonna utente della tabella, con conteggio righe.",
+        request: "?area=leles|emergence&table=nome_tabella",
+        response: '{ "column": "user", "users": [{ "name": "airflow", "count": 123 }, ...] }',
+        notes: "Alimenta il pannello UTENTI di QueryDb (raggruppato per categoria con on/off). Se la tabella non ha una colonna utente valida, il pannello non compare.",
       },
     ],
   },
@@ -457,7 +464,7 @@ export default function ApiContracts() {
       ))}
 
       <footer className="api-footer muted">
-        <span>Fonte: gateway.py + git_admin.py + query_db.py · aggiornato 21 ottobre 2026</span>
+        <span>Fonte: gateway.py + git_admin.py + query_db.py · aggiornato 22 ottobre 2026</span>
         <span>Pagina statica: nessuna dipendenza dal backend</span>
       </footer>
     </main>
