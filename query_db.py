@@ -1,9 +1,10 @@
 """
-query_db.py — Backend "QueryDB" per QueryDb.jsx (read-only). v3
+query_db.py — Backend "QueryDB" per QueryDb.jsx (read-only). v4
 
 Endpoint (tutti con Google auth, stesso verify_admin_token del gateway):
     GET  /api/db/status?area=leles|emergence
-    GET  /api/db/table?area=&table=&page=&user=&date_from=&date_to=
+    GET  /api/db/table?area=&table=&page=&user=&users=&date_from=&date_to=
+    GET  /api/db/users?area=&table=   (valori distinti colonna user + count)
 
 Novità v2:
   - aree = SCHEMI Postgres: "leles" -> schema public, "emergence" -> schema
@@ -207,6 +208,7 @@ def build_query_db_router(
         user: str = "",
         date_from: str = "",
         date_to: str = "",
+        users: str = "",
         authorization: str | None = Header(None),
     ):
         verify_admin_token(authorization)
@@ -215,6 +217,7 @@ def build_query_db_router(
             raise HTTPException(status_code=400, detail="Nome tabella non valido.")
         page = max(int(page), 0)
         user = (user or "").strip()[:200]
+        users_list = [u.strip()[:200] for u in (users or "").split(",") if u.strip()][:100]
         date_from = (date_from or "").strip()[:10]
         date_to = (date_to or "").strip()[:10]
 
@@ -250,6 +253,10 @@ def build_query_db_router(
                 if user and uc:
                     conds.append(sql.SQL("{} ILIKE %s").format(sql.Identifier(uc)))
                     params.append("%" + user + "%")
+                if users_list and uc:
+                    # Selezione checkbox della UI: solo gli utenti spuntati.
+                    conds.append(sql.SQL("{} = ANY(%s)").format(sql.Identifier(uc)))
+                    params.append(users_list)
                 if tc:
                     if date_from:
                         conds.append(sql.SQL("{}::date >= %s").format(sql.Identifier(tc)))
@@ -288,6 +295,58 @@ def build_query_db_router(
             raise HTTPException(
                 status_code=500,
                 detail=f"Errore nella lettura della tabella: {exc}",
+            )
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+    @router.get("/users")
+    async def db_users(
+        area: str = "leles",
+        table: str = "",
+        authorization: str | None = Header(None),
+    ):
+        """Valori distinti della colonna user della tabella, con conteggio."""
+        verify_admin_token(authorization)
+        schema = _schema(area)
+        if not table or len(table) > 120 or not table.replace("_", "").isalnum():
+            raise HTTPException(status_code=400, detail="Nome tabella non valido.")
+
+        try:
+            conn = _readonly(get_connection)
+        except Exception as exc:
+            raise HTTPException(status_code=503, detail=f"PostgreSQL non raggiungibile: {exc}")
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SET statement_timeout = 3000")
+                cols = _columns(cur, schema, table)
+                if not cols:
+                    raise HTTPException(status_code=404, detail=f"Tabella non trovata: {table}")
+                uc = _user_col(cols)
+                if not uc:
+                    return {"table": table, "column": None, "users": []}
+                cur.execute(
+                    sql.SQL(
+                        "SELECT {} AS name, COUNT(*) AS n FROM {} "
+                        "GROUP BY {} ORDER BY n DESC, name LIMIT 500"
+                    ).format(
+                        sql.Identifier(uc), sql.Identifier(schema, table), sql.Identifier(uc)
+                    )
+                )
+                users = [
+                    {"name": _jsonable(r["name"]), "count": int(r["n"])}
+                    for r in cur.fetchall()
+                ]
+                return {"table": table, "column": uc, "users": users}
+        except HTTPException:
+            raise
+        except Exception as exc:
+            log.exception("db users %s", table)
+            raise HTTPException(
+                status_code=500,
+                detail=f"Errore nella lettura degli utenti: {exc}",
             )
         finally:
             try:

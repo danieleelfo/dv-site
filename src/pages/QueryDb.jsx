@@ -117,6 +117,9 @@ export default function QueryDb() {
   const [fUser, setFUser] = useState("");
   const [fFrom, setFFrom] = useState("");
   const [fTo, setFTo] = useState("");
+  const [usersInfo, setUsersInfo] = useState(null);
+  const [usersOff, setUsersOff] = useState(null);
+  const [uSearch, setUSearch] = useState("");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
 
@@ -152,14 +155,34 @@ export default function QueryDb() {
     }
   }, [api, area]);
 
-  const loadTable = useCallback(async (selectedArea, selectedTable, selectedPage) => {
+  const loadUsers = useCallback(async (selectedArea, selectedTable) => {
+    try {
+      const data = await api(
+        "/api/db/users?area=" + encodeURIComponent(selectedArea) +
+        "&table=" + encodeURIComponent(selectedTable)
+      );
+      setUsersInfo(data);
+    } catch {
+      setUsersInfo(null); // niente pannello utenti
+    }
+  }, [api]);
+
+  const loadTable = useCallback(async (selectedArea, selectedTable, selectedPage, off) => {
     setBusy("table");
     setError("");
     try {
+      // Checkbox utenti: "off" e' la lista dei nomi esclusi (null = tutti).
+      const excluded = off !== undefined && off !== null ? off : (usersOff || []);
+      let usersQ = "";
+      if (usersInfo?.column && excluded.length) {
+        const keep = usersInfo.users.map((u) => String(u.name)).filter((n) => !excluded.includes(n));
+        usersQ = "&users=" + encodeURIComponent(keep.join(","));
+      }
       const data = await api(
         "/api/db/table?area=" + encodeURIComponent(selectedArea) +
         "&table=" + encodeURIComponent(selectedTable) +
         "&page=" + selectedPage +
+        usersQ +
         (fUser ? "&user=" + encodeURIComponent(fUser) : "") +
         (fFrom ? "&date_from=" + fFrom : "") +
         (fTo ? "&date_to=" + fTo : "")
@@ -171,7 +194,7 @@ export default function QueryDb() {
     } finally {
       setBusy("");
     }
-  }, [api]);
+  }, [api, usersInfo, usersOff]);
 
   useEffect(() => {
     if (auth.token && auth.allowed) loadStatus(area);
@@ -184,7 +207,26 @@ export default function QueryDb() {
     setFUser("");
     setFFrom("");
     setFTo("");
-    loadTable(area, name, 0);
+    setUsersInfo(null);
+    setUsersOff(null);
+    setUSearch("");
+    loadTable(area, name, 0, null);
+    loadUsers(area, name);
+  }
+
+  function toggleUser(name) {
+    const cur = usersOff || [];
+    const next = cur.includes(name) ? cur.filter((n) => n !== name) : [...cur, name];
+    setUsersOff(next);
+    setPage(0);
+    loadTable(area, table, 0, next);
+  }
+
+  function toggleAllUsers(on) {
+    const next = on ? null : (usersInfo?.users || []).map((u) => String(u.name));
+    setUsersOff(next);
+    setPage(0);
+    loadTable(area, table, 0, next);
   }
 
   function copyCsv() {
@@ -311,7 +353,7 @@ export default function QueryDb() {
                   </>
                 )}
                 <button className="btn btn-primary" disabled={busy === "table"} onClick={() => { setPage(0); loadTable(area, table, 0); }}>Applica</button>
-                {(fUser || fFrom || fTo) && <button className="btn btn-quiet" onClick={() => { setFUser(""); setFFrom(""); setFTo(""); setPage(0); loadTable(area, table, 0); }}>Azzera</button>}
+                {(fUser || fFrom || fTo) && <button className="btn btn-quiet" onClick={() => { setFUser(""); setFFrom(""); setFTo(""); setUsersOff(null); setPage(0); loadTable(area, table, 0, null); }}>Azzera</button>}
               </div>
             )}
             <div className="btn-row">
@@ -320,6 +362,32 @@ export default function QueryDb() {
               <button className="btn" disabled={!tableData || (tableData.rows || []).length < PAGE_SIZE || busy === "table"} onClick={() => { const p = page + 1; setPage(p); loadTable(area, table, p); }}>Successiva →</button>
             </div>
           </div>
+          {usersInfo?.users?.length > 0 && (
+            <div className="user-panel">
+              <div className="user-panel-head">
+                <span className="user-panel-title">UTENTI · {usersInfo.column} ({usersInfo.users.length})</span>
+                <button className="btn btn-quiet" onClick={() => toggleAllUsers(true)}>Tutti</button>
+                <button className="btn btn-quiet" onClick={() => toggleAllUsers(false)}>Nessuno</button>
+                <input className="text-input filter-input" type="text" placeholder="Cerca utente" value={uSearch} onChange={(e) => setUSearch(e.target.value)} />
+                <span className="muted small-copy">{usersOff && usersOff.length ? (usersInfo.users.length - usersOff.length) + " di " + usersInfo.users.length + " visibili" : "tutti visibili"}</span>
+              </div>
+              <div className="user-checks">
+                {usersInfo.users
+                  .filter((u) => !uSearch || String(u.name).toLowerCase().includes(uSearch.toLowerCase()))
+                  .map((u) => {
+                    const name = String(u.name);
+                    const checked = !usersOff || !usersOff.includes(name);
+                    return (
+                      <label key={name} className={"user-check" + (checked ? "" : " off")}>
+                        <input type="checkbox" checked={checked} onChange={() => toggleUser(name)} />
+                        <span className="uc-name">{name === "" ? "(vuoto)" : name}</span>
+                        <span className="uc-count">{u.count.toLocaleString("it-IT")}</span>
+                      </label>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
           {busy === "table" && <p className="muted small-copy">Caricamento righe…</p>}
           {tableData?.columns?.length > 0 && (
             <div className="data-table-wrap">
@@ -396,6 +464,13 @@ function QdbStyles() {
     .data-table{border-collapse:collapse;width:100%;font-size:11.5px}
     .data-table th{position:sticky;top:0;background:#0d1720;color:var(--teal);text-align:left;padding:9px 12px;border-bottom:1px solid #273644;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap}
     .data-table td{padding:8px 12px;border-bottom:1px solid #1c2a36;overflow-wrap:anywhere;max-width:340px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:#c3d0db}
+    .user-panel{max-width:1500px;margin:0 auto 14px;border:1px solid var(--line);border-radius:12px;padding:13px 15px;background:#0b141d}
+    .user-panel-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+    .user-panel-title{font-size:10px;letter-spacing:.12em;font-weight:800;color:var(--teal)}
+    .user-checks{display:flex;flex-wrap:wrap;gap:6px;max-height:190px;overflow:auto}
+    .user-check{display:inline-flex;align-items:center;gap:7px;border:1px solid #273847;border-radius:8px;padding:5px 9px;font-size:11px;cursor:pointer;background:#0d1720;color:var(--text)}
+    .user-check:hover{border-color:#3f9b8d}.user-check.off{opacity:.5;border-style:dashed}
+    .uc-name{max-width:240px;overflow-wrap:anywhere}.uc-count{color:#74869a;font-size:10px}
     .guard-panel{max-width:1500px;margin:0 auto;display:flex;gap:15px;align-items:flex-start}
     .guard-icon{font-size:28px;color:var(--teal);border:1px solid #2b5d57;background:#15312f;border-radius:10px;padding:7px 12px}
     .guard-panel h3{margin:2px 0 10px;font-size:14px}.guard-panel ul{padding-left:17px;margin:0;color:#91a1b1;font-size:11px;line-height:1.9}
