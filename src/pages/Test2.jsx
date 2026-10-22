@@ -99,6 +99,20 @@ const c = (label, command, hint, danger) => ({ label, command, hint, danger })
 
 const COMMAND_GROUPS = [
   {
+    id: 'modelli', title: 'Modelli & LLM', icon: '🎛️', color: '#c4b5fd',
+    commands: [
+      c('Modelli attivi', 'modelli'),
+      c('Cambia reviewer', 'reviewer ', 'nome modello'),
+      c('Query', 'query ', 'Scrivi la query'),
+      c('Gemma', 'gemma ', 'prompt'),
+      c('Llama', 'llama ', 'prompt'),
+      c('Edita', 'edita'),
+      c('Roast', 'roast'),
+      c('Critica', 'critica'),
+      c('Pirata', 'pirata'),
+    ],
+  },
+  {
     id: 'system', title: 'Sistema', icon: '⚙️', color: '#3fd0c9',
     commands: [
       c('Status sistema', 'status sistema'),
@@ -170,20 +184,7 @@ const COMMAND_GROUPS = [
       c('Pirata', 'pirata'),
     ],
   },
-  {
-    id: 'super', title: 'Super-Leles', icon: '⚡', color: '#a78bfa',
-    commands: [
-      c('Super domanda', 'super ', 'chiedi anything a Super-Leles'),
-    ],
-  },
-  {
-    id: 'leles', title: 'Leles', icon: '🏴‍☠️', color: '#e2e8f0',
-    commands: [
-      c('Restart Lelé', 'restart Lelé', undefined, true),
-      c('Export DAG', 'export dag ', 'filename'),
-      c('Crea DAG', 'crea dag ', 'Descrivi il DAG'),
-    ],
-  },
+ 
 ]
 
 // Comandi che cambiano lo stato del sistema: chiedono una seconda conferma.
