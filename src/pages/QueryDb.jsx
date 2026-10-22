@@ -23,6 +23,25 @@ const AREAS = [
 
 const PAGE_SIZE = 50;
 
+// Gruppi del pannello UTENTI: ogni nome finisce nel primo gruppo i cui token
+// matchano (parole intere, non sottostringhe), altrimenti in "Altri".
+const USER_GROUPS = [
+  { id: "status", label: "📊 Status / Sistema", keys: ["status", "sistema", "os", "ram", "sys", "cpu", "disk", "mem"] },
+  { id: "airflow", label: "🌬️ Airflow", keys: ["airflow", "dag", "dags"] },
+  { id: "logs", label: "📜 Logs", keys: ["log", "logs"] },
+  { id: "git", label: "🔀 Git", keys: ["git", "github"] },
+  { id: "users", label: "👤 Utenti", keys: ["user", "utente"] },
+  { id: "other", label: "🔧 Altri", keys: [] },
+];
+function userGroupOf(name) {
+  const tokens = String(name).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  for (const g of USER_GROUPS) {
+    if (g.id === "other") continue;
+    if (tokens.some((t) => g.keys.includes(t))) return g;
+  }
+  return USER_GROUPS[USER_GROUPS.length - 1];
+}
+
 function parseJwt(token) {
   try {
     const raw = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
@@ -229,6 +248,17 @@ export default function QueryDb() {
     loadTable(area, table, 0, next);
   }
 
+  function toggleGroupUsers(names, on) {
+    const cur = usersOff || [];
+    let next = on ? cur.filter((n) => !names.includes(n)) : [...new Set([...cur, ...names])];
+    const valid = new Set((usersInfo?.users || []).map((u) => String(u.name)));
+    next = next.filter((n) => valid.has(n));
+    next = next.length ? next : null;
+    setUsersOff(next);
+    setPage(0);
+    loadTable(area, table, 0, next);
+  }
+
   function copyCsv() {
     if (!tableData?.columns || !tableData?.rows) return;
     const esc = (v) => {
@@ -372,19 +402,36 @@ export default function QueryDb() {
                 <span className="muted small-copy">{usersOff && usersOff.length ? (usersInfo.users.length - usersOff.length) + " di " + usersInfo.users.length + " visibili" : "tutti visibili"}</span>
               </div>
               <div className="user-checks">
-                {usersInfo.users
-                  .filter((u) => !uSearch || String(u.name).toLowerCase().includes(uSearch.toLowerCase()))
-                  .map((u) => {
-                    const name = String(u.name);
-                    const checked = !usersOff || !usersOff.includes(name);
-                    return (
-                      <label key={name} className={"user-check" + (checked ? "" : " off")}>
-                        <input type="checkbox" checked={checked} onChange={() => toggleUser(name)} />
-                        <span className="uc-name">{name === "" ? "(vuoto)" : name}</span>
-                        <span className="uc-count">{u.count.toLocaleString("it-IT")}</span>
-                      </label>
-                    );
-                  })}
+                {(() => {
+                  const filtered = usersInfo.users.filter((u) => !uSearch || String(u.name).toLowerCase().includes(uSearch.toLowerCase()));
+                  const buckets = [];
+                  for (const g of USER_GROUPS) {
+                    const items = filtered.filter((u) => userGroupOf(u.name).id === g.id);
+                    if (items.length) buckets.push({ g, items });
+                  }
+                  return buckets.map(({ g, items }) => (
+                    <div key={g.id} className="user-group">
+                      <div className="user-group-head">
+                        <span className="user-group-title">{g.label} · {items.length}</span>
+                        <button className="btn btn-quiet" onClick={() => toggleGroupUsers(items.map((u) => String(u.name)), true)}>on</button>
+                        <button className="btn btn-quiet" onClick={() => toggleGroupUsers(items.map((u) => String(u.name)), false)}>off</button>
+                      </div>
+                      <div className="user-group-items">
+                        {items.map((u) => {
+                          const name = String(u.name);
+                          const checked = !usersOff || !usersOff.includes(name);
+                          return (
+                            <label key={name} className={"user-check" + (checked ? "" : " off")}>
+                              <input type="checkbox" checked={checked} onChange={() => toggleUser(name)} />
+                              <span className="uc-name">{name === "" ? "(vuoto)" : name}</span>
+                              <span className="uc-count">{u.count.toLocaleString("it-IT")}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ));
+                })()}
               </div>
             </div>
           )}
@@ -470,6 +517,11 @@ function QdbStyles() {
     .user-checks{display:flex;flex-wrap:wrap;gap:6px;max-height:190px;overflow:auto}
     .user-check{display:inline-flex;align-items:center;gap:7px;border:1px solid #273847;border-radius:8px;padding:5px 9px;font-size:11px;cursor:pointer;background:#0d1720;color:var(--text)}
     .user-check:hover{border-color:#3f9b8d}.user-check.off{opacity:.5;border-style:dashed}
+    .user-checks{display:block}
+    .user-group{display:flex;flex-direction:column;gap:5px;margin-bottom:9px}
+    .user-group-head{display:flex;align-items:center;gap:6px}
+    .user-group-title{font-size:10px;font-weight:800;letter-spacing:.08em;color:#7fd4c8}
+    .user-group-items{display:flex;flex-wrap:wrap;gap:6px}
     .uc-name{max-width:240px;overflow-wrap:anywhere}.uc-count{color:#74869a;font-size:10px}
     .guard-panel{max-width:1500px;margin:0 auto;display:flex;gap:15px;align-items:flex-start}
     .guard-icon{font-size:28px;color:var(--teal);border:1px solid #2b5d57;background:#15312f;border-radius:10px;padding:7px 12px}

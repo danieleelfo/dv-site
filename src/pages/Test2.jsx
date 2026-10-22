@@ -170,21 +170,6 @@ const COMMAND_GROUPS = [
       c('Remoto upload', 'remoto upload ', 'file', true),
     ],
   },
-  {
-    id: 'modelli', title: 'Modelli & LLM', icon: '🎛️', color: '#c4b5fd',
-    commands: [
-      c('Modelli attivi', 'modelli'),
-      c('Cambia reviewer', 'reviewer ', 'nome modello'),
-      c('Query', 'query ', 'Scrivi la query'),
-      c('Gemma', 'gemma ', 'prompt'),
-      c('Llama', 'llama ', 'prompt'),
-      c('Edita', 'edita'),
-      c('Roast', 'roast'),
-      c('Critica', 'critica'),
-      c('Pirata', 'pirata'),
-    ],
-  },
- 
 ]
 
 // Comandi che cambiano lo stato del sistema: chiedono una seconda conferma.
