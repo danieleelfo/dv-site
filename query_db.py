@@ -234,11 +234,11 @@ def build_query_db_router(
                 # Ordinamento: colonna temporale DESC (poi id DESC), cosi'
                 # l'anteprima mostra i record piu' recenti per prima.
                 if tc:
-                    order = sql.SQL("{} DESC").format(sql.Identifier(tc))
+                    order = sql.SQL("ORDER BY {} DESC").format(sql.Identifier(tc))
                     order_label = tc + " DESC"
                 elif "id" in [c.lower() for c in cols]:
                     id_col = next(c for c in cols if c.lower() == "id")
-                    order = sql.SQL("{} DESC").format(sql.Identifier(id_col))
+                    order = sql.SQL("ORDER BY {} DESC").format(sql.Identifier(id_col))
                     order_label = "id DESC"
                 else:
                     order = None
