@@ -50,7 +50,7 @@ AREAS = {
 TIME_HINTS = ("created_at", "updated_at", "timestamp", "time", "date", "when", "_at")
 
 # Colonne su cui si applica il filtro "user" (la prima che esiste).
-USER_COLS = ("user", "username", "utente", "user_email", "email", "sender", "author", "agent", "name")
+USER_COLS = ("user", "username", "utente", "user_email", "email", "sender", "author", "agent", "name", "role")
 
 
 def _readonly(get_connection: Callable):
