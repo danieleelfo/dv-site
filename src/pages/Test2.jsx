@@ -1,8 +1,8 @@
 // ============================================================
-// TEST2 — Leles Admin Console (versione potenziata)
-// Basata su LeleAdmin.jsx con: lista comandi aggiornata,
-// griglia "Pagine" con link a tutte le console del sito
-// (incl. API Contracts), esporta file nei comandi.
+// TEST2 — Leles Admin Console (v2 "piu' figa")
+// v2: 3 selettori modello (Super-Leles / Leles / Reviewer) sincronizzati
+// col server via comando "modelli"; nuovo ordine sezioni (Comandi, Sessione,
+// Pagine, Audio, Test); restyling (titolo gradient, ombre, hover lift).
 // LeleAdmin.jsx resta la versione ufficiale su /leles.
 // ============================================================
 
@@ -616,6 +616,56 @@ export default function Test2() {
     )
   }
 
+  // ----------------------------------------------------------
+  // SYNC MODELLI: all'apertura chiede "modelli" e allinea i 3
+  // selettori ai modelli ATTIVI (fallback: localStorage, poi default).
+  // ----------------------------------------------------------
+  const modelsSyncedRef = useRef(false)
+
+  useEffect(() => {
+    if (!idToken || modelsSyncedRef.current) return
+    modelsSyncedRef.current = true
+    let cancelled = false
+    ;(async () => {
+      try {
+        const text = await callAdmin(idToken, 'modelli', 60000)
+        if (cancelled || !text) return
+        const lines = String(text).split('\n')
+        const esc = (m) => m.replace(/[.*+?^${}()|[\]\\]/g, '\\  // IMMAGINI: prompt che inizia con "immagina ..." non passa da Leles:')
+        const pick = (models, includeKeys, excludeKeys) => {
+          const re = new RegExp('\\b(' + models.map(esc).join('|') + ')\\b', 'i')
+          for (const line of lines) {
+            const low = line.toLowerCase()
+            if (excludeKeys && excludeKeys.some((k) => low.includes(k))) continue
+            if (!includeKeys.some((k) => low.includes(k))) continue
+            const m = line.match(re)
+            if (m) return m[1].toLowerCase()
+          }
+          return null
+        }
+        const sup = pick(SUPER_MODELS, ['super', 'sl '], ['reviewer'])
+        const rev = pick(LELE_MODELS, ['reviewer'], ['super', 'sl '])
+        const lel = pick(LELE_MODELS, ['lele', 'modello', 'attiv'], ['super', 'sl ', 'reviewer'])
+        if (sup && SUPER_MODELS.includes(sup)) {
+          setSuperModel(sup)
+          try { window.localStorage.setItem(SUPER_MODEL_KEY, sup) } catch (e) { /* no-op */ }
+        }
+        if (lel && LELE_MODELS.includes(lel)) {
+          setLeleModel(lel)
+          try { window.localStorage.setItem(LELE_MODEL_KEY, lel) } catch (e) { /* no-op */ }
+        }
+        if (rev && LELE_MODELS.includes(rev)) {
+          setReviewerModel(rev)
+          try { window.localStorage.setItem(REVIEWER_MODEL_KEY, rev) } catch (e) { /* no-op */ }
+        }
+      } catch (e) {
+        /* silenzioso: si restano i valori locali */
+      }
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idToken])
+
   // IMMAGINI: prompt che inizia con "immagina ..." non passa da Leles:
   // la console chiama direttamente il gateway (POST /api/image/jobs),
   // fa polling e mostra il PNG in Sessione. Zero modifiche a lele_api.
@@ -1138,20 +1188,6 @@ export default function Test2() {
                 >
                   {superMode ? '⚡ Super-Leles ON' : '⚡ Super-Leles'}
                 </button>
-                <select
-                    className="lc-select lc-model-select"
-                    aria-label="Modello Super-Leles"
-                    value={superModel}
-                    disabled={modelSwitching || isLoading}
-                    onChange={(e) => switchSuperModel(e.target.value)}
-                    title="Cambia il modello di Super-Leles: invia il comando modellosl <nome> e mostra la conferma in Sessione"
-                  >
-                    {SUPER_MODELS.map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
-                    ))}
-                </select>
                 {modelSwitching && (
                   <span className="lc-dim lc-small">Switch modello…</span>
                 )}
@@ -1243,6 +1279,21 @@ export default function Test2() {
               {!q && group.id === 'modelli' && (
                 <div className="lc-model-row">
                   <label>
+                    <span className="lc-dim lc-small">Super-Leles</span>
+                    <select
+                      className="lc-select lc-model-select"
+                      aria-label="Modello Super-Leles"
+                      value={superModel}
+                      disabled={modelSwitching || isLoading}
+                      onChange={(e) => switchSuperModel(e.target.value)}
+                      title="Invia il comando modellosl <nome> e mostra la conferma in Sessione"
+                    >
+                      {SUPER_MODELS.map((m) => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
                     <span className="lc-dim lc-small">Modello Leles</span>
                     <select
                       className="lc-select lc-model-select"
@@ -1301,6 +1352,145 @@ export default function Test2() {
               </div>
             </section>
 
+            {/* CRONOLOGIA */}
+            <section className="lc-panel lc-pad" aria-label="Risposte">
+              <div className="lc-cmd-head">
+                <h2>Sessione</h2>
+                {history.length > 0 && (
+                  <button type="button" className="lc-btn lc-btn--sm" onClick={() => setHistory([])}>
+                    Svuota
+                  </button>
+                )}
+              </div>
+
+              <div aria-live="polite" className="lc-log">
+                {history.length === 0 && (
+                  <p className="lc-dim">
+                    Nessun comando eseguito. Scegline uno qui sopra o scrivilo nel prompt.
+                  </p>
+                )}
+                {history.map((h) => (
+                  <article key={h.id} className={`lc-entry${h.err ? ' is-err' : ''}`}>
+                    <header>
+                      <code className="lc-ellipsis">{h.cmd}</code>
+                      <span className="lc-dim lc-small">
+                        {timeLabel(h.at)}, {(h.ms / 1000).toFixed(1)}s
+                      </span>
+                      <button
+                        type="button"
+                        className="lc-btn lc-btn--sm"
+                        onClick={() => {
+                          setPrompt(h.cmd)
+                          setArmed(false)
+                          textareaRef.current?.focus()
+                        }}
+                      >
+                        Riusa
+                      </button>
+                      <button
+                        type="button"
+                        className="lc-btn lc-btn--sm"
+                        onClick={() => copy(h.text || h.err)}
+                      >
+                        Copia
+                      </button>
+                    </header>
+                    {h.img && <img src={h.img} alt="Immagine generata" className="lc-gen-img" />}
+                    <pre className="lc-pre">{h.text || h.err}</pre>
+                  </article>
+                ))}
+              </div>
+            </section>
+          </main>
+
+          {/* DASHBOARD DESTRA: Sistema + OS + RAM + Gateway in un solo pannello */}
+          <aside className="lc-side" aria-label="Stato del sistema">
+            <section className="lc-panel lc-pad lc-status">
+              <div className="lc-cmd-head">
+                <h2>Stato del sistema</h2>
+                <div className="lc-row">
+                  <span
+                    className={`lc-pill ${
+                      ping.ok === null ? '' : ping.ok ? 'is-ok' : 'is-bad'
+                    }`}
+                    title="Gateway"
+                  >
+                    <span className={`lc-dot${ping.ok ? ' lc-pulse' : ''}`} />
+                    {ping.ok === null ? '…' : ping.ok ? `${ping.ms} ms` : 'offline'}
+                  </span>
+                  <button
+                    type="button"
+                    className="lc-btn lc-btn--sm"
+                    onClick={refreshStatus}
+                    disabled={statusLoading}
+                  >
+                    {statusLoading ? 'Carico…' : 'Aggiorna'}
+                  </button>
+                </div>
+              </div>
+
+              {STATUS_CMDS.map(([key, label]) => {
+                const s = status[key]
+                const tiles = key === 'sys' && !rawSys ? parseSystem(s?.text) : null
+                const osData = key === 'os' ? parseOs(s?.text) : null
+                const ramText = key === 'ram' ? cleanRam(s?.text) : null
+                const lvl = statLevel(key, status)
+                return (
+                    <div key={key} className="lc-stat">
+                    <div className="lc-stat-head">
+                        <h3 className={`lc-stat-name${lvl ? ` is-${lvl}` : ''}`}>{label}</h3>
+                        {key === 'sys' && s?.text && parseSystem(s.text) && (
+                            <button
+                                type="button"
+                                className="lc-btn lc-btn--sm"
+                                onClick={() => setRawSys((v) => !v)}
+                            >
+                                {rawSys ? 'Schema' : 'Testo'}
+                            </button>
+                        )}
+                    </div>
+                    {s?.err ? (
+                        <p className="lc-err lc-small">{s.err}</p>
+                    ) : tiles ? (
+                        <SystemTiles data={tiles} />
+                    ) : osData ? (
+                        <OsKpis data={osData} />
+                    ) : (
+                        <pre className="lc-pre lc-pre--sm">
+                            {(key === 'ram' && ramText) ||
+                                s?.text ||
+                                (statusLoading ? 'Carico…' : 'Nessun dato. Premi Aggiorna.')}
+                        </pre>
+                    )}
+                </div>
+            )
+        })}
+            </section>
+          </aside>
+        </div>
+
+        {/* PAGINE DEL SITO: link alle console esistenti */}
+        <nav className="lc-pages" aria-label="Pagine del sito">
+          <div className="lc-pages-head">
+            <h2>Pagine &amp; Console</h2>
+            <span className="lc-dim lc-small">
+              Tutte le rotte attive del sito — da qui validi e poi promuoviamo in nav
+            </span>
+          </div>
+          <div className="lc-pages-grid">
+            {QUICK_LINKS.map((l) => (
+              <Link
+                key={l.to}
+                to={l.to}
+                className={`lc-pagecard${l.main ? ' lc-pagecard--main' : ''}`}
+              >
+                <span className="lc-pagecard-label">{l.label}</span>
+                <small>{l.desc}</small>
+              </Link>
+            ))}
+          </div>
+
+          {/* AUDIO: Story Whisper / Night Story (penultimo blocco) */}
             {/* AUDIO: Story Whisper / Night Story */}
             <section className="lc-panel lc-pad lc-audio" aria-label="Audio">
               <audio
@@ -1475,143 +1665,6 @@ export default function Test2() {
               )}
             </section>
 
-            {/* CRONOLOGIA */}
-            <section className="lc-panel lc-pad" aria-label="Risposte">
-              <div className="lc-cmd-head">
-                <h2>Sessione</h2>
-                {history.length > 0 && (
-                  <button type="button" className="lc-btn lc-btn--sm" onClick={() => setHistory([])}>
-                    Svuota
-                  </button>
-                )}
-              </div>
-
-              <div aria-live="polite" className="lc-log">
-                {history.length === 0 && (
-                  <p className="lc-dim">
-                    Nessun comando eseguito. Scegline uno qui sopra o scrivilo nel prompt.
-                  </p>
-                )}
-                {history.map((h) => (
-                  <article key={h.id} className={`lc-entry${h.err ? ' is-err' : ''}`}>
-                    <header>
-                      <code className="lc-ellipsis">{h.cmd}</code>
-                      <span className="lc-dim lc-small">
-                        {timeLabel(h.at)}, {(h.ms / 1000).toFixed(1)}s
-                      </span>
-                      <button
-                        type="button"
-                        className="lc-btn lc-btn--sm"
-                        onClick={() => {
-                          setPrompt(h.cmd)
-                          setArmed(false)
-                          textareaRef.current?.focus()
-                        }}
-                      >
-                        Riusa
-                      </button>
-                      <button
-                        type="button"
-                        className="lc-btn lc-btn--sm"
-                        onClick={() => copy(h.text || h.err)}
-                      >
-                        Copia
-                      </button>
-                    </header>
-                    {h.img && <img src={h.img} alt="Immagine generata" className="lc-gen-img" />}
-                    <pre className="lc-pre">{h.text || h.err}</pre>
-                  </article>
-                ))}
-              </div>
-            </section>
-          </main>
-
-          {/* DASHBOARD DESTRA: Sistema + OS + RAM + Gateway in un solo pannello */}
-          <aside className="lc-side" aria-label="Stato del sistema">
-            <section className="lc-panel lc-pad lc-status">
-              <div className="lc-cmd-head">
-                <h2>Stato del sistema</h2>
-                <div className="lc-row">
-                  <span
-                    className={`lc-pill ${
-                      ping.ok === null ? '' : ping.ok ? 'is-ok' : 'is-bad'
-                    }`}
-                    title="Gateway"
-                  >
-                    <span className={`lc-dot${ping.ok ? ' lc-pulse' : ''}`} />
-                    {ping.ok === null ? '…' : ping.ok ? `${ping.ms} ms` : 'offline'}
-                  </span>
-                  <button
-                    type="button"
-                    className="lc-btn lc-btn--sm"
-                    onClick={refreshStatus}
-                    disabled={statusLoading}
-                  >
-                    {statusLoading ? 'Carico…' : 'Aggiorna'}
-                  </button>
-                </div>
-              </div>
-
-              {STATUS_CMDS.map(([key, label]) => {
-                const s = status[key]
-                const tiles = key === 'sys' && !rawSys ? parseSystem(s?.text) : null
-                const osData = key === 'os' ? parseOs(s?.text) : null
-                const ramText = key === 'ram' ? cleanRam(s?.text) : null
-                const lvl = statLevel(key, status)
-                return (
-                    <div key={key} className="lc-stat">
-                    <div className="lc-stat-head">
-                        <h3 className={`lc-stat-name${lvl ? ` is-${lvl}` : ''}`}>{label}</h3>
-                        {key === 'sys' && s?.text && parseSystem(s.text) && (
-                            <button
-                                type="button"
-                                className="lc-btn lc-btn--sm"
-                                onClick={() => setRawSys((v) => !v)}
-                            >
-                                {rawSys ? 'Schema' : 'Testo'}
-                            </button>
-                        )}
-                    </div>
-                    {s?.err ? (
-                        <p className="lc-err lc-small">{s.err}</p>
-                    ) : tiles ? (
-                        <SystemTiles data={tiles} />
-                    ) : osData ? (
-                        <OsKpis data={osData} />
-                    ) : (
-                        <pre className="lc-pre lc-pre--sm">
-                            {(key === 'ram' && ramText) ||
-                                s?.text ||
-                                (statusLoading ? 'Carico…' : 'Nessun dato. Premi Aggiorna.')}
-                        </pre>
-                    )}
-                </div>
-            )
-        })}
-            </section>
-          </aside>
-        </div>
-
-        {/* PAGINE DEL SITO: link alle console esistenti */}
-        <nav className="lc-pages" aria-label="Pagine del sito">
-          <div className="lc-pages-head">
-            <h2>Pagine &amp; Console</h2>
-            <span className="lc-dim lc-small">
-              Tutte le rotte attive del sito — da qui validi e poi promuoviamo in nav
-            </span>
-          </div>
-          <div className="lc-pages-grid">
-            {QUICK_LINKS.map((l) => (
-              <Link
-                key={l.to}
-                to={l.to}
-                className={`lc-pagecard${l.main ? ' lc-pagecard--main' : ''}`}
-              >
-                <span className="lc-pagecard-label">{l.label}</span>
-                <small>{l.desc}</small>
-              </Link>
-            ))}
-          </div>
 
           <div className="lc-pages-head lc-pages-head--sub">
             <h3>🧪 Test &amp; Laboratorio</h3>
@@ -1647,6 +1700,18 @@ const css = `
 .lc-session{display:flex;align-items:center;gap:10px;padding:5px 5px 5px 14px;border:1px solid var(--line);
   border-radius:999px;background:var(--glass);font-size:12px;color:var(--ink-dim);max-width:100%}
 .lc-ellipsis{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.lc-title{background:linear-gradient(92deg,#3fd0c9 0%,#a78bfa 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
+.lc-panel{box-shadow:0 22px 55px -32px rgba(0,0,0,.75),inset 0 1px 0 rgba(255,255,255,.06)}
+.lc-btn--run{background:linear-gradient(135deg,#3fd0c9,#6fe3dd);border-color:transparent;box-shadow:0 10px 26px -12px rgba(63,208,201,.6)}
+.lc-btn--run:hover:not(:disabled){background:linear-gradient(135deg,#6fe3dd,#9ff0ec);border-color:transparent;transform:translateY(-1px)}
+.lc-chip{transition:background .15s,border-color .15s,transform .15s,box-shadow .15s}
+.lc-chip:hover{transform:translateY(-2px);box-shadow:0 10px 22px -12px rgba(63,208,201,.4)}
+.lc-pagecard{transition:background .15s,border-color .15s,transform .18s,box-shadow .18s}
+.lc-pagecard:hover{box-shadow:0 16px 36px -18px rgba(63,208,201,.5)}
+.lc-cmd-head h2{position:relative;padding-bottom:7px}
+.lc-cmd-head h2::after{content:'';position:absolute;left:0;bottom:0;width:44px;height:2px;border-radius:2px;
+  background:linear-gradient(90deg,#3fd0c9,#a78bfa)}
+.lc-model-row{background:rgba(63,208,201,.07);border:1px solid rgba(63,208,201,.22);border-radius:12px;padding:10px 12px;margin:10px 0 14px}
 .lc-links{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:28px;padding-top:16px;
   border-top:1px solid var(--line);font-size:13px}
 .lc-pages{margin-top:28px;padding-top:16px;border-top:1px solid var(--line)}
