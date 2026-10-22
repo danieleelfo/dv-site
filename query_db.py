@@ -1,5 +1,5 @@
 """
-query_db.py — Backend "QueryDB" per QueryDb.jsx (read-only). v2
+query_db.py — Backend "QueryDB" per QueryDb.jsx (read-only). v3
 
 Endpoint (tutti con Google auth, stesso verify_admin_token del gateway):
     GET  /api/db/status?area=leles|emergence
@@ -95,6 +95,21 @@ def _tables(cur, schema: str) -> list[dict]:
             "rows": int(approx) if approx and approx > 0 else None,
             "detail": "stima" if approx and approx > 0 else "",
         })
+
+    # Stima mancante (reltuples = 0, mai ANALYZE): count esatto, ma con
+    # timeout corto e tetto di tabelle per non impallare la status.
+    unknown = [t for t in out if t["rows"] is None][:40]
+    for t in unknown:
+        try:
+            cur.execute(
+                sql.SQL("SELECT COUNT(*) AS n FROM {}").format(
+                    sql.Identifier(schema, t["name"])
+                )
+            )
+            t["rows"] = int(cur.fetchone()["n"])
+            t["detail"] = "esatto"
+        except Exception as exc:
+            log.warning("count %s: %s", t["name"], exc)
     return out
 
 
@@ -156,18 +171,28 @@ def build_query_db_router(
             raise HTTPException(status_code=503, detail=f"PostgreSQL non raggiungibile: {exc}")
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                # Safety net: niente query che gira troppo sulla status.
+                cur.execute("SET statement_timeout = 3000")
                 tables = _tables(cur, schema)
+                recent = []
+                try:
+                    recent = _recent(cur, schema, tables)
+                except Exception:
+                    log.exception("db status recent")
                 return {
                     "area": area,
                     "schema": schema,
                     "tables": tables,
-                    "recent": _recent(cur, schema, tables),
+                    "recent": recent,
                 }
         except HTTPException:
             raise
-        except Exception:
+        except Exception as exc:
             log.exception("db status")
-            raise HTTPException(status_code=500, detail="Errore nella lettura del database.")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Errore nella lettura del database: {exc}",
+            )
         finally:
             try:
                 conn.close()
@@ -258,9 +283,12 @@ def build_query_db_router(
                 }
         except HTTPException:
             raise
-        except Exception:
+        except Exception as exc:
             log.exception("db table %s", table)
-            raise HTTPException(status_code=500, detail="Errore nella lettura della tabella.")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Errore nella lettura della tabella: {exc}",
+            )
         finally:
             try:
                 conn.close()
