@@ -1229,7 +1229,6 @@ export default function LeleAdmin() {
                   onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
-              <p className="lc-dim lc-small lc-cmd-note">{t('lele.cmdNote')}</p>
 
               {!q && (
                 <div className="lc-tabs" role="tablist">

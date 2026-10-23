@@ -6,6 +6,8 @@
 // ============================================================
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import i18n from "../i18n/i18n";
 
 const API = "https://api.danielevillanova.com";
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -17,8 +19,8 @@ const ALLOWED_EMAILS = [
 
 // Aree/browse disponibili. Il backend (query_db.py) decidera' l'elenco tabelle.
 const AREAS = [
-  { id: "leles", label: "Leles", detail: "PostgreSQL · memoria e agenti" },
-  { id: "emergence", label: "Emergence", detail: "PostgreSQL · run, ruoli, judge" },
+  { id: "leles", label: "Leles", detail: "qdb.area.leles" },
+  { id: "emergence", label: "Emergence", detail: "qdb.area.emergence" },
 ];
 
 const PAGE_SIZE = 50;
@@ -26,12 +28,12 @@ const PAGE_SIZE = 50;
 // Gruppi del pannello UTENTI: ogni nome finisce nel primo gruppo i cui token
 // matchano (parole intere, non sottostringhe), altrimenti in "Altri".
 const USER_GROUPS = [
-  { id: "status", label: "📊 Status / Sistema", keys: ["status", "sistema", "os", "ram", "sys", "cpu", "disk", "mem"] },
-  { id: "airflow", label: "🌬️ Airflow", keys: ["airflow", "dag", "dags"] },
-  { id: "logs", label: "📜 Logs", keys: ["log", "logs"] },
-  { id: "git", label: "🔀 Git", keys: ["git", "github"] },
-  { id: "users", label: "👤 Utenti", keys: ["user", "utente"] },
-  { id: "other", label: "🔧 Altri", keys: [] },
+  { id: "status", label: "qdb.g.status", keys: ["status", "sistema", "os", "ram", "sys", "cpu", "disk", "mem"] },
+  { id: "airflow", label: "qdb.g.airflow", keys: ["airflow", "dag", "dags"] },
+  { id: "logs", label: "qdb.g.logs", keys: ["log", "logs"] },
+  { id: "git", label: "qdb.g.git", keys: ["git", "github"] },
+  { id: "users", label: "qdb.g.users", keys: ["user", "utente"] },
+  { id: "other", label: "qdb.g.other", keys: [] },
 ];
 function userGroupOf(name) {
   const tokens = String(name).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
@@ -127,6 +129,7 @@ function cellText(value) {
 }
 
 export default function QueryDb() {
+  const { t } = useTranslation();
   const auth = useGoogleAuth();
   const [area, setArea] = useState("leles");
   const [status, setStatus] = useState(null);
@@ -145,17 +148,17 @@ export default function QueryDb() {
   const areaInfo = useMemo(() => AREAS.find((a) => a.id === area) || AREAS[0], [area]);
 
   const api = useCallback(async (path) => {
-    if (!auth.token) throw new Error("Sessione Google assente o scaduta.");
+    if (!auth.token) throw new Error(i18n.t("qdb.err.session"));
     const response = await fetch(API + path, {
       headers: { Authorization: "Bearer " + auth.token },
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
       if (response.status === 404) {
-        throw new Error("Endpoint DB non ancora disponibile sul gateway. La UI è pronta; va collegato query_db.py al gateway.");
+        throw new Error(i18n.t("qdb.err.endpoint"));
       }
       const detail = typeof data.detail === "string" ? data.detail : data.message;
-      throw new Error(detail || "Richiesta fallita (HTTP " + response.status + ").");
+      throw new Error(detail || i18n.t("qdb.err.http", { n: response.status }));
     }
     return data;
   }, [auth.token]);
@@ -280,11 +283,11 @@ export default function QueryDb() {
           <div className="brand-mark"><DbIcon /></div>
           <p className="eyebrow">D. VILLANOVA · DEVELOPER TOOLS</p>
           <h1>QueryDB</h1>
-          <p className="muted">Browser read-only dei database PostgreSQL (Leles, Emergence). Nessuna scrittura possibile.</p>
+          <p className="muted">{t("qdb.loginSub")}</p>
           {!auth.token ? <div ref={auth.buttonRef} className="google-slot" /> : (
             <>
-              <p className="error-text">Account non autorizzato: {auth.email || "email non disponibile"}</p>
-              <button className="btn" onClick={auth.logout}>Logout / cambia account</button>
+              <p className="error-text">{t("qdb.unauthorized", { email: auth.email || t("qdb.emailMissing") })}</p>
+              <button className="btn" onClick={auth.logout}>{t("qdb.logoutSwitch")}</button>
             </>
           )}
         </section>
@@ -307,41 +310,41 @@ export default function QueryDb() {
           </div>
         </div>
         <div className="user-tools">
-          <span className="readonly-pill" title="Nessuna scrittura: il backend esegue solo SELECT su tabelle in whitelist">◆ sola lettura</span>
+          <span className="readonly-pill" title={t("qdb.readonlyTitle")}>◆ {t("qdb.readonly")}</span>
           <span className="user-email">{auth.email}</span>
-          <button className="btn btn-quiet" onClick={auth.logout}>Logout</button>
+          <button className="btn btn-quiet" onClick={auth.logout}>{t("qdb.logout")}</button>
         </div>
       </header>
 
       <section className="area-strip panel">
         <div className="area-picker">
-          <label htmlFor="qdb-area">Area</label>
+          <label htmlFor="qdb-area">{t("qdb.area")}</label>
           <select id="qdb-area" value={area} onChange={(e) => { setArea(e.target.value); setStatus(null); setTable(""); setTableData(null); }}>
             {AREAS.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}
           </select>
-          <span className="area-detail">{areaInfo.detail}</span>
+          <span className="area-detail">{t(areaInfo.detail)}</span>
         </div>
         <button className="btn btn-primary" disabled={!!busy} onClick={() => { loadStatus(area); if (table) loadTable(area, table, page); }}>
-          {busy ? "Attendere…" : "↻ Aggiorna"}
+          {busy ? t("qdb.wait") : "↻ " + t("qdb.refresh")}
         </button>
       </section>
 
-      {error && <div className="alert alert-error"><strong>Attenzione</strong><span>{error}</span><button onClick={() => setError("")}>×</button></div>}
+      {error && <div className="alert alert-error"><strong>{t("qdb.warning")}</strong><span>{error}</span><button onClick={() => setError("")}>×</button></div>}
 
       <section className="qdb-grid">
         <div className="panel tables-panel">
           <div className="section-heading">
-            <div><p className="eyebrow">TABELLE</p><h2>Tavole principali · {areaInfo.label}</h2></div>
-            <span className="status-pill"><i />{status ? tables.length + " tabelle" : "In attesa"}</span>
+            <div><p className="eyebrow">{t("qdb.tablesEyebrow")}</p><h2>{t("qdb.mainTables")} · {areaInfo.label}</h2></div>
+            <span className="status-pill"><i />{status ? t("qdb.nTables", { n: tables.length }) : t("qdb.waiting")}</span>
           </div>
-          {busy === "status" && <p className="muted small-copy">Caricamento…</p>}
-          {!busy && !status && <p className="muted small-copy">Nessun dato. Premi Aggiorna o collega il backend (query_db.py).</p>}
+          {busy === "status" && <p className="muted small-copy">{t("qdb.loading")}</p>}
+          {!busy && !status && <p className="muted small-copy">{t("qdb.noData")}</p>}
           {tables.length > 0 && (
             <div className="table-list">
-              {tables.map((t) => (
-                <button key={t.name} className={"table-row" + (table === t.name ? " active" : "")} onClick={() => openTable(t.name)}>
-                  <code>{t.name}</code>
-                  <span className="table-meta">{t.rows != null ? t.rows.toLocaleString("it-IT") + " righe" : ""}{t.detail ? " · " + t.detail : ""}</span>
+              {tables.map((tb) => (
+                <button key={tb.name} className={"table-row" + (table === tb.name ? " active" : "")} onClick={() => openTable(tb.name)}>
+                  <code>{tb.name}</code>
+                  <span className="table-meta">{tb.rows != null ? t("qdb.nRows", { n: tb.rows.toLocaleString("it-IT") }) : ""}{tb.detail ? " · " + tb.detail : ""}</span>
                 </button>
               ))}
             </div>
@@ -350,10 +353,10 @@ export default function QueryDb() {
 
         <div className="panel recent-panel">
           <div className="section-heading">
-            <div><p className="eyebrow">ATTIVITÀ</p><h2>Ultime attività</h2></div>
+            <div><p className="eyebrow">{t("qdb.activityEyebrow")}</p><h2>{t("qdb.recent")}</h2></div>
           </div>
           {recent.length === 0 ? (
-            <p className="muted small-copy">{status ? "Nessuna attività recente segnalata dal backend." : "In attesa dei dati del backend."}</p>
+            <p className="muted small-copy">{status ? t("qdb.noRecent") : t("qdb.waitingBackend")}</p>
           ) : (
             <div className="recent-list">
               {recent.map((r, i) => (
@@ -370,36 +373,36 @@ export default function QueryDb() {
       {table && (
         <section className="panel preview-panel">
           <div className="section-heading">
-            <div><p className="eyebrow">ANTEPRIMA</p><h2><code>{table}</code> · pagina {page + 1}{tableData?.order ? <span className="order-badge" title="Ordinamento lato server">{tableData.order}</span> : null}</h2></div>
+            <div><p className="eyebrow">{t("qdb.previewEyebrow")}</p><h2><code>{table}</code> · {t("qdb.page", { n: page + 1 })}{tableData?.order ? <span className="order-badge" title={t("qdb.serverOrder")}>{tableData.order}</span> : null}</h2></div>
             {(tableData?.filterable?.user_col || tableData?.filterable?.time_col) && (
               <div className="filter-bar">
                 {tableData?.filterable?.user_col && (
-                  <input className="text-input filter-input" type="text" placeholder={"Filtro " + tableData.filterable.user_col + " (contiene)"} value={fUser} onChange={(e) => setFUser(e.target.value)} />
+                  <input className="text-input filter-input" type="text" placeholder={t("qdb.filterBy", { col: tableData.filterable.user_col })} value={fUser} onChange={(e) => setFUser(e.target.value)} />
                 )}
                 {tableData?.filterable?.time_col && (
                   <>
-                    <input className="text-input filter-input" type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} title="Da" />
-                    <input className="text-input filter-input" type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} title="A" />
+                    <input className="text-input filter-input" type="date" value={fFrom} onChange={(e) => setFFrom(e.target.value)} title={t("qdb.from")} />
+                    <input className="text-input filter-input" type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} title={t("qdb.to")} />
                   </>
                 )}
-                <button className="btn btn-primary" disabled={busy === "table"} onClick={() => { setPage(0); loadTable(area, table, 0); }}>Applica</button>
-                {(fUser || fFrom || fTo) && <button className="btn btn-quiet" onClick={() => { setFUser(""); setFFrom(""); setFTo(""); setUsersOff(null); setPage(0); loadTable(area, table, 0, null); }}>Azzera</button>}
+                <button className="btn btn-primary" disabled={busy === "table"} onClick={() => { setPage(0); loadTable(area, table, 0); }}>{t("qdb.apply")}</button>
+                {(fUser || fFrom || fTo) && <button className="btn btn-quiet" onClick={() => { setFUser(""); setFFrom(""); setFTo(""); setUsersOff(null); setPage(0); loadTable(area, table, 0, null); }}>{t("qdb.reset")}</button>}
               </div>
             )}
             <div className="btn-row">
-              <button className="btn" onClick={copyCsv} disabled={!tableData}>Copia CSV</button>
-              <button className="btn" disabled={page === 0 || busy === "table"} onClick={() => { const p = page - 1; setPage(p); loadTable(area, table, p); }}>← Precedente</button>
-              <button className="btn" disabled={!tableData || (tableData.rows || []).length < PAGE_SIZE || busy === "table"} onClick={() => { const p = page + 1; setPage(p); loadTable(area, table, p); }}>Successiva →</button>
+              <button className="btn" onClick={copyCsv} disabled={!tableData}>{t("qdb.copyCsv")}</button>
+              <button className="btn" disabled={page === 0 || busy === "table"} onClick={() => { const p = page - 1; setPage(p); loadTable(area, table, p); }}>{t("qdb.prev")}</button>
+              <button className="btn" disabled={!tableData || (tableData.rows || []).length < PAGE_SIZE || busy === "table"} onClick={() => { const p = page + 1; setPage(p); loadTable(area, table, p); }}>{t("qdb.next")}</button>
             </div>
           </div>
           {usersInfo?.users?.length > 0 && (
             <div className="user-panel">
               <div className="user-panel-head">
-                <span className="user-panel-title">UTENTI · {usersInfo.column} ({usersInfo.users.length})</span>
-                <button className="btn btn-quiet" onClick={() => toggleAllUsers(true)}>Tutti</button>
-                <button className="btn btn-quiet" onClick={() => toggleAllUsers(false)}>Nessuno</button>
-                <input className="text-input filter-input" type="text" placeholder="Cerca utente" value={uSearch} onChange={(e) => setUSearch(e.target.value)} />
-                <span className="muted small-copy">{usersOff && usersOff.length ? (usersInfo.users.length - usersOff.length) + " di " + usersInfo.users.length + " visibili" : "tutti visibili"}</span>
+                <span className="user-panel-title">{t("qdb.usersTitle", { col: usersInfo.column, n: usersInfo.users.length })}</span>
+                <button className="btn btn-quiet" onClick={() => toggleAllUsers(true)}>{t("qdb.all")}</button>
+                <button className="btn btn-quiet" onClick={() => toggleAllUsers(false)}>{t("qdb.none")}</button>
+                <input className="text-input filter-input" type="text" placeholder={t("qdb.searchUser")} value={uSearch} onChange={(e) => setUSearch(e.target.value)} />
+                <span className="muted small-copy">{usersOff && usersOff.length ? t("qdb.visibleOf", { n: usersInfo.users.length - usersOff.length, m: usersInfo.users.length }) : t("qdb.allVisible")}</span>
               </div>
               <div className="user-checks">
                 {(() => {
@@ -412,7 +415,7 @@ export default function QueryDb() {
                   return buckets.map(({ g, items }) => (
                     <div key={g.id} className="user-group">
                       <div className="user-group-head">
-                        <span className="user-group-title">{g.label} · {items.length}</span>
+                        <span className="user-group-title">{t(g.label)} · {items.length}</span>
                         <button className="btn btn-quiet" onClick={() => toggleGroupUsers(items.map((u) => String(u.name)), true)}>on</button>
                         <button className="btn btn-quiet" onClick={() => toggleGroupUsers(items.map((u) => String(u.name)), false)}>off</button>
                       </div>
@@ -423,7 +426,7 @@ export default function QueryDb() {
                           return (
                             <label key={name} className={"user-check" + (checked ? "" : " off")}>
                               <input type="checkbox" checked={checked} onChange={() => toggleUser(name)} />
-                              <span className="uc-name">{name === "" ? "(vuoto)" : name}</span>
+                              <span className="uc-name">{name === "" ? t("qdb.emptyName") : name}</span>
                               <span className="uc-count">{u.count.toLocaleString("it-IT")}</span>
                             </label>
                           );
@@ -435,7 +438,7 @@ export default function QueryDb() {
               </div>
             </div>
           )}
-          {busy === "table" && <p className="muted small-copy">Caricamento righe…</p>}
+          {busy === "table" && <p className="muted small-copy">{t("qdb.loadingRows")}</p>}
           {tableData?.columns?.length > 0 && (
             <div className="data-table-wrap">
               <table className="data-table">
@@ -451,19 +454,19 @@ export default function QueryDb() {
               </table>
             </div>
           )}
-          {!busy && tableData && (tableData.rows || []).length === 0 && <p className="muted small-copy">La tabella non ha righe (o la pagina è oltre la fine).</p>}
+          {!busy && tableData && (tableData.rows || []).length === 0 && <p className="muted small-copy">{t("qdb.noRows")}</p>}
         </section>
       )}
 
       <section className="panel guard-panel">
         <div className="guard-icon">◆</div>
         <div>
-          <h3>Regole di sicurezza</h3>
+          <h3>{t("qdb.guardTitle")}</h3>
           <ul>
-            <li>Read-only: il backend esegue solo SELECT, con LIMIT obbligatorio.</li>
-            <li>Tabelle in whitelist lato server: il client non può scegliere query né database arbitrari.</li>
-            <li>Autenticazione Google con verifica email, rivalidata dal backend.</li>
-            <li>Questa pagina non esegue SQL direttamente nel browser.</li>
+            <li>{t("qdb.guard1")}</li>
+            <li>{t("qdb.guard2")}</li>
+            <li>{t("qdb.guard3")}</li>
+            <li>{t("qdb.guard4")}</li>
           </ul>
         </div>
       </section>
