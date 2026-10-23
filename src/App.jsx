@@ -90,9 +90,11 @@ export default function App() {
         <Route path="/:lang/b2b" element={<><Nav /><LangWrapper><B2B /></LangWrapper></>} />
 
         <Route path="/improve" element={<><Nav /><Improve /></>} />
+        <Route path="/:lang/improve" element={<><Nav /><LangWrapper><Improve /></LangWrapper></>} />
 
         {/* AI Image Lab: generazione locale con Z-Image-Turbo */}
         <Route path="/image-lab" element={<><Nav /><ImageLab /></>} />
+        <Route path="/:lang/image-lab" element={<><Nav /><LangWrapper><ImageLab /></LangWrapper></>} />
 
         {/* DAG Admin: pannello Airflow */}
         <Route path="/dag-admin" element={<><Nav /><DagAdmin /></>} />
@@ -110,6 +112,7 @@ export default function App() {
         <Route path="/git-admin" element={<><Nav /><GitAdmin /></>} />
         <Route path="/:lang/git-admin" element={<><Nav /><LangWrapper><GitAdmin /></LangWrapper></>} />
 
+        <Route path="/console" element={<><Nav /><Console /></>} />
         <Route path="/:lang/console" element={<><Nav /><LangWrapper><Console /></LangWrapper></>} />
 
         <Route path="/test" element={<><Nav /><Test /></>} />

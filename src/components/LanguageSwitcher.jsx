@@ -32,7 +32,14 @@ export default function LanguageSwitcher() {
 
   function selectLang(code) {
     const pathParts = location.pathname.split('/').filter(Boolean)
-    pathParts[0] = code
+    // Se il primo segmento non e' un codice lingua (en/it/es/fr/ca/nl),
+    // lo INSERISCE invece di sostituirlo: da /improve si va su /en/improve,
+    // non piu' sulla home perdendo la pagina.
+    if (pathParts.length && languages.some((l) => l.code === pathParts[0])) {
+      pathParts[0] = code
+    } else {
+      pathParts.unshift(code)
+    }
     navigate('/' + pathParts.join('/'))
     setOpen(false)
   }

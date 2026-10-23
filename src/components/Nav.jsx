@@ -80,6 +80,8 @@ export default function Nav() {
             <Link to={lang ? "/" + lang + "/ai-lab" : "/ai-lab"} style={styles.link}>AI Lab</Link>
             <Link to={lang ? "/" + lang + "/leles" : "/leles"} style={styles.link}>Leles</Link>
             <Link to={lang ? "/" + lang + "/b2b" : "/b2b"} style={styles.link}>B2B</Link>
+            <Link to={lang ? "/" + lang + "/image-lab" : "/image-lab"} style={styles.link}>Image Lab</Link>
+            <Link to={lang ? "/" + lang + "/api-contracts" : "/api-contracts"} style={styles.link}>API</Link>
             <Link to={lang ? "/" + lang + "/console" : "/console"} style={styles.link}>Trial</Link>
           </nav>
           <LanguageSwitcher />
