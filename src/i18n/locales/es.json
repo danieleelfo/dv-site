@@ -102,5 +102,21 @@
     "label": "Contact",
     "title": "Hablemos",
     "text": "Para colaboraciones, consultoría o simplemente para intercambiar ideas sobre arquitectura de datos e IA local, escríbeme."
+  },
+  "sys": {
+    "sec": {
+      "projects": "Proyectos",
+      "services": "Servicios",
+      "models": "Modelos",
+      "b2b": "B2B Arena"
+    },
+    "state": {
+      "ok": "activo",
+      "bad": "no activo",
+      "warn": "parcial",
+      "off": "no cargado"
+    },
+    "disk": "Disco",
+    "uptime": "Uptime"
   }
 }

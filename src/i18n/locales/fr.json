@@ -101,5 +101,21 @@
     "label": "Contact",
     "title": "Discutons-en",
     "text": "Pour des collaborations, du conseil ou simplement échanger des idées sur l'architecture de données et l'IA locale, contactez-moi."
+  },
+  "sys": {
+    "sec": {
+      "projects": "Projets",
+      "services": "Services",
+      "models": "Modèles",
+      "b2b": "B2B Arena"
+    },
+    "state": {
+      "ok": "actif",
+      "bad": "inactif",
+      "warn": "partiel",
+      "off": "non chargé"
+    },
+    "disk": "Disque",
+    "uptime": "Uptime"
   }
 }

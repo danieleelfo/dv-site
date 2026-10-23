@@ -102,5 +102,21 @@
     "label": "Contact",
     "title": "Parliamone",
     "text": "Per collaborazioni, consulenze o semplicemente per scambiare due idee su data architecture e AI locale, scrivimi."
+  },
+  "sys": {
+    "sec": {
+      "projects": "Progetti",
+      "services": "Servizi",
+      "models": "Modelli",
+      "b2b": "B2B Arena"
+    },
+    "state": {
+      "ok": "attivo",
+      "bad": "non attivo",
+      "warn": "parziale",
+      "off": "non caricato"
+    },
+    "disk": "Disco",
+    "uptime": "Uptime"
   }
 }

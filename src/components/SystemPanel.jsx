@@ -3,11 +3,13 @@
 // ------------------------------------------------------------------
 // Dashboard "Sistema": parser del testo di `status sistema` + tessere.
 // ------------------------------------------------------------------
+import { useTranslation } from 'react-i18next'
+
 const SYS_SECTIONS = {
-  'Projects': 'Progetti',
-  'Shared Services': 'Servizi',
-  'Models': 'Modelli',
-  'B2B Arena': 'B2B Arena',
+  'Projects': 'projects',
+  'Shared Services': 'services',
+  'Models': 'models',
+  'B2B Arena': 'b2b',
 }
 
 // Trasforma l'output testuale di "status sistema" in dati per le tessere.
@@ -74,7 +76,7 @@ function parseSystem(text) {
   // Leles è sempre su (è lui che risponde): il suo stato diventa quello
   // dell'intestazione "Progetti" e il suo box viene tolto.
   for (const sec of sections) {
-    if (sec.title === 'Progetti') {
+    if (sec.title === 'projects') {
       const i = sec.items.findIndex((it) => /^leles$/i.test(it.label))
 
       if (i >= 0) {
@@ -87,8 +89,8 @@ function parseSystem(text) {
   // Ollama è una sezione separata.
   // Il servizio Ollama viene tolto da "Servizi" e la sezione
   // "Modelli" viene rinominata "Ollama".
-  const services = sections.find((sec) => sec.title === 'Servizi')
-  const models = sections.find((sec) => sec.title === 'Modelli')
+  const services = sections.find((sec) => sec.title === 'services')
+  const models = sections.find((sec) => sec.title === 'models')
 
   if (services && models) {
     const ollamaIndex = services.items.findIndex(
@@ -97,7 +99,7 @@ function parseSystem(text) {
 
     if (ollamaIndex >= 0) {
       services.items.splice(ollamaIndex, 1)
-      models.title = 'Ollama'
+      models.title = 'ollama'
 
       // I 3 gruppi di modelli sono tutti alimentati da Ollama.
       // Lo stato viene mantenuto sugli item; non mostriamo
@@ -114,17 +116,29 @@ function parseSystem(text) {
 
 // Schemino a quadratini: verde = su, rosso = giù, grigio = non caricato.
 function SystemTiles({ data }) {
+  const { t } = useTranslation()
+
+  // Titoli mostrati: le chiavi interne (projects/services/...) diventano
+  // etichette localizzate; Ollama resta un nome proprio.
+  const secTitle = {
+    projects: t('sys.sec.projects'),
+    services: t('sys.sec.services'),
+    models: t('sys.sec.models'),
+    b2b: t('sys.sec.b2b'),
+    ollama: 'Ollama',
+  }
+
   const label = {
-    ok: 'attivo',
-    bad: 'non attivo',
-    warn: 'parziale',
-    off: 'non caricato',
+    ok: t('sys.state.ok'),
+    bad: t('sys.state.bad'),
+    warn: t('sys.state.warn'),
+    off: t('sys.state.off'),
   }
 
   return (
     <div className="lc-sys">
       {data.sections.map((sec) => {
-        const isOllama = sec.title === 'Ollama'
+        const isOllama = sec.title === 'ollama'
 
         // Per Ollama vogliamo 8 box:
         // 1. Gemma4
@@ -213,7 +227,7 @@ function SystemTiles({ data }) {
                 className={`lc-sys-name is-${secState}`}
                 title={sec.head ? `Leles: ${label[sec.head]}` : undefined}
               >
-                {sec.title}
+                {secTitle[sec.title] || sec.title}
                 {sec.head && (
                   <span className="lc-sr"> (Leles {label[sec.head]})</span>
                 )}
@@ -317,6 +331,7 @@ function parseOs(text) {
 }
 
 function OsKpis({ data }) {
+  const { t } = useTranslation()
   const items = []
   if (data.cpu != null)
     items.push({ icon: '🖥️', label: 'CPU', value: `${Math.round(data.cpu)}%`, pct: data.cpu })
@@ -328,12 +343,12 @@ function OsKpis({ data }) {
     })
   if (data.disk)
     items.push({
-      icon: '💾', label: 'Disco',
+      icon: '💾', label: t('sys.disk'),
       value: `${data.disk.used}/${data.disk.total} GB`,
       sub: `${data.disk.pct}%`, pct: data.disk.pct,
     })
   if (data.uptime)
-    items.push({ icon: '⏱️', label: 'Uptime', value: data.uptime, pct: null })
+    items.push({ icon: '⏱️', label: t('sys.uptime'), value: data.uptime, pct: null })
 
   return (
     <div className="lc-kpis">

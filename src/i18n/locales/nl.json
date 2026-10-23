@@ -101,5 +101,21 @@
     "label": "Contact",
     "title": "Laten we praten",
     "text": "Voor samenwerkingen, consultancy of gewoon om ideeën uit te wisselen over data-architectuur en lokale AI, neem contact op."
+  },
+  "sys": {
+    "sec": {
+      "projects": "Projecten",
+      "services": "Diensten",
+      "models": "Modellen",
+      "b2b": "B2B Arena"
+    },
+    "state": {
+      "ok": "actief",
+      "bad": "niet actief",
+      "warn": "gedeeltelijk",
+      "off": "niet geladen"
+    },
+    "disk": "Schijf",
+    "uptime": "Uptime"
   }
 }

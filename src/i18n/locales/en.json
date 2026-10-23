@@ -102,5 +102,21 @@
     "label": "Contact",
     "title": "Let's talk",
     "text": "For collaborations, consulting, or just to exchange ideas on data architecture and local AI, get in touch."
+  },
+  "sys": {
+    "sec": {
+      "projects": "Projects",
+      "services": "Shared Services",
+      "models": "Models",
+      "b2b": "B2B Arena"
+    },
+    "state": {
+      "ok": "active",
+      "bad": "down",
+      "warn": "partial",
+      "off": "not loaded"
+    },
+    "disk": "Disk",
+    "uptime": "Uptime"
   }
 }

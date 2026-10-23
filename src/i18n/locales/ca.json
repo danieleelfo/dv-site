@@ -101,5 +101,21 @@
     "label": "Contacte",
     "title": "Parlem-ne",
     "text": "Per a col·laboracions, consultories o simplement per intercanviar idees sobre arquitectura de dades i IA local, escriu-me."
+  },
+  "sys": {
+    "sec": {
+      "projects": "Projectes",
+      "services": "Serveis",
+      "models": "Models",
+      "b2b": "B2B Arena"
+    },
+    "state": {
+      "ok": "actiu",
+      "bad": "no actiu",
+      "warn": "parcial",
+      "off": "no carregat"
+    },
+    "disk": "Disc",
+    "uptime": "Uptime"
   }
 }
