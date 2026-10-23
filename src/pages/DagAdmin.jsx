@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import bgImage from '../assets/Faro.jpeg'
 
 const LELE_API_URL = 'https://api.danielevillanova.com'
@@ -179,6 +180,7 @@ function buildConf(dag, values) {
 }
 
 export default function DagAdmin() {
+  const { t } = useTranslation()
   const [idToken, setIdToken] = useState(() => {
     try { return window.sessionStorage.getItem(TOKEN_STORAGE_KEY) || null } catch (e) { return null }
   })
@@ -217,7 +219,7 @@ export default function DagAdmin() {
     const email = decoded?.email?.toLowerCase()
     if (!email || !ALLOWED_EMAILS.includes(email)) {
       logout()
-      setAuthError('Accesso non autorizzato per questo account Google.')
+      setAuthError(t('dga.unauthorized'))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -229,7 +231,7 @@ export default function DagAdmin() {
       if (cancelled) return
       if (!window.google?.accounts?.id) { setTimeout(tryInit, 150); return }
       if (!GOOGLE_CLIENT_ID) {
-        setAuthError('GOOGLE_CLIENT_ID non configurato (VITE_GOOGLE_CLIENT_ID mancante).')
+        setAuthError(t('dga.clientIdMissing'))
         return
       }
       window.google.accounts.id.initialize({
@@ -251,11 +253,11 @@ export default function DagAdmin() {
 
   function handleCredentialResponse(credentialResponse) {
     const token = credentialResponse?.credential
-    if (!token) { setAuthError('Login Google fallito: nessun token ricevuto.'); return }
+    if (!token) { setAuthError(t('dga.loginFailed')); return }
     const decoded = decodeJwtPayload(token)
     const email = decoded?.email?.toLowerCase()
     if (!email || !ALLOWED_EMAILS.includes(email)) {
-      setAuthError('Accesso non autorizzato per questo account Google.')
+      setAuthError(t('dga.unauthorized'))
       try { window.google?.accounts?.id?.disableAutoSelect() } catch (e) {}
       return
     }
@@ -305,7 +307,7 @@ export default function DagAdmin() {
 
       if (res.status === 401 || res.status === 403) {
         logout()
-        setError(res.status === 401 ? 'Sessione scaduta, effettua di nuovo il login.' : 'Accesso non autorizzato.')
+        setError(res.status === 401 ? t('dga.sessionExpired') : t('dga.accessDenied'))
         return null
       }
 
@@ -316,12 +318,12 @@ export default function DagAdmin() {
       if (!answer && data.detail) {
         answer = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail, null, 2)
       }
-      if (!answer) answer = 'Nessuna risposta ricevuta'
+      if (!answer) answer = t('dga.noAnswer')
       setResponse(answer)
       return answer
     } catch (err) {
       clearTimeout(timeoutId)
-      setError(err.name === 'AbortError' ? 'Timeout: il server non ha risposto in tempo.' : err.message)
+      setError(err.name === 'AbortError' ? t('dga.timeout') : err.message)
       return null
     } finally {
       setIsLoading(false)
@@ -377,7 +379,7 @@ export default function DagAdmin() {
   }
 
   async function refreshPaused() {
-    const answer = await sendCommand('status dag', 'Elenco DAG')
+    const answer = await sendCommand('status dag', t('dga.listDags'))
     if (!answer) return
     const map = {}
     answer.split('\n').forEach((line) => {
@@ -421,19 +423,19 @@ export default function DagAdmin() {
     }
     setDirFiles(files)
     setPickedFile(null)
-    if (!files.length) setError('Nessun file .py trovato nella sezione dags/ — controlla la risposta nel pannello.')
+    if (!files.length) setError(t('dga.noPyFiles'))
   }
 
   async function handleAddDag() {
     const id = newDagId.trim()
-    if (!id) { setError('Inserisci il dag_id'); return }
+    if (!id) { setError(t('dga.enterDagId')); return }
     setError('')
-    const a = await sendCommand('aggiungi dag ' + id + (newDagDesc.trim() ? ' ' + newDagDesc.trim() : ''), 'Aggiungi ' + id)
+    const a = await sendCommand('aggiungi dag ' + id + (newDagDesc.trim() ? ' ' + newDagDesc.trim() : ''), t('dga.add') + ' ' + id)
     if (!a) return
     if (a.includes('aggiunto a KNOWN_DAGS')) {
       setExtraDags((prev) => [...prev.filter((d) => d.id !== id), {
         id, name: id,
-        desc: newDagDesc.trim() || 'DAG nuovo — descrizione da completare.',
+        desc: newDagDesc.trim() || t('dga.newDagDesc'),
         params: [],
       }])
       setSelectedId(id)
@@ -447,11 +449,11 @@ export default function DagAdmin() {
     const conf = buildConf(selected, vals)
     const missing = selected.params.filter((p) => p.req && !vals[p.k] && vals[p.k] !== 0)
     if (missing.length) {
-      setError('Parametri obbligatori mancanti: ' + missing.map((p) => p.label).join(', '))
+      setError(t('dga.missingParams', { list: missing.map((p) => p.label).join(', ') }))
       return
     }
     setError('')
-    sendCommand('exec airflow lancia ' + selected.id + ' conf: ' + JSON.stringify(conf), 'Lancio ' + selected.id).then(() => fetchRuns(selected.id))
+    sendCommand('exec airflow lancia ' + selected.id + ' conf: ' + JSON.stringify(conf), t('dga.launching') + ' ' + selected.id).then(() => fetchRuns(selected.id))
   }
 
   if (!idToken) {
@@ -463,11 +465,11 @@ export default function DagAdmin() {
           <h2 style={styles.pageTitle}>Airflow DAG Panel</h2>
           <div style={styles.loginBox}>
             <p style={styles.loginText}>
-              Accesso riservato. Login Google per lanciare e gestire i DAG Airflow.
+              {t('dga.loginIntro')}
             </p>
             {authError && <p style={styles.authErrorText}>⚠️ {authError}</p>}
             <div ref={buttonRef} style={styles.googleButtonSlot} />
-            {!gsiReady && !authError && <p style={styles.loadingText}>Caricamento login Google…</p>}
+            {!gsiReady && !authError && <p style={styles.loadingText}>{t('dga.loadingLogin')}</p>}
           </div>
         </div>
       </section>
@@ -523,8 +525,8 @@ export default function DagAdmin() {
             </div>
           </div>
           <div style={styles.sessionBox}>
-            <span style={styles.sessionLabel}>{profile?.email || 'account Google'}</span>
-            <button type="button" onClick={logout} style={styles.logoutButton}>Logout</button>
+            <span style={styles.sessionLabel}>{profile?.email || t('dga.googleAccount')}</span>
+            <button type="button" onClick={logout} style={styles.logoutButton}>{t('dga.logout')}</button>
           </div>
         </div>
 
@@ -534,10 +536,10 @@ export default function DagAdmin() {
             <div style={styles.sidebarHeader}>
               <span style={styles.label}>DAG ({allDags.length})</span>
               <div style={{ display: 'flex', gap: '0.3rem' }}>
-                <button type="button" disabled={isLoading} onClick={handleDirectory} title="Listing directory dags (anche DAG nuovi)" style={styles.secondaryBtn}>
+                <button type="button" disabled={isLoading} onClick={handleDirectory} title={t('dga.listDirTitle')} style={styles.secondaryBtn}>
                   📂
                 </button>
-                <button type="button" disabled={isLoading} onClick={refreshPaused} title="Aggiorna stato attivo/pausa" style={styles.secondaryBtn}>
+                <button type="button" disabled={isLoading} onClick={refreshPaused} title={t('dga.refreshStateTitle')} style={styles.secondaryBtn}>
                   ↻
                 </button>
               </div>
@@ -604,8 +606,8 @@ export default function DagAdmin() {
                     >
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f}</span>
                       {isNew
-                        ? <span style={{ fontSize: '0.65rem', color: '#fbbf24', border: '1px solid #6e5a2c', borderRadius: 999, padding: '0.05rem 0.4rem', whiteSpace: 'nowrap' }}>nuovo</span>
-                        : <span style={{ fontSize: '0.65rem', color: '#6ee7a8', border: '1px solid #2c6e52', borderRadius: 999, padding: '0.05rem 0.4rem', whiteSpace: 'nowrap' }}>✓ known</span>}
+                        ? <span style={{ fontSize: '0.65rem', color: '#fbbf24', border: '1px solid #6e5a2c', borderRadius: 999, padding: '0.05rem 0.4rem', whiteSpace: 'nowrap' }}>{t('dga.new')}</span>
+                        : <span style={{ fontSize: '0.65rem', color: '#6ee7a8', border: '1px solid #2c6e52', borderRadius: 999, padding: '0.05rem 0.4rem', whiteSpace: 'nowrap' }}>{t('dga.known')}</span>}
                     </button>
                   )
                 })}
@@ -613,18 +615,18 @@ export default function DagAdmin() {
 
               {pickedFile && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.6rem', borderTop: '1px solid #1f2b35', paddingTop: '0.6rem' }}>
-                  <span style={styles.label}>＋ Aggiungi come KNOWN DAG</span>
+                  <span style={styles.label}>＋ {t('dga.addAsKnown')}</span>
                   <input
                     type="text"
                     value={newDagId}
-                    placeholder="dag_id (es. mio_nuovo_dag)"
+                    placeholder={t('dga.dagIdPh')}
                     onChange={(e) => setNewDagId(e.target.value)}
                     style={styles.input}
                   />
                   <input
                     type="text"
                     value={newDagDesc}
-                    placeholder="descrizione breve (opzionale)"
+                    placeholder={t('dga.descPh')}
                     onChange={(e) => setNewDagDesc(e.target.value)}
                     style={styles.input}
                   />
@@ -634,9 +636,9 @@ export default function DagAdmin() {
                     onClick={handleAddDag}
                     style={{ ...styles.launchBtn, padding: '0.5rem 0.9rem', fontSize: '0.8rem', ...(isLoading || !newDagId.trim() ? styles.buttonDisabled : {}) }}
                   >
-                    ＋ Aggiungi {newDagId.trim() || pickedFile}
+                    ＋ {t('dga.add')} {newDagId.trim() || pickedFile}
                   </button>
-                  <span style={styles.hint}>Registra il DAG in KNOWN_DAGS di leles (memoria + airflow_agent.py). Params da definire dopo — punto sospeso.</span>
+                  <span style={styles.hint}>{t('dga.addHint')}</span>
                 </div>
               )}
               </div>
@@ -652,14 +654,14 @@ export default function DagAdmin() {
                   <code style={styles.dagId}>{selected.id}</code>
                 </div>
                 <span style={{ ...styles.dagBadge, ...(isPaused ? styles.badgePaused : styles.badgeActive) }}>
-                  {isPaused === undefined ? 'stato sconosciuto' : isPaused ? '⏸ in pausa' : '▶ attivo'}
+                  {isPaused === undefined ? t('dga.statusUnknown') : isPaused ? t('dga.paused') : t('dga.active')}
                 </span>
               </div>
-              <p style={styles.dagDesc}>{selected.desc}</p>
+              <p style={styles.dagDesc}>{t('dga.desc.' + selected.id, { defaultValue: selected.desc })}</p>
 
               {selected.params.length > 0 && (
                 <>
-                  <span style={styles.label}>Parametri</span>
+                  <span style={styles.label}>{t('dga.params')}</span>
                   <div className="dgp-paramgrid" style={styles.paramGrid}>
                     {selected.params.map((p) => {
                       const v = (values[selected.id] || {})[p.k]
@@ -701,21 +703,21 @@ export default function DagAdmin() {
 
               <div style={styles.actionsRow}>
                 <button type="button" disabled={isLoading} onClick={handleLaunch} style={{ ...styles.launchBtn, ...(isLoading ? styles.buttonDisabled : {}) }}>
-                  {isLoading ? '⏳ Invio comando…' : '▶ Lancia ' + selected.id}
+                  {isLoading ? t('dga.sending') : t('dga.launch', { id: selected.id })}
                 </button>
                 <button type="button" disabled={isLoading} onClick={() => sendCommand('status dag ' + selected.id, 'Status ' + selected.id)} style={styles.secondaryBtn}>
-                  🔄 Ultime run
+                  {t('dga.lastRuns')}
                 </button>
                 <button
                   type="button"
                   disabled={isLoading}
-                  onClick={() => sendCommand((isPaused ? 'attiva dag ' : 'pausa dag ') + selected.id, (isPaused ? 'Attiva ' : 'Pausa ') + selected.id).then((a) => { if (a) refreshPaused() })}
+                  onClick={() => sendCommand((isPaused ? 'attiva dag ' : 'pausa dag ') + selected.id, (isPaused ? t('dga.activate') : t('dga.pause')) + ' ' + selected.id).then((a) => { if (a) refreshPaused() })}
                   style={styles.secondaryBtn}
                 >
-                  {isPaused ? '▶ Attiva' : '⏸ Pausa'}
+                  {isPaused ? t('dga.activate') : t('dga.pause')}
                 </button>
                 <button type="button" disabled={isLoading} onClick={() => setValues((prev) => ({ ...prev, [selected.id]: defaultValues(selected) }))} style={styles.secondaryBtn}>
-                  ↺ Reset parametri
+                  {t('dga.resetParams')}
                 </button>
               </div>
 
@@ -723,14 +725,14 @@ export default function DagAdmin() {
                 <input
                   type="text"
                   value={dagRunId}
-                  placeholder="dag_run_id (es. leles_abedb852 — da 'Ultime run')"
+                  placeholder={t('dga.dagRunIdPh')}
                   onChange={(e) => setDagRunId(e.target.value)}
                   style={{ ...styles.input, flex: 1 }}
                 />
                 <button
                   type="button"
                   disabled={isLoading || !dagRunId.trim()}
-                  onClick={() => sendCommand('task run ' + selected.id + ' ' + dagRunId.trim(), 'Task della run ' + dagRunId.trim())}
+                  onClick={() => sendCommand('task run ' + selected.id + ' ' + dagRunId.trim(), t('dga.runTask', { id: dagRunId.trim() }))}
                   style={{ ...styles.secondaryBtn, ...(isLoading || !dagRunId.trim() ? styles.buttonDisabled : {}) }}
                 >
                   📋 Task
@@ -738,7 +740,7 @@ export default function DagAdmin() {
                 <input
                   type="text"
                   value={taskId}
-                  placeholder="task_id per il log (es. run_coherence_analysis_task)"
+                  placeholder={t('dga.taskIdPh')}
                   onChange={(e) => setTaskId(e.target.value)}
                   style={{ ...styles.input, flex: 1 }}
                 />
@@ -748,29 +750,29 @@ export default function DagAdmin() {
                   onClick={() => sendCommand('log task ' + selected.id + ' ' + taskId.trim(), 'Log ' + selected.id + '/' + taskId.trim())}
                   style={{ ...styles.secondaryBtn, ...(isLoading || !taskId.trim() ? styles.buttonDisabled : {}) }}
                 >
-                  📄 Log task
+                  {t('dga.logTask')}
                 </button>
               </div>
             </div>
 
             <div style={{ ...styles.panel, padding: '1rem 1.25rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <span style={styles.label}>🕐 Ultime run di {selected.id}</span>
-                <button type="button" disabled={runsLoading} onClick={() => fetchRuns(selected.id)} style={styles.secondaryBtn} title="Aggiorna">
+                <span style={styles.label}>{t('dga.runsOf', { id: selected.id })}</span>
+                <button type="button" disabled={runsLoading} onClick={() => fetchRuns(selected.id)} style={styles.secondaryBtn} title={t('dga.refresh')}>
                   {runsLoading ? '⏳' : '↻'}
                 </button>
               </div>
               {runsSummary === null ? (
-                <p style={{ ...styles.hint, marginTop: '0.5rem' }}>{runsLoading ? 'Carico le run...' : 'Nessun dato run (premi ↻ per riprovare).'}</p>
+                <p style={{ ...styles.hint, marginTop: '0.5rem' }}>{runsLoading ? t('dga.loadingRuns') : t('dga.noRunData')}</p>
               ) : runsSummary.length === 0 ? (
-                <p style={{ ...styles.hint, marginTop: '0.5rem' }}>Nessuna run trovata per questo DAG.</p>
+                <p style={{ ...styles.hint, marginTop: '0.5rem' }}>{t('dga.noRuns')}</p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', marginTop: '0.5rem' }}>
                   {runsSummary.slice(0, 5).map((r) => (
                     <button
                       key={r.id}
                       type="button"
-                      title="Clic per compilare dag_run_id nel modulo qui sopra"
+                      title={t('dga.clickToFill')}
                       onClick={() => setDagRunId(r.id)}
                       style={{
                         display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap',
@@ -786,14 +788,14 @@ export default function DagAdmin() {
                       <span style={{ color: '#8fa1ac' }}>{r.start} → {r.end}</span>
                     </button>
                   ))}
-                  <span style={styles.hint}>Ordinate per data di esecuzione (più recenti prima) · clic su una run = compila dag_run_id</span>
+                  <span style={styles.hint}>{t('dga.runsHint')}</span>
                 </div>
               )}
             </div>
 
             {error && (
               <div style={styles.errorBox}>
-                <strong>⚠️ Errore</strong>
+                <strong>{t('dga.error')}</strong>
                 <p>{error}</p>
               </div>
             )}
@@ -802,9 +804,9 @@ export default function DagAdmin() {
               <div style={styles.response}>
                 <div style={styles.responseHeader}>
                   <h3 style={styles.responseTitle}>
-                    {lastAction ? 'Risposta Leles — ' + lastAction : 'Risposta Leles'}
+                    {lastAction ? t('dga.lelesResponseWith', { action: lastAction }) : t('dga.lelesResponse')}
                   </h3>
-                  <button type="button" onClick={() => setResponse('')} style={styles.secondaryBtn}>Chiudi</button>
+                  <button type="button" onClick={() => setResponse('')} style={styles.secondaryBtn}>{t('dga.close')}</button>
                 </div>
                 <div style={styles.responseLines}>
                   {response.split('\n').map((line, i) => {
@@ -1017,3 +1019,4 @@ const styles = {
   },
   responseLine: { whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' },
 }
+
