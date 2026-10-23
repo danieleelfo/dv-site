@@ -5,8 +5,12 @@ import { useTranslation } from 'react-i18next'
 import LanguageSwitcher from './LanguageSwitcher.jsx'
 
 export default function Nav() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { lang } = useParams()
+
+  // Lang sempre nei link: quella dell'URL se presente, altrimenti quella
+  // attiva di i18n. Il nav non produce mai URL senza lingua.
+  const l = lang || (i18n.language || 'en').slice(0, 2)
 
   const [logoImgOk, setLogoImgOk] = useState(true)
 
@@ -14,7 +18,7 @@ export default function Nav() {
     <header style={styles.header}>
       {/* Rimosso className="container" per permettere al layout di estendersi fino ai bordi */}
       <div style={styles.bar}>
-        <Link to={lang ? "/" + lang : "/"} style={styles.logo}>
+        <Link to={"/" + l} style={styles.logo}>
           {logoImgOk && (
             <img
               src={lelesLogo}
@@ -75,14 +79,14 @@ export default function Nav() {
 
         <div style={styles.right}>
           <nav style={styles.links}>
-            <Link to={lang ? "/" + lang : "/"} style={styles.link}>{t('nav.home')}</Link>
-            <Link to={lang ? "/" + lang + "/projects" : "/projects"} style={styles.link}>{t('nav.projects')}</Link>
-            <Link to={lang ? "/" + lang + "/ai-lab" : "/ai-lab"} style={styles.link}>AI Lab</Link>
-            <Link to={lang ? "/" + lang + "/leles" : "/leles"} style={styles.link}>Leles</Link>
-            <Link to={lang ? "/" + lang + "/b2b" : "/b2b"} style={styles.link}>B2B</Link>
-            <Link to={lang ? "/" + lang + "/image-lab" : "/image-lab"} style={styles.link}>Image Lab</Link>
-            <Link to={lang ? "/" + lang + "/api-contracts" : "/api-contracts"} style={styles.link}>API</Link>
-            <Link to={lang ? "/" + lang + "/console" : "/console"} style={styles.link}>Trial</Link>
+            <Link to={"/" + l} style={styles.link}>{t('nav.home')}</Link>
+            <Link to={"/" + l + "/projects"} style={styles.link}>{t('nav.projects')}</Link>
+            <Link to={"/" + l + "/ai-lab"} style={styles.link}>AI Lab</Link>
+            <Link to={"/" + l + "/leles"} style={styles.link}>Leles</Link>
+            <Link to={"/" + l + "/b2b"} style={styles.link}>B2B</Link>
+            <Link to={"/" + l + "/image-lab"} style={styles.link}>Image Lab</Link>
+            <Link to={"/" + l + "/api-contracts"} style={styles.link}>API</Link>
+            <Link to={"/" + l + "/console"} style={styles.link}>Trial</Link>
           </nav>
           <LanguageSwitcher />
         </div>

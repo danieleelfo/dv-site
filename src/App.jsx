@@ -67,6 +67,7 @@ export default function App() {
           }
         />
 
+        <Route path="/projects" element={<><Nav /><Projects /></>} />
         <Route
           path="/:lang/projects"
           element={
@@ -85,6 +86,7 @@ export default function App() {
         <Route path="/leles" element={<><Nav /><LeleAdmin /></>} />
         <Route path="/:lang/leles" element={<><Nav /><LangWrapper><LeleAdmin /></LangWrapper></>} />
         <Route path="/LeleAdmin" element={<><Nav /><LeleAdmin /></>} />
+        <Route path="/:lang/LeleAdmin" element={<><Nav /><LangWrapper><LeleAdmin /></LangWrapper></>} />
 
         <Route path="/b2b" element={<><Nav /><B2B /></>} />
         <Route path="/:lang/b2b" element={<><Nav /><LangWrapper><B2B /></LangWrapper></>} />
