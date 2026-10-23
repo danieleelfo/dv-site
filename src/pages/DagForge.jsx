@@ -8,6 +8,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import bgImage from '../assets/DataInFlames.jpg'
+import { useTranslation } from 'react-i18next'
 
 const LELE_API_URL = 'https://api.danielevillanova.com'
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
@@ -34,6 +35,7 @@ function decodeJwtPayload(token) {
 }
 
 export default function DagForge() {
+  const { t } = useTranslation()
   const [idToken, setIdToken] = useState(() => {
     try {
       return window.sessionStorage.getItem(TOKEN_STORAGE_KEY) || null
@@ -55,7 +57,7 @@ export default function DagForge() {
   function handleCredentialResponse(credentialResponse) {
     const token = credentialResponse?.credential
     if (!token) {
-      setAuthError('Login Google fallito: nessun token ricevuto.')
+      setAuthError(t('dag.loginFailed'))
       return
     }
     setAuthError('')
@@ -77,14 +79,14 @@ export default function DagForge() {
       if (cancelled) return
       if (!window.google?.accounts?.id) {
         if (++attempts > 80) {
-          setAuthError('Impossibile caricare il login Google. Controlla adblock e rete, poi ricarica la pagina.')
+          setAuthError(t('dag.googleLoadError'))
           return
         }
         setTimeout(tryInit, 150)
         return
       }
       if (!GOOGLE_CLIENT_ID) {
-        setAuthError('GOOGLE_CLIENT_ID non configurato nel frontend.')
+        setAuthError(t('dag.clientIdMissing'))
         return
       }
       window.google.accounts.id.initialize({
@@ -140,7 +142,7 @@ export default function DagForge() {
       if (!res.ok) {
         if (res.status === 401 || res.status === 403) {
           logout()
-          setStatus({ ok: false, text: 'Sessione scaduta: rifai il login. ' + (data.detail || '') })
+          setStatus({ ok: false, text: t('dag.sessionExpired') + ' ' + (data.detail || '') })
           return
         }
         setStatus({ ok: false, text: typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail) })
@@ -148,12 +150,10 @@ export default function DagForge() {
       }
       setStatus({
         ok: true,
-        text:
-          'Salvato: ' + (data.saved_path || path) + ' (' + (data.bytes || 0) + ' byte). ' +
-          'Airflow lo vedrà come ' + DAG_ID_OF(code) + '. Da Telegram: airflow dags unpause ' + DAG_ID_OF(code) + '.',
+        text: t('dag.saved', { path: data.saved_path || path, bytes: data.bytes || 0, dagId: DAG_ID_OF(code) }),
       })
     } catch (err) {
-      setStatus({ ok: false, text: 'Errore di rete: ' + err.message })
+      setStatus({ ok: false, text: t('dag.netError', { msg: err.message }) })
     } finally {
       setBusy(false)
     }
@@ -184,9 +184,9 @@ export default function DagForge() {
             <h1 className="df-title">DagForge</h1>
             <div ref={buttonRef} className="df-gbtn" />
           </div>
-          <p className="df-dim df-small">Editor DAG riservato: serve il login Google admin.</p>
+          <p className="df-dim df-small">{t('dag.reserved')}</p>
           {authError && <p className="df-err df-small">{authError}</p>}
-          {!gsiReady && !authError && <p className="df-dim df-small">Caricamento login Google…</p>}
+          {!gsiReady && !authError && <p className="df-dim df-small">{t('dag.loadingGoogle')}</p>}
         </div>
       </div>
     )
@@ -201,23 +201,21 @@ export default function DagForge() {
         <div className="df-top">
           <h1 className="df-title">DagForge 🔨</h1>
           <div className="df-session">
-            <span className="df-ellipsis">{profile?.email || 'account Google'}</span>
+            <span className="df-ellipsis">{profile?.email || t('dag.googleAccount')}</span>
             <button type="button" className="df-btn df-btn--sm" onClick={logout}>
-              Logout
+              {t('dag.logout')}
             </button>
           </div>
         </div>
 
         <p className="df-dim df-small df-lead">
-          Editor per DAG lunghi (oltre il limite di 4000 caratteri di Telegram). Salva via
-          /api/improve/save: il gateway compila il Python e scrive <code>&lt;nome&gt;.improved.py</code> nella
-          root scelta. Per Airflow conta il dag_id nel contenuto, non il nome del file.
+          {t('dag.lead1')}<code>&lt;nome&gt;.improved.py</code>{t('dag.lead2')}
         </p>
 
         <form className="df-panel df-pad" onSubmit={save}>
           <div className="df-controls">
             <label>
-              <span className="df-dim df-small">Destinazione</span>
+              <span className="df-dim df-small">{t('dag.destination')}</span>
               <select className="df-select" value={root} onChange={(e) => setRoot(e.target.value)}>
                 {ROOTS.map((r) => (
                   <option key={r.value} value={r.value}>{r.label}</option>
@@ -225,7 +223,7 @@ export default function DagForge() {
               </select>
             </label>
             <label className="df-grow">
-              <span className="df-dim df-small">Nome file (es. best_of_day_dag.py)</span>
+              <span className="df-dim df-small">{t('dag.fileName')}</span>
               <input
                 type="text"
                 className="df-input"
@@ -238,18 +236,18 @@ export default function DagForge() {
               type="button"
               className="df-btn"
               onClick={() => setCode(BEST_OF_DAY_DAG)}
-              title="Ricarica il template best_of_day_dag nell'editor"
+              title={t('dag.templateTitle')}
             >
-              📂 Template Best of Day
+              {t('dag.templateBtn')}
             </button>
             <button type="submit" className="df-btn df-btn--run" disabled={busy || !code.trim() || !path.trim()}>
-              {busy ? 'Salvo…' : '💾 Salva file'}
+              {busy ? t('dag.saving') : t('dag.saveFile')}
             </button>
           </div>
 
           <div className="df-meta">
-            <span className="df-dim df-small">{code.length.toLocaleString('it-IT')} caratteri · {lines} righe</span>
-            <span className="df-dim df-small">Limite gateway: 120.000 caratteri</span>
+            <span className="df-dim df-small">{t('dag.charsLines', { chars: code.length.toLocaleString('it-IT'), lines: lines })}</span>
+            <span className="df-dim df-small">{t('dag.gatewayLimit')}</span>
           </div>
 
           <textarea
@@ -257,7 +255,7 @@ export default function DagForge() {
             value={code}
             onChange={(e) => setCode(e.target.value)}
             spellCheck={false}
-            aria-label="Codice del DAG"
+            aria-label={t('dag.editorLabel')}
           />
 
           {status && (
@@ -268,16 +266,15 @@ export default function DagForge() {
         </form>
 
         <section className="df-panel df-pad">
-          <h2>Come si attiva</h2>
+          <h2>{t('dag.howTo')}</h2>
           <ol className="df-steps df-small">
-            <li>Salva il DAG qui (destinazione Airflow · dags). Il file diventa <code>&lt;nome&gt;.improved.py</code>: è normale.</li>
-            <li>Da Telegram: <code>airflow dags list</code> per vedere se Airflow lo ha caricato (dag_id nel contenuto).</li>
-            <li>Da Telegram: <code>airflow dags unpause &lt;dag_id&gt;</code> per attivare la schedule.</li>
-            <li>Test immediato: <code>airflow dags trigger &lt;dag_id&gt;</code> (verifica prima che il modello giudice sia in <code>ollama list</code>).</li>
+            <li>{t('dag.step1a')}<code>&lt;nome&gt;.improved.py</code>{t('dag.step1b')}</li>
+            <li>{t('dag.step2a')}<code>airflow dags list</code>{t('dag.step2b')}</li>
+            <li>{t('dag.step2a')}<code>airflow dags unpause &lt;dag_id&gt;</code>{t('dag.step3b')}</li>
+            <li>{t('dag.step4a')}<code>airflow dags trigger &lt;dag_id&gt;</code>{t('dag.step4b')}<code>ollama list</code>).</li>
           </ol>
           <p className="df-dim df-small">
-            Il DAG best_of_day_dag richiede TELEGRAM_BOT_TOKEN nell'env di Airflow e il modello
-            qwen2.5vl:3b in Ollama.
+            {t('dag.reqNote')}
           </p>
         </section>
       </div>
