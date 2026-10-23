@@ -5,6 +5,7 @@
 // ============================================================
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 const API = "https://api.danielevillanova.com";
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -115,6 +116,7 @@ function asText(value) {
 
 export default function Test2() {
   const auth = useGoogleAuth();
+  const { t } = useTranslation();
   const [project, setProject] = useState("leles");
   const [scope, setScope] = useState("working");
   const [status, setStatus] = useState(null);
@@ -132,7 +134,7 @@ export default function Test2() {
   const repo = useMemo(() => REPOS.find((r) => r.id === project) || REPOS[0], [project]);
 
   const api = useCallback(async (path, options = {}) => {
-    if (!auth.token) throw new Error("Sessione Google assente o scaduta.");
+    if (!auth.token) throw new Error(t("git.sessionMissing"));
     const response = await fetch(API + path, {
       ...options,
       headers: {
@@ -145,9 +147,9 @@ export default function Test2() {
     if (!response.ok) {
       const detail = typeof data.detail === "string" ? data.detail : data.message;
       if (response.status === 404) {
-        throw new Error("Endpoint Git Admin non ancora disponibile sul gateway. La UI è pronta; va collegato il backend Git Agent.");
+        throw new Error(t("git.endpointMissing"));
       }
-      throw new Error(detail || `Richiesta fallita (HTTP ${response.status}).`);
+      throw new Error(detail || t("git.requestFailed", { status: response.status }));
     }
     return data;
   }, [auth.token]);
@@ -159,7 +161,7 @@ export default function Test2() {
     try {
       const data = await api(`/api/git/admin/status?project=${encodeURIComponent(selectedProject)}`);
       setStatus(data);
-      setActivity((old) => [{ at: new Date().toLocaleTimeString(), text: `Status aggiornato · ${selectedProject}`, kind: "info" }, ...old].slice(0, 8));
+      setActivity((old) => [{ at: new Date().toLocaleTimeString(), text: t("git.actStatus", { project: selectedProject }), kind: "info" }, ...old].slice(0, 8));
     } catch (e) {
       setError(e.message || String(e));
     } finally {
@@ -207,7 +209,7 @@ export default function Test2() {
         }),
       });
       setPreview(data);
-      setActivity((old) => [{ at: new Date().toLocaleTimeString(), text: `Preview ${kind} · ${repo.label}`, kind: "info" }, ...old].slice(0, 8));
+      setActivity((old) => [{ at: new Date().toLocaleTimeString(), text: t("git.actPreview", { kind, repo: repo.label }), kind: "info" }, ...old].slice(0, 8));
     } catch (e) {
       setError(e.message || String(e));
       setAction("");
@@ -220,7 +222,7 @@ export default function Test2() {
     if (!preview) return;
     const required = preview.confirmation_phrase || `CONFERMA ${action.toUpperCase()}`;
     if (confirmText.trim() !== required) {
-      setError(`Per procedere, scrivi esattamente: ${required}`);
+      setError(t("git.typeExact", { phrase: required }));
       return;
     }
     setBusy("execute");
@@ -237,8 +239,8 @@ export default function Test2() {
           preview_id: preview.preview_id,
         }),
       });
-      setNotice(result.message || `Operazione ${action} completata.`);
-      setActivity((old) => [{ at: new Date().toLocaleTimeString(), text: `${action.toUpperCase()} · ${repo.label}`, kind: "ok" }, ...old].slice(0, 8));
+      setNotice(result.message || t("git.actionDone", { action }));
+      setActivity((old) => [{ at: new Date().toLocaleTimeString(), text: t("git.actDone", { action: action.toUpperCase(), repo: repo.label }), kind: "ok" }, ...old].slice(0, 8));
       setPreview(null);
       setAction("");
       setConfirmText("");
@@ -259,14 +261,14 @@ export default function Test2() {
           <div className="brand-mark"><GitIcon /></div>
           <p className="eyebrow">D. VILLANOVA · DEVELOPER TOOLS</p>
           <h1>Git Admin</h1>
-          <p className="muted">Console privata per ispezionare repository e preparare operazioni Git con conferma esplicita.</p>
+          <p className="muted">{t("git.loginIntro")}</p>
           {!auth.token ? <div ref={auth.buttonRef} className="google-slot" /> : (
             <>
-              <p className="error-text">Account non autorizzato: {auth.email || "email non disponibile"}</p>
-              <button className="btn" onClick={auth.logout}>Logout / cambia account</button>
+              <p className="error-text">{t("git.unauthorized", { email: auth.email || t("git.noEmail") })}</p>
+              <button className="btn" onClick={auth.logout}>{t("git.logoutSwitch")}</button>
             </>
           )}
-          <p className="tiny muted">L'autorizzazione effettiva deve essere verificata anche dal backend.</p>
+          <p className="tiny muted">{t("git.authNote")}</p>
         </section>
       </main>
     );
@@ -284,7 +286,7 @@ export default function Test2() {
       <GitStyles />
       <header className="git-topbar">
         <div className="git-brand"><div className="brand-mark small"><GitIcon /></div><div><p className="eyebrow">D. VILLANOVA · REPOSITORY TOOLS</p><h1>Git Admin <span className="version-tag">PREVIEW</span></h1></div></div>
-        <div className="user-tools"><span className="user-email">{auth.email}</span><button className="btn btn-quiet" onClick={auth.logout}>Logout</button></div>
+        <div className="user-tools"><span className="user-email">{auth.email}</span><button className="btn btn-quiet" onClick={auth.logout}>{t("git.logout")}</button></div>
       </header>
 
       <section className="repo-strip panel">
@@ -293,31 +295,31 @@ export default function Test2() {
           <select id="git-project" value={project} onChange={(e) => { setProject(e.target.value); setStatus(null); setDiff(null); setPreview(null); }}>
             {REPOS.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
           </select>
-          <span className="repo-detail">{repo.detail}</span>
+          <span className="repo-detail">{t("git.repoDetail." + repo.id)}</span>
         </div>
         <button className="btn btn-primary" disabled={!!busy} onClick={() => { loadStatus(project); loadDiff(project, scope); }}>
-          {busy ? "Attendere…" : "↻ Aggiorna"}
+          {busy ? t("git.wait") : t("git.refresh")}
         </button>
       </section>
 
-      {error && <div className="alert alert-error"><strong>Attenzione</strong><span>{error}</span><button onClick={() => setError("")}>×</button></div>}
+      {error && <div className="alert alert-error"><strong>{t("git.warning")}</strong><span>{error}</span><button onClick={() => setError("")}>×</button></div>}
       {notice && <div className="alert alert-success"><strong>✓</strong><span>{notice}</span><button onClick={() => setNotice("")}>×</button></div>}
 
       <section className="stat-grid">
-        <Stat label="Branch" value={branch} detail={status?.upstream || status?.tracking || "branch corrente"} icon="⑂" />
-        <Stat label="Commit locale" value={shortSha(typeof commit === "string" ? commit : commit.sha || commit.hash || status?.head_sha)} detail={typeof commit === "object" ? (commit.message || commit.subject || "HEAD") : "HEAD"} icon="●" />
-        <Stat label="Da pushare" value={ahead == null ? "—" : ahead} detail="commit locali non remoti" icon="↑" tone={Number(ahead) > 0 ? "amber" : ""} />
-        <Stat label="Da ricevere" value={behind == null ? "—" : behind} detail="commit remoti non locali" icon="↓" tone={Number(behind) > 0 ? "blue" : ""} />
+        <Stat label="Branch" value={branch} detail={status?.upstream || status?.tracking || t("git.statBranchDetail")} icon="⑂" />
+        <Stat label={t("git.localCommit")} value={shortSha(typeof commit === "string" ? commit : commit.sha || commit.hash || status?.head_sha)} detail={typeof commit === "object" ? (commit.message || commit.subject || "HEAD") : "HEAD"} icon="●" />
+        <Stat label={t("git.toPush")} value={ahead == null ? "—" : ahead} detail={t("git.toPushDetail")} icon="↑" tone={Number(ahead) > 0 ? "amber" : ""} />
+        <Stat label={t("git.toPull")} value={behind == null ? "—" : behind} detail={t("git.toPullDetail")} icon="↓" tone={Number(behind) > 0 ? "blue" : ""} />
       </section>
 
       <section className="main-grid">
         <div className="panel overview-panel">
-          <div className="section-heading"><div><p className="eyebrow">REPOSITORY OVERVIEW</p><h2>Stato del repository</h2></div><span className={`status-pill ${dirty === true ? "is-dirty" : dirty === false ? "is-clean" : ""}`}><i />{dirty === true ? "Modifiche locali" : dirty === false ? "Working tree pulito" : status ? "Stato disponibile" : "In attesa"}</span></div>
+          <div className="section-heading"><div><p className="eyebrow">REPOSITORY OVERVIEW</p><h2>{t("git.repoStatus")}</h2></div><span className={`status-pill ${dirty === true ? "is-dirty" : dirty === false ? "is-clean" : ""}`}><i />{dirty === true ? t("git.dirty") : dirty === false ? t("git.clean") : status ? t("git.statusAvailable") : t("git.waiting")}</span></div>
           <div className="status-lines">
-            <StatusLine label="Working tree" value={status?.working_tree || status?.worktree || (dirty === false ? "Pulito" : dirty === true ? "Modificato" : "Non rilevato")} />
+            <StatusLine label="Working tree" value={status?.working_tree || status?.worktree || (dirty === false ? t("git.cleanShort") : dirty === true ? t("git.modified") : t("git.notDetected"))} />
             <StatusLine label="Staging area" value={status?.staged_summary || status?.staged || "—"} />
             <StatusLine label="Remote" value={status?.remote || status?.upstream || "—"} />
-            <StatusLine label="Ultimo commit" value={typeof commit === "object" ? (commit.message || commit.subject || "—") : (status?.last_commit_message || "—")} />
+            <StatusLine label={t("git.lastCommit")} value={typeof commit === "object" ? (commit.message || commit.subject || "—") : (status?.last_commit_message || "—")} />
           </div>
           <div className="button-row">
             <button className="btn" disabled={!!busy} onClick={() => loadDiff(project, "working")}>Diff working tree</button>
@@ -326,56 +328,56 @@ export default function Test2() {
         </div>
 
         <div className="panel actions-panel">
-          <div className="section-heading"><div><p className="eyebrow">CONTROLLED OPERATIONS</p><h2>Operazioni Git</h2></div><span className="lock-icon">⌑</span></div>
-          <p className="muted small-copy">Ogni operazione passa da un'anteprima. Push, pull e commit non partono da un semplice click.</p>
-          <label className="field-label" htmlFor="commit-message">Messaggio commit</label>
-          <input id="commit-message" className="text-input" value={commitMessage} onChange={(e) => setCommitMessage(e.target.value)} placeholder="es. fix: corregge gestione git" maxLength={180} />
+          <div className="section-heading"><div><p className="eyebrow">CONTROLLED OPERATIONS</p><h2>{t("git.operations")}</h2></div><span className="lock-icon">⌑</span></div>
+          <p className="muted small-copy">{t("git.opsIntro")}</p>
+          <label className="field-label" htmlFor="commit-message">{t("git.commitMessage")}</label>
+          <input id="commit-message" className="text-input" value={commitMessage} onChange={(e) => setCommitMessage(e.target.value)} placeholder={t("git.commitPlaceholder")} maxLength={180} />
           <div className="action-grid">
-            <button className="action-btn" disabled={!!busy} onClick={() => prepareAction("commit")}><b>＋</b><span><strong>Commit</strong><small>Preview stage e messaggio</small></span></button>
-            <button className="action-btn" disabled={!!busy} onClick={() => prepareAction("push")}><b>↑</b><span><strong>Push</strong><small>Controlla commit in uscita</small></span></button>
-            <button className="action-btn" disabled={!!busy} onClick={() => prepareAction("pull")}><b>↓</b><span><strong>Pull</strong><small>Controlla divergenze e rischi</small></span></button>
-            <button className="action-btn action-danger" disabled={!!busy} onClick={() => prepareAction("force_pull")}><b>!</b><span><strong>Pull forzato</strong><small>Solo da questa UI · rischio perdita dati</small></span></button>
+            <button className="action-btn" disabled={!!busy} onClick={() => prepareAction("commit")}><b>＋</b><span><strong>Commit</strong><small>{t("git.commitSub")}</small></span></button>
+            <button className="action-btn" disabled={!!busy} onClick={() => prepareAction("push")}><b>↑</b><span><strong>Push</strong><small>{t("git.pushSub")}</small></span></button>
+            <button className="action-btn" disabled={!!busy} onClick={() => prepareAction("pull")}><b>↓</b><span><strong>Pull</strong><small>{t("git.pullSub")}</small></span></button>
+            <button className="action-btn action-danger" disabled={!!busy} onClick={() => prepareAction("force_pull")}><b>!</b><span><strong>{t("git.forcePull")}</strong><small>{t("git.forceSub")}</small></span></button>
           </div>
-          <p className="safety-note"><span>◆</span> Nessun comando viene eseguito senza una seconda conferma.</p>
+          <p className="safety-note"><span>◆</span> {t("git.safetyNote")}</p>
         </div>
       </section>
 
       <section className="panel diff-panel">
-        <div className="section-heading diff-heading"><div><p className="eyebrow">CHANGE INSPECTOR</p><h2>Differenze</h2><p className="muted small-copy">Separa le modifiche locali dai commit già presenti o in arrivo dal remoto.</p></div><button className="btn btn-quiet" onClick={() => setShowRaw((v) => !v)}>{showRaw ? "Vista normale" : "Vista testo"}</button></div>
+        <div className="section-heading diff-heading"><div><p className="eyebrow">CHANGE INSPECTOR</p><h2>{t("git.diffs")}</h2><p className="muted small-copy">{t("git.diffsIntro")}</p></div><button className="btn btn-quiet" onClick={() => setShowRaw((v) => !v)}>{showRaw ? t("git.viewNormal") : t("git.viewText")}</button></div>
         <div className="scope-tabs">
-          {DIFF_SCOPES.map((s) => <button key={s.id} className={scope === s.id ? "scope-tab active" : "scope-tab"} onClick={() => setScope(s.id)}><strong>{s.label}</strong><small>{s.help}</small></button>)}
+          {DIFF_SCOPES.map((s) => <button key={s.id} className={scope === s.id ? "scope-tab active" : "scope-tab"} onClick={() => setScope(s.id)}><strong>{t("git.scope." + s.id)}</strong><small>{t("git.scopeHelp." + s.id)}</small></button>)}
         </div>
-        <div className="diff-toolbar"><span>{diff?.summary || diff?.title || `${repo.label} · ${DIFF_SCOPES.find((s) => s.id === scope)?.label}`}</span><button className="btn btn-quiet" disabled={!!busy} onClick={() => loadDiff(project, scope)}>Aggiorna diff</button></div>
+        <div className="diff-toolbar"><span>{diff?.summary || diff?.title || `t("git.scopeFallback", { repo: repo.label, scope: t("git.scope." + scope) })`}</span><button className="btn btn-quiet" disabled={!!busy} onClick={() => loadDiff(project, scope)}>{t("git.refreshDiff")}</button></div>
         {diff?.files?.length > 0 && !showRaw && (
           <div className="file-list">
             {diff.files.map((f, i) => <div className="file-row" key={f.path || f.filename || i}><span className="file-symbol">{String(f.status || "M").slice(0,1).toUpperCase()}</span><code>{f.path || f.filename || String(f)}</code><span className="file-stats"><em>+{f.additions ?? 0}</em><i>−{f.deletions ?? 0}</i></span></div>)}
           </div>
         )}
-        <pre className={`diff-code ${showRaw ? "raw" : ""}`}>{diffText || (busy === "diff" ? "Caricamento diff…" : "Nessun diff caricato. Quando il backend Git Admin sarà collegato, qui vedrai file e patch reali.")}</pre>
+        <pre className={`diff-code ${showRaw ? "raw" : ""}`}>{diffText || (busy === "diff" ? t("git.loadingDiff") : t("git.noDiff"))}</pre>
       </section>
 
       <section className="bottom-grid">
         <div className="panel">
-          <div className="section-heading"><div><p className="eyebrow">RECENT ACTIVITY</p><h2>Attività di questa sessione</h2></div></div>
-          {activity.length ? <div className="activity-list">{activity.map((a, i) => <div className="activity-row" key={i}><span className={`activity-dot ${a.kind}`} /><span>{a.text}</span><time>{a.at}</time></div>)}</div> : <p className="muted small-copy">Nessuna operazione in questa sessione.</p>}
+          <div className="section-heading"><div><p className="eyebrow">RECENT ACTIVITY</p><h2>{t("git.activity")}</h2></div></div>
+          {activity.length ? <div className="activity-list">{activity.map((a, i) => <div className="activity-row" key={i}><span className={`activity-dot ${a.kind}`} /><span>{a.text}</span><time>{a.at}</time></div>)}</div> : <p className="muted small-copy">{t("git.noActivity")}</p>}
         </div>
-        <div className="panel guard-panel"><div className="guard-icon">⌑</div><div><h3>Regole di sicurezza</h3><ul><li>Preview obbligatoria prima di commit, push e pull.</li><li>Pull forzato separato e chiaramente segnalato.</li><li>Il backend deve rivalidare stato, permessi e preview prima di eseguire.</li><li>Questa pagina non esegue comandi Git direttamente nel browser.</li></ul></div></div>
+        <div className="panel guard-panel"><div className="guard-icon">⌑</div><div><h3>{t("git.safetyRules")}</h3><ul><li>{t("git.rule1")}</li><li>{t("git.rule2")}</li><li>{t("git.rule3")}</li><li>{t("git.rule4")}</li></ul></div></div>
       </section>
 
       {preview && (
         <div className="modal-backdrop" role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget && busy !== "execute") { setPreview(null); setAction(""); } }}>
           <section className="confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
             <div className="modal-top"><span className={`modal-icon ${action === "force_pull" ? "danger" : ""}`}>{action === "force_pull" ? "!" : "⌑"}</span><button className="icon-button" onClick={() => { setPreview(null); setAction(""); }} disabled={busy === "execute"}>×</button></div>
-            <p className="eyebrow">OPERAZIONE · {repo.label.toUpperCase()}</p>
-            <h2 id="confirm-title">Conferma {action === "force_pull" ? "pull forzato" : action}</h2>
-            <p className="muted">{preview.summary || preview.message || "Controlla l'anteprima restituita dal backend prima di procedere."}</p>
+            <p className="eyebrow">{t("git.opEyebrow", { repo: repo.label.toUpperCase() })}</p>
+            <h2 id="confirm-title">{t("git.confirm", { action: action === "force_pull" ? t("git.forcePull").toLowerCase() : action })}</h2>
+            <p className="muted">{preview.summary || preview.message || t("git.checkPreview")}</p>
             {preview.warnings?.length > 0 && <div className="warning-list">{preview.warnings.map((w, i) => <p key={i}>⚠ {typeof w === "string" ? w : asText(w)}</p>)}</div>}
             {preview.files?.length > 0 && <div className="preview-files">{preview.files.map((f, i) => <div key={f.path || f.filename || i}><code>{f.path || f.filename || asText(f)}</code><span>{f.status || ""}</span></div>)}</div>}
             {(preview.diff || preview.output || preview.details) && <pre className="preview-output">{asText(preview.diff || preview.output || preview.details)}</pre>}
-            {preview.safe === false && <div className="alert alert-error"><strong>Bloccato</strong><span>{preview.block_reason || "Il backend segnala che questa operazione non è sicura."}</span></div>}
-            <label className="field-label" htmlFor="confirm-phrase">Per confermare, scrivi: <code>{preview.confirmation_phrase || `CONFERMA ${action.toUpperCase()}`}</code></label>
-            <input id="confirm-phrase" className="text-input" value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder="Scrivi la frase esatta" autoComplete="off" />
-            <div className="modal-actions"><button className="btn btn-quiet" disabled={busy === "execute"} onClick={() => { setPreview(null); setAction(""); }}>Annulla</button><button className={`btn ${action === "force_pull" ? "btn-danger" : "btn-primary"}`} disabled={busy === "execute" || preview.safe === false || confirmText.trim() !== (preview.confirmation_phrase || `CONFERMA ${action.toUpperCase()}`)} onClick={executeAction}>{busy === "execute" ? "Esecuzione…" : "Conferma ed esegui"}</button></div>
+            {preview.safe === false && <div className="alert alert-error"><strong>{t("git.blocked")}</strong><span>{preview.block_reason || t("git.unsafe")}</span></div>}
+            <label className="field-label" htmlFor="confirm-phrase">{t("git.typePhrase")} <code>{preview.confirmation_phrase || `CONFERMA ${action.toUpperCase()}`}</code></label>
+            <input id="confirm-phrase" className="text-input" value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder={t("git.phrasePlaceholder")} autoComplete="off" />
+            <div className="modal-actions"><button className="btn btn-quiet" disabled={busy === "execute"} onClick={() => { setPreview(null); setAction(""); }}>{t("git.cancel")}</button><button className={`btn ${action === "force_pull" ? "btn-danger" : "btn-primary"}`} disabled={busy === "execute" || preview.safe === false || confirmText.trim() !== (preview.confirmation_phrase || `CONFERMA ${action.toUpperCase()}`)} onClick={executeAction}>{busy === "execute" ? t("git.executing") : t("git.confirmRun")}</button></div>
           </section>
         </div>
       )}
