@@ -1,9 +1,5 @@
 // ============================================================
-// LELES ADMIN CONSOLE — pagina ufficiale /leles (v3)
-// Promossa da Test2 (che resta come sandbox di anteprima su /test2).
-// v3: selettori modello (Super/Leles/Reviewer) sincronizzati col server via
-// comando "modelli"; tab "Modelli & LLM" per primo; box audio NS/SW penultimo,
-// prima delle pagine di test; titolo gradient + hover lift.
+// LELES ADMIN CONSOLE — pagina ufficiale /leles
 // ============================================================
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -29,8 +25,7 @@ const FORCED_ADMIN_CHAT_ID = 8733881519
 // --- AUDIO: TTS + registrazione + risposta audio ---------------------------
 // Story Whisper e Night Story: API audio complete (/api/chat e /api/chat/audio).
 // Leles: console admin (login Google). Testo e TTS passano da /api/admin/chat.
-// ATTENZIONE: le due route qui sotto per audio in ingresso e file TTS sono
-// ASSUNTE (speculari a quelle pubbliche): da verificare lato gateway.
+
 const LELES_AGENT = 'Leles'
 const LELES_AUDIO_PATH = '/api/admin/chat/audio'
 const LELES_TTS_PATH = '/api/admin/chat/tts'
@@ -1463,7 +1458,7 @@ export default function LeleAdmin() {
           <div className="lc-pages-head">
             <h2>Pagine &amp; Console</h2>
             <span className="lc-dim lc-small">
-              Tutte le rotte attive del sito — da qui validi e poi promuoviamo in nav
+              Tutte le rotte attive del sito — da promuovere in nav
             </span>
           </div>
           <div className="lc-pages-grid">
@@ -1689,7 +1684,7 @@ const css = `
 .lc-session{display:flex;align-items:center;gap:10px;padding:5px 5px 5px 14px;border:1px solid var(--line);
   border-radius:999px;background:var(--glass);font-size:12px;color:var(--ink-dim);max-width:100%}
 .lc-ellipsis{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-.lc-title{background:linear-gradient(92deg,#3fd0c9 0%,#a78bfa 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
+.lc-title{background:linear-gradient(92deg,#3fd0c9 0%,#6fe3dd 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
 .lc-panel{box-shadow:0 22px 55px -32px rgba(0,0,0,.75),inset 0 1px 0 rgba(255,255,255,.06)}
 .lc-btn--run{background:linear-gradient(135deg,#3fd0c9,#6fe3dd);border-color:transparent;box-shadow:0 10px 26px -12px rgba(63,208,201,.6)}
 .lc-btn--run:hover:not(:disabled){background:linear-gradient(135deg,#6fe3dd,#9ff0ec);border-color:transparent;transform:translateY(-1px)}
@@ -1699,7 +1694,7 @@ const css = `
 .lc-pagecard:hover{box-shadow:0 16px 36px -18px rgba(63,208,201,.5)}
 .lc-cmd-head h2{position:relative;padding-bottom:7px}
 .lc-cmd-head h2::after{content:'';position:absolute;left:0;bottom:0;width:44px;height:2px;border-radius:2px;
-  background:linear-gradient(90deg,#3fd0c9,#a78bfa)}
+  background:linear-gradient(90deg,#3fd0c9,#6fe3dd)}
 .lc-model-row{background:rgba(63,208,201,.07);border:1px solid rgba(63,208,201,.22);border-radius:12px;padding:10px 12px;margin:10px 0 14px}
 .lc-links{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:28px;padding-top:16px;
   border-top:1px solid var(--line);font-size:13px}
