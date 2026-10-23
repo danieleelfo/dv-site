@@ -165,15 +165,19 @@ function SystemTiles({ data }) {
             })
           }
 
-          // Qwen VL (OCR): se il backend lo elenca, eredita il suo stato;
-          // altrimenti resta grigio ("non caricato").
+          // Qwen VL (OCR / GraDV): verde quando GraDV e' disponibile.
+          // Eredita lo stato dell'item GraDV del backend; se non elencato,
+          // resta lo stato dell'item VL stesso (o grigio "non caricato").
+          const gradv = data.sections
+            .flatMap((sec2) => sec2.items)
+            .find((it) => /gradv/i.test(it.label))
           const vl = sec.items.find((item) =>
             /qwen[^\s]*\s*vl|qwen2\.5[-\s]?vl/i.test(item.label)
           )
 
           ollamaItems.push({
             label: 'Qwen2.5-VL (OCR)',
-            state: vl?.state || 'off',
+            state: (gradv ? gradv.state : vl?.state) || 'off',
             sub: '',
           })
 

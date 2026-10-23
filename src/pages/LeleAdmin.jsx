@@ -620,7 +620,7 @@ export default function LeleAdmin() {
         const text = await callAdmin(idToken, 'modelli', 60000)
         if (cancelled || !text) return
         const lines = String(text).split('\n')
-        const esc = (m) => m.replace(/[.*+?^${}()|[\]\\]/g, '\\  // IMMAGINI: prompt che inizia con "immagina ..." non passa da Leles:')
+        const esc = (m) => m.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
         const pick = (models, includeKeys, excludeKeys) => {
           const re = new RegExp('\\b(' + models.map(esc).join('|') + ')\\b', 'i')
           for (const line of lines) {
