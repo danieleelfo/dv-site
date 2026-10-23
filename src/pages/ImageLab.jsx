@@ -21,6 +21,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 const API = "https://api.danielevillanova.com";
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -106,6 +107,7 @@ async function readResponse(response) {
 
 export default function ImageLab() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const loginButtonRef = useRef(null);
   const pollControllerRef = useRef(null);
   const startedAtRef = useRef(null);
@@ -329,13 +331,13 @@ export default function ImageLab() {
     }
 
     if (!file.type.startsWith("image/")) {
-      setOcrError("Seleziona un file immagine.");
+      setOcrError(t("img.notAnImage"));
       setOcrImage(null);
       return;
     }
 
     if (file.size > 10 * 1024 * 1024) {
-      setOcrError("Immagine troppo grande (massimo 10 MB).");
+      setOcrError(t("img.tooLarge", { max: 10 }));
       setOcrImage(null);
       return;
     }
@@ -357,7 +359,7 @@ export default function ImageLab() {
       const base64 = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result);
-        reader.onerror = () => reject(new Error("Lettura file non riuscita."));
+        reader.onerror = () => reject(new Error(t("img.readFailed")));
         reader.readAsDataURL(ocrImage);
       });
 
@@ -513,7 +515,7 @@ export default function ImageLab() {
 
           if (!result.image_base64) {
             throw new Error(
-              "Il lavoro è terminato, ma il server non ha restituito l'immagine."
+              t("img.jobNoImage")
             );
           }
 
@@ -533,13 +535,13 @@ export default function ImageLab() {
           setStatus("error");
 
           if (!data.error) {
-            setError("La generazione non è riuscita.");
+            setError(t("img.genFailed"));
           }
 
           return;
         } else {
           throw new Error(
-            `Stato del lavoro non riconosciuto: ${data.status || "vuoto"}`
+            t("img.unknownStatus", { status: data.status || t("img.empty") })
           );
         }
       } catch (err) {
@@ -547,9 +549,7 @@ export default function ImageLab() {
 
         // Un errore di rete temporaneo non interrompe subito il lavoro.
         setError(
-          `Connessione temporaneamente non disponibile: ${
-            err.message || String(err)
-          }. Nuovo tentativo in corso…`
+          t("img.connRetry", { message: err.message || String(err) })
         );
       }
 
@@ -589,13 +589,13 @@ export default function ImageLab() {
     }
 
     if (!file.type.startsWith("image/")) {
-      setError("Seleziona un file immagine.");
+      setError(t("img.notAnImage"));
       setInitFile(null);
       return;
     }
 
     if (file.size > 15 * 1024 * 1024) {
-      setError("Immagine troppo grande (massimo 15 MB).");
+      setError(t("img.tooLarge", { max: 15 }));
       setInitFile(null);
       return;
     }
@@ -621,7 +621,7 @@ export default function ImageLab() {
 
     if (!prompt.trim() && !initFile) {
       setError(
-        "Scrivi una descrizione o carica un'immagine da modificare."
+        t("img.promptOrImage")
       );
       return;
     }
@@ -638,7 +638,7 @@ export default function ImageLab() {
       selectedSeed < 0 ||
       selectedSeed > 2147483647
     ) {
-      setError("Il seed deve essere un intero tra 0 e 2147483647.");
+      setError(t("img.seedRange"));
       return;
     }
 
@@ -689,7 +689,7 @@ export default function ImageLab() {
       const data = await readResponse(response);
 
       if (!data.job_id) {
-        throw new Error("Il server non ha restituito job_id.");
+        throw new Error(t("img.noJobId"));
       }
 
       setProgress(
@@ -752,15 +752,14 @@ export default function ImageLab() {
           </header>
 
           <section className="il-panel il-login">
-            <h2>Accedi per continuare</h2>
+            <h2>{t("img.loginTitle")}</h2>
             <p>
-              AI Image Lab utilizza lo stesso accesso Google della
-              console amministrativa.
+              {t("img.loginHint")}
             </p>
 
             {!GOOGLE_CLIENT_ID && (
               <p className="il-error">
-                VITE_GOOGLE_CLIENT_ID non è configurato.
+                {t("img.clientIdMissing")}
               </p>
             )}
 
@@ -785,7 +784,7 @@ export default function ImageLab() {
             <p className="il-eyebrow">D. VILLANOVA · AI SYSTEMS</p>
             <h1>AI Image Lab</h1>
             <p className="il-subtitle">
-              Generazione locale con Z-Image-Turbo
+              {t("img.subtitle")}
             </p>
           </div>
 
@@ -800,14 +799,14 @@ export default function ImageLab() {
             </button>
 
             <button className="il-button" onClick={logout}>
-              Logout
+              {t("img.logout")}
             </button>
           </div>
         </header>
 
         <div className="il-notice">
           <span className="il-status-dot" />
-          Motore locale · Elaborazione sul Mac · Coda asincrona
+          {t("img.notice")}
         </div>
 
         <div className="il-tabs" role="tablist">
@@ -816,7 +815,7 @@ export default function ImageLab() {
             className={"il-tab" + (tab === "genera" ? " il-tab-active" : "")}
             onClick={() => setTab("genera")}
           >
-            ✦ Genera
+            {t("img.tabGenera")}
           </button>
           <button
             type="button"
@@ -826,7 +825,7 @@ export default function ImageLab() {
               loadHistory();
             }}
           >
-            🖼 Storico
+            {t("img.tabStorico")}
           </button>
           <button
             type="button"
@@ -843,7 +842,7 @@ export default function ImageLab() {
               <div className="il-section-heading">
                 <div>
                   <p className="il-eyebrow">01 / PROMPT</p>
-                  <h2>{initFile ? "Modifica un'immagine" : "Crea un'immagine"}</h2>
+                  <h2>{initFile ? t("img.editTitle") : t("img.createTitle")}</h2>
                 </div>
               </div>
 
@@ -851,8 +850,8 @@ export default function ImageLab() {
                 <div className="il-upload">
                   <label className="il-label" htmlFor="il-init-file">
                     {initFile
-                      ? "Immagine originale (img2img)"
-                      : "Immagine da modificare (opzionale · img2img)"}
+                      ? t("img.imgLabel")
+                      : t("img.imgLabelOptional")}
                   </label>
 
                   <div className="il-init-row">
@@ -871,7 +870,7 @@ export default function ImageLab() {
                         <img
                           className="il-init-preview"
                           src={initPreview}
-                          alt="Immagine originale"
+                          alt={t("img.altInit")}
                         />
                         <button
                           className="il-button"
@@ -879,7 +878,7 @@ export default function ImageLab() {
                           onClick={() => pickInitFile(null)}
                           disabled={busy}
                         >
-                          ✕ Rimuovi
+                          {t("img.remove")}
                         </button>
                       </>
                     )}
@@ -889,12 +888,12 @@ export default function ImageLab() {
                 {initFile && (
                   <div className="il-strength">
                     <label className="il-label" htmlFor="il-strength">
-                      Forza modifica: {strength.toFixed(2)} ·{" "}
+                      {t("img.strengthLabel")} {strength.toFixed(2)} ·{" "}
                       {strength < 0.35
-                        ? "più fedele"
+                        ? t("img.strengthMore")
                         : strength > 0.7
-                          ? "più trasformata"
-                          : "equilibrata"}
+                          ? t("img.strengthLess")
+                          : t("img.strengthBalanced")}
                     </label>
                     <input
                       id="il-strength"
@@ -913,7 +912,7 @@ export default function ImageLab() {
                 )}
 
                 <label className="il-label" htmlFor="il-prompt">
-                  {initFile ? "Istruzioni per la modifica" : "Descrizione"}
+                  {initFile ? t("img.editPromptLabel") : t("img.promptLabel")}
                 </label>
 
                 <textarea
@@ -921,8 +920,8 @@ export default function ImageLab() {
                   className="il-input il-prompt"
                   placeholder={
                     initFile
-                      ? "Es. Keep the main subject and composition, add a pirate in the sea swimming…"
-                      : "Es. Un faro sulla costa mediterranea al tramonto, mare mosso, luce cinematografica, fotografia realistica…"
+                      ? t("img.placeholderEdit")
+                      : t("img.placeholderCreate")
                   }
                   value={prompt}
                   onChange={(event) => setPrompt(event.target.value)}
@@ -938,7 +937,7 @@ export default function ImageLab() {
                 <div className="il-form-grid">
                   <div>
                     <label className="il-label" htmlFor="il-category">
-                      Categoria
+                      {t("img.category")}
                     </label>
 
                     <select
@@ -961,7 +960,7 @@ export default function ImageLab() {
 
                   <div>
                     <label className="il-label" htmlFor="il-format">
-                      Formato
+                      {t("img.format")}
                     </label>
 
                     <select
@@ -983,7 +982,7 @@ export default function ImageLab() {
 
                   <div>
                     <label className="il-label" htmlFor="il-steps">
-                      Passaggi
+                      {t("img.steps")}
                     </label>
 
                     <select
@@ -995,9 +994,9 @@ export default function ImageLab() {
                       }
                       disabled={busy}
                     >
-                      <option value={4}>4 · Test rapido</option>
-                      <option value={8}>8 · Standard</option>
-                      <option value={9}>9 · Sperimentale</option>
+                      <option value={4}>{t("img.stepFast")}</option>
+                      <option value={8}>{t("img.stepStandard")}</option>
+                      <option value={9}>{t("img.stepExperimental")}</option>
                     </select>
                   </div>
                 </div>
@@ -1017,7 +1016,7 @@ export default function ImageLab() {
                         }
                         disabled={busy}
                       />
-                      Casuale
+                      {t("img.random")}
                     </label>
                   </div>
 
@@ -1035,8 +1034,7 @@ export default function ImageLab() {
                 </div>
 
                 <p className="il-hint">
-                  Sul Mac da 16 GB, inizia con 512 × 512. Le risoluzioni
-                  maggiori possono richiedere diversi minuti.
+                  {t("img.macHint")}
                 </p>
 
                 {error && (
@@ -1052,10 +1050,10 @@ export default function ImageLab() {
                     disabled={busy || (!prompt.trim() && !initFile)}
                   >
                     {busy
-                      ? "Generazione in corso…"
+                      ? t("img.generating")
                       : initFile
-                        ? "✦ Modifica immagine →"
-                        : "Generate image →"}
+                        ? t("img.editBtn")
+                        : t("img.generateBtn")}
                   </button>
 
                   {imageUrl && (
@@ -1064,7 +1062,7 @@ export default function ImageLab() {
                       type="button"
                       onClick={startAnotherVersion}
                     >
-                      Nuova variante
+                      {t("img.newVariant")}
                     </button>
                   )}
                 </div>
@@ -1075,7 +1073,7 @@ export default function ImageLab() {
               <div className="il-section-heading">
                 <div>
                   <p className="il-eyebrow">02 / OUTPUT</p>
-                  <h2>Risultato</h2>
+                  <h2>{t("img.result")}</h2>
                 </div>
 
                 {busy && (
@@ -1089,11 +1087,9 @@ export default function ImageLab() {
               {status === "idle" && !imageUrl && (
                 <div className="il-empty">
                   <div className="il-empty-icon">✳</div>
-                  <h3>La prossima immagine inizia qui</h3>
+                  <h3>{t("img.emptyTitle")}</h3>
                   <p>
-                    Scrivi un prompt e avvia la generazione, oppure carica
-                    un'immagine per modificarla. Il risultato apparirà in
-                    questa area.
+                    {t("img.emptyText")}
                   </p>
                 </div>
               )}
@@ -1101,8 +1097,8 @@ export default function ImageLab() {
               {status === "submitting" && (
                 <div className="il-progress">
                   <div className="il-spinner" />
-                  <h3>Invio della richiesta</h3>
-                  <p>Sto creando il lavoro sul server.</p>
+                  <h3>{t("img.submitting")}</h3>
+                  <p>{t("img.submittingText")}</p>
                 </div>
               )}
 
@@ -1112,14 +1108,12 @@ export default function ImageLab() {
 
                   <h3>
                     {status === "queued"
-                      ? "In coda"
-                      : "Generazione in corso"}
+                      ? t("img.queued")
+                      : t("img.working")}
                   </h3>
 
                   <p>
-                    Il modello sta lavorando sul Mac. Puoi lasciare aperta
-                    questa pagina: non serve mantenere una richiesta HTTP
-                    aperta per tutta la generazione.
+                    {t("img.workingText")}
                   </p>
 
                   <div className="il-progress-track">
@@ -1135,7 +1129,7 @@ export default function ImageLab() {
                   <div className="il-progress-meta">
                     <span>
                       {progress === null
-                        ? "Elaborazione"
+                        ? t("img.processing")
                         : `${Math.round(progress)}%`}
                     </span>
 
@@ -1143,7 +1137,7 @@ export default function ImageLab() {
                   </div>
 
                   <p className="il-hint">
-                    Il tempo dipende dalla risoluzione e dal carico del Mac.
+                    {t("img.timeHint")}
                   </p>
                 </div>
               )}
@@ -1151,7 +1145,7 @@ export default function ImageLab() {
               {status === "loading-result" && (
                 <div className="il-progress">
                   <div className="il-spinner" />
-                  <h3>Caricamento del risultato</h3>
+                  <h3>{t("img.loadingResult")}</h3>
                 </div>
               )}
 
@@ -1174,14 +1168,14 @@ export default function ImageLab() {
                       className="il-button il-primary"
                       onClick={downloadImage}
                     >
-                      ↓ Scarica PNG
+                      {t("img.downloadPng")}
                     </button>
 
                     <button
                       className="il-button"
                       onClick={startAnotherVersion}
                     >
-                      Crea variante
+                      {t("img.createVariant")}
                     </button>
                   </div>
                 </div>
@@ -1189,9 +1183,9 @@ export default function ImageLab() {
 
               {status === "error" && (
                 <div className="il-error-panel">
-                  <h3>Generazione non riuscita</h3>
+                  <h3>{t("img.errorTitle")}</h3>
                   <p>
-                    {error || "Il server non ha completato il lavoro."}
+                    {error || t("img.errorFallback")}
                   </p>
 
                   <button
@@ -1202,7 +1196,7 @@ export default function ImageLab() {
                       setJobId("");
                     }}
                   >
-                    Torna al prompt
+                    {t("img.backToPrompt")}
                   </button>
                 </div>
               )}
@@ -1221,14 +1215,14 @@ export default function ImageLab() {
             <div className="il-section-heading">
               <div>
                 <p className="il-eyebrow">03 / GALLERY</p>
-                <h2>Storico generazioni</h2>
+                <h2>{t("img.historyTitle")}</h2>
               </div>
               <button
                 className="il-button"
                 onClick={loadHistory}
                 disabled={historyLoading}
               >
-                {historyLoading ? "Carico…" : "↻ Aggiorna"}
+                {historyLoading ? t("img.loading") : t("img.refresh")}
               </button>
             </div>
 
@@ -1240,14 +1234,13 @@ export default function ImageLab() {
 
             {!historyLoading && history.length === 0 && !historyError && (
               <p className="il-hint">
-                Nessuna generazione salvata. Le immagini completate vengono
-                conservate qui (ultime 100).
+                {t("img.historyEmpty")}
               </p>
             )}
 
             {history.length > 0 && (
               <div className="il-page-size">
-                <span>Per pagina:</span>
+                <span>{t("img.perPage")}</span>
                 <select
                   value={pageSize}
                   onChange={(event) => {
@@ -1260,7 +1253,7 @@ export default function ImageLab() {
                   <option value={50}>50</option>
                 </select>
                 <span className="il-page-info">
-                  {history.length} generazioni totali
+                  {t("img.totalGenerations", { count: history.length })}
                 </span>
               </div>
             )}
@@ -1285,13 +1278,13 @@ export default function ImageLab() {
                       className="il-button"
                       onClick={() => openHistoryItem(item)}
                     >
-                      Guarda
+                      {t("img.view")}
                     </button>
                     <button
                       className="il-button"
                       onClick={() => reuseHistoryParams(item)}
                     >
-                      ↻ Parametri
+                      {t("img.params")}
                     </button>
                   </div>
                 </article>
@@ -1305,7 +1298,7 @@ export default function ImageLab() {
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={safePage <= 1}
                 >
-                  ← Precedente
+                  {t("img.prev")}
                 </button>
 
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map(
@@ -1330,11 +1323,11 @@ export default function ImageLab() {
                   }
                   disabled={safePage >= totalPages}
                 >
-                  Successiva →
+                  {t("img.next")}
                 </button>
 
                 <span className="il-page-info">
-                  Pagina {safePage} di {totalPages}
+                  {t("img.pageOf", { page: safePage, total: totalPages })}
                 </span>
               </div>
             )}
@@ -1366,19 +1359,19 @@ export default function ImageLab() {
                       href={historyPreview.url}
                       download={"z-image-" + historyPreview.item.seed + ".png"}
                     >
-                      ↓ Scarica PNG
+                      {t("img.downloadPng")}
                     </a>
                     <button
                       className="il-button"
                       onClick={() => reuseHistoryParams(historyPreview.item)}
                     >
-                      ↻ Riusa parametri
+                      {t("img.reuseParams")}
                     </button>
                     <button
                       className="il-button"
                       onClick={closeHistoryPreview}
                     >
-                      Chiudi
+                      {t("img.close")}
                     </button>
                   </div>
                 </div>
@@ -1392,7 +1385,7 @@ export default function ImageLab() {
             <div className="il-section-heading">
               <div>
                 <p className="il-eyebrow">04 / OCR</p>
-                <h2>Estrai testo da una foto</h2>
+                <h2>{t("img.ocrTitle")}</h2>
               </div>
             </div>
 
@@ -1415,7 +1408,7 @@ export default function ImageLab() {
                 type="submit"
                 disabled={!ocrImage || ocrStatus === "running"}
               >
-                {ocrStatus === "running" ? "Analizzo…" : "Estrai testo"}
+                {ocrStatus === "running" ? t("img.analyzing") : t("img.extract")}
               </button>
             </form>
 
@@ -1428,9 +1421,9 @@ export default function ImageLab() {
             {ocrText && (
               <div className="il-ocr-result">
                 <div className="il-history-modal-meta">
-                  <span>Testo estratto</span>
+                  <span>{t("img.extractedText")}</span>
                   <button className="il-button" onClick={copyOcrText}>
-                    Copia
+                    {t("img.copy")}
                   </button>
                 </div>
                 <pre className="il-ocr-pre">{ocrText}</pre>
@@ -1440,7 +1433,7 @@ export default function ImageLab() {
             {jcsInterpretation && (
               <div className="il-ocr-result il-jcs-result">
                 <div className="il-history-modal-meta">
-                  <span>🧾 Interpretazione JCS</span>
+                  <span>{t("img.jcsLabel")}</span>
                 </div>
                 <pre className="il-ocr-pre">{jcsInterpretation}</pre>
               </div>
@@ -1455,7 +1448,7 @@ export default function ImageLab() {
             className="il-text-button"
             onClick={() => navigate("/improve")}
           >
-            Torna a Improve ↗
+            {t("img.backToImprove")}
           </button>
         </footer>
       </div>
