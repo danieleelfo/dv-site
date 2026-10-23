@@ -622,7 +622,7 @@ export default function LeleAdmin() {
         const lines = String(text).split('\n')
         const esc = (m) => m.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
         const pick = (models, includeKeys, excludeKeys) => {
-          const re = new RegExp('\\b(' + models.map(esc).join('|') + ')\\b', 'i')
+          const re = new RegExp('\\b(' + models.map(esc).sort((a, b) => b.length - a.length).join('|') + ')\\b', 'i')
           for (const line of lines) {
             const low = line.toLowerCase()
             if (excludeKeys && excludeKeys.some((k) => low.includes(k))) continue
