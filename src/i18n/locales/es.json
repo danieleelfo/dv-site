@@ -1,6 +1,11 @@
-
 {
-  "nav": { "home": "Inicio", "projects": "Proyectos", "console": "Consola" , "expertise": "Experiencia"},
+  "nav": {
+    "home": "Inicio",
+    "projects": "Proyectos",
+    "console": "Consola",
+    "expertise": "Experiencia",
+    "trial": "Prueba"
+  },
   "home": {
     "humans": {
       "title": "Humans",
@@ -46,11 +51,26 @@
     "label": "Expertise",
     "title": "Áreas de especialización",
     "items": [
-      { "title": "Data Architecture", "text": "Diseño de plataformas de datos escalables, desde la ingesta hasta la capa de servicio, para contextos empresariales y proyectos independientes." },
-      { "title": "Data Modeling: Kimball / DV / Hybrid / Medallion", "text": "Modelado DW/DL & hub-link-satellite para data warehouses resilientes al cambio, historizados y auditables." },
-      { "title": "BI & Analytics", "text": "Power BI, SSAS, dashboards y scorecards para la toma de decisiones — del dato en bruto al insight operativo." },
-      { "title": "AI / Local AI", "text": "Sistemas de IA locales, orquestación de modelos y automatizaciones que funcionan en infraestructura propia, sin depender de la nube de terceros." },
-      { "title": "Multi-Agent Systems", "text": "Arquitecturas de agentes persona-driven con memoria persistente, para asistentes y automatizaciones complejas." }
+      {
+        "title": "Data Architecture",
+        "text": "Diseño de plataformas de datos escalables, desde la ingesta hasta la capa de servicio, para contextos empresariales y proyectos independientes."
+      },
+      {
+        "title": "Data Modeling: Kimball / DV / Hybrid / Medallion",
+        "text": "Modelado DW/DL & hub-link-satellite para data warehouses resilientes al cambio, historizados y auditables."
+      },
+      {
+        "title": "BI & Analytics",
+        "text": "Power BI, SSAS, dashboards y scorecards para la toma de decisiones — del dato en bruto al insight operativo."
+      },
+      {
+        "title": "AI / Local AI",
+        "text": "Sistemas de IA locales, orquestación de modelos y automatizaciones que funcionan en infraestructura propia, sin depender de la nube de terceros."
+      },
+      {
+        "title": "Multi-Agent Systems",
+        "text": "Arquitecturas de agentes persona-driven con memoria persistente, para asistentes y automatizaciones complejas."
+      }
     ]
   },
   "projects": {
@@ -61,10 +81,22 @@
     "portfolioTitle": "Proyectos"
   },
   "projectsData": {
-    "leles": { "tag": "AI Orchestration", "summary": "Plataforma de IA local que orquesta agentes persona-driven con memoria persistente, pensada para funcionar en infraestructura propia." },
-    "emergence-lab": { "tag": "Multi-Agent Systems", "summary": "Sistema multi-agente experimental para explorar comportamientos emergentes entre agentes de IA cooperantes." },
-    "stories": { "tag": "Stories", "summary": "¿No sabes que historia inventar para tu nieto? Laila si. Audio, texto o los 2, incluso cantado. ¿Tienes ganas de una historia para ti? Night Story esta disponible en 8 escenarios." },
-    "bar-ai": { "tag": "Analytics Demo", "summary": "Demo de analytics con IA para un bar/restaurante con interfaz de bot de Telegram, desde la recogida de datos hasta el insight con recomendaciones de marketing de IA." }
+    "leles": {
+      "tag": "AI Orchestration",
+      "summary": "Plataforma de IA local que orquesta agentes persona-driven con memoria persistente, pensada para funcionar en infraestructura propia."
+    },
+    "emergence-lab": {
+      "tag": "Multi-Agent Systems",
+      "summary": "Sistema multi-agente experimental para explorar comportamientos emergentes entre agentes de IA cooperantes."
+    },
+    "stories": {
+      "tag": "Stories",
+      "summary": "¿No sabes que historia inventar para tu nieto? Laila si. Audio, texto o los 2, incluso cantado. ¿Tienes ganas de una historia para ti? Night Story esta disponible en 8 escenarios."
+    },
+    "bar-ai": {
+      "tag": "Analytics Demo",
+      "summary": "Demo de analytics con IA para un bar/restaurante con interfaz de bot de Telegram, desde la recogida de datos hasta el insight con recomendaciones de marketing de IA."
+    }
   },
   "contact": {
     "label": "Contact",

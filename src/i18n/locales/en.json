@@ -1,5 +1,11 @@
 {
-  "nav": { "home": "Home", "projects": "Projects", "console": "Console" , "expertise": "Expertise"},
+  "nav": {
+    "home": "Home",
+    "projects": "Projects",
+    "console": "Console",
+    "expertise": "Expertise",
+    "trial": "Trial"
+  },
   "home": {
     "humans": {
       "title": "Humans",
@@ -45,11 +51,26 @@
     "label": "Expertise",
     "title": "Areas of Expertise",
     "items": [
-      { "title": "Data Architecture", "text": "Designing scalable data platforms, from ingestion to serving layer, for enterprise and independent projects." },
-      { "title": "Data Modeling: Kimball / DV / Hybrid / Medallion", "text": "DW/DL & hub-link-satellite modeling for change-resilient, historicized, auditable data warehouses." },
-      { "title": "BI & Analytics", "text": "Power BI, SSAS, dashboards and scorecards for decision-making — from raw data to operational insight." },
-      { "title": "AI / Local AI", "text": "Local AI systems, model orchestration and automations running on self-hosted infrastructure, independent from third-party clouds." },
-      { "title": "Multi-Agent Systems", "text": "Persona-driven agent architectures with persistent memory, for assistants and complex automations." }
+      {
+        "title": "Data Architecture",
+        "text": "Designing scalable data platforms, from ingestion to serving layer, for enterprise and independent projects."
+      },
+      {
+        "title": "Data Modeling: Kimball / DV / Hybrid / Medallion",
+        "text": "DW/DL & hub-link-satellite modeling for change-resilient, historicized, auditable data warehouses."
+      },
+      {
+        "title": "BI & Analytics",
+        "text": "Power BI, SSAS, dashboards and scorecards for decision-making — from raw data to operational insight."
+      },
+      {
+        "title": "AI / Local AI",
+        "text": "Local AI systems, model orchestration and automations running on self-hosted infrastructure, independent from third-party clouds."
+      },
+      {
+        "title": "Multi-Agent Systems",
+        "text": "Persona-driven agent architectures with persistent memory, for assistants and complex automations."
+      }
     ]
   },
   "projects": {
@@ -60,11 +81,22 @@
     "portfolioTitle": "Projects"
   },
   "projectsData": {
-
-    "leles": { "tag": "AI Orchestration", "summary": "Local AI platform orchestrating persona-driven agents with persistent memory, built to run on self-hosted infrastructure." },
-    "emergence-lab": { "tag": "Multi-Agent Systems", "summary": "Experimental multi-agent system exploring emergent behavior among cooperating AI agents." },
-    "stories": { "tag": "Stories", "summary": "Do you want a fantasy story for your kids? Just let Laila do it for you! Or maybe you want exciting stories for you? In Night Story you can choose among 8 personalities." },
-    "bar-ai": { "tag": "Analytics Demo", "summary": "AI-powered analytics demo for a bar/restaurant with a Telegram bot interface, from data collection to insight and marketing reccomandation." }
+    "leles": {
+      "tag": "AI Orchestration",
+      "summary": "Local AI platform orchestrating persona-driven agents with persistent memory, built to run on self-hosted infrastructure."
+    },
+    "emergence-lab": {
+      "tag": "Multi-Agent Systems",
+      "summary": "Experimental multi-agent system exploring emergent behavior among cooperating AI agents."
+    },
+    "stories": {
+      "tag": "Stories",
+      "summary": "Do you want a fantasy story for your kids? Just let Laila do it for you! Or maybe you want exciting stories for you? In Night Story you can choose among 8 personalities."
+    },
+    "bar-ai": {
+      "tag": "Analytics Demo",
+      "summary": "AI-powered analytics demo for a bar/restaurant with a Telegram bot interface, from data collection to insight and marketing reccomandation."
+    }
   },
   "contact": {
     "label": "Contact",

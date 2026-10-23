@@ -84,9 +84,9 @@ export default function Nav() {
             <Link to={"/" + l + "/ai-lab"} style={styles.link}>AI Lab</Link>
             <Link to={"/" + l + "/leles"} style={styles.link}>Leles</Link>
             <Link to={"/" + l + "/b2b"} style={styles.link}>B2B</Link>
-            <Link to={"/" + l + "/image-lab"} style={styles.link}>Image Lab</Link>
+            <Link to={"/" + l + "/image-lab"} style={styles.link}>ImgLab</Link>
             <Link to={"/" + l + "/api-contracts"} style={styles.link}>API</Link>
-            <Link to={"/" + l + "/console"} style={styles.link}>Trial</Link>
+            <Link to={"/" + l + "/console"} style={styles.link}>{t('nav.trial')}</Link>
           </nav>
           <LanguageSwitcher />
         </div>

@@ -2,7 +2,8 @@
   "nav": {
     "home": "Accueil",
     "projects": "Projets",
-    "console": "Console"
+    "console": "Console",
+    "trial": "Essai"
   },
   "home": {
     "humans": {
