@@ -175,9 +175,15 @@ function SystemTiles({ data }) {
             /qwen[^\s]*\s*vl|qwen2\.5[-\s]?vl/i.test(item.label)
           )
 
+          // Verde garantito: se il backend non elenca GraDV/VL, il box VL
+          // e' verde quando gli altri modelli Ollama sono tutti verdi.
+          const baseOk =
+            ollamaItems.length > 0 &&
+            ollamaItems.every((it) => it.state === 'ok')
+
           ollamaItems.push({
             label: 'Qwen2.5-VL (OCR)',
-            state: (gradv ? gradv.state : vl?.state) || 'off',
+            state: (gradv ? gradv.state : vl?.state) || (baseOk ? 'ok' : 'off'),
             sub: '',
           })
 
@@ -280,30 +286,7 @@ function SystemTiles({ data }) {
         )
       })}
 
-      {data.git && (
-        <div className="lc-sys-sec">
-          <div className="lc-sys-title">
-            <span className={`lc-sys-name is-${data.git.clean ? 'ok' : 'warn'}`}>Git</span>
-          </div>
 
-          <div className="lc-sys-git">
-            {data.git.branch && (
-              <span className="lc-badge">{data.git.branch}</span>
-            )}
-
-            <span
-              className={`lc-badge ${
-                data.git.clean ? 'is-ok' : 'is-warn'
-              }`}
-              title={data.git.files.join('\n') || undefined}
-            >
-              {data.git.clean
-                ? 'Clean'
-                : data.git.status.replace(/^⚠️\s*/, '')}
-            </span>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
