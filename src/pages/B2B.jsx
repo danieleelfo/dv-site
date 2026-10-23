@@ -32,6 +32,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import bgImage from "../assets/B2B.jpeg";
+import { useTranslation } from "react-i18next";
 
 const API = "https://api.danielevillanova.com";
 
@@ -81,6 +82,7 @@ function readStoredToken() {
 
 function useGoogleAuth() {
   const [idToken, setIdToken] = useState(readStoredToken);
+  const { t } = useTranslation();
 
   // Sync login tra pagine/tab: se un'altra pagina fa login/logout,
   // l'evento "storage" ci arriva subito e aggiorniamo lo stato.
@@ -138,7 +140,7 @@ function useGoogleAuth() {
       }
 
       if (!GOOGLE_CLIENT_ID) {
-        setAuthError("GOOGLE_CLIENT_ID mancante (VITE_GOOGLE_CLIENT_ID).");
+        setAuthError(t("b2b.clientIdMissingEnv"));
         return;
       }
 
@@ -293,6 +295,7 @@ export default function Test4() {
   const [handError, setHandError] = useState("");
 
   const { idToken, email, buttonRef, logout } = useGoogleAuth();
+  const { t } = useTranslation();
 
   const setField = (key, value) =>
     setCfg((current) => ({ ...current, [key]: value }));
@@ -346,15 +349,12 @@ export default function Test4() {
     setStartError("");
 
     if (!idToken) {
-      setStartError("Accedi con Google per avviare un esperimento.");
+      setStartError(t("b2b.loginRequired"));
       return;
     }
 
     if (overLimit) {
-      setStartError(
-        `Troppi messaggi (${totalMessages}, massimo ${MAX_TOTAL_MESSAGES}). ` +
-          "Riduci i giri o i partecipanti."
-      );
+      setStartError(t("b2b.tooMany", { total: totalMessages, max: MAX_TOTAL_MESSAGES }));
       return;
     }
 
@@ -412,12 +412,12 @@ export default function Test4() {
         logout();
         throw new Error(
           response.status === 403
-            ? "Account Google non autorizzato."
-            : "Sessione scaduta: accedi di nuovo con Google."
+            ? t("b2b.unauthorized")
+            : t("b2b.sessionExpired")
         );
       }
 
-      if (!response.ok) throw new Error(readError(result, "Gateway error"));
+      if (!response.ok) throw new Error(readError(result, t("b2b.gatewayError")));
 
       if (result.run_id) {
         setRunId(result.run_id);
@@ -428,7 +428,7 @@ export default function Test4() {
       }
     } catch (error) {
       console.error("Agent Arena start error:", error);
-      setStartError(error?.message || "Unable to start experiment");
+      setStartError(error?.message || t("b2b.startFailed"));
     } finally {
       setStarting(false);
     }
@@ -440,7 +440,7 @@ export default function Test4() {
     setNotice("");
 
     if (!idToken) {
-      setNotice("Sessione scaduta: accedi di nuovo per fermare il run.");
+      setNotice(t("b2b.sessionExpiredStop"));
       return;
     }
 
@@ -452,11 +452,11 @@ export default function Test4() {
 
       if (response.status === 401 || response.status === 403) {
         logout();
-        setNotice("Sessione scaduta: accedi di nuovo per fermare il run.");
+        setNotice(t("b2b.sessionExpiredStop"));
       }
     } catch (error) {
       console.error("Agent Arena stop error:", error);
-      setNotice("Impossibile contattare il gateway per lo stop.");
+      setNotice(t("b2b.stopFailed"));
     }
   };
 
@@ -468,7 +468,7 @@ export default function Test4() {
     setHandError("");
 
     if (!idToken) {
-      setNotice("Sessione scaduta: accedi di nuovo per intervenire.");
+      setNotice(t("b2b.sessionExpiredHand"));
       return;
     }
 
@@ -483,16 +483,16 @@ export default function Test4() {
 
       if (response.status === 401 || response.status === 403) {
         logout();
-        setNotice("Sessione scaduta: accedi di nuovo per intervenire.");
+        setNotice(t("b2b.sessionExpiredHand"));
         return;
       }
 
-      if (!response.ok) throw new Error(readError(result, "Gateway error"));
+      if (!response.ok) throw new Error(readError(result, t("b2b.gatewayError")));
 
       setData((current) => ({ ...current, hand_raised: true }));
     } catch (error) {
       console.error("Agent Arena hand error:", error);
-      setHandError(error?.message || "Impossibile alzare la mano.");
+      setHandError(error?.message || t("b2b.handFailed"));
     } finally {
       setHandBusy(false);
     }
@@ -507,7 +507,7 @@ export default function Test4() {
     setHandError("");
 
     if (!idToken) {
-      setNotice("Sessione scaduta: accedi di nuovo per intervenire.");
+      setNotice(t("b2b.sessionExpiredHand"));
       return;
     }
 
@@ -531,11 +531,11 @@ export default function Test4() {
 
       if (response.status === 401 || response.status === 403) {
         logout();
-        setNotice("Sessione scaduta: accedi di nuovo per intervenire.");
+        setNotice(t("b2b.sessionExpiredHand"));
         return;
       }
 
-      if (!response.ok) throw new Error(readError(result, "Gateway error"));
+      if (!response.ok) throw new Error(readError(result, t("b2b.gatewayError")));
 
       setHumanText("");
       setData((current) => ({
@@ -545,7 +545,7 @@ export default function Test4() {
       }));
     } catch (error) {
       console.error("Agent Arena intervene error:", error);
-      setHandError(error?.message || "Impossibile inviare l'intervento.");
+      setHandError(error?.message || t("b2b.interveneFailed"));
     } finally {
       setHandBusy(false);
     }
@@ -602,7 +602,7 @@ export default function Test4() {
   // ---- HELPERS ----
   const getTurnIdentity = (turn) => {
     if (turn.agent === "human") {
-      return { emoji: "🙋", identity: "You" };
+      return { emoji: "🙋", identity: t("b2b.you") };
     }
     const emoji = turn.character
       ? CHARACTER_EMOJI[turn.character] || "🤖"
@@ -614,7 +614,7 @@ export default function Test4() {
       turn.role ||
       AGENTS.find((agent) => agent.id === turn.agent)?.label ||
       turn.agent ||
-      "Agent";
+      t("b2b.agent");
     return { emoji, identity };
   };
 
@@ -639,8 +639,7 @@ export default function Test4() {
               <div style={styles.eyebrow}>AGENT ARENA</div>
               <h1 style={styles.title}>Bot to Bot</h1>
               <p style={styles.subtitle}>
-                Configure 2 to 12 autonomous agents and let them interact
-                inside the same world.
+                {t("b2b.subtitle")}
               </p>
             </div>
 
@@ -659,7 +658,7 @@ export default function Test4() {
 
               {cfg.participants.length < MAX_PARTICIPANTS && (
                 <button onClick={addParticipant} style={styles.addButton}>
-                  + ADD PARTICIPANT ({cfg.participants.length}/{MAX_PARTICIPANTS})
+                  {t("b2b.addParticipant", { current: cfg.participants.length, max: MAX_PARTICIPANTS })}
                 </button>
               )}
             </div>
@@ -669,9 +668,9 @@ export default function Test4() {
               <div style={styles.sectionHeader}>
                 <span style={styles.sectionIcon}>🌍</span>
                 <div>
-                  <div style={styles.sectionTitle}>WORLD</div>
+                  <div style={styles.sectionTitle}>{t("b2b.world")}</div>
                   <div style={styles.sectionSubtitle}>
-                    Define the environment for the experiment
+                    {t("b2b.worldIntro")}
                   </div>
                 </div>
               </div>
@@ -682,7 +681,7 @@ export default function Test4() {
                     checked={cfg.world_source === "free"}
                     onChange={() => setField("world_source", "free")}
                   />
-                  <span>Free topic</span>
+                  <span>{t("b2b.freeTopic")}</span>
                 </label>
                 <label style={styles.radioLabel}>
                   <input
@@ -690,13 +689,13 @@ export default function Test4() {
                     checked={cfg.world_source === "emergence"}
                     onChange={() => setField("world_source", "emergence")}
                   />
-                  <span>Emergence World</span>
+                  <span>{t("b2b.emergenceWorld")}</span>
                 </label>
               </div>
               {cfg.world_source === "free" ? (
                 <textarea
                   style={styles.textarea}
-                  placeholder="Two characters meet on a ghost ship during a storm..."
+                  placeholder={t("b2b.topicPlaceholder")}
                   value={cfg.topic}
                   maxLength={4000}
                   onChange={(event) => setField("topic", event.target.value)}
@@ -705,7 +704,7 @@ export default function Test4() {
                 <input
                   style={styles.input}
                   type="number"
-                  placeholder="World # (Emergence run id)"
+                  placeholder={t("b2b.worldRefPlaceholder")}
                   value={cfg.world_ref}
                   onChange={(event) => setField("world_ref", event.target.value)}
                 />
@@ -715,7 +714,7 @@ export default function Test4() {
             {/* RUN OPTIONS */}
             <section style={styles.runCard}>
               <div>
-                <div style={styles.optionLabel}>MAX TURNS (ROUNDS)</div>
+                <div style={styles.optionLabel}>{t("b2b.maxTurns")}</div>
                 <select
                   style={styles.smallSelect}
                   value={cfg.max_turns}
@@ -735,8 +734,8 @@ export default function Test4() {
                     ...(overLimit ? styles.turnsHintError : {}),
                   }}
                 >
-                  {totalMessages} total messages
-                  {overLimit ? ` (max ${MAX_TOTAL_MESSAGES})` : ""}
+                  {totalMessages} {t("b2b.totalMessages")}
+                  {overLimit ? ` (${t("b2b.maxShort")} ${MAX_TOTAL_MESSAGES})` : ""}
                 </div>
               </div>
 
@@ -755,12 +754,12 @@ export default function Test4() {
                           : "pointer",
                     }}
                   >
-                    {starting ? "STARTING..." : "▶️ START EXPERIMENT"}
+                    {starting ? t("b2b.starting") : t("b2b.startExperiment")}
                   </button>
                   <div style={styles.userRow}>
                     <span>{email}</span>
                     <button onClick={logout} style={styles.linkButton}>
-                      sign out
+                      {t("b2b.signOut")}
                     </button>
                   </div>
                 </div>
@@ -770,12 +769,12 @@ export default function Test4() {
                     <>
                       <div ref={buttonRef} />
                       <div style={styles.authHint}>
-                        Sign in with Google to start an experiment
+                        {t("b2b.authHint")}
                       </div>
                     </>
                   ) : (
                     <div style={styles.authHint}>
-                      GOOGLE_CLIENT_ID mancante in Test4.jsx
+                      {t("b2b.clientIdMissing")}
                     </div>
                   )}
                 </div>
@@ -785,7 +784,7 @@ export default function Test4() {
             {/* START ERROR (visibile anche prima che esista un run) */}
             {startError && (
               <div style={{ ...styles.errorBox, marginTop: 14 }}>
-                <strong>⚠ ERROR</strong>
+                <strong>{t("b2b.error")}</strong>
                 <div>{startError}</div>
               </div>
             )}
@@ -809,12 +808,12 @@ export default function Test4() {
                   <span>{data.status}</span>
                   <span style={styles.statusSeparator}>·</span>
                   <span>
-                    {botTurns} / {totalMessages} messages
+                    {botTurns} / {totalMessages} {t("b2b.messages")}
                   </span>
                   {humanTurns > 0 && (
                     <>
                       <span style={styles.statusSeparator}>·</span>
-                      <span>{humanTurns} from you</span>
+                      <span>{t("b2b.fromYou", { count: humanTurns })}</span>
                     </>
                   )}
                 </div>
@@ -837,16 +836,16 @@ export default function Test4() {
                           : "pointer",
                     }}
                   >
-                    {data.hand_raised ? "✋ HAND RAISED" : "✋ RAISE HAND"}
+                    {data.hand_raised ? t("b2b.handRaised") : t("b2b.raiseHand")}
                   </button>
                 )}
                 {active && (
                   <button onClick={stop} style={styles.stopButton}>
-                    ⏹ STOP
+                    {t("b2b.stop")}
                   </button>
                 )}
                 <button onClick={reset} style={styles.resetButton}>
-                  ↺ NEW EXPERIMENT
+                  {t("b2b.newExperiment")}
                 </button>
               </div>
             </div>
@@ -856,7 +855,7 @@ export default function Test4() {
               {cfg.participants.map((participant, idx) => (
                 <SummaryCard
                   key={idx}
-                  label={`PARTICIPANT ${idx + 1}`}
+                  label={t("b2b.participant", { n: idx + 1 })}
                   value={getAgentLabel(participant.agent)}
                   detail={
                     (participant.agent === "night_story" &&
@@ -867,32 +866,32 @@ export default function Test4() {
                 />
               ))}
               <SummaryCard
-                label="WORLD"
+                label={t("b2b.worldLabel")}
                 value={
                   cfg.world_source === "emergence"
                     ? `Emergence #${cfg.world_ref}`
-                    : "Free topic"
+                    : t("b2b.freeTopic")
                 }
                 detail={
                   cfg.world_source === "free"
-                    ? cfg.topic || "No topic"
-                    : "Emergence experiment"
+                    ? cfg.topic || t("b2b.noTopic")
+                    : t("b2b.emergenceExperiment")
                 }
               />
               <SummaryCard
-                label="ROUNDS"
+                label={t("b2b.rounds")}
                 value={`${cfg.max_turns} × ${cfg.participants.length}`}
-                detail={`${totalMessages} messages max`}
+                detail={`${totalMessages} ${t("b2b.messagesMax")}`}
               />
             </section>
 
             {/* WORLD LIVE */}
             <section style={styles.worldLiveCard}>
-              <div style={styles.worldLiveTitle}>🌍 WORLD</div>
+              <div style={styles.worldLiveTitle}>🌍 {t("b2b.worldLabel")}</div>
               <div style={styles.worldLiveText}>
                 {cfg.world_source === "emergence"
-                  ? `Emergence World #${cfg.world_ref}`
-                  : cfg.topic || "Free topic"}
+                  ? t("b2b.emergenceWorldRef", { ref: cfg.world_ref })
+                  : cfg.topic || t("b2b.freeTopic")}
               </div>
             </section>
 
@@ -900,13 +899,13 @@ export default function Test4() {
             <section style={styles.conversationCard}>
               <div style={styles.conversationHeader}>
                 <div>
-                  <div style={styles.sectionTitle}>LIVE CONVERSATION</div>
+                  <div style={styles.sectionTitle}>{t("b2b.liveConversation")}</div>
                   <div style={styles.sectionSubtitle}>
-                    Autonomous agent interaction
+                    {t("b2b.liveIntro")}
                   </div>
                 </div>
-                {running && <div style={styles.liveBadge}>● LIVE</div>}
-                {paused && <div style={styles.liveBadge}>✋ PAUSED</div>}
+                {running && <div style={styles.liveBadge}>{t("b2b.live")}</div>}
+                {paused && <div style={styles.liveBadge}>{t("b2b.pausedBadge")}</div>}
               </div>
               <div ref={convRef} style={styles.conversation}>
                 {data.turns.map((turn, index) => {
@@ -942,7 +941,7 @@ export default function Test4() {
                               : `${emoji} ${identity} · P${(turn.idx ?? 0) + 1}`}
                           </span>
                           <span style={styles.messageModel}>
-                            {isHuman ? "human" : turn.model}
+                            {isHuman ? t("b2b.human") : turn.model}
                           </span>
                         </div>
                         <div style={styles.messageText}>{turn.text}</div>
@@ -955,31 +954,31 @@ export default function Test4() {
                     <span>●</span>
                     <span>●</span>
                     <span>●</span>
-                    <em>agents are thinking...</em>
+                    <em>{t("b2b.thinking")}</em>
                   </div>
                 )}
                 {running && data.hand_raised && (
                   <div style={styles.thinking}>
                     <span>✋</span>
                     <em>
-                      hand raised — the run pauses when the current turn ends...
+                      {t("b2b.handRaisedInfo")}
                     </em>
                   </div>
                 )}
                 {data.status === "ERROR" && (
                   <div style={styles.errorBox}>
-                    <strong>⚠ ERROR</strong>
+                    <strong>{t("b2b.error")}</strong>
                     <div>
                       {data.error ||
-                        "Gateway error — check gateway logs."}
+                        t("b2b.gatewayLogs")}
                     </div>
                   </div>
                 )}
                 {!running && data.status === "COMPLETED" && (
-                  <div style={styles.completedBox}>✓ Experiment completed</div>
+                  <div style={styles.completedBox}>{t("b2b.completed")}</div>
                 )}
                 {!running && data.status === "STOPPED" && (
-                  <div style={styles.stoppedBox}>⏹ Experiment stopped</div>
+                  <div style={styles.stoppedBox}>{t("b2b.stopped")}</div>
                 )}
               </div>
 
@@ -987,15 +986,14 @@ export default function Test4() {
               {paused && (
                 <div style={styles.humanPanel}>
                   <div style={styles.humanTitle}>
-                    ✋ RUN PAUSED — YOUR TURN
+                    {t("b2b.runPaused")}
                   </div>
                   <div style={styles.humanHint}>
-                    The next agent reads your message together with the last
-                    answer.
+                    {t("b2b.pausedHint")}
                   </div>
                   <textarea
                     style={{ ...styles.textarea, minHeight: 80 }}
-                    placeholder="Write something for the next agent..."
+                    placeholder={t("b2b.interventionPlaceholder")}
                     value={humanText}
                     maxLength={MAX_HUMAN_CHARS}
                     disabled={handBusy}
@@ -1028,7 +1026,7 @@ export default function Test4() {
                         cursor: handBusy ? "wait" : "pointer",
                       }}
                     >
-                      RESUME WITHOUT MESSAGE
+                      {t("b2b.resumeNoMessage")}
                     </button>
                     <button
                       onClick={() => sendIntervention(true)}
@@ -1043,7 +1041,7 @@ export default function Test4() {
                             : "pointer",
                       }}
                     >
-                      {handBusy ? "SENDING..." : "SEND & RESUME"}
+                      {handBusy ? t("b2b.sending") : t("b2b.sendResume")}
                     </button>
                   </div>
                 </div>
@@ -1061,6 +1059,7 @@ export default function Test4() {
 // ============================================================
 
 function AgentPane({ idx, participant, setParticipant, onRemove, canRemove }) {
+  const { t } = useTranslation();
   const agent = AGENTS.find((item) => item.id === participant.agent);
   const agentEmoji = AGENT_EMOJI[agent?.id] || "🤖";
 
@@ -1068,16 +1067,16 @@ function AgentPane({ idx, participant, setParticipant, onRemove, canRemove }) {
     <section style={styles.agentCard}>
       <div style={styles.agentHeader}>
         <div>
-          <div style={styles.agentSide}>PARTICIPANT {idx + 1}</div>
+          <div style={styles.agentSide}>{t("b2b.participant", { n: idx + 1 })}</div>
           <div style={styles.agentName}>
-            {agentEmoji} {agent?.label || "Agent"}
+            {agentEmoji} {agent?.label || t("b2b.agent")}
           </div>
         </div>
         {canRemove && (
           <button
             onClick={onRemove}
             style={styles.removeButton}
-            title="Remove participant"
+            title={t("b2b.removeParticipant")}
           >
             ✕
           </button>
@@ -1085,7 +1084,7 @@ function AgentPane({ idx, participant, setParticipant, onRemove, canRemove }) {
       </div>
 
       {/* Agent */}
-      <Field label="AGENT">
+      <Field label={t("b2b.agentLabel")}>
         <select
           value={participant.agent}
           onChange={(event) => {
@@ -1115,7 +1114,7 @@ function AgentPane({ idx, participant, setParticipant, onRemove, canRemove }) {
 
       {/* Night Story genre */}
       {agent?.hasCharacters && (
-        <Field label="GENRE">
+        <Field label={t("b2b.genreLabel")}>
           <select
             value={participant.character}
             onChange={(event) =>
@@ -1134,7 +1133,7 @@ function AgentPane({ idx, participant, setParticipant, onRemove, canRemove }) {
 
       {/* QE role */}
       {agent?.hasRoles && (
-        <Field label="EMERGENCE ROLE">
+        <Field label={t("b2b.emergenceRoleLabel")}>
           <select
             value={participant.role}
             onChange={(event) =>
