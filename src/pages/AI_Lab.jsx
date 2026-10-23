@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import bgImage from '../assets/Faro.jpeg'
+import { useTranslation } from 'react-i18next'
 
 const LELE_API_URL = 'https://api.danielevillanova.com'
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
@@ -78,6 +79,7 @@ function decodeJwtPayload(token) {
 }
 
 export default function EmergenceLab() {
+  const { t } = useTranslation()
   const [idToken, setIdToken] = useState(() => {
     try {
       return window.sessionStorage.getItem(TOKEN_STORAGE_KEY) || null
@@ -143,7 +145,7 @@ export default function EmergenceLab() {
 
     if (!email || !ALLOWED_EMAILS.includes(email)) {
       logout()
-      setAuthError('Accesso non autorizzato per questo account Google.')
+      setAuthError(t('ail.unauthorized'))
     }
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -164,7 +166,7 @@ export default function EmergenceLab() {
 
       if (!GOOGLE_CLIENT_ID) {
         setAuthError(
-          'GOOGLE_CLIENT_ID non configurato (VITE_GOOGLE_CLIENT_ID mancante).'
+          t('ail.clientIdMissing')
         )
         return
       }
@@ -200,7 +202,7 @@ export default function EmergenceLab() {
     const token = credentialResponse?.credential
 
     if (!token) {
-      setAuthError('Login Google fallito: nessun token ricevuto.')
+      setAuthError(t('ail.loginFailed'))
       return
     }
 
@@ -208,7 +210,7 @@ export default function EmergenceLab() {
     const email = decoded?.email?.toLowerCase()
 
     if (!email || !ALLOWED_EMAILS.includes(email)) {
-      setAuthError('Accesso non autorizzato per questo account Google.')
+      setAuthError(t('ail.unauthorized'))
 
       try {
         window.google?.accounts?.id?.disableAutoSelect()
@@ -307,8 +309,8 @@ export default function EmergenceLab() {
 
         setError(
           res.status === 401
-            ? 'Sessione scaduta, effettua di nuovo il login.'
-            : 'Accesso non autorizzato.'
+            ? t('ail.sessionExpired')
+            : t('ail.unauthorizedShort')
         )
 
         return
@@ -331,13 +333,13 @@ export default function EmergenceLab() {
             : JSON.stringify(data.detail, null, 2)
         )
       } else {
-        setResponse('Nessuna risposta ricevuta')
+        setResponse(t('ail.noAnswer'))
       }
     } catch (err) {
       clearTimeout(timeoutId)
 
       if (err.name === 'AbortError') {
-        setError('Timeout: il server non ha risposto in tempo.')
+        setError(t('ail.timeout'))
       } else {
         setError(err.message)
       }
@@ -386,7 +388,7 @@ export default function EmergenceLab() {
 
           <div style={styles.loginBox}>
             <p style={styles.loginText}>
-              Accesso riservato. Login Google per lanciare run multi-agente.
+              {t('ail.loginReserved')}
             </p>
 
             {authError && (
@@ -397,7 +399,7 @@ export default function EmergenceLab() {
 
             {!gsiReady && !authError && (
               <p style={styles.loadingText}>
-                Caricamento login Google…
+                {t('ail.loadingGoogle')}
               </p>
             )}
           </div>
@@ -417,7 +419,7 @@ export default function EmergenceLab() {
             <h2 style={styles.pageTitle}>Emergence Lab</h2>
 
             <p style={styles.subtitle}>
-              Configura pipeline, modelli e world — lancia{' '}
+              {t('ail.subtitle')}{' '}
               <code style={styles.codeInline}>
                 emergence_flow
               </code>
@@ -426,7 +428,7 @@ export default function EmergenceLab() {
 
           <div style={styles.sessionBox}>
             <span style={styles.sessionLabel}>
-              {profile?.email || 'account Google'}
+              {profile?.email || t('ail.googleAccount')}
             </span>
 
             <button
@@ -434,7 +436,7 @@ export default function EmergenceLab() {
               onClick={logout}
               style={styles.logoutButton}
             >
-              Logout
+              {t('ail.logout')}
             </button>
           </div>
         </div>
@@ -446,10 +448,10 @@ export default function EmergenceLab() {
         <div style={styles.promptPanel}>
           <div style={styles.promptPanelHeader}>
             <div>
-              <span style={styles.label}>Emergence roles</span>
+              <span style={styles.label}>{t('ail.rolesLabel')}</span>
 
               <p style={styles.promptHint}>
-                Clicca un ruolo per leggere il system prompt corrente.
+                {t('ail.rolesHint')}
               </p>
             </div>
 
@@ -470,7 +472,7 @@ export default function EmergenceLab() {
                   }}
                   title="Update emergence prompt"
                 >
-                  ✏️ Edit
+                  {t('ail.edit')}
                 </button>
               </div>
             )}
@@ -504,9 +506,7 @@ export default function EmergenceLab() {
             <div style={{ ...styles.response, marginTop: '0.85rem', marginBottom: 0 }}>
               <div style={styles.responseHeader}>
                 <h3 style={styles.responseTitle}>
-                  {isLoading
-                    ? `Caricamento System Prompt — ${selectedPromptRole}…`
-                    : `System Prompt — ${selectedPromptRole}`}
+                  {isLoading ? t('ail.loadingPrompt', { role: selectedPromptRole }) : t('ail.systemPrompt', { role: selectedPromptRole })}
                 </h3>
 
                 <button
@@ -517,13 +517,13 @@ export default function EmergenceLab() {
                   }}
                   style={styles.secondaryBtn}
                 >
-                  Chiudi
+                  {t('ail.close')}
                 </button>
               </div>
 
               {isLoading ? (
                 <p style={{ color: '#8fa1ac', margin: 0, fontSize: '0.85rem' }}>
-                    ⏳ sto recuperando il prompt…
+                    {t('ail.fetchingPrompt')}
                 </p>
                ) : editingPrompt ? (
                 <>
@@ -553,7 +553,7 @@ export default function EmergenceLab() {
                             : {}),
                         }}
                     >
-                        💾 Update
+                        {t('ail.update')}
                     </button>
 
                     <button
@@ -561,7 +561,7 @@ export default function EmergenceLab() {
                         onClick={() => setEditingPrompt(false)}
                         style={styles.secondaryBtn}
                     >
-                        Annulla
+                        {t('ail.cancel')}
                     </button>
                     </div>
                 </>
@@ -579,7 +579,7 @@ export default function EmergenceLab() {
         <form onSubmit={handleLaunch} style={styles.form}>
           <div style={styles.grid2}>
             <label style={styles.field}>
-              <span style={styles.label}>World ID</span>
+              <span style={styles.label}>{t('ail.worldId')}</span>
 
               <input
                 type="number"
@@ -591,7 +591,7 @@ export default function EmergenceLab() {
             </label>
 
             <label style={styles.field}>
-              <span style={styles.label}>Iterazioni</span>
+              <span style={styles.label}>{t('ail.iterations')}</span>
 
               <input
                 type="number"
@@ -604,7 +604,7 @@ export default function EmergenceLab() {
             </label>
 
             <label style={styles.field}>
-              <span style={styles.label}>Judge model</span>
+              <span style={styles.label}>{t('ail.judgeModel')}</span>
 
               <select
                 value={judgeModel}
@@ -620,7 +620,7 @@ export default function EmergenceLab() {
             </label>
 
             <label style={styles.field}>
-              <span style={styles.label}>Target role</span>
+              <span style={styles.label}>{t('ail.targetRole')}</span>
 
               <select
                 value={targetRole}
@@ -639,7 +639,7 @@ export default function EmergenceLab() {
           <div style={styles.sectionBlock}>
             <div style={styles.sectionHeader}>
               <span style={styles.label}>
-                Pipeline & model overrides
+                {t('ail.pipelineSection')}
               </span>
 
               <button
@@ -647,7 +647,7 @@ export default function EmergenceLab() {
                 onClick={resetDefaults}
                 style={styles.secondaryBtn}
               >
-                Reset default
+                {t('ail.resetDefaults')}
               </button>
             </div>
 
@@ -699,7 +699,7 @@ export default function EmergenceLab() {
               onClick={() => setShowConf((v) => !v)}
               style={styles.secondaryBtn}
             >
-              {showConf ? 'Nascondi conf' : 'Mostra conf'}
+              {showConf ? t('ail.hideConf') : t('ail.showConf')}
             </button>
 
             {showConf && (
@@ -729,9 +729,7 @@ export default function EmergenceLab() {
                   : {}),
               }}
             >
-              {isLoading
-                ? '⏳ Lancio in corso…'
-                : '▶ Lancia emergence_flow'}
+              {isLoading ? t('ail.launching') : t('ail.launch')}
             </button>
 
             <button
@@ -766,7 +764,7 @@ export default function EmergenceLab() {
 
         {error && (
           <div style={styles.errorBox}>
-            <strong>⚠️ Errore</strong>
+            <strong>{t('ail.error')}</strong>
             <p>{error}</p>
           </div>
         )}
@@ -775,14 +773,14 @@ export default function EmergenceLab() {
         {response && !selectedPromptRole && (
           <div style={styles.response}>
             <div style={styles.responseHeader}>
-              <h3 style={styles.responseTitle}>Risposta Leles</h3>
+              <h3 style={styles.responseTitle}>{t('ail.response')}</h3>
 
               <button
                 type="button"
                 onClick={() => setResponse('')}
                 style={styles.secondaryBtn}
               >
-                Chiudi
+                {t('ail.close')}
               </button>
             </div>
 
