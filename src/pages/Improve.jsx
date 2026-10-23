@@ -25,6 +25,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 const API = "https://api.danielevillanova.com";
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -379,6 +380,7 @@ function useGoogleAuth() {
 
 export default function Improve() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { idToken, email, buttonRef, logout } = useGoogleAuth();
 
   const [files, setFiles] = useState([]);
@@ -465,7 +467,7 @@ export default function Improve() {
         if (r.status === 404) {
           // ARENA_RUNS vive in memoria: un riavvio del gateway lo azzera.
           setRunError(
-            "Run non trovato sul gateway (riavviato?). I turni salvati sono in emergence.arena_turns."
+            t("imp.runNotFound")
           );
           setStatus("ERROR");
           clearInterval(pollRef.current);
@@ -502,7 +504,7 @@ export default function Improve() {
 
     if (!code) {
       setSaveNote(
-        "Nessun blocco di codice trovato nelle risposte: niente da salvare."
+        t("imp.noCodeBlock")
       );
       return;
     }
@@ -529,7 +531,7 @@ export default function Improve() {
         return d;
       })
       .then((d) => setSavedPath(d.saved_path || ""))
-      .catch((e) => setSaveNote("Salvataggio non riuscito: " + e.message));
+      .catch((e) => setSaveNote(t("imp.saveFailed", { message: e.message })));
   }, [status, turns, runId, idToken]);
 
   function setField(name, value) {
@@ -581,11 +583,11 @@ export default function Improve() {
     savedRef.current = false;
 
     if (!cfg.file) {
-      setError("Scegli un file da migliorare.");
+      setError(t("imp.chooseFile"));
       return;
     }
     if (!cfg.participants.length) {
-      setError("Scegli almeno un bot.");
+      setError(t("imp.chooseBot"));
       return;
     }
 
@@ -601,7 +603,7 @@ export default function Improve() {
       );
       if (!fr.ok) {
         const d = await fr.json().catch(() => ({}));
-        throw new Error(d.detail || "Impossibile leggere il file.");
+        throw new Error(d.detail || t("imp.cantReadFile"));
       }
       const fd = await fr.json();
 
@@ -634,7 +636,7 @@ export default function Improve() {
             : d.detail
             ? JSON.stringify(d.detail)
             : "";
-        throw new Error(detail || "Avvio run fallito (HTTP " + r.status + ").");
+        throw new Error(detail || t("imp.startFailed", { status: r.status }));
       }
       const d = await r.json();
 
@@ -689,7 +691,7 @@ export default function Improve() {
       setDiffRows(null);
       setDiffError("");
     } catch {
-      setDiffError("Non riesco a leggere il file selezionato.");
+      setDiffError(t("imp.cantReadSelected"));
     }
   }
 
@@ -708,7 +710,7 @@ export default function Improve() {
       );
       if (!r.ok) {
         const d = await r.json().catch(() => ({}));
-        throw new Error(d.detail || "Impossibile leggere il file.");
+        throw new Error(d.detail || t("imp.cantReadFile"));
       }
       const d = await r.json();
       if (side === "left") {
@@ -729,7 +731,7 @@ export default function Improve() {
     setDiffError("");
     setDiffOnly(false);
     if (!diffLeft && !diffRight) {
-      setDiffError("Carica o incolla il contenuto di almeno uno dei due file.");
+      setDiffError(t("imp.diffNeedContent"));
       return;
     }
     const result = calculateLineDiff(diffLeft, diffRight);
@@ -753,7 +755,7 @@ export default function Improve() {
       setDiffCopied(true);
       setTimeout(() => setDiffCopied(false), 2000);
     } catch {
-      setDiffError("Copia non riuscita: il browser non ha concesso l'accesso agli appunti.");
+      setDiffError(t("imp.copyFailedClipboard"));
     }
   }
 
@@ -780,15 +782,15 @@ export default function Improve() {
       });
       clearTimeout(tid);
       if (r.status === 401 || r.status === 403) {
-        setGitError("Accesso non autorizzato (" + r.status + "): riloggati.");
+        setGitError(t("imp.gitUnauthorized", { status: r.status }));
         return;
       }
       if (!r.ok) throw new Error("HTTP " + r.status);
       const d = await r.json();
-      setGitOutput(d.answer || "(nessuna risposta)");
+      setGitOutput(d.answer || t("imp.noAnswer"));
     } catch (e) {
       clearTimeout(tid);
-      setGitError(e.name === "AbortError" ? "Timeout: il comando non ha risposto entro 120s." : (e.message || String(e)));
+      setGitError(e.name === "AbortError" ? t("imp.gitTimeout") : (e.message || String(e)));
     } finally {
       setGitBusy(false);
     }
@@ -800,7 +802,7 @@ export default function Improve() {
       setGitCopied(true);
       setTimeout(() => setGitCopied(false), 2000);
     } catch {
-      setGitError("Copia non riuscita.");
+      setGitError(t("imp.copyFailed"));
     }
   }
 
@@ -829,7 +831,7 @@ export default function Improve() {
     return (
       <div className="imp-page">
         <h1>Improve</h1>
-        <p>Accedi con Google per usare l'improve dei file.</p>
+        <p>{t("imp.loginHint")}</p>
         <div ref={buttonRef} />
       </div>
     );
@@ -841,11 +843,11 @@ export default function Improve() {
         <h1>Improve</h1>
         <div className="imp-auth">
           <span>{email}</span>
-          <button onClick={logout} className="imp-btn">Logout</button>
+          <button onClick={logout} className="imp-btn">{t("imp.logout")}</button>
         </div>
       </div>
 
-      <div className="imp-mode-tabs" role="tablist" aria-label="Modalità Improve">
+      <div className="imp-mode-tabs" role="tablist" aria-label={t("imp.modeAria")}>
         <button
           className={"imp-btn " + (mode === "improve" ? "imp-tab-active" : "")}
           onClick={() => setMode("improve")}
@@ -865,20 +867,20 @@ export default function Improve() {
         <button
           className="imp-btn"
           onClick={() => navigate("/git-admin")}
-          title="Pannello Git Admin 🛠️ "        >
+          title={t("imp.gitAdminTitle")}        >
           Git Admin ↗
         </button>
         <button
           className="imp-btn"
           onClick={() => navigate("/image-lab")}
-          title="Generazione immagini con Z-Image-Turbo"
+          title={t("imp.imageLabTitle")}
         >
           AI Image Lab ↗
         </button>
         <button
           className="imp-btn"
           onClick={() => navigate("/dag-admin")}
-          title="Pannello Airflow Admin 🌀"
+          title={t("imp.dagAdminTitle")}
         >
           DAG Admin ↗
         </button>
@@ -888,7 +890,7 @@ export default function Improve() {
         <div className="imp-diff-workspace">
           <div className="imp-diff-intro">
             <h2>Git admin</h2>
-            <p>Comandi git sui repo del Mac, via Leles (admin-only). 'Pull rebase' = git pull --rebase + push: riconcilia i branch divergenti senza perdere i commit locali.</p>
+            <p>{t("imp.gitIntro")}</p>
           </div>
 
           <div className="imp-git-projects">
@@ -905,36 +907,36 @@ export default function Improve() {
 
           <div className="imp-diff-actions">
             <button className="imp-btn" disabled={gitBusy} onClick={() => runGit("status " + gitProject)}>Status</button>
-            <button className="imp-btn" disabled={gitBusy} onClick={() => runGit("diff " + gitProject)}>Diff locale</button>
-            <button className="imp-btn" disabled={gitBusy} onClick={() => runGit("commit " + gitProject)}>Ultimo commit</button>
+            <button className="imp-btn" disabled={gitBusy} onClick={() => runGit("diff " + gitProject)}>{t("imp.gitDiffLocal")}</button>
+            <button className="imp-btn" disabled={gitBusy} onClick={() => runGit("commit " + gitProject)}>{t("imp.gitLastCommit")}</button>
             <button className="imp-btn" disabled={gitBusy} onClick={() => runGit("pull report " + gitProject)}>Pull</button>
             <button
               className="imp-btn imp-danger"
               disabled={gitBusy}
-              onClick={() => runGit("pull force " + gitProject, "Pull FORCE su '" + gitProject + "':\nbutta via OGNI commit/modifica locale non pushata. Sicuro?")}
+              onClick={() => runGit("pull force " + gitProject, t("imp.pullForceConfirm", { project: gitProject }))}
             >
               Pull force
             </button>
             <button
               className="imp-btn imp-primary"
               disabled={gitBusy}
-              onClick={() => runGit("pull rebase " + gitProject, "Pull REBASE su '" + gitProject + "':\nribasa i commit locali su origin e li pubblica (push). Confermi?")}
+              onClick={() => runGit("pull rebase " + gitProject, t("imp.pullRebaseConfirm", { project: gitProject }))}
             >
               Pull rebase
             </button>
           </div>
 
           {gitError && <div className="imp-error">! {gitError}</div>}
-          {gitBusy && <p className="imp-empty">Comando in esecuzione…</p>}
+          {gitBusy && <p className="imp-empty">{t("imp.gitBusy")}</p>}
 
           {gitOutput && (
             <section className="imp-col">
               <div className="imp-diff-result-head">
-                <h3>Risultato</h3>
+                <h3>{t("imp.result")}</h3>
                 <div style={{ display: "flex", gap: 8 }}>
-                  <button className="imp-btn" onClick={copyGitOutput}>{gitCopied ? "Copiata" : "Copia"}</button>
-                  <button className="imp-btn" onClick={() => downloadTextFile("git_" + gitProject.replace(/\s+/g, "_") + ".txt", gitOutput)}>Scarica</button>
-                  <button className="imp-btn" onClick={() => setGitOutput("")}>Chiudi</button>
+                  <button className="imp-btn" onClick={copyGitOutput}>{gitCopied ? t("imp.copiedF") : t("imp.copy")}</button>
+                  <button className="imp-btn" onClick={() => downloadTextFile("git_" + gitProject.replace(/\s+/g, "_") + ".txt", gitOutput)}>{t("imp.download")}</button>
+                  <button className="imp-btn" onClick={() => setGitOutput("")}>{t("imp.close")}</button>
                 </div>
               </div>
               <pre className="imp-msg imp-git-out">{gitOutput}</pre>
@@ -944,8 +946,8 @@ export default function Improve() {
       ) : mode === "diff" ? (
         <div className="imp-diff-workspace">
           <div className="imp-diff-intro">
-            <h2>Confronta due file</h2>
-            <p>Carica i file, incolla il codice, oppure prendi un file esistente dal Mac con i selettori qui sotto (stesso elenco del tab Improve).</p>
+            <h2>{t("imp.diffTitle")}</h2>
+            <p>{t("imp.diffIntro")}</p>
           </div>
 
           <div className="imp-diff-projectpick">
@@ -962,32 +964,32 @@ export default function Improve() {
             </div>
             <input
               className="imp-input"
-              placeholder="filtra file (es. scripts/)"
+              placeholder={t("imp.filterFilesPh")}
               value={diffFileFilter}
               onChange={(e) => setDiffFileFilter(e.target.value)}
             />
             <p className="imp-hint">
-              Scegli il file nei selettori "da progetto" nelle colonne A e B qui sotto.
+              {t("imp.diffPickHint")}
             </p>
           </div>
           <div className="imp-diff-inputs">
             <section className="imp-col">
               <div className="imp-diff-title">
-                <label className="imp-label">A · Originale</label>
+                <label className="imp-label">{t("imp.colA")}</label>
                 <select
                   className="imp-select imp-diff-pick"
                   value=""
                   onChange={(e) => { loadDiffFromServer("left", e.target.value); e.target.value = ""; }}
-                  aria-label="File esistente dal progetto (colonna A)"
+                  aria-label={t("imp.pickAriaA")}
                 >
-                  <option value="">— da progetto —</option>
+                  <option value="">{t("imp.fromProject")}</option>
                   {visibleDiffFiles.map((f) => (
                     <option key={f.path} value={f.path} disabled={f.size > MAX_DIFF_BYTES}>
-                      {f.path}{f.size > MAX_DIFF_BYTES ? " · troppo grande" : ""}
+                      {f.path}{f.size > MAX_DIFF_BYTES ? t("imp.tooBig") : ""}
                     </option>
                   ))}
                 </select>
-                <button className="imp-btn" onClick={() => leftUploadRef.current?.click()}>Carica file</button>
+                <button className="imp-btn" onClick={() => leftUploadRef.current?.click()}>{t("imp.upload")}</button>
                 <input
                   ref={leftUploadRef}
                   className="imp-file-input"
@@ -999,7 +1001,7 @@ export default function Improve() {
               <textarea
                 className="imp-input imp-diff-editor"
                 aria-label="Contenuto del file originale"
-                placeholder="Incolla qui il contenuto originale..."
+                placeholder={t("imp.pasteLeftPh")}
                 value={diffLeft}
                 onChange={(e) => { setDiffLeft(e.target.value); setDiffRows(null); }}
                 spellCheck={false}
@@ -1007,21 +1009,21 @@ export default function Improve() {
             </section>
             <section className="imp-col">
               <div className="imp-diff-title">
-                <label className="imp-label">B · Modificato</label>
+                <label className="imp-label">{t("imp.colB")}</label>
                 <select
                   className="imp-select imp-diff-pick"
                   value=""
                   onChange={(e) => { loadDiffFromServer("right", e.target.value); e.target.value = ""; }}
-                  aria-label="File esistente dal progetto (colonna B)"
+                  aria-label={t("imp.pickAriaB")}
                 >
-                  <option value="">— da progetto —</option>
+                  <option value="">{t("imp.fromProject")}</option>
                   {visibleDiffFiles.map((f) => (
                     <option key={f.path} value={f.path} disabled={f.size > MAX_DIFF_BYTES}>
-                      {f.path}{f.size > MAX_DIFF_BYTES ? " · troppo grande" : ""}
+                      {f.path}{f.size > MAX_DIFF_BYTES ? t("imp.tooBig") : ""}
                     </option>
                   ))}
                 </select>
-                <button className="imp-btn" onClick={() => rightUploadRef.current?.click()}>Carica file</button>
+                <button className="imp-btn" onClick={() => rightUploadRef.current?.click()}>{t("imp.upload")}</button>
                 <input
                   ref={rightUploadRef}
                   className="imp-file-input"
@@ -1033,7 +1035,7 @@ export default function Improve() {
               <textarea
                 className="imp-input imp-diff-editor"
                 aria-label="Contenuto del file modificato"
-                placeholder="Incolla qui il contenuto modificato..."
+                placeholder={t("imp.pasteRightPh")}
                 value={diffRight}
                 onChange={(e) => { setDiffRight(e.target.value); setDiffRows(null); }}
                 spellCheck={false}
@@ -1041,13 +1043,13 @@ export default function Improve() {
             </section>
           </div>
           <div className="imp-diff-actions">
-            <button className="imp-btn imp-primary" onClick={runDiff}>Confronta</button>
+            <button className="imp-btn imp-primary" onClick={runDiff}>{t("imp.compare")}</button>
             <button className="imp-btn" onClick={() => {
               setDiffLeft(""); setDiffRight(""); setDiffRows(null); setDiffOnly(false); setDiffError("");
               setDiffLeftName("originale.txt"); setDiffRightName("modificato.txt");
               if (leftUploadRef.current) leftUploadRef.current.value = "";
               if (rightUploadRef.current) rightUploadRef.current.value = "";
-            }}>Pulisci</button>
+            }}>{t("imp.clear")}</button>
             {diffRows && (
               <>
                 <button
@@ -1055,11 +1057,11 @@ export default function Improve() {
                   onClick={() => setDiffOnly((current) => !current)}
                   aria-pressed={diffOnly}
                 >
-                  {diffOnly ? "Mostra tutto" : "Diff only"}
+                  {diffOnly ? t("imp.showAll") : "Diff only"}
                 </button>
-                <button className="imp-btn" onClick={copyDiff}>{diffCopied ? "Copiata" : diffOnly ? "Copia diff only" : "Copia diff"}</button>
-                <button className="imp-btn" onClick={() => downloadTextFile("diff.txt", diffAsText())}>{diffOnly ? "Scarica diff only" : "Scarica diff"}</button>
-                <button className="imp-btn" onClick={() => downloadTextFile(diffRightName || "modificato.txt", diffRight)}>Scarica file B</button>
+                <button className="imp-btn" onClick={copyDiff}>{diffCopied ? t("imp.copiedF") : diffOnly ? t("imp.copyDiffOnly") : t("imp.copyDiff")}</button>
+                <button className="imp-btn" onClick={() => downloadTextFile("diff.txt", diffAsText())}>{diffOnly ? t("imp.downloadDiffOnly") : t("imp.downloadDiff")}</button>
+                <button className="imp-btn" onClick={() => downloadTextFile(diffRightName || "modificato.txt", diffRight)}>{t("imp.downloadB")}</button>
               </>
             )}
           </div>
@@ -1067,16 +1069,16 @@ export default function Improve() {
           {diffRows && (
             <section className="imp-col imp-diff-result">
               <div className="imp-diff-result-head">
-                <h3>Risultato</h3>
+                <h3>{t("imp.result")}</h3>
                 <div className="imp-diff-legend">
-                  <span className="imp-diff-add-label">+ aggiunta</span>
-                  <span className="imp-diff-remove-label">− rimossa</span>
-                  <span className="imp-diff-same-label">· invariata</span>
+                  <span className="imp-diff-add-label">{t("imp.added")}</span>
+                  <span className="imp-diff-remove-label">{t("imp.removed")}</span>
+                  <span className="imp-diff-same-label">{t("imp.unchanged")}</span>
                 </div>
               </div>
-              {diffCoarse && <p className="imp-note">File molto grandi: il blocco centrale viene mostrato come rimozioni e aggiunte, senza allineamento riga per riga.</p>}
+              {diffCoarse && <p className="imp-note">{t("imp.diffCoarseNote")}</p>}
               {diffOnly && !diffRows.some((row) => row.type !== "same") ? (
-                <p className="imp-empty">Nessuna differenza: i file sono identici.</p>
+                <p className="imp-empty">{t("imp.noDiff")}</p>
               ) : (
               <div className="imp-diff-lines">
                 {(diffOnly ? diffRows.filter((row) => row.type !== "same") : diffRows).map((row, i) => (
@@ -1096,7 +1098,7 @@ export default function Improve() {
       <div className="imp-cols">
         {/* ---------- CONFIG ---------- */}
         <div className="imp-col">
-          <label className="imp-label">File da migliorare</label>
+          <label className="imp-label">{t("imp.fileLabel")}</label>
 
           <div className="imp-roots">
             {roots.map((r) => (
@@ -1115,22 +1117,20 @@ export default function Improve() {
 
           <input
             className="imp-input"
-            placeholder="filtra (es. scripts/)"
+            placeholder={t("imp.filterPh")}
             value={fileFilter}
             onChange={(e) => setFileFilter(e.target.value)}
           />
           {!filesLoaded && (
-            <p className="imp-empty">Caricamento lista file...</p>
+            <p className="imp-empty">{t("imp.loadingFiles")}</p>
           )}
           {filesLoaded && !files.length && (
             <p className="imp-error">
-              Nessun file trovato. Il gateway deve essere la versione
-              nuova: riavvialo (Telegram: restart gateway) e ricarica
-              la pagina.
+              {t("imp.noFiles")}
             </p>
           )}
           {filesLoaded && files.length > 0 && !visibleFiles.length && (
-            <p className="imp-empty">Nessun file in questa root con il filtro attuale.</p>
+            <p className="imp-empty">{t("imp.noFilesFiltered")}</p>
           )}
           <select
             className="imp-select"
@@ -1138,7 +1138,7 @@ export default function Improve() {
             onChange={(e) => setField("file", e.target.value)}
             size={8}
           >
-            {!cfg.file && <option value="">- scegli un file -</option>}
+            {!cfg.file && <option value="">{t("imp.chooseFilePh")}</option>}
             {visibleFiles.map((f) => (
               <option
                 key={f.root + ":" + f.path}
@@ -1146,31 +1146,30 @@ export default function Improve() {
                 disabled={f.size > MAX_FILE_BYTES}
               >
                 {f.path} ({Math.round(f.size / 1024)} KB)
-                {f.size > MAX_FILE_BYTES ? " - troppo grande" : ""}
+                {f.size > MAX_FILE_BYTES ? t("imp.tooBigDash") : ""}
               </option>
             ))}
           </select>
           {cfg.file && (
             <p className="imp-file-chosen">
-              File selezionato: <code>{cfg.file}</code>
+              {t("imp.fileChosen")} <code>{cfg.file}</code>
             </p>
           )}
 
-          <label className="imp-label">Richiesta (opzionale)</label>
+          <label className="imp-label">{t("imp.requestLabel")}</label>
           <textarea
             className="imp-input"
             rows={3}
-            placeholder="es. fix del bug X, estrai funzione Y..."
+            placeholder={t("imp.requestPh")}
             value={cfg.request}
             onChange={(e) => setField("request", e.target.value)}
           />
 
           <label className="imp-label">
-            {"Bot (1-" + MAX_BOTS + ", ruoli Emergence + Super-Leles)"}
+            {t("imp.botLabel", { max: MAX_BOTS })}
           </label>
           <p className="imp-hint">
-            Il codice salvato e quello dell'ultimo bot: mettilo per ultimo
-            (es. Developer o Reviewer).
+            {t("imp.lastBotHint")}
           </p>
           {cfg.participants.map((p, idx) => (
             <div key={p.id} className="imp-bot-row">
@@ -1213,11 +1212,11 @@ export default function Improve() {
           ))}
           {cfg.participants.length < MAX_BOTS && (
             <button className="imp-btn" onClick={addBot}>
-              + Aggiungi bot
+              {t("imp.addBot")}
             </button>
           )}
 
-          <label className="imp-label">Iterazioni (1-{MAX_ITERATIONS})</label>
+          <label className="imp-label">{t("imp.iterations", { max: MAX_ITERATIONS })}</label>
           <select
             className="imp-select"
             value={cfg.iterations}
@@ -1234,7 +1233,7 @@ export default function Improve() {
               checked={cfg.saveImproved}
               onChange={(e) => setField("saveImproved", e.target.checked)}
             />
-            Salva <code>{"{file}.improved.<ext>"}</code> a run completato
+            {t("imp.saveA")} <code>{"{file}.improved.<ext>"}</code> {t("imp.saveB")}
           </label>
 
           <div className="imp-actions">
@@ -1243,7 +1242,7 @@ export default function Improve() {
               disabled={busy || isRunning}
               onClick={startRun}
             >
-              {busy ? "..." : "Avvia Improve"}
+              {busy ? "..." : t("imp.start")}
             </button>
             {isRunning && (
               <button className="imp-btn imp-danger" onClick={stopRun}>
@@ -1255,18 +1254,18 @@ export default function Improve() {
           {error && <div className="imp-error">! {error}</div>}
           {runId && (
             <div className="imp-runinfo">
-              Run: <code>{String(runId).slice(0, 8)}</code> · Stato:{" "}
+              Run: <code>{String(runId).slice(0, 8)}</code> · {t("imp.statusLabel")}{" "}
               <b>{status || "..."}</b>
               {runError && <div className="imp-error">! {runError}</div>}
               {savedPath && (
                 <div className="imp-saved">
-                  Salvato: <code>{savedPath}</code>
+                  {t("imp.saved")} <code>{savedPath}</code>
                 </div>
               )}
               {saveNote && <div className="imp-note">{saveNote}</div>}
               {finalCode && (
                 <button className="imp-btn imp-copy" onClick={copyFinalCode}>
-                  {copied ? "Copiato" : "Copia codice finale"}
+                  {copied ? t("imp.copiedM") : t("imp.copyFinal")}
                 </button>
               )}
             </div>
@@ -1275,28 +1274,28 @@ export default function Improve() {
 
         {/* ---------- TRANSCRIPT ---------- */}
         <div className="imp-col imp-transcript">
-          <h2>Discussione</h2>
+          <h2>{t("imp.discussion")}</h2>
           {!turns.length && (
             <p className="imp-empty">
               {isRunning
-                ? "In attesa del primo messaggio..."
-                : "Nessun run attivo."}
+                ? t("imp.waitingFirst")
+                : t("imp.noRun")}
             </p>
           )}
-          {turns.map((t, i) => (
-            <div key={t.id ?? i} className="imp-turn">
+          {turns.map((msg, i) => (
+            <div key={msg.id ?? i} className="imp-turn">
               <div className="imp-turn-head">
                 <b>
-                  {t.agent === "super_leles"
+                  {msg.agent === "super_leles"
                     ? "Super-Leles"
-                    : t.agent === "human"
-                    ? "Tu"
-                    : t.role || t.agent}
+                    : msg.agent === "human"
+                    ? t("imp.you")
+                    : msg.role || msg.agent}
                 </b>
-                {t.model && <span className="imp-dim"> · {t.model}</span>}
-                {t.turn && <span className="imp-dim"> · giro {t.turn}</span>}
+                {msg.model && <span className="imp-dim"> · {msg.model}</span>}
+                {msg.turn && <span className="imp-dim"> · {t("imp.round")} {msg.turn}</span>}
               </div>
-              <pre className="imp-msg">{turnText(t) || "(messaggio vuoto)"}</pre>
+              <pre className="imp-msg">{turnText(msg) || t("imp.emptyMsg")}</pre>
             </div>
           ))}
         </div>
