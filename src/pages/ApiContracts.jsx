@@ -6,6 +6,7 @@
 // ============================================================
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const TOKEN_STORAGE_KEY = "leles_admin_id_token";
@@ -87,25 +88,25 @@ function useGoogleAuth() {
 const GROUPS = [
   {
     id: "chat", label: "Chat", icon: "◈",
-    note: "Dialogo con gli agenti pubblici. Nessuna autenticazione.",
+    note: "api.note.chat",
     endpoints: [
       {
         method: "POST", path: "/api/chat", auth: false,
-        summary: "Chat testuale con un agente pubblico.",
+        summary: "api.ep.chat",
         request: 'Content-Type: application/json\n\n{\n  "agent": "Lele I | Bar_AI demo | Story Whisper | Night Story",\n  "prompt": "...",\n  "chat_id": 1010101010,\n  "language": "en"\n}',
         response: "{ ...risposta JSON dell'agente... }",
-        notes: "Il gateway inoltra su 127.0.0.1:{porta}/ask del rispettivo agente.",
+        notes: "api.nt.chat",
       },
       {
         method: "POST", path: "/api/chat/audio", auth: false,
-        summary: "Chat vocale (multipart): audio + agente.",
+        summary: "api.ep.chatAudio",
         request: 'Content-Type: multipart/form-data\n\naudio:      <file webm/ogg>\nagent:      "Story Whisper" | "Night Story"\nchat_id:    1010101010\nlanguage:   "en"',
         response: '{ ...trascrizione + risposta... }',
-        notes: "Solo Story Whisper (8088) e Night Story (8666) hanno input audio.",
+        notes: "api.nt.chatAudio",
       },
       {
         method: "GET", path: "/api/chat/tts/{agent}/{filename}", auth: false,
-        summary: "Scarica un audio TTS generato da un agente.",
+        summary: "api.ep.chatTts",
         request: "—",
         response: "audio/ogg (stream)",
       },
@@ -113,123 +114,123 @@ const GROUPS = [
   },
   {
     id: "barai", label: "Bar AI", icon: "◍",
-    note: "Assistente ristorazione + proxy admin.",
+    note: "api.note.barai",
     endpoints: [
       {
         method: "POST", path: "/api/bar-ai/ask", auth: false,
-        summary: "Domanda a Bar AI.",
+        summary: "api.ep.barAsk",
         request: '{\n  "question": "...",\n  "plan": "Basic",\n  "restaurant_id": 1,\n  "user_id": "default"\n}',
         response: '{ ...risposta Bar AI... }',
-        notes: "Proxy verso Bar AI su porta 8081.",
+        notes: "api.nt.barAsk",
       },
       {
         method: "GET", path: "/api/bar-ai/summary", auth: false,
-        summary: "Statistiche/riepilogo ristorante.",
+        summary: "api.ep.barSummary",
         request: "—",
         response: '{ ...summary... }',
       },
       {
         method: "ANY", path: "/api/bar-ai/admin/{path}", auth: false,
-        summary: "Proxy all'admin API del gestionale bar (CRUD tabelle).",
+        summary: "api.ep.barAdmin",
         request: "GET | POST | PUT | DELETE — inoltrato com'è",
         response: "{ ...risposta admin_api... }",
-        notes: "Proxy verso admin_api su porta 8083 (usato da Test6).",
+        notes: "api.nt.barAdmin",
       },
     ],
   },
   {
     id: "admin", label: "Admin Chat", icon: "⌘",
-    note: "Canale privato con Lele Admin.",
+    note: "api.note.admin",
     endpoints: [
       {
         method: "POST", path: "/api/admin/chat", auth: true,
-        summary: "Chat con Lele Admin (orchestratore).",
+        summary: "api.ep.adminChat",
         request: '{\n  "prompt": "...",\n  "chat_id": 1010101010,\n  "language": "en"\n}',
         response: "{ ...risposta Lele Admin... }",
-        notes: "Se l'email è in ADMIN_USER_CHAT_IDS, il chat_id Telegram è risolto lato server.",
+        notes: "api.nt.adminChat",
       },
     ],
   },
   {
     id: "arena", label: "Agent Arena", icon: "◎",
-    note: "Run bot-to-bot con polling (B2B.jsx / Improve).",
+    note: "api.note.arena",
     endpoints: [
       {
         method: "POST", path: "/api/agent-arena/start", auth: true,
-        summary: "Avvia un run Arena.",
+        summary: "api.ep.arenaStart",
         request: '{\n  "participants": [{ "agent", "character", "role", "model" }],\n  "world_source": "free",\n  "world_ref": "",\n  "topic": "",\n  "max_turns": 10\n}',
         response: '{ "run_id", "status", ... }',
-        notes: "Tetti anti-abuso: max 50 turni, 600 messaggi, 3 run attivi.",
+        notes: "api.nt.arenaStart",
       },
       {
         method: "GET", path: "/api/agent-arena/{run_id}", auth: true,
-        summary: "Stato e messaggi del run (polling).",
+        summary: "api.ep.arenaGet",
         request: "—",
         response: '{ "status", "messages", ... }',
       },
       {
         method: "POST", path: "/api/agent-arena/{run_id}/stop", auth: true,
-        summary: "Ferma il run.",
+        summary: "api.ep.arenaStop",
         request: "—", response: '{ "ok", ... }',
       },
       {
         method: "POST", path: "/api/agent-arena/{run_id}/hand", auth: true,
-        summary: "Pausa: mano alzata, attesa intervento umano (timeout 600s).",
+        summary: "api.ep.arenaHand",
         request: "—", response: '{ "ok", ... }',
       },
       {
         method: "POST", path: "/api/agent-arena/{run_id}/intervene", auth: true,
-        summary: "Intervento umano nel run.",
+        summary: "api.ep.arenaIntervene",
         request: '{ "text": "...", ... }',
         response: '{ "ok", ... }',
-        notes: "Max 2000 caratteri, 20 interventi per run.",
+        notes: "api.nt.arenaIntervene",
       },
     ],
   },
   {
     id: "image", label: "Image Lab", icon: "▣",
-    note: "Generazione Z-Image-Turbo via coda job asincrona.",
+    note: "api.note.image",
     endpoints: [
       {
         method: "GET", path: "/api/image/health", auth: true,
-        summary: "Stato della coda e del modello.",
+        summary: "api.ep.imgHealth",
         request: "—", response: '{ ...stato... }',
       },
       {
         method: "POST", path: "/api/image/jobs", auth: true,
-        summary: "Txt2img: crea un job di generazione (202).",
+        summary: "api.ep.imgJobs",
         request: '{\n  "prompt": "...",\n  "width": 512,  "height": 512,\n  "steps": 8,\n  "seed": -1\n}',
         response: '{ "job_id", "status": "QUEUED", "message" }',
-        notes: "Dimensioni consentite 512/768/1024. Seed ≤ 2^31-1. Un job per email.",
+        notes: "api.nt.imgJobs",
       },
       {
         method: "GET", path: "/api/image/jobs/{job_id}", auth: true,
-        summary: "Stato del job (polling).",
+        summary: "api.ep.imgJob",
         request: "—",
         response: '{ "job_id", "status", "message", "error" }',
       },
       {
         method: "GET", path: "/api/image/jobs/{job_id}/result", auth: true,
-        summary: "Risultato del job completato.",
+        summary: "api.ep.imgResult",
         request: "—",
         response: '{ "image_base64", "seed", "width", "height" }',
       },
       {
         method: "POST", path: "/api/image/img2img", auth: true,
-        summary: "Img2img: modifica una foto caricata (multipart, 202).",
+        summary: "api.ep.img2img",
         request: 'Content-Type: multipart/form-data\n\nimage:     <file immagine, max 15 MB>\nprompt:    "descrizione della modifica"\nstrength:  0.65   (0 < s ≤ 1)\nwidth:     512\nheight:    512\nsteps:     8\nseed:      -1',
         response: '{ "job_id", "status": "QUEUED", "message" }',
-        notes: "Polling identico a txt2img. Richiede direct_img2img su Gradio 7860.",
+        notes: "api.nt.img2img",
       },
       {
         method: "GET", path: "/api/image/history", auth: true,
-        summary: "Metadati delle generazioni salvate (ultime 100).",
+        summary: "api.ep.imgHistory",
         request: "—",
         response: '[{ "job_id", "prompt", "width", "height", "steps", "seed", "mode?", "strength?" }, ...]',
       },
       {
         method: "GET", path: "/api/image/history/{job_id}/image", auth: true,
-        summary: "PNG di una generazione in history.",
+        summary: "api.ep.imgHistoryImg",
         request: "—",
         response: "image/png (FileResponse)",
       },
@@ -237,110 +238,110 @@ const GROUPS = [
   },
   {
     id: "vision", label: "Vision / OCR", icon: "◉",
-    note: "OCR con agente JCS per i fogli di presenza.",
+    note: "api.note.vision",
     endpoints: [
       {
         method: "POST", path: "/api/vision/ocr", auth: true,
-        summary: "OCR di un'immagine + interpretazione JCS se è un timesheet.",
+        summary: "api.ep.ocr",
         request: '{\n  "image_base64": "..."   // max 10 MB\n}',
         response: '{\n  "text": "...OCR...",\n  "is_jcs": true|false,\n  "jcs": "Jai Ca sheet\\n\\n...interpretazione..."\n}',
-        notes: "Modello Ollama VISION_OCR_MODEL (default qwen2.5vl), lock 1 richiesta. Il prefisso \"Jai Ca sheet\" indica che l'agente JCS è scattato.",
+        notes: "api.nt.ocr",
       },
     ],
   },
   {
     id: "improve", label: "Improve", icon: "✎",
-    note: "Editor file con revisione AI.",
+    note: "api.note.improve",
     endpoints: [
       {
         method: "GET", path: "/api/improve/files", auth: true,
-        summary: "Elenco file del repository.",
+        summary: "api.ep.impFiles",
         request: "—", response: '[{ ...file... }, ...]',
       },
       {
         method: "GET", path: "/api/improve/file", auth: true,
-        summary: "Contenuto di un file.",
+        summary: "api.ep.impFile",
         request: '?path=...', response: '{ ...contenuto... }',
       },
       {
         method: "POST", path: "/api/improve/save", auth: true,
-        summary: "Salvataggio file.",
+        summary: "api.ep.impSave",
         request: '{ ...path + contenuto... }', response: '{ "ok", ... }',
       },
     ],
   },
   {
     id: "git", label: "Git Admin", icon: "⑂",
-    note: "Operazioni Git con preview + conferma (git_admin.py).",
+    note: "api.note.git",
     endpoints: [
       {
         method: "GET", path: "/api/git/admin/status", auth: true,
-        summary: "Stato repo (branch, ahead/behind, working tree).",
+        summary: "api.ep.gitStatus",
         request: '?project=leles|bar_ai|lele|lele_story_whisper|lele_night_story|dv_site|gradv',
         response: '{ "branch", "ahead", "behind", "dirty", "last_commit", ... }',
       },
       {
         method: "GET", path: "/api/git/admin/diff", auth: true,
-        summary: "Diff per scope.",
+        summary: "api.ep.gitDiff",
         request: '?project=...&scope=working|staged|incoming|outgoing',
         response: '{ "summary", "files", "diff", "truncated" }',
       },
       {
         method: "POST", path: "/api/git/admin/preview", auth: true,
-        summary: "Anteprima monouso di un'operazione (TTL 5 min).",
+        summary: "api.ep.gitPreview",
         request: '{ "project", "action": "commit|push|pull|force_pull", "message"? }',
         response: '{ "preview_id", "summary", "warnings", "safe", "confirmation_phrase", ... }',
       },
       {
         method: "POST", path: "/api/git/admin/execute", auth: true,
-        summary: "Esegue l'operazione confermata.",
+        summary: "api.ep.gitExec",
         request: '{ "project", "action", "message?", "confirmation_phrase", "preview_id" }',
         response: '{ "ok", "message" }',
-        notes: "Richiede GIT_ADMIN_ALLOW_WRITE=1 (e GIT_ADMIN_ALLOW_FORCE=1 per il pull forzato).",
+        notes: "api.nt.gitExec",
       },
     ],
   },
   {
     id: "querydb", label: "QueryDB", icon: "🗄️",
-    note: "Browse read-only dei database PostgreSQL (query_db.py).",
+    note: "api.note.querydb",
     endpoints: [
       {
         method: "GET", path: "/api/db/status", auth: true,
-        summary: "Tabelle dell'area con stima righe e ultime attività.",
+        summary: "api.ep.dbStatus",
         request: '?area=leles|emergence',
         response: '{ "area", "tables": [{ "name", "rows", "detail" }], "recent": [{ "what", "when" }] }',
-        notes: "Sessione Postgres readonly=True: il DB rifiuta ogni scrittura. Leles = tutte le tabelle public, Emergence = tabelle emergence_*.",
+        notes: "api.nt.dbStatus",
       },
       {
         method: "GET", path: "/api/db/table", auth: true,
-        summary: "Anteprima paginata di una tabella (50 righe per pagina) con filtri.",
+        summary: "api.ep.dbTable",
         request: "?area=...&table=nome_tabella&page=0&user=testo&users=val1,val2&date_from=YYYY-MM-DD&date_to=YYYY-MM-DD",
         response: '{ "table", "columns", "rows", "page" }',
-        notes: "Nome tabella validato contro information_schema (solo schema public): nessuna query libera. Filtri opzionali: user = testo sulla colonna utente; users = lista di valori da includere (checkbox del pannello UTENTI); date_from / date_to = intervallo date.",
+        notes: "api.nt.dbTable",
       },
       {
         method: "GET", path: "/api/db/users", auth: true,
-        summary: "Valori distinti della colonna utente della tabella, con conteggio righe.",
+        summary: "api.ep.dbUsers",
         request: "?area=leles|emergence&table=nome_tabella",
         response: '{ "column": "user", "users": [{ "name": "airflow", "count": 123 }, ...] }',
-        notes: "Alimenta il pannello UTENTI di QueryDb (raggruppato per categoria con on/off). Se la tabella non ha una colonna utente valida, il pannello non compare.",
+        notes: "api.nt.dbUsers",
       },
     ],
   },
 ];
 
 const PORTS = [
-  { port: "9090", name: "gateway.py", detail: "API gateway pubblico (uvicorn)" },
-  { port: "8080", name: "Lele I", detail: "agente pubblico" },
-  { port: "8081", name: "Bar_AI", detail: "assistente ristorazione" },
-  { port: "8082", name: "Leles", detail: "orchestratore / Lele Admin" },
-  { port: "8083", name: "admin_api", detail: "CRUD tabelle bar (Test6)" },
-  { port: "8088", name: "Story Whisper", detail: "storie per bambini" },
-  { port: "8666", name: "Night Story", detail: "storie per adulti" },
-  { port: "7860", name: "Gradio Z-Image-Turbo", detail: "direct_generate · direct_img2img" },
-  { port: "7999", name: "model_server", detail: "backend del modello immagine" },
-  { port: "11434", name: "Ollama", detail: "VISION_OCR_MODEL (qwen2.5vl)" },
-  { port: "5432", name: "PostgreSQL", detail: "log e persistenza" },
+  { port: "9090", name: "gateway.py", detail: "api.port.gw" },
+  { port: "8080", name: "Lele I", detail: "api.port.agent" },
+  { port: "8081", name: "Bar_AI", detail: "api.port.barai" },
+  { port: "8082", name: "Leles", detail: "api.port.leles" },
+  { port: "8083", name: "admin_api", detail: "api.port.adminapi" },
+  { port: "8088", name: "Story Whisper", detail: "api.port.sw" },
+  { port: "8666", name: "Night Story", detail: "api.port.ns" },
+  { port: "7860", name: "Gradio Z-Image-Turbo", detail: "api.port.gradio" },
+  { port: "7999", name: "model_server", detail: "api.port.modelserver" },
+  { port: "11434", name: "Ollama", detail: "api.port.ollama" },
+  { port: "5432", name: "PostgreSQL", detail: "api.port.postgres" },
 ];
 
 function methodClass(m) {
@@ -349,6 +350,7 @@ function methodClass(m) {
 
 export default function ApiContracts() {
   const auth = useGoogleAuth();
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [activeGroup, setActiveGroup] = useState("all");
   const [copied, setCopied] = useState("");
@@ -360,11 +362,11 @@ export default function ApiContracts() {
       .map((g) => ({
         ...g,
         endpoints: g.endpoints.filter((e) =>
-          !q || e.path.toLowerCase().includes(q) || e.summary.toLowerCase().includes(q)
+          !q || e.path.toLowerCase().includes(q) || t(e.summary).toLowerCase().includes(q)
         ),
       }))
       .filter((g) => g.endpoints.length > 0);
-  }, [query, activeGroup]);
+  }, [query, activeGroup, t]);
 
   async function copyCurl(ep) {
     const curl = "curl -X " + ep.method + " https://api.danielevillanova.com" + ep.path +
@@ -382,12 +384,12 @@ export default function ApiContracts() {
         <section className="api-login panel">
           <p className="eyebrow">D. VILLANOVA · DEVELOPER TOOLS</p>
           <h1>API Contracts</h1>
-          <p className="muted">Riferimento dei contratti API del gateway. Accesso riservato.</p>
+          <p className="muted">{t("api.loginSub")}</p>
           {!auth.token
             ? <div ref={auth.buttonRef} className="google-slot" />
             : <>
-                <p className="error-text">Account non autorizzato: {auth.email || "email non disponibile"}</p>
-                <button className="btn" onClick={auth.logout}>Logout / cambia account</button>
+                <p className="error-text">{t("api.unauthorized", { email: auth.email || t("api.emailMissing") })}</p>
+                <button className="btn" onClick={auth.logout}>{t("api.logoutSwitch")}</button>
               </>}
         </section>
       </main>
@@ -402,21 +404,21 @@ export default function ApiContracts() {
           <h1>API Contracts <span className="version-tag">{GROUPS.reduce((n, g) => n + g.endpoints.length, 0)} ENDPOINT</span></h1>
         </div>
         <div className="user-tools">
-          <input className="search-input" type="search" placeholder="Cerca rotta o descrizione…"
+          <input className="search-input" type="search" placeholder={t("api.searchPh")}
             value={query} onChange={(e) => setQuery(e.target.value)} />
           <span className="user-email">{auth.email}</span>
-          <button className="btn btn-quiet" onClick={auth.logout}>Logout</button>
+          <button className="btn btn-quiet" onClick={auth.logout}>{t("api.logout")}</button>
         </div>
       </header>
 
       <section className="panel ports-strip">
-        <p className="eyebrow">ARCHITETTURA · PORTE LOCALI (MAC)</p>
+        <p className="eyebrow">{t("api.portsEyebrow")}</p>
         <div className="ports-grid">
           {PORTS.map((p) => (
             <div className="port-chip" key={p.port}>
               <strong>:{p.port}</strong>
               <span>{p.name}</span>
-              <small>{p.detail}</small>
+              <small>{t(p.detail)}</small>
             </div>
           ))}
         </div>
@@ -424,7 +426,7 @@ export default function ApiContracts() {
 
       <nav className="group-tabs">
         <button className={"group-tab" + (activeGroup === "all" ? " active" : "")}
-          onClick={() => setActiveGroup("all")}>Tutti</button>
+          onClick={() => setActiveGroup("all")}>{t("api.all")}</button>
         {GROUPS.map((g) => (
           <button key={g.id} className={"group-tab" + (activeGroup === g.id ? " active" : "")}
             onClick={() => setActiveGroup(g.id)}>{g.icon} {g.label}</button>
@@ -436,9 +438,9 @@ export default function ApiContracts() {
           <div className="section-heading">
             <div>
               <p className="eyebrow">{g.icon} {g.label.toUpperCase()}</p>
-              <h2>{g.endpoints.length} endpoint</h2>
+              <h2>{t("api.nEndpoints", { n: g.endpoints.length })}</h2>
             </div>
-            <p className="muted small-copy">{g.note}</p>
+            <p className="muted small-copy">{t(g.note)}</p>
           </div>
           {g.endpoints.map((ep) => (
             <article className="endpoint" key={ep.method + ep.path}>
@@ -447,25 +449,25 @@ export default function ApiContracts() {
                 <code className="endpoint-path">{ep.path}</code>
                 {ep.auth
                   ? <span className="auth-pill" title="Authorization: Bearer <google_id_token>">🔒 Bearer</span>
-                  : <span className="auth-pill open">pubblico</span>}
+                  : <span className="auth-pill open">{t("api.public")}</span>}
                 <button className="btn btn-quiet btn-copy" onClick={() => copyCurl(ep)}>
-                  {copied === ep.method + " " + ep.path ? "✓ copiato" : "copia curl"}
+                  {copied === ep.method + " " + ep.path ? t("api.copied") : t("api.copyCurl")}
                 </button>
               </div>
-              <p className="endpoint-summary">{ep.summary}</p>
+              <p className="endpoint-summary">{t(ep.summary)}</p>
               <div className="endpoint-detail">
                 <div><label>Request</label><pre>{ep.request}</pre></div>
                 <div><label>Response</label><pre>{ep.response}</pre></div>
               </div>
-              {ep.notes && <p className="endpoint-notes">◆ {ep.notes}</p>}
+              {ep.notes && <p className="endpoint-notes">◆ {t(ep.notes)}</p>}
             </article>
           ))}
         </section>
       ))}
 
       <footer className="api-footer muted">
-        <span>Fonte: gateway.py + git_admin.py + query_db.py · aggiornato 22 ottobre 2026</span>
-        <span>Pagina statica: nessuna dipendenza dal backend</span>
+        <span>{t("api.footerSrc")}</span>
+        <span>{t("api.footerStatic")}</span>
       </footer>
     </main>
   );
