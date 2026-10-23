@@ -194,7 +194,7 @@ function SystemTiles({ data }) {
           )
 
           ollamaItems.push({
-            label: 'Superleles available only: -->  GPT-OSS',
+            label: 'Superleles only: gpt-oss:20b',
             state: gpt?.state || 'off',
             sub: '',
           })
