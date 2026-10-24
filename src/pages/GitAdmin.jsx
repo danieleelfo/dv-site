@@ -130,6 +130,14 @@ export default function Test2() {
   const [commitMessage, setCommitMessage] = useState("");
   const [confirmText, setConfirmText] = useState("");
   const [showRaw, setShowRaw] = useState(false);
+  const [fdFiles, setFdFiles] = useState([]);
+  const [fdFile, setFdFile] = useState("");
+  const [fdLimit, setFdLimit] = useState(10);
+  const [fdCommits, setFdCommits] = useState([]);
+  const [fdSha, setFdSha] = useState("");
+  const [fdDiff, setFdDiff] = useState(null);
+  const [fdBusy, setFdBusy] = useState("");
+  const [fdError, setFdError] = useState("");
 
   const repo = useMemo(() => REPOS.find((r) => r.id === project) || REPOS[0], [project]);
 
@@ -183,6 +191,67 @@ export default function Test2() {
       setBusy("");
     }
   }, [api, project, scope]);
+
+  const loadFdFiles = useCallback(async (selectedProject = project) => {
+    setFdBusy("files");
+    setFdError("");
+    try {
+      const data = await api(`/api/git/admin/files?project=${encodeURIComponent(selectedProject)}`);
+      setFdFiles(Array.isArray(data.files) ? data.files : []);
+    } catch (e) {
+      setFdError(e.message || String(e));
+      setFdFiles([]);
+    } finally {
+      setFdBusy("");
+    }
+  }, [api, project]);
+
+  const loadFileDiff = useCallback(async (file, sha) => {
+    setFdBusy("diff");
+    setFdError("");
+    setFdSha(sha);
+    try {
+      const data = await api(`/api/git/admin/filediff?project=${encodeURIComponent(project)}&file=${encodeURIComponent(file)}&sha=${encodeURIComponent(sha)}`);
+      setFdDiff(data);
+    } catch (e) {
+      setFdError(e.message || String(e));
+      setFdDiff(null);
+    } finally {
+      setFdBusy("");
+    }
+  }, [api, project]);
+
+  const loadFileLog = useCallback(async (targetFile = fdFile, limit = fdLimit, autoSelect = true) => {
+    const file = String(targetFile || "").trim();
+    if (!file) return;
+    setFdBusy("log");
+    setFdError("");
+    setFdCommits([]);
+    setFdSha("");
+    setFdDiff(null);
+    try {
+      const data = await api(`/api/git/admin/filelog?project=${encodeURIComponent(project)}&file=${encodeURIComponent(file)}&limit=${limit}`);
+      const commits = Array.isArray(data.commits) ? data.commits : [];
+      setFdCommits(commits);
+      if (autoSelect && commits.length > 0) {
+        await loadFileDiff(file, commits[0].sha);
+      }
+    } catch (e) {
+      setFdError(e.message || String(e));
+    } finally {
+      setFdBusy("");
+    }
+  }, [api, project, fdFile, fdLimit, loadFileDiff]);
+
+  useEffect(() => {
+    if (auth.token && auth.allowed) {
+      setFdFile("");
+      setFdCommits([]);
+      setFdSha("");
+      setFdDiff(null);
+      loadFdFiles(project);
+    }
+  }, [auth.token, auth.allowed, project, loadFdFiles]);
 
   useEffect(() => {
     if (auth.token && auth.allowed) loadStatus(project);
@@ -356,6 +425,58 @@ export default function Test2() {
         <pre className={`diff-code ${showRaw ? "raw" : ""}`}>{diffText || (busy === "diff" ? t("git.loadingDiff") : t("git.noDiff"))}</pre>
       </section>
 
+      <section className="panel diff-panel filediff-panel">
+        <div className="section-heading diff-heading">
+          <div>
+            <p className="eyebrow">FILE HISTORY</p>
+            <h2>File Diff</h2>
+            <p className="muted small-copy">Scegli un file del repository e guarda le ultime N modifiche, commit per commit.</p>
+          </div>
+        </div>
+        <datalist id="git-file-list">
+          {fdFiles.map((file) => <option key={file} value={file} />)}
+        </datalist>
+        <div className="fd-controls">
+          <input
+            className="text-input"
+            list="git-file-list"
+            placeholder="src/pages/Test4.jsx — cerca o scrivi il percorso…"
+            value={fdFile}
+            onChange={(e) => setFdFile(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); loadFileLog(); } }}
+            disabled={!!fdBusy}
+          />
+          <select
+            className="text-input fd-limit"
+            value={fdLimit}
+            disabled={!!fdBusy}
+            onChange={(e) => { const n = Number(e.target.value); setFdLimit(n); if (fdFile.trim()) loadFileLog(fdFile, n); }}
+          >
+            {[5, 10, 25, 50].map((n) => <option key={n} value={n}>Ultime {n}</option>)}
+          </select>
+          <button className="btn" disabled={!!fdBusy || !fdFile.trim()} onClick={() => loadFileLog()}>Carica cronologia</button>
+        </div>
+        {fdError && <div className="alert alert-error" style={{ maxWidth: "none", margin: "0 0 12px" }}><strong>Attenzione</strong><span>{fdError}</span><button onClick={() => setFdError("")}>×</button></div>}
+        {fdCommits.length > 0 && (
+          <div className="fd-commit-list">
+            {fdCommits.map((c) => (
+              <button key={c.sha} className={"fd-commit" + (c.sha === fdSha ? " active" : "")} onClick={() => loadFileDiff(fdFile.trim(), c.sha)}>
+                <code>{c.short_sha || String(c.sha).slice(0, 8)}</code>
+                <span className="fd-msg">{c.message}</span>
+                <span className="fd-meta">{c.author} · {new Date(c.date).toLocaleString()}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        {fdDiff && (
+          <div className="diff-toolbar">
+            <span><code>{fdDiff.file}</code> @ {shortSha(fdDiff.sha)} · <em className="fd-add">+{fdDiff.additions}</em> <i className="fd-del">−{fdDiff.deletions}</i>{fdDiff.truncated ? " · troncato" : ""}</span>
+            <button className="btn btn-quiet" disabled={!!fdBusy} onClick={() => loadFileLog(fdFile, fdLimit, false)}>Ricarica cronologia</button>
+          </div>
+        )}
+        <pre className="diff-code">{fdDiff?.diff || (fdBusy === "diff" ? "Carico il diff…" : "Seleziona un file e clicca su un commit per vedere il diff.")}</pre>
+      </section>
+
       <section className="bottom-grid">
         <div className="panel">
           <div className="section-heading"><div><p className="eyebrow">RECENT ACTIVITY</p><h2>{t("git.activity")}</h2></div></div>
@@ -406,6 +527,7 @@ function GitStyles() {
     .main-grid{max-width:1500px;margin:0 auto 18px;display:grid;grid-template-columns:1fr 1.1fr;gap:18px}.overview-panel,.actions-panel,.diff-panel,.bottom-grid>.panel{padding:21px}.section-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:19px}.section-heading h2{font-size:17px;margin:0;letter-spacing:-.025em}.section-heading .eyebrow{margin-bottom:6px}.muted{color:var(--muted)}.small-copy{font-size:12px;line-height:1.6}.status-pill{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;border:1px solid #314050;border-radius:99px;padding:6px 9px;font-size:10px;color:#9eacba}.status-pill i{width:6px;height:6px;background:#8a9aab;border-radius:50%}.status-pill.is-clean{border-color:#285e4c;color:#8ce4bd}.status-pill.is-clean i{background:#5cdda8}.status-pill.is-dirty{border-color:#73572d;color:#ffd18a}.status-pill.is-dirty i{background:#ffc56c}
     .status-lines{border-top:1px solid #263442}.status-line{display:flex;justify-content:space-between;gap:15px;padding:12px 0;border-bottom:1px solid #202e3b;font-size:11px}.status-line span{color:#8797a8;flex:0 0 110px}.status-line strong{text-align:right;font-weight:600;overflow-wrap:anywhere}.button-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}.actions-panel .section-heading{margin-bottom:7px}.lock-icon{font-size:23px;color:var(--teal)}.actions-panel .small-copy{margin:0 0 15px}.field-label{display:block;margin:14px 0 7px}.text-input{width:100%;background:#0a1119;color:var(--text);border:1px solid #304153;border-radius:8px;padding:11px 12px;outline:none;font-size:12px}.text-input:focus,.repo-picker select:focus{border-color:#5ddcc7;box-shadow:0 0 0 2px #5ddcc71c}.action-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}.action-btn{display:flex;align-items:center;gap:11px;text-align:left;border:1px solid #2c3e4f;background:#111e29;border-radius:10px;color:var(--text);padding:13px 12px;min-width:0}.action-btn:hover:not(:disabled){border-color:#4d827b;background:#152a32}.action-btn>b{font-size:22px;color:var(--teal);width:28px;text-align:center;font-weight:500}.action-btn span{display:flex;flex-direction:column;gap:4px;min-width:0}.action-btn strong{font-size:12px}.action-btn small{font-size:10px;color:#8a9bad;line-height:1.4}.action-btn.action-danger{border-color:#53363a}.action-btn.action-danger>b{color:#ff8c91}.action-btn.action-danger:hover:not(:disabled){border-color:#a74d56;background:#291d25}.safety-note{font-size:10px;color:#8fa4b4;margin:14px 0 0}.safety-note span{color:var(--teal);margin-right:7px}
     .diff-panel{max-width:1500px;margin:0 auto 18px}.diff-heading{align-items:center}.diff-heading .small-copy{margin:6px 0 0}.scope-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.scope-tab{background:#0b141d;border:1px solid #273847;border-radius:9px;padding:10px;text-align:left;color:#9babb9;display:flex;flex-direction:column;gap:5px}.scope-tab strong{font-size:11px;color:#d8e1e9}.scope-tab small{font-size:10px;line-height:1.4}.scope-tab.active{border-color:#3f9b8d;background:#12302f;box-shadow:inset 0 0 0 1px #28685e}.scope-tab.active strong{color:var(--teal)}.diff-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:17px;padding:11px 0;border-bottom:1px solid #273644;font-size:11px;color:#9eafbe}.diff-code{margin:0;max-height:380px;overflow:auto;background:#080e14;border:1px solid #202e3a;border-radius:0 0 10px 10px;padding:15px;color:#a8bdcc;font:11px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere}.diff-code.raw{max-height:520px}.file-list{border:1px solid #202e3a;border-bottom:0;background:#0b131b}.file-row{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid #1c2a36;font-size:11px}.file-symbol{display:grid;place-items:center;width:20px;height:20px;border-radius:5px;background:#1d3438;color:var(--teal);font-size:9px}.file-row code{flex:1;overflow-wrap:anywhere;color:#cbd7e1}.file-stats{display:flex;gap:8px;font:10px ui-monospace,monospace}.file-stats em{color:#65dba5;font-style:normal}.file-stats i{color:#ff8888;font-style:normal}
+    .fd-controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:13px}.fd-controls .text-input{flex:1;min-width:230px}.fd-controls .fd-limit{flex:0 0 130px}.fd-commit-list{border:1px solid #202e3a;border-bottom:0;border-radius:9px 9px 0 0;overflow:hidden}.fd-commit{width:100%;display:flex;gap:11px;align-items:center;background:#0b131b;border:0;border-bottom:1px solid #1c2a36;padding:10px 13px;color:var(--text);font-size:11px;text-align:left}.fd-commit:hover{background:#101d29}.fd-commit.active{background:#12302f;box-shadow:inset 0 0 0 1px #28685e}.fd-commit code{flex:0 0 62px;color:var(--teal)}.fd-commit .fd-msg{flex:1;min-width:0;overflow-wrap:anywhere;color:#cbd7e1}.fd-commit .fd-meta{color:#74869a;font-size:10px;white-space:nowrap}.fd-add{color:#65dba5;font-style:normal}.fd-del{color:#ff8888;font-style:normal}.filediff-panel .diff-code{margin-top:0;border-radius:10px}
     .bottom-grid{max-width:1500px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:18px}.bottom-grid .section-heading{margin-bottom:13px}.activity-list{display:flex;flex-direction:column}.activity-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #202e3b;font-size:11px}.activity-dot{width:7px;height:7px;border-radius:50%;background:#91a0b1;flex-shrink:0}.activity-dot.ok{background:#5cdda8}.activity-row span:nth-child(2){flex:1}.activity-row time{font-size:10px;color:#74869a}.guard-panel{display:flex;gap:15px;align-items:flex-start}.guard-icon{font-size:28px;color:var(--teal);border:1px solid #2b5d57;background:#15312f;border-radius:10px;padding:7px 12px}.guard-panel h3{margin:2px 0 10px;font-size:14px}.guard-panel ul{padding-left:17px;margin:0;color:#91a1b1;font-size:11px;line-height:1.9}
     .git-login{max-width:450px;margin:9vh auto;padding:36px;text-align:center}.git-login .brand-mark{margin:0 auto 20px}.git-login h1{font-size:32px;margin:0 0 12px}.git-login>p:not(.eyebrow){font-size:13px;line-height:1.7}.google-slot{display:flex;justify-content:center;margin:24px 0}.git-login .tiny{font-size:10px!important}.error-text{color:#ff9a9e}
     .modal-backdrop{position:fixed;inset:0;background:#02060bd9;backdrop-filter:blur(8px);z-index:9999;display:grid;place-items:center;padding:16px;overflow:auto}.confirm-modal{width:min(650px,100%);max-height:92vh;overflow:auto;border:1px solid #3a4b5a;border-radius:18px;background:#101923;box-shadow:0 30px 100px #000b;padding:24px}.modal-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}.modal-icon{width:42px;height:42px;border:1px solid #316b60;background:#143330;color:var(--teal);border-radius:12px;display:grid;place-items:center;font-size:22px}.modal-icon.danger{border-color:#8c444a;background:#3b2027;color:#ff9ca0}.icon-button{border:0;background:transparent;color:#a6b4c2;font-size:25px}.confirm-modal h2{font-size:24px;margin:0 0 10px;text-transform:capitalize}.confirm-modal>p:not(.eyebrow){font-size:12px;line-height:1.65}.warning-list{padding:8px 12px;border:1px solid #6c502d;background:#30271b;border-radius:9px;color:#ffd38d;font-size:11px}.preview-files{margin:12px 0;border:1px solid #293948;border-radius:8px;overflow:hidden}.preview-files>div{display:flex;justify-content:space-between;gap:10px;padding:8px 10px;border-bottom:1px solid #24323e;font-size:11px}.preview-files code{overflow-wrap:anywhere}.preview-output{max-height:180px;overflow:auto;white-space:pre-wrap;background:#080e14;border:1px solid #24323e;border-radius:8px;padding:12px;color:#a8bdcc;font:10px/1.6 ui-monospace,monospace}.confirm-modal .field-label{line-height:1.8}.confirm-modal .field-label code{color:var(--amber);background:#30271b;padding:3px 5px;border-radius:4px}.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}

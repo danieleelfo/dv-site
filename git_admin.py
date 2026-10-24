@@ -64,6 +64,8 @@ REPO_DIRS = {
 LEGACY_ENV = {"leles": "LELES_REPO_PATH", "dv_site": "DV_SITE_PATH"}
 
 ACTIONS = ("commit", "push", "pull", "force_pull")
+FILELOG_LIMITS = (5, 10, 25, 50)
+_FILES_MAX = 2000
 SCOPES = ("working", "staged", "incoming", "outgoing")
 
 PREVIEW_TTL = 300          # secondi
@@ -118,6 +120,18 @@ def _cap(text: str, limit: int) -> str:
 def _short(sha: str | None) -> str:
     return sha[:8] if sha else ""
 
+
+def _clean_file_path(file_path: str) -> str:
+    """Percorso di un file del repo: no traversal, no opzioni git."""
+    p = (file_path or "").strip().strip("/")
+    if (
+        not p
+        or p.startswith("-")
+        or "\x00" in p
+        or any(part in ("", "..") for part in p.split("/"))
+    ):
+        raise HTTPException(status_code=400, detail="Percorso file non valido.")
+    return p
 
 def _env() -> dict:
     env = os.environ.copy()
@@ -737,6 +751,108 @@ def build_git_admin_router(verify_admin_token: Callable[[str | None], str]) -> A
         path = _repo_path(project)
         async with _lock(project):
             return await _diff_payload(path, project, scope)
+
+    @router.get("/files")
+    async def git_admin_files(
+        project: str, filter: str = "", authorization: str | None = Header(None)
+    ):
+        """Elenco file tracciati del repo (selettore del File Diff)."""
+        verify_admin_token(authorization)
+        path = _repo_path(project)
+        async with _lock(project):
+            out = await _ok(path, "ls-files", timeout=60)
+        needle = (filter or "").strip().lower()
+        files = [
+            line
+            for line in out.splitlines()
+            if line
+            and not _is_sensitive(line)
+            and (not needle or needle in line.lower())
+        ]
+        return {
+            "project": project,
+            "total": len(files),
+            "files": files[:_FILES_MAX],
+        }
+
+    @router.get("/filelog")
+    async def git_admin_filelog(
+        project: str, file: str, limit: int = 10, authorization: str | None = Header(None)
+    ):
+        """Ultimi N commit che hanno toccato un file (--follow)."""
+        verify_admin_token(authorization)
+        if limit not in FILELOG_LIMITS:
+            raise HTTPException(status_code=400, detail=f"Limit non valido: {limit}")
+        repo_path = _repo_path(project)
+        file_path = _clean_file_path(file)
+        async with _lock(project):
+            tracked = await _try(repo_path, "ls-files", "--", file_path)
+            if tracked != file_path:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"File non tracciato nel repository: {file_path}",
+                )
+            out = await _ok(
+                repo_path,
+                "log", f"-{limit}", "--follow",
+                "--format=%H%x1f%h%x1f%s%x1f%an%x1f%cI",
+                "--", file_path,
+            )
+        commits = []
+        for line in out.splitlines():
+            if not line.strip():
+                continue
+            sha, short_s, subject, author, date = (line.split("\x1f") + ["", "", "", "", ""])[:5]
+            commits.append(
+                {
+                    "sha": sha,
+                    "short_sha": short_s,
+                    "message": subject,
+                    "author": author,
+                    "date": date,
+                }
+            )
+        return {"project": project, "file": file_path, "commits": commits}
+
+    @router.get("/filediff")
+    async def git_admin_filediff(
+        project: str, file: str, sha: str, authorization: str | None = Header(None)
+    ):
+        """Diff di un file in un commit specifico (read-only)."""
+        verify_admin_token(authorization)
+        if not re.fullmatch(r"[0-9a-f]{7,40}", sha or ""):
+            raise HTTPException(status_code=400, detail="Sha non valido.")
+        repo_path = _repo_path(project)
+        file_path = _clean_file_path(file)
+        async with _lock(project):
+            tracked = await _try(repo_path, "ls-files", "--", file_path)
+            if tracked != file_path:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"File non tracciato nel repository: {file_path}",
+                )
+            numstat = await _try(
+                repo_path, "show", "--numstat", "--format=", sha, "--", file_path
+            )
+            text = await _ok(
+                repo_path, "show", "--no-renames", "--format=medium", sha, "--", file_path
+            )
+        additions = deletions = 0
+        for line in (numstat or "").splitlines():
+            parts = line.split("\t")
+            if len(parts) >= 3:
+                additions = int(parts[0]) if parts[0].isdigit() else 0
+                deletions = int(parts[1]) if parts[1].isdigit() else 0
+                break
+        return {
+            "project": project,
+            "file": file_path,
+            "sha": sha,
+            "additions": additions,
+            "deletions": deletions,
+            "diff": _cap(text, DIFF_MAX_CHARS),
+            "truncated": len(text) > DIFF_MAX_CHARS,
+        }
 
     @router.post("/preview")
     async def git_admin_preview(req: PreviewRequest, authorization: str | None = Header(None)):

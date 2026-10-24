@@ -36,6 +36,11 @@ function getChatId() {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+function formatSeconds(seconds) {
+  const s = Math.max(0, Math.floor(Number(seconds) || 0));
+  return s < 60 ? s + " s" : Math.floor(s / 60) + " min " + String(s % 60).padStart(2, "0") + " s";
+}
+
 // Chiamata admin generica con Bearer token (come Test2 adminJson).
 async function apiJson(idToken, path, init = {}, timeoutMs = 310000) {
   const controller = new AbortController();
@@ -143,6 +148,10 @@ export default function StoriesTab({ idToken }) {
 
   const objectUrlsRef = useRef([]);
 
+  // Timer dei secondi di elaborazione dell'immagine corrente.
+  const [imgStart, setImgStart] = useState(null);
+  const [imgElapsed, setImgElapsed] = useState(0);
+
   // Rilascio degli objectURL quando il tab si smonta.
   useEffect(() => {
     const urls = objectUrlsRef.current;
@@ -151,6 +160,15 @@ export default function StoriesTab({ idToken }) {
       urls.length = 0;
     };
   }, []);
+
+  // Contatore live 1s mentre il Mac genera l'immagine corrente.
+  useEffect(() => {
+    if (imgStart == null) return;
+    const update = () => setImgElapsed(Math.floor((Date.now() - imgStart) / 1000));
+    update();
+    const timer = window.setInterval(update, 1000);
+    return () => window.clearInterval(timer);
+  }, [imgStart]);
 
   const trackUrl = (url) => {
     objectUrlsRef.current.push(url);
@@ -462,6 +480,8 @@ export default function StoriesTab({ idToken }) {
           const jobId = created.job_id;
           if (!jobId) throw new Error("Il gateway non ha restituito job_id.");
 
+          const sceneStart = Date.now();
+          setImgStart(sceneStart);
           const deadline = Date.now() + 600000;
           let result = null;
 
@@ -493,7 +513,10 @@ export default function StoriesTab({ idToken }) {
           const b64 = String(result.image_base64).replace(/^data:image\/[^;]+;base64,/i, "");
           const src = "data:image/png;base64," + b64;
 
-          doneScenes.push({ ...scene, job_id: jobId, src, status: "Pronta" });
+          const sceneSeconds = Math.round((Date.now() - sceneStart) / 1000);
+          setImgStart(null);
+          doneScenes.push({ ...scene, job_id: jobId, src, seconds: sceneSeconds, status: "Pronta" });
+          setStage("✅ Immagine " + sceneNumber + "/" + scenes.length + " pronta in " + formatSeconds(sceneSeconds) + ".");
           setCurrent((c) =>
             c ? { ...c, scenes: doneScenes.map((s) => ({ ...s })) } : c
           );
@@ -503,6 +526,7 @@ export default function StoriesTab({ idToken }) {
             await sleep(12000);
           }
         } catch (err) {
+          setImgStart(null);
           if (err.status === 401 || err.status === 403) {
             setError(err.message);
             setBusy(false);
@@ -558,6 +582,7 @@ export default function StoriesTab({ idToken }) {
       setError(err.message || String(err));
     } finally {
       setBusy(false);
+      setImgStart(null);
     }
   }
 
@@ -637,6 +662,10 @@ export default function StoriesTab({ idToken }) {
           {busy && stage && (
             <p className="il-hint" style={{ marginTop: ".6rem" }}>{stage}</p>
           )}
+
+          {busy && imgStart != null && (
+            <p className="il-hint" style={{ marginTop: ".35rem" }}>⏱ Elaborazione immagine: {formatSeconds(imgElapsed)}</p>
+          )}
         </form>
       </section>
 
@@ -706,7 +735,7 @@ export default function StoriesTab({ idToken }) {
                         fontSize: ".75rem",
                       }}
                     >
-                      {(i + 1)}/{sceneCount} · {scene.title}
+                      {(i + 1)}/{sceneCount} · {scene.title}{scene.seconds != null ? " · ⏱ " + formatSeconds(scene.seconds) : ""}
                     </figcaption>
                   </figure>
                 ))}
