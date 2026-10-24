@@ -3370,13 +3370,13 @@ async def story_save(
     audio_saved = False
 
     filename = (req.audio_filename or "").strip()
+    # Normalizza: tieni solo il nome file, non il percorso.
+    filename = filename.replace("\\", "/").rsplit("/", 1)[-1].strip()
 
-    if filename:
-        if not STORY_AUDIO_FILENAME_RE.fullmatch(filename):
-            raise HTTPException(
-                status_code=400,
-                detail="Nome file audio non valido.",
-            )
+    if filename and not STORY_AUDIO_FILENAME_RE.fullmatch(filename):
+        # Nome ancora non valido: salto l'audio, la storia si salva comunque.
+        print(f"[story] Audio ignorato, nome file non valido: {filename[:200]}", flush=True)
+        filename = ""
 
         agent_cfg = AGENTS.get(req.agent)
 
