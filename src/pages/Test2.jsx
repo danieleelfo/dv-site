@@ -874,6 +874,7 @@ export default function Test2() {
     setStoryImageBusy(true)
     setStoryImageError('')
     setStoryImageStatus('🧠 Seleziono la scena principale della storia…')
+    let imageStage = 'preparazione del prompt'
     try {
       const summaryPrompt = await callAdmin(
         idToken,
@@ -885,6 +886,7 @@ export default function Test2() {
         throw new Error('Non sono riuscito a ricavare una scena da illustrare.')
       }
 
+      imageStage = 'avvio della generazione sul gateway'
       setStoryImageStatus('🎨 Illustrazione in coda…')
       const created = await adminJson(idToken, '/api/image/jobs', {
         method: 'POST',
@@ -898,10 +900,12 @@ export default function Test2() {
       let result = null
       while (Date.now() < deadline) {
         await new Promise((resolve) => setTimeout(resolve, 5000))
+        imageStage = 'controllo dello stato della generazione'
         const job = await adminJson(idToken, '/api/image/jobs/' + encodeURIComponent(jobId), {}, 30000)
         const status = String(job.status || '').toLowerCase()
         const elapsed = Math.round((Date.now() - deadline + 600000) / 1000)
         if (['completed', 'complete', 'succeeded', 'success'].includes(status)) {
+          imageStage = 'download del risultato immagine'
           result = await adminJson(idToken, '/api/image/jobs/' + encodeURIComponent(jobId) + '/result')
           break
         }
@@ -923,7 +927,7 @@ export default function Test2() {
         logout(err.message)
         return
       }
-      setStoryImageError(err.message || 'Errore durante la generazione dell’illustrazione.')
+      setStoryImageError('Errore in ' + imageStage + ': ' + (err.message || 'errore sconosciuto'))
       setStoryImageStatus('')
     } finally {
       setStoryImageBusy(false)
