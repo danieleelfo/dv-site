@@ -344,8 +344,7 @@ export default function StoriesTab({ idToken }) {
       // ------------------------------------------------------
       setStage("🧠 Pianificazione di " + imageCount + " scene…");
 
-      let rawPlan = String(
-        await apiJson(
+      let rawPlan = String((await apiJson(
           idToken,
           "/api/admin/llm",
           {
@@ -358,16 +357,14 @@ export default function StoriesTab({ idToken }) {
             }),
           },
           180000
-        )
-      ).trim();
+        )).answer || "").trim();
 
       let parsedPlan;
       try {
         parsedPlan = parsePlan(rawPlan);
       } catch (e) {
         setStage("🧠 Correzione del formato della selezione scene…");
-        rawPlan = String(
-          await apiJson(
+        rawPlan = String((await apiJson(
             idToken,
             "/api/admin/llm",
             {
@@ -384,8 +381,7 @@ export default function StoriesTab({ idToken }) {
               }),
             },
             180000
-          )
-        ).trim();
+          )).answer || "").trim();
         try {
           parsedPlan = parsePlan(rawPlan);
         } catch (e2) {
