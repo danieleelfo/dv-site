@@ -289,6 +289,7 @@ export default function StoriesTab({ idToken }) {
     const chatId = getChatId();
     let storyText = "";
     let audioFilename = "";
+    let savedStoryId = "";
 
     try {
       // ------------------------------------------------------
@@ -338,6 +339,26 @@ export default function StoriesTab({ idToken }) {
         scenes: [],
         createdAt: Date.now() / 1000,
       });
+
+      // Salva subito testo e audio: un errore successivo sulle immagini
+      // non deve cancellare la storia dalla Gallery.
+      setStage("💾 Salvo subito testo e audio nello storico…");
+      const saved = await apiJson(idToken, "/api/admin/stories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: prompt.trim(),
+          text: storyText,
+          agent: STORY_AGENT,
+          audio_filename: audioFilename,
+          language: "it",
+          scenes: [],
+        }),
+      });
+      savedStoryId = String(saved.story_id || "");
+      if (!savedStoryId) throw new Error("La storia è stata generata ma il gateway non ha restituito story_id per salvarla.");
+      setCurrent((c) => c ? { ...c, story_id: savedStoryId } : c);
+      await loadStories();
 
       // ------------------------------------------------------
       // 2. Pianificazione scene STATELESS (/api/admin/llm).
@@ -504,13 +525,13 @@ export default function StoriesTab({ idToken }) {
       }
 
       // ------------------------------------------------------
-      // 5. Persistenza della storia (testo + audio + scene).
+      // 5. Aggiorna la storia già salvata con le illustrazioni riuscite.
       // ------------------------------------------------------
-      if (doneScenes.length > 0 || storyText) {
-        setStage("💾 Salvo la storia nello storico…");
+      if (savedStoryId) {
+        setStage("💾 Aggiorno lo storico con le illustrazioni…");
         try {
-          await apiJson(idToken, "/api/admin/stories", {
-            method: "POST",
+          await apiJson(idToken, "/api/admin/stories/" + encodeURIComponent(savedStoryId), {
+            method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               prompt: prompt.trim(),
@@ -525,10 +546,11 @@ export default function StoriesTab({ idToken }) {
               })),
             }),
           });
+          await loadStories();
         } catch (err) {
-          setError((prev) => prev ? prev + " · " : "" + "Salvataggio storico non riuscito: " + (err.message || err));
+          setError((prev) => (prev ? prev + " · " : "") + "Storia salvata, ma aggiornamento illustrazioni non riuscito: " + (err.message || err));
+          await loadStories();
         }
-        loadStories();
       }
 
       setStage("✅ Storia completata.");
