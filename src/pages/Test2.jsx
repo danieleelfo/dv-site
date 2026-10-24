@@ -955,6 +955,27 @@ export default function Test2() {
       })))
 
       // Un solo job per volta: non si avvia la scena successiva finché la precedente non è pronta.
+      // Le richieste di stato possono fallire transitoriamente (rete/Cloudflare): ritentiamo
+      // senza creare un secondo job e senza perdere l'immagine già generata.
+      const fetchJobStatusWithRetry = async (jobId, sceneNumber) => {
+        let lastError
+        for (let attempt = 1; attempt <= 4; attempt += 1) {
+          try {
+            return await adminJson(idToken, '/api/image/jobs/' + encodeURIComponent(jobId), {}, 45000)
+          } catch (err) {
+            if (err.status === 401 || err.status === 403 || /^HTTP \\d+/.test(err.message || '')) throw err
+            lastError = err
+            if (attempt < 4) {
+              setStoryImageStatus(
+                '🔄 Connessione temporaneamente interrotta durante il controllo dell’immagine ' +
+                sceneNumber + '/' + imageCount + ' — nuovo tentativo ' + (attempt + 1) + '/4…'
+              )
+              await new Promise((resolve) => setTimeout(resolve, attempt * 2500))
+            }
+          }
+        }
+        throw new Error('Gateway non raggiungibile dopo 4 tentativi: ' + (lastError?.message || 'errore di rete'))
+      }
       for (let index = 0; index < scenes.length; index += 1) {
         const scene = scenes[index]
         const sceneNumber = index + 1
@@ -977,7 +998,7 @@ export default function Test2() {
           while (Date.now() < deadline) {
             await new Promise((resolve) => setTimeout(resolve, 5000))
             imageStage = 'controllo stato immagine ' + sceneNumber + '/' + imageCount
-            const job = await adminJson(idToken, '/api/image/jobs/' + encodeURIComponent(jobId), {}, 30000)
+            const job = await fetchJobStatusWithRetry(jobId, sceneNumber)
             const status = String(job.status || '').toLowerCase()
             const elapsed = Math.round((Date.now() - deadline + 600000) / 1000)
             if (['completed', 'complete', 'succeeded', 'success'].includes(status)) {
