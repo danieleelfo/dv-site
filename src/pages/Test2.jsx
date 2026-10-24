@@ -788,7 +788,7 @@ export default function Test2() {
   // Illustrazione opzionale per Story Whisper; disattivata per default.
   const [wantsStoryImage, setWantsStoryImage] = useState(false)
   const [storyImageBusy, setStoryImageBusy] = useState(false)
-  const [storyImage, setStoryImage] = useState('')
+  const [storyImages, setStoryImages] = useState([])
   const [storyImageStatus, setStoryImageStatus] = useState('')
   const [storyImageError, setStoryImageError] = useState('')
 
@@ -860,7 +860,7 @@ export default function Test2() {
       extractFilename(data.audio_filename) || extractFilename(data.audio_path)
     )
     setAudioReplyAgent(agent)
-    setStoryImage('')
+    setStoryImages([])
     setStoryImageError('')
     setStoryImageStatus('')
     // Parte in background: testo e audio SW sono già disponibili e non aspettano l'immagine.
@@ -873,55 +873,110 @@ export default function Test2() {
     if (!idToken || storyImageBusy) return
     setStoryImageBusy(true)
     setStoryImageError('')
-    setStoryImageStatus('🧠 Seleziono la scena principale della storia…')
-    let imageStage = 'preparazione del prompt'
+    setStoryImages([])
+    setStoryImageStatus('🧠 Ollama seleziona tre scene in ordine narrativo…')
+    let imageStage = 'selezione delle scene con Ollama'
     try {
-      const summaryPrompt = await callAdmin(
+      const rawPlan = String(await callAdmin(
         idToken,
-        'You are preparing an illustration for a children story. Read the story below and return ONLY one concise, vivid English text-to-image prompt describing its single most important visual scene. Include the main characters, setting, action, mood, lighting and an appropriate family-friendly storybook art style. Do not retell the story, add commentary, text, lettering or a title.\n\nSTORY:\n' + storyText.slice(0, 12000),
+        'You are a storyboard planner for a family-friendly story. Read the complete story and select exactly THREE distinct key scenes in chronological narrative order: (1) opening/setup, (2) central turning point or most important action, (3) ending/resolution. Each scene must be visually different and depict an actual moment from the story. Keep the same character appearances, clothing, age, and art direction consistent across all three prompts. Return ONLY valid JSON, with no markdown or commentary, in this exact shape: {"scenes":[{"title":"Short scene label","prompt":"One detailed English text-to-image prompt..."},{"title":"Short scene label","prompt":"One detailed English text-to-image prompt..."},{"title":"Short scene label","prompt":"One detailed English text-to-image prompt..."}]}. Each prompt must stand alone and describe the characters, setting, action, mood, lighting and consistent family-friendly storybook art style. No text, lettering, captions or title inside the image. Do not invent events that are not in the story.\n\nSTORY:\n' + storyText.slice(0, 12000),
         180000
-      )
-      const imagePrompt = String(summaryPrompt || '').trim()
-      if (!imagePrompt || /^error\b|^nessuna risposta ricevuta/i.test(imagePrompt)) {
-        throw new Error('Non sono riuscito a ricavare una scena da illustrare.')
+      )).trim()
+      const jsonStart = rawPlan.indexOf('{')
+      const jsonEnd = rawPlan.lastIndexOf('}')
+      if (jsonStart < 0 || jsonEnd <= jsonStart) {
+        throw new Error('Ollama non ha restituito il JSON delle tre scene.')
+      }
+      let parsedPlan
+      try {
+        parsedPlan = JSON.parse(rawPlan.slice(jsonStart, jsonEnd + 1))
+      } catch {
+        throw new Error('Il piano delle scene restituito da Ollama non è JSON valido.')
+      }
+      const plannedScenes = Array.isArray(parsedPlan)
+        ? parsedPlan
+        : (parsedPlan.scenes || parsedPlan.illustrations || parsedPlan.images)
+      if (!Array.isArray(plannedScenes) || plannedScenes.length < 3) {
+        throw new Error('Ollama deve restituire tre scene distinte con prompt separati.')
+      }
+      const scenes = plannedScenes.slice(0, 3).map((item, index) => ({
+        title: String(item.title || item.scene || ['Inizio', 'Sviluppo', 'Finale'][index]).trim(),
+        prompt: String(item.prompt || item.image_prompt || '').trim(),
+      }))
+      if (scenes.some((scene) => !scene.prompt || /^error\b|^nessuna risposta ricevuta/i.test(scene.prompt))) {
+        throw new Error('Uno o più prompt delle scene sono vuoti o non validi.')
       }
 
-      imageStage = 'avvio della generazione sul gateway'
-      setStoryImageStatus('🎨 Illustrazione in coda…')
-      const created = await adminJson(idToken, '/api/image/jobs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: imagePrompt, width: 512, height: 512, steps: 8, seed: -1 }),
-      })
-      const jobId = created.job_id
-      if (!jobId) throw new Error('Il gateway non ha restituito job_id per l’illustrazione.')
+      setStoryImages(scenes.map((scene, index) => ({
+        id: index + 1,
+        title: scene.title,
+        prompt: scene.prompt,
+        src: '',
+        status: 'In attesa',
+      })))
 
-      const deadline = Date.now() + 600000
-      let result = null
-      while (Date.now() < deadline) {
-        await new Promise((resolve) => setTimeout(resolve, 5000))
-        imageStage = 'controllo dello stato della generazione'
-        const job = await adminJson(idToken, '/api/image/jobs/' + encodeURIComponent(jobId), {}, 30000)
-        const status = String(job.status || '').toLowerCase()
-        const elapsed = Math.round((Date.now() - deadline + 600000) / 1000)
-        if (['completed', 'complete', 'succeeded', 'success'].includes(status)) {
-          imageStage = 'download del risultato immagine'
-          result = await adminJson(idToken, '/api/image/jobs/' + encodeURIComponent(jobId) + '/result')
-          break
+      // Sequenziale intenzionalmente: non si crea il job successivo finché il precedente
+      // non è completato e la sua immagine non è stata recuperata.
+      for (let index = 0; index < scenes.length; index += 1) {
+        const scene = scenes[index]
+        const sceneNumber = index + 1
+        let imageStage = 'avvio immagine ' + sceneNumber + '/3 sul gateway'
+        setStoryImageStatus('🎨 Immagine ' + sceneNumber + '/3: ' + scene.title + ' — in coda…')
+        setStoryImages((current) => current.map((item) =>
+          item.id === sceneNumber ? { ...item, status: 'In coda' } : item
+        ))
+        try {
+          const created = await adminJson(idToken, '/api/image/jobs', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: scene.prompt, width: 512, height: 512, steps: 8, seed: -1 }),
+          })
+          const jobId = created.job_id
+          if (!jobId) throw new Error('Il gateway non ha restituito job_id.')
+
+          const deadline = Date.now() + 600000
+          let result = null
+          while (Date.now() < deadline) {
+            await new Promise((resolve) => setTimeout(resolve, 5000))
+            imageStage = 'controllo stato immagine ' + sceneNumber + '/3'
+            const job = await adminJson(idToken, '/api/image/jobs/' + encodeURIComponent(jobId), {}, 30000)
+            const status = String(job.status || '').toLowerCase()
+            const elapsed = Math.round((Date.now() - deadline + 600000) / 1000)
+            if (['completed', 'complete', 'succeeded', 'success'].includes(status)) {
+              imageStage = 'download immagine ' + sceneNumber + '/3'
+              result = await adminJson(idToken, '/api/image/jobs/' + encodeURIComponent(jobId) + '/result')
+              break
+            }
+            if (['failed', 'error', 'cancelled', 'canceled'].includes(status)) {
+              throw new Error(job.error || job.message || 'Generazione non riuscita.')
+            }
+            setStoryImageStatus(
+              '🎨 Immagine ' + sceneNumber + '/3 (' + scene.title + '): ' +
+              (status === 'running' || status === 'processing' ? 'generazione in corso' : 'in coda') +
+              '… (' + elapsed + 's)'
+            )
+          }
+          if (!result?.image_base64) throw new Error('Timeout o risultato senza immagine.')
+          const b64 = String(result.image_base64).replace(/^data:image\/[^;]+;base64,/i, '')
+          const src = 'data:image/png;base64,' + b64
+          setStoryImages((current) => current.map((item) =>
+            item.id === sceneNumber ? { ...item, src, status: 'Pronta' } : item
+          ))
+          setStoryImageStatus('🖼️ Immagine ' + sceneNumber + '/3 pronta: ' + scene.title)
+        } catch (err) {
+          if (err.status === 401 || err.status === 403) {
+            logout(err.message)
+            return
+          }
+          setStoryImages((current) => current.map((item) =>
+            item.id === sceneNumber ? { ...item, status: 'Errore: ' + (err.message || 'errore sconosciuto') } : item
+          ))
+          setStoryImageError('Immagine ' + sceneNumber + '/3 (' + scene.title + '), ' + imageStage + ': ' + (err.message || 'errore sconosciuto'))
+          setStoryImageStatus('⛔ Sequenza fermata alla scena ' + sceneNumber + '/3; le immagini già pronte restano visibili.')
+          return
         }
-        if (['failed', 'error', 'cancelled', 'canceled'].includes(status)) {
-          throw new Error(job.error || job.message || 'Generazione dell’illustrazione non riuscita.')
-        }
-        setStoryImageStatus(
-          status === 'running' || status === 'processing'
-            ? '🎨 Generazione in corso… (' + elapsed + 's)'
-            : '🎨 In coda… (' + elapsed + 's)'
-        )
       }
-      if (!result?.image_base64) throw new Error('Timeout o risultato senza immagine.')
-      const b64 = String(result.image_base64).replace(/^data:image\/png;base64,/i, '')
-      setStoryImage('data:image/png;base64,' + b64)
-      setStoryImageStatus('🖼️ Illustrazione pronta')
+      setStoryImageStatus('✅ Tutte e tre le illustrazioni sono pronte.')
     } catch (err) {
       if (err.status === 401 || err.status === 403) {
         logout(err.message)
@@ -1616,14 +1671,14 @@ export default function Test2() {
                     Risposta audio (TTS)
                   </label>
                   {audioAgent === 'Story Whisper' && (
-                    <label className="lc-check" title="Genera un'illustrazione della scena principale dopo testo e audio">
+                    <label className="lc-check" title="Genera tre illustrazioni sequenziali delle scene principali dopo testo e audio">
                       <input
                         type="checkbox"
                         checked={wantsStoryImage}
                         disabled={isRecording || audioBusy || storyImageBusy}
                         onChange={(e) => setWantsStoryImage(e.target.checked)}
                       />
-                      🎨 Crea immagine della storia
+                      🎨 Crea 3 illustrazioni della storia
                     </label>
                   )}
                   <div className="lc-row">
@@ -1737,18 +1792,25 @@ export default function Test2() {
                   )}
 
                   <pre className="lc-pre">{audioReply}</pre>
-                  {(storyImageStatus || storyImageError || storyImage) && audioReplyAgent === 'Story Whisper' && (
+                  {(storyImageStatus || storyImageError || storyImages.length > 0) && audioReplyAgent === 'Story Whisper' && (
                     <div className="lc-story-illustration" aria-live="polite" style={{ marginTop: 14 }}>
                       {storyImageStatus && <p className="lc-dim lc-small">{storyImageStatus}</p>}
-                      {storyImageError && <p className="lc-err lc-small">Illustrazione: {storyImageError}</p>}
-                      {storyImage && (
-                        <img
-                          src={storyImage}
-                          alt="Illustrazione della scena principale della storia"
-                          loading="lazy"
-                          style={{ display: 'block', width: '100%', maxWidth: 640, height: 'auto', borderRadius: 12, marginTop: 8 }}
-                        />
-                      )}
+                      {storyImageError && <p className="lc-err lc-small">Illustrazioni: {storyImageError}</p>}
+                      {storyImages.map((item) => (
+                        <div key={item.id} style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--line)' }}>
+                          <p className="lc-dim lc-small" style={{ marginBottom: 6 }}>
+                            <strong>{item.id}/3 · {item.title}</strong> — {item.status}
+                          </p>
+                          {item.src && (
+                            <img
+                              src={item.src}
+                              alt={'Illustrazione ' + item.id + ': ' + item.title}
+                              loading="lazy"
+                              style={{ display: 'block', width: '100%', maxWidth: 640, height: 'auto', borderRadius: 12, marginTop: 8 }}
+                            />
+                          )}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
