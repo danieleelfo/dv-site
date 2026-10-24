@@ -89,7 +89,7 @@ export default function Test5() {
   const [formatIdx, setFormatIdx] = useState(0);
   const formats = GRADIO_FORMATS[size] || GRADIO_FORMATS[512];
   const [outW, outH] = formats[Math.min(formatIdx, formats.length - 1)].slice(1);
-  const [steps, setSteps] = useState("8");
+  const [steps, setSteps] = useState("9");
   const [seed, setSeed] = useState("");
   const [status, setStatus] = useState("idle");
   const [jobId, setJobId] = useState("");
@@ -205,7 +205,7 @@ export default function Test5() {
         <div className="i2i-field"><label className="i2i-label" htmlFor="i2i-strength">Forza modifica: {strength.toFixed(2)}</label><input id="i2i-strength" type="range" min=".1" max="1" step=".05" value={strength} onChange={e => setStrength(Number(e.target.value))} disabled={busy} /><div className="i2i-range"><span>Più fedele</span><span>Più trasformata</span></div></div>
         {fileB && <div className="i2i-field"><span className="i2i-label">Composizione</span><select className="i2i-input" value={layout} onChange={e => setLayout(e.target.value)} disabled={busy}><option value="side">A | B affiancate</option><option value="stack">A sopra B</option><option value="bgA">B dentro lo sfondo di A</option><option value="bgB">A dentro lo sfondo di B</option></select></div>}
         <div className="i2i-fields"><label className="i2i-field"><span className="i2i-label">Categoria</span><select className="i2i-input" value={size} onChange={e => { setSize(Number(e.target.value)); setFormatIdx(0); }} disabled={busy}>{Object.keys(GRADIO_FORMATS).map(c => <option key={c} value={c}>{c}</option>)}</select></label><label className="i2i-field"><span className="i2i-label">Formato</span><select className="i2i-input" value={formatIdx} onChange={e => setFormatIdx(Number(e.target.value))} disabled={busy}>{formats.map((f, i) => <option key={f[0]} value={i}>{f[0]}</option>)}</select></label>
-        <label className="i2i-field"><span className="i2i-label">Steps</span><select className="i2i-input" value={steps} onChange={e => setSteps(e.target.value)} disabled={busy}><option>4</option><option>8</option><option>12</option></select></label></div>
+        <label className="i2i-field"><span className="i2i-label">Steps</span><select className="i2i-input" value={steps} onChange={e => setSteps(e.target.value)} disabled={busy}><option>3</option><option>6</option><option>9</option><option>12</option><option>15</option></select></label></div>
         <label className="i2i-label" htmlFor="i2i-seed">Seed (facoltativo)</label><input id="i2i-seed" className="i2i-input" placeholder="Casuale" value={seed} onChange={e => setSeed(e.target.value.replace(/[^0-9-]/g, ""))} disabled={busy} />
         <div className="i2i-actions"><button className="i2i-btn i2i-primary" type="submit" disabled={!file || !prompt.trim() || busy}>{busy ? "Elaborazione…" : "✦ Modifica immagine"}</button><button className="i2i-btn" type="button" onClick={reset} disabled={busy}>Reset risultato</button></div>
       </section>
