@@ -567,6 +567,7 @@ export default function StoriesTab({ idToken }) {
                 title: s.title,
                 prompt: s.prompt,
                 job_id: s.job_id,
+                seconds: s.seconds,
               })),
             }),
           });

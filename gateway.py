@@ -3275,6 +3275,7 @@ class StoryScene(BaseModel):
     title: str = ""
     prompt: str = ""
     job_id: str = ""
+    seconds: int | None = None
 
 
 class StorySaveRequest(BaseModel):
@@ -3378,33 +3379,33 @@ async def story_save(
         print(f"[story] Audio ignorato, nome file non valido: {filename[:200]}", flush=True)
         filename = ""
 
-        agent_cfg = AGENTS.get(req.agent)
+    agent_cfg = AGENTS.get(req.agent)
 
-        if agent_cfg:
-            port = agent_cfg["port"]
+    if agent_cfg and filename:
+        port = agent_cfg["port"]
 
-            try:
-                async with httpx.AsyncClient(timeout=60.0) as client:
-                    response = await client.get(
-                        f"http://127.0.0.1:{port}/tts/{filename}"
-                    )
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.get(
+                    f"http://127.0.0.1:{port}/tts/{filename}"
+                )
 
-                if response.status_code == 200 and response.content:
-                    os.makedirs(STORY_HISTORY_DIR, exist_ok=True)
+            if response.status_code == 200 and response.content:
+                os.makedirs(STORY_HISTORY_DIR, exist_ok=True)
 
-                    with open(
-                        os.path.join(
-                            STORY_HISTORY_DIR,
-                            f"{story_id}.ogg",
-                        ),
-                        "wb",
-                    ) as f:
-                        f.write(response.content)
+                with open(
+                    os.path.join(
+                        STORY_HISTORY_DIR,
+                        f"{story_id}.ogg",
+                    ),
+                    "wb",
+                ) as f:
+                    f.write(response.content)
 
-                    audio_saved = True
+                audio_saved = True
 
-            except Exception as e:
-                print(f"[story] Audio non salvato: {e}", flush=True)
+        except Exception as e:
+            print(f"[story] Audio non salvato: {e}", flush=True)
 
     meta = {
         "story_id": story_id,
@@ -3419,6 +3420,7 @@ async def story_save(
                 "title": s.title,
                 "prompt": s.prompt,
                 "job_id": s.job_id,
+                "seconds": s.seconds,
             }
             for s in req.scenes
         ],
@@ -3522,6 +3524,7 @@ async def story_update(
                 "title": scene.title,
                 "prompt": scene.prompt,
                 "job_id": scene.job_id,
+                "seconds": scene.seconds,
             }
             for scene in req.scenes
         ],
