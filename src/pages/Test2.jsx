@@ -274,6 +274,24 @@ async function callAdmin(idToken, prompt, timeoutMs = 310000) {
   }
 }
 
+// Chiamata LLM stateless: il prompt va dritto a Ollama via gateway,
+// SENZA passare dagli agenti e dalla loro memoria di conversazione.
+// Usata per la pianificazione delle scene (niente scene "fantasma" di
+// storie precedenti rimaste nella memoria dell'agente).
+async function callLlm(idToken, prompt, model, timeoutMs = 310000) {
+  const data = await adminJson(
+    idToken,
+    '/api/admin/llm',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, model, keep_alive: 0 }),
+    },
+    timeoutMs
+  )
+  return data.answer || ''
+}
+
 // Chiamata admin generica (JSON o FormData) che restituisce il JSON grezzo.
 async function adminJson(idToken, path, init = {}, timeoutMs = 310000) {
   const controller = new AbortController()
@@ -887,7 +905,7 @@ export default function Test2() {
         '{"scenes":[{"title":"Short label","prompt":"Detailed English image prompt"}]}. ' +
         'The scenes array must contain exactly ' + count + ' objects. Each prompt must stand alone and describe characters, setting, action, mood, lighting and a consistent family-friendly storybook style. No text or lettering in images. Do not invent events. ' +
         '\n\nSTORY:\n' + storyText.slice(0, 12000)
-      let rawPlan = String(await callAdmin(idToken, planningPrompt(imageCount), 180000)).trim()
+      let rawPlan = String(await callLlm(idToken, planningPrompt(imageCount), leleModel, 180000)).trim()
 
       // Ollama può aggiungere prefazioni o code fence: estraiamo il primo oggetto JSON bilanciato.
       const extractJsonObject = (text) => {
@@ -928,7 +946,7 @@ export default function Test2() {
           'Use exactly this schema: {"scenes":[{"title":"Short label","prompt":"Detailed English image prompt"}]}. ' +
           'There must be exactly ' + imageCount + ' scenes. Preserve the intended scene details. No markdown or commentary.\n\nTEXT TO CONVERT:\n' +
           rawPlan.slice(0, 14000)
-        rawPlan = String(await callAdmin(idToken, repairPrompt, 180000)).trim()
+        rawPlan = String(await callLlm(idToken, repairPrompt, leleModel, 180000)).trim()
         try {
           parsedPlan = parsePlan(rawPlan)
         } catch {

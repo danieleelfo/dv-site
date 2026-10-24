@@ -3526,6 +3526,65 @@ async def _jcs_interpret(text: str) -> str:
     return (data.get("response") or "").strip()
 
 # --------------------------------------------------------------------------
+# ADMIN: LLM STATELESS (pianificazione scene Test2)
+# --------------------------------------------------------------------------
+class AdminLlmRequest(BaseModel):
+    prompt: str
+    model: str = ""
+    keep_alive: int = 0
+
+
+@app.post("/api/admin/llm")
+async def admin_llm(
+    req: AdminLlmRequest,
+    authorization: str | None = Header(None),
+):
+    """
+    Chiamata LLM stateless: il prompt va dritto a Ollama, SENZA passare
+    dagli agenti e quindi senza la loro memoria di conversazione per
+    chat_id. Usata da Test2 per pianificare le scene delle illustrazioni
+    senza che le conversazioni precedenti contaminino il piano.
+    """
+    verify_admin_token(authorization)
+
+    if not req.prompt.strip():
+        raise HTTPException(status_code=400, detail="Prompt vuoto.")
+
+    model = req.model.strip() or os.environ.get(
+        "ADMIN_LLM_DEFAULT_MODEL", "qwen2.5:latest"
+    )
+
+    try:
+        timeout = httpx.Timeout(timeout=300.0, connect=10.0)
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.post(
+                f"{OLLAMA_URL}/api/generate",
+                json={
+                    "model": model,
+                    "prompt": req.prompt,
+                    "stream": False,
+                    "keep_alive": req.keep_alive,
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+    except httpx.HTTPError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Ollama non raggiungibile su {OLLAMA_URL}: {exc}",
+        )
+
+    answer = (data.get("response") or "").strip()
+    if not answer:
+        raise HTTPException(
+            status_code=502,
+            detail="Ollama non ha restituito testo.",
+        )
+
+    return {"answer": answer, "model": data.get("model", model)}
+
+
+# --------------------------------------------------------------------------
 # ADMIN: SCARICA MODELLI OLLAMA (libera RAM sul Mac)
 # --------------------------------------------------------------------------
 @app.post("/api/admin/ollama/unload")
