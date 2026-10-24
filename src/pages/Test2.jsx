@@ -915,7 +915,7 @@ export default function Test2() {
         )
       }
       if (!result?.image_base64) throw new Error('Timeout o risultato senza immagine.')
-      const b64 = String(result.image_base64).replace(/^data:image\\/png;base64,/i, '')
+      const b64 = String(result.image_base64).replace(/^data:image\/png;base64,/i, '')
       setStoryImage('data:image/png;base64,' + b64)
       setStoryImageStatus('🖼️ Illustrazione pronta')
     } catch (err) {
