@@ -785,6 +785,12 @@ export default function Test2() {
   const [audioError, setAudioError] = useState('')
   const [audioBusy, setAudioBusy] = useState(false)
   const [copiedAudioReply, setCopiedAudioReply] = useState(false)
+  // Illustrazione opzionale per Story Whisper; disattivata per default.
+  const [wantsStoryImage, setWantsStoryImage] = useState(false)
+  const [storyImageBusy, setStoryImageBusy] = useState(false)
+  const [storyImage, setStoryImage] = useState('')
+  const [storyImageStatus, setStoryImageStatus] = useState('')
+  const [storyImageError, setStoryImageError] = useState('')
 
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [audioCurrentTime, setAudioCurrentTime] = useState(0)
@@ -848,11 +854,80 @@ export default function Test2() {
   }
 
   function applyAudioReply(data, agent) {
-    setAudioReply(audioText(data))
+    const replyText = audioText(data)
+    setAudioReply(replyText)
     setAudioReplyFile(
       extractFilename(data.audio_filename) || extractFilename(data.audio_path)
     )
     setAudioReplyAgent(agent)
+    setStoryImage('')
+    setStoryImageError('')
+    setStoryImageStatus('')
+    // Parte in background: testo e audio SW sono già disponibili e non aspettano l'immagine.
+    if (agent === 'Story Whisper' && wantsStoryImage && replyText) {
+      void generateStoryIllustration(replyText)
+    }
+  }
+
+  async function generateStoryIllustration(storyText) {
+    if (!idToken || storyImageBusy) return
+    setStoryImageBusy(true)
+    setStoryImageError('')
+    setStoryImageStatus('🧠 Seleziono la scena principale della storia…')
+    try {
+      const summaryPrompt = await callAdmin(
+        idToken,
+        'You are preparing an illustration for a children story. Read the story below and return ONLY one concise, vivid English text-to-image prompt describing its single most important visual scene. Include the main characters, setting, action, mood, lighting and an appropriate family-friendly storybook art style. Do not retell the story, add commentary, text, lettering or a title.\n\nSTORY:\n' + storyText.slice(0, 12000),
+        180000
+      )
+      const imagePrompt = String(summaryPrompt || '').trim()
+      if (!imagePrompt || /^error\b|^nessuna risposta ricevuta/i.test(imagePrompt)) {
+        throw new Error('Non sono riuscito a ricavare una scena da illustrare.')
+      }
+
+      setStoryImageStatus('🎨 Illustrazione in coda…')
+      const created = await adminJson(idToken, '/api/image/jobs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: imagePrompt, width: 512, height: 512, steps: 8, seed: -1 }),
+      })
+      const jobId = created.job_id
+      if (!jobId) throw new Error('Il gateway non ha restituito job_id per l’illustrazione.')
+
+      const deadline = Date.now() + 600000
+      let result = null
+      while (Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 5000))
+        const job = await adminJson(idToken, '/api/image/jobs/' + encodeURIComponent(jobId), {}, 30000)
+        const status = String(job.status || '').toLowerCase()
+        const elapsed = Math.round((Date.now() - deadline + 600000) / 1000)
+        if (['completed', 'complete', 'succeeded', 'success'].includes(status)) {
+          result = await adminJson(idToken, '/api/image/jobs/' + encodeURIComponent(jobId) + '/result')
+          break
+        }
+        if (['failed', 'error', 'cancelled', 'canceled'].includes(status)) {
+          throw new Error(job.error || job.message || 'Generazione dell’illustrazione non riuscita.')
+        }
+        setStoryImageStatus(
+          status === 'running' || status === 'processing'
+            ? '🎨 Generazione in corso… (' + elapsed + 's)'
+            : '🎨 In coda… (' + elapsed + 's)'
+        )
+      }
+      if (!result?.image_base64) throw new Error('Timeout o risultato senza immagine.')
+      const b64 = String(result.image_base64).replace(/^data:image\\/png;base64,/i, '')
+      setStoryImage('data:image/png;base64,' + b64)
+      setStoryImageStatus('🖼️ Illustrazione pronta')
+    } catch (err) {
+      if (err.status === 401 || err.status === 403) {
+        logout(err.message)
+        return
+      }
+      setStoryImageError(err.message || 'Errore durante la generazione dell’illustrazione.')
+      setStoryImageStatus('')
+    } finally {
+      setStoryImageBusy(false)
+    }
   }
 
   // Testo -> Gateway (/api/chat)
@@ -1536,6 +1611,17 @@ export default function Test2() {
                     />
                     Risposta audio (TTS)
                   </label>
+                  {audioAgent === 'Story Whisper' && (
+                    <label className="lc-check" title="Genera un'illustrazione della scena principale dopo testo e audio">
+                      <input
+                        type="checkbox"
+                        checked={wantsStoryImage}
+                        disabled={isRecording || audioBusy || storyImageBusy}
+                        onChange={(e) => setWantsStoryImage(e.target.checked)}
+                      />
+                      🎨 Crea immagine della storia
+                    </label>
+                  )}
                   <div className="lc-row">
                     <button
                       type="button"
@@ -1647,6 +1733,20 @@ export default function Test2() {
                   )}
 
                   <pre className="lc-pre">{audioReply}</pre>
+                  {(storyImageStatus || storyImageError || storyImage) && audioReplyAgent === 'Story Whisper' && (
+                    <div className="lc-story-illustration" aria-live="polite" style={{ marginTop: 14 }}>
+                      {storyImageStatus && <p className="lc-dim lc-small">{storyImageStatus}</p>}
+                      {storyImageError && <p className="lc-err lc-small">Illustrazione: {storyImageError}</p>}
+                      {storyImage && (
+                        <img
+                          src={storyImage}
+                          alt="Illustrazione della scena principale della storia"
+                          loading="lazy"
+                          style={{ display: 'block', width: '100%', maxWidth: 640, height: 'auto', borderRadius: 12, marginTop: 8 }}
+                        />
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </section>
