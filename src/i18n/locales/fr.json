@@ -378,7 +378,7 @@
     "copyCurl": "copier curl",
     "copied": "✓ copié",
     "portsEyebrow": "ARCHITECTURE · PORTS LOCAUX (MAC)",
-    "footerSrc": "Source : gateway.py + git_admin.py + query_db.py · mis à jour le 22 octobre 2026",
+    "footerSrc": "Source : gateway.py + git_admin.py + query_db.py · mis à jour le 24 octobre 2026",
     "footerStatic": "Page statique : aucune dépendance du backend",
     "note": {
       "chat": "Dialogue avec les agents publics. Aucune authentification.",
@@ -421,7 +421,9 @@
       "gitExec": "Exécute l'opération confirmée.",
       "dbStatus": "Tables de la zone avec estimation de lignes et dernière activité.",
       "dbTable": "Aperçu paginé d’une table (50 lignes par page) avec filtres.",
-      "dbUsers": "Valeurs distinctes de la colonne utilisateur de la table, avec nombre de lignes."
+      "dbUsers": "Valeurs distinctes de la colonne utilisateur de la table, avec nombre de lignes.",
+      "llm": "LLM sans état : le prompt va directement à Ollama (utilisé par Test2 pour planifier les scènes).",
+      "ollamaUnload": "Décharge de la RAM les modèles Ollama chargés (keep_alive=0)."
     },
     "nt": {
       "chat": "Le gateway transmet vers 127.0.0.1:{port}/ask de l'agent concerné.",
@@ -437,7 +439,9 @@
       "gitExec": "Nécessite GIT_ADMIN_ALLOW_WRITE=1 (et GIT_ADMIN_ALLOW_FORCE=1 pour le pull forcé).",
       "dbStatus": "Session Postgres readonly=True : la base refuse toute écriture. Leles = toutes les tables public, Emergence = tables emergence_*.",
       "dbTable": "Nom de table validé contre information_schema (schéma public uniquement) : aucune requête libre. Filtres optionnels : user = texte sur la colonne utilisateur ; users = liste de valeurs à inclure (cases du panneau UTILISATEURS) ; date_from / date_to = plage de dates.",
-      "dbUsers": "Alimente le panneau UTILISATEURS de QueryDb (groupé par catégorie avec on/off). Si la table n'a pas de colonne utilisateur valide, le panneau n'apparaît pas."
+      "dbUsers": "Alimente le panneau UTILISATEURS de QueryDb (groupé par catégorie avec on/off). Si la table n'a pas de colonne utilisateur valide, le panneau n'apparaît pas.",
+      "llm": "Ne passe pas par les agents : aucune mémoire de conversation par chat_id. Modèle du sélecteur Leles (par défaut qwen2.5), keep_alive=0 libère la RAM après l’appel.",
+      "ollamaUnload": "Appelé par Test2 après la planification des scènes, pour laisser de la RAM libre au modèle d’image."
     },
     "port": {
       "gw": "gateway API public (uvicorn)",

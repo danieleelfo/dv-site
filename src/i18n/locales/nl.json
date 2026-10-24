@@ -378,7 +378,7 @@
     "copyCurl": "kopieer curl",
     "copied": "✓ gekopieerd",
     "portsEyebrow": "ARCHITECTUUR · LOKALE POORTEN (MAC)",
-    "footerSrc": "Bron: gateway.py + git_admin.py + query_db.py · bijgewerkt 22 oktober 2026",
+    "footerSrc": "Bron: gateway.py + git_admin.py + query_db.py · bijgewerkt 24 oktober 2026",
     "footerStatic": "Statische pagina: geen afhankelijkheid van de backend",
     "note": {
       "chat": "Dialoog met de publieke agents. Geen authenticatie.",
@@ -421,7 +421,9 @@
       "gitExec": "Voert de bevestigde operatie uit.",
       "dbStatus": "Tabellen van het gebied met rijenschatting en laatste activiteit.",
       "dbTable": "Gepagineerde tabelpreview (50 rijen per pagina) met filters.",
-      "dbUsers": "Verschillende waarden van de gebruikerskolom van de tabel, met rijentelling."
+      "dbUsers": "Verschillende waarden van de gebruikerskolom van de tabel, met rijentelling.",
+      "llm": "Staatloze LLM-aanroep: de prompt gaat rechtstreeks naar Ollama (gebruikt door Test2 voor scèneplanning).",
+      "ollamaUnload": "Laadt de Ollama-modellen uit het RAM (keep_alive=0)."
     },
     "nt": {
       "chat": "De gateway stuurt door naar 127.0.0.1:{poort}/ask van de betreffende agent.",
@@ -437,7 +439,9 @@
       "gitExec": "Vereist GIT_ADMIN_ALLOW_WRITE=1 (en GIT_ADMIN_ALLOW_FORCE=1 voor geforceerde pull).",
       "dbStatus": "Postgres readonly=True sessie: de DB weigert elke schrijfactie. Leles = alle public-tabellen, Emergence = emergence_*-tabellen.",
       "dbTable": "Tabelnaam gevalideerd tegen information_schema (alleen schema public): geen vrije queries. Optionele filters: user = tekst op de gebruikerskolom; users = lijst met op te nemen waarden (checkboxs van het GEBRUIKERS-paneel); date_from / date_to = datumbereik.",
-      "dbUsers": "Voedt het GEBRUIKERS-paneel van QueryDb (gegroepeerd per categorie met on/off). Als de tabel geen geldige gebruikerskolom heeft, verschijnt het paneel niet."
+      "dbUsers": "Voedt het GEBRUIKERS-paneel van QueryDb (gegroepeerd per categorie met on/off). Als de tabel geen geldige gebruikerskolom heeft, verschijnt het paneel niet.",
+      "llm": "Gaat niet via de agents: geen conversatiegeheugen per chat_id. Model uit de Leles-selector (standaard qwen2.5), keep_alive=0 maakt het RAM direct na de aanroep vrij.",
+      "ollamaUnload": "Wordt door Test2 aangeroepen na de scèneplanning, om RAM vrij te laten voor het beeldmodel."
     },
     "port": {
       "gw": "publieke API-gateway (uvicorn)",

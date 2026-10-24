@@ -379,7 +379,7 @@
     "copyCurl": "copia curl",
     "copied": "✓ copiato",
     "portsEyebrow": "ARCHITETTURA · PORTE LOCALI (MAC)",
-    "footerSrc": "Fonte: gateway.py + git_admin.py + query_db.py · aggiornato 22 ottobre 2026",
+    "footerSrc": "Fonte: gateway.py + git_admin.py + query_db.py · aggiornato 24 ottobre 2026",
     "footerStatic": "Pagina statica: nessuna dipendenza dal backend",
     "note": {
       "chat": "Dialogo con gli agenti pubblici. Nessuna autenticazione.",
@@ -422,7 +422,9 @@
       "gitExec": "Esegue l'operazione confermata.",
       "dbStatus": "Tabelle dell’area con stima righe e ultime attività.",
       "dbTable": "Anteprima paginata di una tabella (50 righe per pagina) con filtri.",
-      "dbUsers": "Valori distinti della colonna utente della tabella, con conteggio righe."
+      "dbUsers": "Valori distinti della colonna utente della tabella, con conteggio righe.",
+      "llm": "LLM stateless: prompt inviato direttamente a Ollama (usato da Test2 per la pianificazione delle scene).",
+      "ollamaUnload": "Scarica dalla RAM i modelli Ollama caricati (keep_alive=0)."
     },
     "nt": {
       "chat": "Il gateway inoltra su 127.0.0.1:{porta}/ask del rispettivo agente.",
@@ -438,7 +440,9 @@
       "gitExec": "Richiede GIT_ADMIN_ALLOW_WRITE=1 (e GIT_ADMIN_ALLOW_FORCE=1 per il pull forzato).",
       "dbStatus": "Sessione Postgres readonly=True: il DB rifiuta ogni scrittura. Leles = tutte le tabelle public, Emergence = tabelle emergence_*.",
       "dbTable": "Nome tabella validato contro information_schema (solo schema public): nessuna query libera. Filtri opzionali: user = testo sulla colonna utente; users = lista di valori da includere (checkbox del pannello UTENTI); date_from / date_to = intervallo date.",
-      "dbUsers": "Alimenta il pannello UTENTI di QueryDb (raggruppato per categoria con on/off). Se la tabella non ha una colonna utente valida, il pannello non compare."
+      "dbUsers": "Alimenta il pannello UTENTI di QueryDb (raggruppato per categoria con on/off). Se la tabella non ha una colonna utente valida, il pannello non compare.",
+      "llm": "Non passa dagli agenti: nessuna memoria di conversazione per chat_id. Modello dal selettore Leles (default qwen2.5), keep_alive=0 libera la RAM a fine chiamata.",
+      "ollamaUnload": "Chiamato da Test2 dopo la pianificazione delle scene, per lasciare RAM libera al modello di immagine."
     },
     "port": {
       "gw": "API gateway pubblico (uvicorn)",

@@ -378,7 +378,7 @@
     "copyCurl": "copiar curl",
     "copied": "✓ copiat",
     "portsEyebrow": "ARQUITECTURA · PORTS LOCALS (MAC)",
-    "footerSrc": "Font: gateway.py + git_admin.py + query_db.py · actualitzat 22 d’octubre de 2026",
+    "footerSrc": "Font: gateway.py + git_admin.py + query_db.py · actualitzat 24 d’octubre de 2026",
     "footerStatic": "Pàgina estàtica: sense dependència del backend",
     "note": {
       "chat": "Diàleg amb els agents públics. Sense autenticació.",
@@ -421,7 +421,9 @@
       "gitExec": "Executa l’operació confirmada.",
       "dbStatus": "Taules de l’àrea amb estimació de files i última activitat.",
       "dbTable": "Vista prèvia paginada d’una taula (50 files per pàgina) amb filtres.",
-      "dbUsers": "Valors distints de la columna usuari de la taula, amb recompte de files."
+      "dbUsers": "Valors distints de la columna usuari de la taula, amb recompte de files.",
+      "llm": "LLM sense estat: el prompt va directe a Ollama (usat per Test2 per planificar les escenes).",
+      "ollamaUnload": "Descarrega de la RAM els models Ollama carregats (keep_alive=0)."
     },
     "nt": {
       "chat": "El gateway reenvia a 127.0.0.1:{port}/ask de l’agent corresponent.",
@@ -437,7 +439,9 @@
       "gitExec": "Requereix GIT_ADMIN_ALLOW_WRITE=1 (i GIT_ADMIN_ALLOW_FORCE=1 per al pull forçat).",
       "dbStatus": "Sessió Postgres readonly=True: la BD rebutja tota escriptura. Leles = totes les taules public, Emergence = taules emergence_*.",
       "dbTable": "Nom de taula validat contra information_schema (només esquema public): cap consulta lliure. Filtres opcionals: user = text a la columna usuari; users = llista de valors a incloure (checkbox del panell USUARIS); date_from / date_to = interval de dates.",
-      "dbUsers": "Alimenta el panell USUARIS de QueryDb (agrupat per categoria amb on/off). Si la taula no té una columna usuari vàlida, el panell no apareix."
+      "dbUsers": "Alimenta el panell USUARIS de QueryDb (agrupat per categoria amb on/off). Si la taula no té una columna usuari vàlida, el panell no apareix.",
+      "llm": "No passa pels agents: sense memòria de conversa per chat_id. Model del selector Leles (per defecte qwen2.5), keep_alive=0 allibera la RAM en acabar.",
+      "ollamaUnload": "El crida Test2 després de planificar les escenes, per deixar RAM lliure al model d’imatge."
     },
     "port": {
       "gw": "gateway API públic (uvicorn)",

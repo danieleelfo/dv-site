@@ -379,7 +379,7 @@
     "copyCurl": "copiar curl",
     "copied": "✓ copiado",
     "portsEyebrow": "ARQUITECTURA · PUERTOS LOCALES (MAC)",
-    "footerSrc": "Fuente: gateway.py + git_admin.py + query_db.py · actualizado 22 de octubre de 2026",
+    "footerSrc": "Fuente: gateway.py + git_admin.py + query_db.py · actualizado 24 de octubre de 2026",
     "footerStatic": "Página estática: sin dependencia del backend",
     "note": {
       "chat": "Diálogo con los agentes públicos. Sin autenticación.",
@@ -422,7 +422,9 @@
       "gitExec": "Ejecuta la operación confirmada.",
       "dbStatus": "Tablas del área con estimación de filas y última actividad.",
       "dbTable": "Vista previa paginada de una tabla (50 filas por página) con filtros.",
-      "dbUsers": "Valores distintos de la columna usuario de la tabla, con recuento de filas."
+      "dbUsers": "Valores distintos de la columna usuario de la tabla, con recuento de filas.",
+      "llm": "LLM sin estado: el prompt va directo a Ollama (usado por Test2 para planificar las escenas).",
+      "ollamaUnload": "Descarga de la RAM los modelos Ollama cargados (keep_alive=0)."
     },
     "nt": {
       "chat": "El gateway reenvía a 127.0.0.1:{puerto}/ask del agente correspondiente.",
@@ -438,7 +440,9 @@
       "gitExec": "Requiere GIT_ADMIN_ALLOW_WRITE=1 (y GIT_ADMIN_ALLOW_FORCE=1 para el pull forzado).",
       "dbStatus": "Sesión Postgres readonly=True: el DB rechaza toda escritura. Leles = todas las tablas public, Emergence = tablas emergence_*.",
       "dbTable": "Nombre de tabla validado contra information_schema (solo esquema public): ninguna consulta libre. Filtros opcionales: user = texto en la columna usuario; users = lista de valores a incluir (checkbox del panel USUARIOS); date_from / date_to = intervalo de fechas.",
-      "dbUsers": "Alimenta el panel USUARIOS de QueryDb (agrupado por categoría con on/off). Si la tabla no tiene una columna usuario válida, el panel no aparece."
+      "dbUsers": "Alimenta el panel USUARIOS de QueryDb (agrupado por categoría con on/off). Si la tabla no tiene una columna usuario válida, el panel no aparece.",
+      "llm": "No pasa por los agentes: sin memoria de conversación por chat_id. Modelo del selector Leles (por defecto qwen2.5), keep_alive=0 libera la RAM al terminar.",
+      "ollamaUnload": "Lo llama Test2 tras planificar las escenas, para dejar RAM libre al modelo de imagen."
     },
     "port": {
       "gw": "gateway API público (uvicorn)",

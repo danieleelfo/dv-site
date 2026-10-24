@@ -2,7 +2,7 @@
 // API CONTRACTS (promossa da Test2) (contratti API del gateway)
 // Pagina statica di documentazione: nessuna chiamata al backend
 // oltre alla verifica del login Google. Nessuna modifica backend.
-// Dati allineati a gateway.py / git_admin.py / query_db.py (22 ottobre 2026).
+// Dati allineati a gateway.py / git_admin.py / query_db.py (24 ottobre 2026).
 // ============================================================
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -148,6 +148,20 @@ const GROUPS = [
         request: '{\n  "prompt": "...",\n  "chat_id": 1010101010,\n  "language": "en"\n}',
         response: "{ ...risposta Lele Admin... }",
         notes: "api.nt.adminChat",
+      },
+      {
+        method: "POST", path: "/api/admin/llm", auth: true,
+        summary: "api.ep.llm",
+        request: '{\n  "prompt": "...",\n  "model": "qwen2.5",   // opzionale, default qwen2.5:latest\n  "keep_alive": 0\n}',
+        response: '{ "answer": "...", "model": "qwen2.5:latest" }',
+        notes: "api.nt.llm",
+      },
+      {
+        method: "POST", path: "/api/admin/ollama/unload", auth: true,
+        summary: "api.ep.ollamaUnload",
+        request: "—",
+        response: '{ "status": "ok", "unloaded": ["qwen2.5:latest", ...] }',
+        notes: "api.nt.ollamaUnload",
       },
     ],
   },
