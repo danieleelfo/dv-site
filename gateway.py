@@ -3249,6 +3249,309 @@ async def image_history_image(
     return FileResponse(image_path, media_type="image/png")
 
 # ==========================================================================
+# STORY HISTORY — storie (testo + audio TTS + illustrazioni)
+# ==========================================================================
+# Persistenza su disco, stessa filosofia di IMAGE HISTORY:
+#   {story_id}.json -> metadati (prompt, testo, scene con job_id)
+#   {story_id}.ogg  -> audio TTS scaricato dall'agente (se presente)
+# Le immagini delle scene NON vengono duplicate: restano in
+# IMAGE HISTORY e si servono con /api/image/history/{job_id}/image.
+# ==========================================================================
+
+STORY_HISTORY_DIR = os.environ.get(
+    "STORY_HISTORY_DIR",
+    os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "story_history",
+    ),
+)
+
+STORY_HISTORY_MAX = int(os.environ.get("STORY_HISTORY_MAX", "50"))
+
+STORY_AUDIO_FILENAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,200}$")
+
+
+class StoryScene(BaseModel):
+    title: str = ""
+    prompt: str = ""
+    job_id: str = ""
+
+
+class StorySaveRequest(BaseModel):
+    prompt: str = ""
+    text: str = ""
+    agent: str = "Story Whisper"
+    audio_filename: str = ""
+    language: str = "it"
+    scenes: list[StoryScene] = []
+
+
+def _story_cleanup() -> None:
+    """Mantiene al massimo STORY_HISTORY_MAX storie su disco."""
+    try:
+        json_files = [
+            filename
+            for filename in os.listdir(STORY_HISTORY_DIR)
+            if filename.endswith(".json")
+        ]
+
+        if len(json_files) <= STORY_HISTORY_MAX:
+            return
+
+        entries = sorted(
+            (
+                (
+                    filename,
+                    os.path.getmtime(
+                        os.path.join(STORY_HISTORY_DIR, filename)
+                    ),
+                )
+                for filename in json_files
+            ),
+            key=lambda item: item[1],
+        )
+
+        excess = len(entries) - STORY_HISTORY_MAX
+
+        for filename, _ in entries[:excess]:
+            story_id = filename[:-5]
+            for suffix in (".json", ".ogg"):
+                try:
+                    os.remove(
+                        os.path.join(
+                            STORY_HISTORY_DIR,
+                            story_id + suffix,
+                        )
+                    )
+                except FileNotFoundError:
+                    pass
+
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        print(f"[story] Errore cleanup: {e}", flush=True)
+
+
+def _story_load(story_id: str) -> dict:
+    """Carica i metadati di una storia, validando l'id."""
+    if not re.fullmatch(r"[0-9a-f-]{36}", story_id):
+        raise HTTPException(
+            status_code=400,
+            detail="story_id non valido.",
+        )
+
+    path = os.path.join(STORY_HISTORY_DIR, f"{story_id}.json")
+
+    if not os.path.isfile(path):
+        raise HTTPException(
+            status_code=404,
+            detail="Storia non trovata.",
+        )
+
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+@app.post("/api/admin/stories")
+async def story_save(
+    req: StorySaveRequest,
+    authorization: str | None = Header(None),
+):
+    """
+    Salva una storia completata (testo + audio + illustrazioni).
+
+    L'audio TTS viene scaricato dall'agente (es. Story Whisper :8088,
+    /tts/{filename}) e copiato in STORY_HISTORY_DIR, così sopravvive
+    alla pulizia dei file temporanei dell'agente.
+    """
+    verify_admin_token(authorization)
+
+    story_id = str(uuid.uuid4())
+    audio_saved = False
+
+    filename = (req.audio_filename or "").strip()
+
+    if filename:
+        if not STORY_AUDIO_FILENAME_RE.fullmatch(filename):
+            raise HTTPException(
+                status_code=400,
+                detail="Nome file audio non valido.",
+            )
+
+        agent_cfg = AGENTS.get(req.agent)
+
+        if agent_cfg:
+            port = agent_cfg["port"]
+
+            try:
+                async with httpx.AsyncClient(timeout=60.0) as client:
+                    response = await client.get(
+                        f"http://127.0.0.1:{port}/tts/{filename}"
+                    )
+
+                if response.status_code == 200 and response.content:
+                    os.makedirs(STORY_HISTORY_DIR, exist_ok=True)
+
+                    with open(
+                        os.path.join(
+                            STORY_HISTORY_DIR,
+                            f"{story_id}.ogg",
+                        ),
+                        "wb",
+                    ) as f:
+                        f.write(response.content)
+
+                    audio_saved = True
+
+            except Exception as e:
+                print(f"[story] Audio non salvato: {e}", flush=True)
+
+    meta = {
+        "story_id": story_id,
+        "created_at": time.time(),
+        "prompt": req.prompt,
+        "text": req.text,
+        "agent": req.agent,
+        "language": req.language,
+        "has_audio": audio_saved,
+        "scenes": [
+            {
+                "title": s.title,
+                "prompt": s.prompt,
+                "job_id": s.job_id,
+            }
+            for s in req.scenes
+        ],
+    }
+
+    os.makedirs(STORY_HISTORY_DIR, exist_ok=True)
+
+    with open(
+        os.path.join(STORY_HISTORY_DIR, f"{story_id}.json"),
+        "w",
+        encoding="utf-8",
+    ) as f:
+        json.dump(meta, f, ensure_ascii=False, indent=2)
+
+    _story_cleanup()
+
+    return {
+        "story_id": story_id,
+        "status": "ok",
+        "has_audio": audio_saved,
+    }
+
+
+@app.get("/api/admin/stories")
+async def story_list(
+    authorization: str | None = Header(None),
+):
+    """Elenco delle storie salvate, dalla più recente."""
+    verify_admin_token(authorization)
+
+    items = []
+
+    try:
+        json_files = [
+            filename
+            for filename in os.listdir(STORY_HISTORY_DIR)
+            if filename.endswith(".json")
+        ]
+
+        entries = sorted(
+            (
+                (
+                    filename,
+                    os.path.getmtime(
+                        os.path.join(STORY_HISTORY_DIR, filename)
+                    ),
+                )
+                for filename in json_files
+            ),
+            key=lambda item: item[1],
+            reverse=True,
+        )
+
+        for filename, _ in entries:
+            try:
+                with open(
+                    os.path.join(STORY_HISTORY_DIR, filename),
+                    encoding="utf-8",
+                ) as f:
+                    data = json.load(f)
+
+                items.append(
+                    {
+                        "story_id": data.get("story_id"),
+                        "created_at": data.get("created_at"),
+                        "prompt": data.get("prompt", ""),
+                        "agent": data.get("agent", ""),
+                        "has_audio": bool(data.get("has_audio")),
+                        "scene_count": len(data.get("scenes") or []),
+                    }
+                )
+            except Exception:
+                continue
+
+    except FileNotFoundError:
+        pass
+
+    return {"items": items, "max": STORY_HISTORY_MAX}
+
+
+@app.get("/api/admin/stories/{story_id}")
+async def story_get(
+    story_id: str,
+    authorization: str | None = Header(None),
+):
+    """Dettaglio completo di una storia (testo + scene con job_id)."""
+    verify_admin_token(authorization)
+    return _story_load(story_id)
+
+
+@app.get("/api/admin/stories/{story_id}/audio")
+async def story_audio(
+    story_id: str,
+    authorization: str | None = Header(None),
+):
+    """Serve l'audio TTS persistito della storia (audio/ogg)."""
+    verify_admin_token(authorization)
+
+    _story_load(story_id)
+
+    audio_path = os.path.join(STORY_HISTORY_DIR, f"{story_id}.ogg")
+
+    if not os.path.isfile(audio_path):
+        raise HTTPException(
+            status_code=404,
+            detail="Audio non trovato.",
+        )
+
+    return FileResponse(audio_path, media_type="audio/ogg")
+
+
+@app.delete("/api/admin/stories/{story_id}")
+async def story_delete(
+    story_id: str,
+    authorization: str | None = Header(None),
+):
+    """Elimina una storia (metadati + audio)."""
+    verify_admin_token(authorization)
+
+    _story_load(story_id)
+
+    for suffix in (".json", ".ogg"):
+        try:
+            os.remove(
+                os.path.join(STORY_HISTORY_DIR, story_id + suffix)
+            )
+        except FileNotFoundError:
+            pass
+
+    return {"status": "ok"}
+
+
+# ==========================================================================
 # VISION OCR — estrazione testo da immagini con Qwen-VL via Ollama
 # ==========================================================================
 #

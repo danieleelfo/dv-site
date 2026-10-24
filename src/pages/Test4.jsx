@@ -28,6 +28,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import StoriesTab from "../components/StoriesTab";
+
 const API = "https://api.danielevillanova.com";
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const TOKEN_STORAGE_KEY = "dv_google_id_token";
@@ -898,6 +900,13 @@ export default function ImageLab() {
           >
             📄 OCR
           </button>
+          <button
+            type="button"
+            className={"il-tab" + (tab === "stories" ? " il-tab-active" : "")}
+            onClick={() => setTab("stories")}
+          >
+            🌈 Stories
+          </button>
         </div>
 
         {tab === "genera" && (
@@ -1588,6 +1597,10 @@ export default function ImageLab() {
               </div>
             )}
           </section>
+        )}
+
+        {tab === "stories" && (
+          <StoriesTab idToken={idToken} />
         )}
 
         <footer className="il-footer">

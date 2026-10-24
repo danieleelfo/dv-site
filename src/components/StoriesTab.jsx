@@ -1,0 +1,763 @@
+// src/components/StoriesTab.jsx
+// TAB STORIES — Story Whisper con testo + audio TTS + illustrazioni.
+// Autonomo: per il merge in ImageLab basta copiare questo file e
+// aggiungere il tab (nessuna dipendenza da Test4 oltre a idToken).
+//
+// Flusso:
+//   1. POST /api/chat (agent "Story Whisper", prompt "audio e testo …")
+//      -> testo della storia + audio_path (TTS)
+//   2. POST /api/admin/llm (STATELESS) -> pianificazione N scene in JSON
+//   3. POST /api/admin/ollama/unload -> libera la RAM prima delle immagini
+//   4. Loop POST /api/image/jobs + polling (pausa 12s tra scene,
+//      1 retry per scena) — stessa logica già collaudata in Test2
+//   5. POST /api/admin/stories -> persistenza (testo + audio + job_id)
+//
+// Storico: GET /api/admin/stories (+ dettaglio, audio, DELETE).
+// Le immagini delle scene restano in /api/image/history/{job_id}/image.
+
+import { useCallback, useEffect, useRef, useState } from "react";
+
+const API = "https://api.danielevillanova.com";
+const STORY_AGENT = "Story Whisper";
+const CHAT_ID_KEY = "dv_story_chat_id";
+const MAX_PROMPT_CHARS = 4000;
+
+function getChatId() {
+  try {
+    const stored = window.localStorage.getItem(CHAT_ID_KEY);
+    if (stored) return parseInt(stored, 10);
+    const newId = Math.floor(Math.random() * 9_000_000_000) + 1_000_000_000;
+    window.localStorage.setItem(CHAT_ID_KEY, String(newId));
+    return newId;
+  } catch (e) {
+    return Math.floor(Math.random() * 9_000_000_000) + 1_000_000_000;
+  }
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Chiamata admin generica con Bearer token (come Test2 adminJson).
+async function apiJson(idToken, path, init = {}, timeoutMs = 310000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${API}${path}`, {
+      ...init,
+      headers: { ...(init.headers || {}), Authorization: `Bearer ${idToken}` },
+      signal: controller.signal,
+    });
+    if (res.status === 401 || res.status === 403) {
+      const err = new Error(
+        res.status === 401
+          ? "Sessione scaduta: effettua di nuovo il login."
+          : "Accesso non autorizzato per questo account Google."
+      );
+      err.status = res.status;
+      throw err;
+    }
+    if (!res.ok) {
+      let detail = `HTTP ${res.status}: ${res.statusText}`;
+      try {
+        const data = await res.json();
+        if (typeof data.detail === "string") detail = data.detail;
+        else if (data.detail) detail = JSON.stringify(data.detail);
+      } catch (e) {
+        /* formato inatteso: manteniamo il messaggio base */
+      }
+      throw new Error(detail);
+    }
+    return await res.json();
+  } catch (err) {
+    if (err.name === "AbortError") {
+      throw new Error("Timeout: il server non ha risposto in tempo.");
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Blob con auth header -> objectURL (per <audio> e <img> privati).
+async function authBlobUrl(idToken, path, timeoutMs = 60000) {
+  const res = await fetch(`${API}${path}`, {
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return URL.createObjectURL(await res.blob());
+}
+
+// Estrae il primo oggetto JSON bilanciato dalla risposta dell'LLM
+// (Ollama a volte aggiunge prefazioni o code fence).
+function extractJsonObject(text) {
+  const source = String(text || "").replace(/```(?:json)?/gi, "").trim();
+  const first = source.indexOf("{");
+  if (first < 0) return "";
+  let depth = 0;
+  let quoted = false;
+  let escaped = false;
+  for (let i = first; i < source.length; i += 1) {
+    const ch = source[i];
+    if (quoted) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') quoted = false;
+    } else if (ch === '"') quoted = true;
+    else if (ch === "{") depth += 1;
+    else if (ch === "}") {
+      depth -= 1;
+      if (depth === 0) return source.slice(first, i + 1);
+    }
+  }
+  return "";
+}
+
+function parsePlan(text) {
+  const jsonText = extractJsonObject(text);
+  if (!jsonText) throw new Error("Non trovo un oggetto JSON nella risposta dell'LLM.");
+  return JSON.parse(jsonText);
+}
+
+const planningPrompt = (count, storyText) =>
+  "You are a storyboard planner for a family-friendly story. Select exactly " + count +
+  " distinct scenes in chronological order, spread across the story from opening to ending. " +
+  "Each scene must depict a real, visually distinct moment. Keep character appearance, clothing, age, and art direction consistent across prompts. " +
+  'Return ONLY a valid JSON object, no markdown, no prose, no code fences, in this exact schema: ' +
+  '{"scenes":[{"title":"Short label","prompt":"Detailed English image prompt"}]}. ' +
+  "The scenes array must contain exactly " + count + " objects. Each prompt must stand alone and describe characters, setting, action, mood, lighting and a consistent family-friendly storybook style. No text or lettering in images. Do not invent events. " +
+  "\n\nSTORY:\n" + String(storyText || "").slice(0, 12000);
+
+export default function StoriesTab({ idToken }) {
+  const [prompt, setPrompt] = useState("");
+  const [imageCount, setImageCount] = useState(3);
+  const [busy, setBusy] = useState(false);
+  const [stage, setStage] = useState("");
+  const [error, setError] = useState("");
+
+  // Storia corrente (appena generata o aperta dallo storico).
+  const [current, setCurrent] = useState(null);
+
+  // Storico.
+  const [stories, setStories] = useState([]);
+  const [listLoading, setListLoading] = useState(false);
+  const [listError, setListError] = useState("");
+
+  const objectUrlsRef = useRef([]);
+
+  // Rilascio degli objectURL quando il tab si smonta.
+  useEffect(() => {
+    const urls = objectUrlsRef.current;
+    return () => {
+      urls.forEach((u) => URL.revokeObjectURL(u));
+      urls.length = 0;
+    };
+  }, []);
+
+  const trackUrl = (url) => {
+    objectUrlsRef.current.push(url);
+    return url;
+  };
+
+  const loadStories = useCallback(async () => {
+    if (!idToken) return;
+    setListLoading(true);
+    setListError("");
+    try {
+      const data = await apiJson(idToken, "/api/admin/stories", {}, 60000);
+      setStories(Array.isArray(data.items) ? data.items : []);
+    } catch (err) {
+      setListError(err.message || String(err));
+    } finally {
+      setListLoading(false);
+    }
+  }, [idToken]);
+
+  useEffect(() => {
+    loadStories();
+  }, [loadStories]);
+
+  const openStory = useCallback(async (item) => {
+    setError("");
+    setStage("");
+    try {
+      const data = await apiJson(
+        idToken,
+        "/api/admin/stories/" + encodeURIComponent(item.story_id),
+        {},
+        60000
+      );
+
+      const scenes = await Promise.all(
+        (data.scenes || []).map(async (scene) => {
+          let src = "";
+          if (scene.job_id) {
+            try {
+              src = trackUrl(
+                await authBlobUrl(
+                  idToken,
+                  "/api/image/history/" + encodeURIComponent(scene.job_id) + "/image"
+                )
+              );
+            } catch (e) {
+              // Immagine ripulita dalla history: la scena resta senza anteprima.
+            }
+          }
+          return { ...scene, src, status: "Pronta" };
+        })
+      );
+
+      let audioUrl = "";
+      if (data.has_audio) {
+        try {
+          audioUrl = trackUrl(
+            await authBlobUrl(
+              idToken,
+              "/api/admin/stories/" + encodeURIComponent(item.story_id) + "/audio"
+            )
+          );
+        } catch (e) {
+          /* audio non disponibile: la storia resta leggibile */
+        }
+      }
+
+      setCurrent({
+        story_id: item.story_id,
+        prompt: data.prompt || item.prompt,
+        text: data.text || "",
+        audioUrl,
+        scenes,
+        createdAt: data.created_at,
+      });
+
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (err) {
+      setError(err.message || String(err));
+    }
+  }, [idToken]);
+
+  const deleteStory = useCallback(async (item, event) => {
+    event.stopPropagation();
+    try {
+      await apiJson(
+        idToken,
+        "/api/admin/stories/" + encodeURIComponent(item.story_id),
+        { method: "DELETE" },
+        60000
+      );
+      setCurrent((c) => (c && c.story_id === item.story_id ? null : c));
+      loadStories();
+    } catch (err) {
+      setListError(err.message || String(err));
+    }
+  }, [idToken, loadStories]);
+
+  // Controllo dello stato di un job con retry (rete/Cloudflare instabili).
+  const fetchJobStatusWithRetry = useCallback(async (jobId, total) => {
+    let lastError;
+    for (let attempt = 1; attempt <= 4; attempt += 1) {
+      try {
+        return await apiJson(idToken, "/api/image/jobs/" + encodeURIComponent(jobId), {}, 45000);
+      } catch (err) {
+        if (err.status === 401 || err.status === 403) throw err;
+        if (/^HTTP \d+/.test(err.message || "")) throw err;
+        lastError = err;
+        if (attempt < 4) {
+          setStage(
+            "🔄 Connessione temporaneamente interrotta — nuovo tentativo " +
+              (attempt + 1) + "/4…"
+          );
+          await sleep(attempt * 2500);
+        }
+      }
+    }
+    throw new Error("Gateway non raggiungibile dopo 4 tentativi: " + (lastError?.message || "errore di rete"));
+  }, [idToken]);
+
+  async function generateStory(event) {
+    event.preventDefault();
+
+    if (!idToken || busy) return;
+    if (!prompt.trim()) {
+      setError("Scrivi l'idea della storia.");
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    setStage("");
+    setCurrent(null);
+
+    const chatId = getChatId();
+    let storyText = "";
+    let audioFilename = "";
+
+    try {
+      // ------------------------------------------------------
+      // 1. Storia + TTS da Story Whisper (via /api/chat).
+      // ------------------------------------------------------
+      setStage("🌈 Story Whisper scrive la storia (testo + audio)…");
+
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 310000);
+      let storyData;
+      try {
+        const res = await fetch(`${API}/api/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({
+            agent: STORY_AGENT,
+            prompt: "audio e testo " + prompt.trim(),
+            chat_id: chatId,
+            language: "it",
+          }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        storyData = await res.json();
+      } finally {
+        clearTimeout(timer);
+      }
+
+      storyText = String(storyData.answer || "").trim();
+      if (!storyText) throw new Error("Story Whisper non ha risposto.");
+      audioFilename = String(storyData.audio_path || storyData.audio || "").trim();
+
+      let audioUrl = "";
+      if (audioFilename) {
+        audioUrl =
+          `${API}/api/chat/tts/` +
+          encodeURIComponent(STORY_AGENT) +
+          "/" +
+          encodeURIComponent(audioFilename);
+      }
+
+      setCurrent({
+        story_id: null,
+        prompt: prompt.trim(),
+        text: storyText,
+        audioUrl,
+        scenes: [],
+        createdAt: Date.now() / 1000,
+      });
+
+      // ------------------------------------------------------
+      // 2. Pianificazione scene STATELESS (/api/admin/llm).
+      // ------------------------------------------------------
+      setStage("🧠 Pianificazione di " + imageCount + " scene…");
+
+      let rawPlan = String(
+        await apiJson(
+          idToken,
+          "/api/admin/llm",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              prompt: planningPrompt(imageCount, storyText),
+              model: "qwen2.5",
+              keep_alive: 0,
+            }),
+          },
+          180000
+        )
+      ).trim();
+
+      let parsedPlan;
+      try {
+        parsedPlan = parsePlan(rawPlan);
+      } catch (e) {
+        setStage("🧠 Correzione del formato della selezione scene…");
+        rawPlan = String(
+          await apiJson(
+            idToken,
+            "/api/admin/llm",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                prompt:
+                  "Convert the text below into valid JSON only. Do not add or remove scenes. " +
+                  'Use exactly this schema: {"scenes":[{"title":"Short label","prompt":"Detailed English image prompt"}]}. ' +
+                  "There must be exactly " + imageCount + " scenes. Preserve the intended scene details. No markdown or commentary.\n\nTEXT TO CONVERT:\n" +
+                  rawPlan.slice(0, 14000),
+                model: "qwen2.5",
+                keep_alive: 0,
+              }),
+            },
+            180000
+          )
+        ).trim();
+        try {
+          parsedPlan = parsePlan(rawPlan);
+        } catch (e2) {
+          throw new Error("L'LLM non ha prodotto un JSON valido nemmeno dopo la correzione.");
+        }
+      }
+
+      const plannedScenes = Array.isArray(parsedPlan)
+        ? parsedPlan
+        : parsedPlan.scenes || parsedPlan.illustrations || parsedPlan.images;
+
+      if (!Array.isArray(plannedScenes) || plannedScenes.length < imageCount) {
+        throw new Error("L'LLM ha restituito meno di " + imageCount + " scene con prompt separati.");
+      }
+
+      const fallbackTitles = ["Inizio", "Sviluppo", "Finale", "Epilogo"];
+      const scenes = plannedScenes.slice(0, imageCount).map((item, index) => ({
+        title: String(item.title || item.scene || fallbackTitles[index]).trim(),
+        prompt: String(item.prompt || item.image_prompt || "").trim(),
+      }));
+
+      if (scenes.some((s) => !s.prompt)) {
+        throw new Error("Uno o più prompt delle scene sono vuoti.");
+      }
+
+      // ------------------------------------------------------
+      // 3. Libero la RAM di Ollama prima del loop immagini.
+      // ------------------------------------------------------
+      try {
+        setStage("🧹 Libero la RAM usata da Ollama prima delle immagini…");
+        await apiJson(idToken, "/api/admin/ollama/unload", { method: "POST" }, 30000);
+      } catch (e) {
+        /* non blocca le illustrazioni */
+      }
+
+      // ------------------------------------------------------
+      // 4. Loop immagini: un job per volta, pausa 12s, 1 retry.
+      // ------------------------------------------------------
+      const sceneRetried = new Set();
+      const doneScenes = [];
+
+      for (let index = 0; index < scenes.length; index += 1) {
+        const scene = scenes[index];
+        const sceneNumber = index + 1;
+        const total = scenes.length;
+        let imageStage = "avvio immagine " + sceneNumber + "/" + total;
+
+        setStage("🎨 Immagine " + sceneNumber + "/" + total + ": " + scene.title + " — in coda…");
+
+        try {
+          const created = await apiJson(idToken, "/api/image/jobs", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt: scene.prompt, width: 512, height: 512, steps: 8, seed: -1 }),
+          });
+
+          const jobId = created.job_id;
+          if (!jobId) throw new Error("Il gateway non ha restituito job_id.");
+
+          const deadline = Date.now() + 600000;
+          let result = null;
+
+          while (Date.now() < deadline) {
+            await sleep(5000);
+            imageStage = "controllo stato immagine " + sceneNumber + "/" + total;
+            const job = await fetchJobStatusWithRetry(jobId, total);
+            const status = String(job.status || "").toLowerCase();
+
+            if (["completed", "complete", "succeeded", "success"].includes(status)) {
+              imageStage = "download immagine " + sceneNumber + "/" + total;
+              result = await apiJson(
+                idToken,
+                "/api/image/jobs/" + encodeURIComponent(jobId) + "/result"
+              );
+              break;
+            }
+            if (["failed", "error", "cancelled", "canceled"].includes(status)) {
+              throw new Error(job.error || job.message || "Generazione non riuscita.");
+            }
+            setStage(
+              "🎨 Immagine " + sceneNumber + "/" + total + " (" + scene.title + "): " +
+              (status === "running" || status === "processing" ? "generazione in corso" : "in coda") + "…"
+            );
+          }
+
+          if (!result?.image_base64) throw new Error("Timeout o risultato senza immagine.");
+
+          const b64 = String(result.image_base64).replace(/^data:image\/[^;]+;base64,/i, "");
+          const src = "data:image/png;base64," + b64;
+
+          doneScenes.push({ ...scene, job_id: jobId, src, status: "Pronta" });
+          setCurrent((c) =>
+            c ? { ...c, scenes: doneScenes.map((s) => ({ ...s })) } : c
+          );
+
+          if (index < scenes.length - 1) {
+            setStage("⏳ Pausa 12s prima dell'immagine successiva (libero la RAM del Mac)…");
+            await sleep(12000);
+          }
+        } catch (err) {
+          if (err.status === 401 || err.status === 403) {
+            setError(err.message);
+            setBusy(false);
+            return;
+          }
+          if (!sceneRetried.has(sceneNumber)) {
+            sceneRetried.add(sceneNumber);
+            setStage("🔄 Errore di rete sull'immagine " + sceneNumber + "/" + scenes.length + " — attendo 60s e riprovo la scena…");
+            await sleep(60000);
+            index -= 1;
+            continue;
+          }
+          // Secondo fallimento: la sequenza si ferma, ma testo+audio restano.
+          setError(
+            "Immagine " + sceneNumber + "/" + scenes.length + " (" + scene.title + "), " +
+            imageStage + ": " + (err.message || "errore sconosciuto")
+          );
+          break;
+        }
+      }
+
+      // ------------------------------------------------------
+      // 5. Persistenza della storia (testo + audio + scene).
+      // ------------------------------------------------------
+      if (doneScenes.length > 0 || storyText) {
+        setStage("💾 Salvo la storia nello storico…");
+        try {
+          await apiJson(idToken, "/api/admin/stories", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              prompt: prompt.trim(),
+              text: storyText,
+              agent: STORY_AGENT,
+              audio_filename: audioFilename,
+              language: "it",
+              scenes: doneScenes.map((s) => ({
+                title: s.title,
+                prompt: s.prompt,
+                job_id: s.job_id,
+              })),
+            }),
+          });
+        } catch (err) {
+          setError((prev) => prev ? prev + " · " : "" + "Salvataggio storico non riuscito: " + (err.message || err));
+        }
+        loadStories();
+      }
+
+      setStage("✅ Storia completata.");
+    } catch (err) {
+      setError(err.message || String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const sceneCount = current?.scenes?.length || 0;
+
+  return (
+    <div>
+      <section className="il-panel" style={{ marginBottom: "1rem" }}>
+        <div className="il-section-heading">
+          <div>
+            <p className="il-eyebrow">05 / STORIES</p>
+            <h2>Storia con testo, audio e illustrazioni</h2>
+          </div>
+        </div>
+
+        <form onSubmit={generateStory}>
+          <label className="il-label" htmlFor="story-prompt">
+            Idea della storia
+          </label>
+          <textarea
+            id="story-prompt"
+            className="il-input il-prompt"
+            placeholder="Es. Un cane con un cappello da pirata che rincorre una palla per i bar di Barcellona…"
+            value={prompt}
+            onChange={(event) => setPrompt(event.target.value)}
+            rows={5}
+            maxLength={MAX_PROMPT_CHARS}
+            disabled={busy}
+          />
+          <div className="il-char-count">
+            {prompt.length.toLocaleString()} / {MAX_PROMPT_CHARS.toLocaleString()}
+          </div>
+
+          <div className="il-form-grid">
+            <div>
+              <label className="il-label" htmlFor="story-count">
+                Illustrazioni
+              </label>
+              <select
+                id="story-count"
+                className="il-input"
+                value={imageCount}
+                onChange={(event) => setImageCount(Number(event.target.value))}
+                disabled={busy}
+              >
+                {[1, 2, 3, 4].map((n) => (
+                  <option key={n} value={n}>
+                    {n} {n === 1 ? "immagine" : "immagini"}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <p className="il-hint">
+            Story Whisper scrive la storia e genera l'audio (TTS); le illustrazioni
+            vengono pianificate e generate sul Mac una alla volta, con pausa tra le
+            scene per liberare la RAM.
+          </p>
+
+          {error && (
+            <div className="il-error" role="alert">
+              {error}
+            </div>
+          )}
+
+          <div className="il-actions">
+            <button
+              className="il-button il-primary"
+              type="submit"
+              disabled={busy || !prompt.trim()}
+            >
+              {busy ? "Elaborazione…" : "🌈 Crea storia + illustrazioni →"}
+            </button>
+          </div>
+
+          {busy && stage && (
+            <p className="il-hint" style={{ marginTop: ".6rem" }}>{stage}</p>
+          )}
+        </form>
+      </section>
+
+      {current && (
+        <section className="il-panel" style={{ marginBottom: "1rem" }}>
+          <div className="il-section-heading">
+            <div>
+              <p className="il-eyebrow">RACCONTO</p>
+              <h2>{current.prompt}</h2>
+            </div>
+            <span className="il-history-meta">
+              {new Date((current.createdAt || 0) * 1000).toLocaleString("it-IT")}
+            </span>
+          </div>
+
+          <pre
+            className="il-ocr-pre"
+            style={{ maxHeight: "none" }}
+          >
+            {current.text}
+          </pre>
+
+          {current.audioUrl && (
+            <div style={{ marginTop: ".9rem" }}>
+              <label className="il-label">🎧 Audio</label>
+              <audio controls src={current.audioUrl} style={{ width: "100%" }} />
+            </div>
+          )}
+
+          {sceneCount > 0 && (
+            <div style={{ marginTop: "1rem" }}>
+              <label className="il-label">🖼 Illustrazioni</label>
+              <div className="il-history-grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
+                {current.scenes.map((scene, i) => (
+                  <figure key={i} style={{ margin: 0 }}>
+                    {scene.src ? (
+                      <img
+                        src={scene.src}
+                        alt={"Illustrazione " + (i + 1) + ": " + scene.title}
+                        loading="lazy"
+                        style={{
+                          display: "block",
+                          width: "100%",
+                          height: "auto",
+                          borderRadius: "8px",
+                          border: "1px solid var(--border, #1f2b35)",
+                        }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          padding: "2.4rem 1rem",
+                          textAlign: "center",
+                          border: "1px dashed var(--border, #1f2b35)",
+                          borderRadius: "8px",
+                          color: "var(--ink-dim, #8fa1ac)",
+                          fontSize: ".8rem",
+                        }}
+                      >
+                        {scene.status || "In attesa"}
+                      </div>
+                    )}
+                    <figcaption
+                      style={{
+                        marginTop: ".45rem",
+                        color: "var(--ink-dim, #8fa1ac)",
+                        fontSize: ".75rem",
+                      }}
+                    >
+                      {(i + 1)}/{sceneCount} · {scene.title}
+                    </figcaption>
+                  </figure>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
+      <section className="il-panel il-history-panel">
+        <div className="il-section-heading">
+          <div>
+            <p className="il-eyebrow">06 / GALLERY</p>
+            <h2>Storico storie</h2>
+          </div>
+          <button
+            className="il-button"
+            onClick={loadStories}
+            disabled={listLoading}
+          >
+            {listLoading ? "Carico…" : "↻ Aggiorna"}
+          </button>
+        </div>
+
+        {listError && (
+          <div className="il-error" role="alert">
+            {listError}
+          </div>
+        )}
+
+        {!listLoading && stories.length === 0 && !listError && (
+          <p className="il-hint">
+            Nessuna storia salvata. Le storie completate vengono conservate qui
+            (testo, audio e illustrazioni).
+          </p>
+        )}
+
+        <div className="il-history-grid">
+          {stories.map((item) => (
+            <article
+              key={item.story_id}
+              className="il-history-card"
+              style={{ cursor: "pointer" }}
+              onClick={() => openStory(item)}
+            >
+              <p className="il-history-prompt">
+                {String(item.prompt || "").length > 140
+                  ? String(item.prompt).slice(0, 140) + "…"
+                  : item.prompt}
+              </p>
+              <div className="il-history-meta">
+                <span>{new Date((item.created_at || 0) * 1000).toLocaleString("it-IT")}</span>
+                {item.has_audio && <span>🎧 audio</span>}
+                <span>{item.scene_count} illustraz.</span>
+              </div>
+              <div className="il-history-actions">
+                <button className="il-button">Apri</button>
+                <button
+                  className="il-button"
+                  onClick={(event) => deleteStory(item, event)}
+                  title="Elimina la storia"
+                >
+                  ✕
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
