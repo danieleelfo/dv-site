@@ -3526,6 +3526,45 @@ async def _jcs_interpret(text: str) -> str:
     return (data.get("response") or "").strip()
 
 # --------------------------------------------------------------------------
+# ADMIN: SCARICA MODELLI OLLAMA (libera RAM sul Mac)
+# --------------------------------------------------------------------------
+@app.post("/api/admin/ollama/unload")
+async def admin_ollama_unload(
+    authorization: str | None = Header(None),
+):
+    """
+    Scarica dalla RAM i modelli Ollama attualmente caricati (keep_alive=0).
+    Usato da Test2 dopo la pianificazione delle scene, per lasciare
+    memoria libera al modello di immagine durante il loop di generazione.
+    """
+    verify_admin_token(authorization)
+
+    unloaded = []
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(f"{OLLAMA_URL}/api/ps")
+            response.raise_for_status()
+            models = response.json().get("models", [])
+
+            for model in models:
+                name = model.get("name") or model.get("model")
+                if not name:
+                    continue
+                await client.post(
+                    f"{OLLAMA_URL}/api/generate",
+                    json={"model": name, "keep_alive": 0},
+                )
+                unloaded.append(name)
+    except httpx.HTTPError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Ollama non raggiungibile su {OLLAMA_URL}: {exc}",
+        )
+
+    return {"status": "ok", "unloaded": unloaded}
+
+
+# --------------------------------------------------------------------------
 # HEALTH CHECK IMAGE LAB
 # --------------------------------------------------------------------------
 
@@ -3577,3 +3616,4 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=9090,
     )
+

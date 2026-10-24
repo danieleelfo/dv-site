@@ -954,6 +954,15 @@ export default function Test2() {
         id: index + 1, title: scene.title, prompt: scene.prompt, src: '', status: 'In attesa',
       })))
 
+      // Pianificazione completata: scarichiamo i modelli Ollama (keep_alive=0)
+      // per liberare RAM sul Mac prima del loop di immagini.
+      try {
+        setStoryImageStatus('🧹 Libero la RAM usata da Ollama prima delle immagini…')
+        await adminJson(idToken, '/api/admin/ollama/unload', { method: 'POST' }, 30000)
+      } catch {
+        // Non blocca le illustrazioni: è solo un'ottimizzazione di memoria.
+      }
+
       // Un solo job per volta: non si avvia la scena successiva finché la precedente non è pronta.
       // Le richieste di stato possono fallire transitoriamente (rete/Cloudflare): ritentiamo
       // senza creare un secondo job e senza perdere l'immagine già generata.
@@ -976,6 +985,7 @@ export default function Test2() {
         }
         throw new Error('Gateway non raggiungibile dopo 4 tentativi: ' + (lastError?.message || 'errore di rete'))
       }
+      const sceneRetried = new Set()
       for (let index = 0; index < scenes.length; index += 1) {
         const scene = scenes[index]
         const sceneNumber = index + 1
@@ -1022,10 +1032,27 @@ export default function Test2() {
             item.id === sceneNumber ? { ...item, src, status: 'Pronta' } : item
           ))
           setStoryImageStatus('🖼️ Immagine ' + sceneNumber + '/' + imageCount + ' pronta: ' + scene.title)
+          if (index < scenes.length - 1) {
+            setStoryImageStatus('⏳ Pausa 12s prima dell’immagine successiva (libero la RAM del Mac)…')
+            await new Promise((resolve) => setTimeout(resolve, 12000))
+          }
         } catch (err) {
           if (err.status === 401 || err.status === 403) {
             logout(err.message)
             return
+          }
+          if (!sceneRetried.has(sceneNumber)) {
+            sceneRetried.add(sceneNumber)
+            setStoryImages((current) => current.map((item) =>
+              item.id === sceneNumber ? { ...item, status: 'Nuovo tentativo tra 60s…' } : item
+            ))
+            setStoryImageStatus(
+              '🔄 Errore di rete sull’immagine ' + sceneNumber + '/' + imageCount +
+              ' — attendo 60s e riprovo la scena una volta…'
+            )
+            await new Promise((resolve) => setTimeout(resolve, 60000))
+            index -= 1
+            continue
           }
           setStoryImages((current) => current.map((item) =>
             item.id === sceneNumber ? { ...item, status: 'Errore: ' + (err.message || 'errore sconosciuto') } : item
@@ -2115,3 +2142,4 @@ const css = `
   .lc-shade{background:linear-gradient(180deg,rgba(11,16,21,.10) 0%,rgba(11,16,21,.22) 70%)}
 }
 ` 
+
