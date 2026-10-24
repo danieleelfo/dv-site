@@ -3499,6 +3499,48 @@ async def story_list(
     return {"items": items, "max": STORY_HISTORY_MAX}
 
 
+@app.put("/api/admin/stories/{story_id}")
+async def story_update(
+    story_id: str,
+    req: StorySaveRequest,
+    authorization: str | None = Header(None),
+):
+    """Aggiorna testo/metadati e illustrazioni senza riscaricare o perdere l'audio."""
+    verify_admin_token(authorization)
+    existing = _story_load(story_id)
+
+    meta = {
+        "story_id": story_id,
+        "created_at": existing.get("created_at", time.time()),
+        "prompt": req.prompt,
+        "text": req.text,
+        "agent": req.agent,
+        "language": req.language,
+        "has_audio": bool(existing.get("has_audio")),
+        "scenes": [
+            {
+                "title": scene.title,
+                "prompt": scene.prompt,
+                "job_id": scene.job_id,
+            }
+            for scene in req.scenes
+        ],
+    }
+
+    path = os.path.join(STORY_HISTORY_DIR, f"{story_id}.json")
+    temp_path = path + ".tmp"
+    with open(temp_path, "w", encoding="utf-8") as f:
+        json.dump(meta, f, ensure_ascii=False, indent=2)
+    os.replace(temp_path, path)
+
+    return {
+        "story_id": story_id,
+        "status": "ok",
+        "has_audio": meta["has_audio"],
+        "scene_count": len(meta["scenes"]),
+    }
+
+
 @app.get("/api/admin/stories/{story_id}")
 async def story_get(
     story_id: str,
