@@ -49,8 +49,24 @@ AREAS = {
 # (match sul suffisso).
 TIME_HINTS = ("created_at", "updated_at", "timestamp", "time", "date", "when", "_at")
 
-# Colonne su cui si applica il filtro "user" (la prima che esiste).
-USER_COLS = ("user", "username", "utente", "user_email", "email", "sender", "author", "agent", "name", "role")
+# Colonne candidato per il filtro/gruppo "utente", PER AREA:
+# si usa la prima colonna presente nella tabella.
+#   - leles: "role" e' generato dal codice Leles (non e' un utente del DB)
+#     ma VALE come chiave di raggruppamento automatico del pannello utenti.
+#   - emergence: "role" identifica il ruolo del messaggio (sempre
+#     "assistant") e agent_id/model_id sono FK alle tabelle agents/models:
+#     NON sono filtri utente e non compaiono qui.
+GENERIC_USER_COLS = ("user", "username", "utente", "user_email", "email", "sender", "author", "owner")
+USER_COLS_BY_AREA = {
+    "leles": GENERIC_USER_COLS + ("role",),
+    "emergence": GENERIC_USER_COLS,
+}
+# Override per singola tabella (area -> {tabella: colonne}) quando serve una
+# colonna di raggruppamento specifica, es. session_id su emergence.messages.
+TABLE_USER_COLS = {
+    "leles": {},
+    "emergence": {},
+}
 
 
 def _readonly(get_connection: Callable):
@@ -118,9 +134,19 @@ def _time_col(cols: list[str]):
     return next((c for c in cols if c.lower().endswith(TIME_HINTS)), None)
 
 
-def _user_col(cols: list[str]):
+def _user_col(cols: list[str], area: str, table: str):
+    """Colonna di filtro/raggruppamento per la tabella, scelta per area.
+
+    Prima l'eventuale override per tabella, poi la lista candidato
+    dell'area (USER_COLS_BY_AREA): la prima colonna presente nella tabella.
+    NB: colonne come agent_id/model_id/role di emergence non sono qui —
+    restano dati visibili ma non diventano "utenti".
+    """
     lowered = {c.lower(): c for c in cols}
-    for cand in USER_COLS:
+    for cand in TABLE_USER_COLS.get(area, {}).get(table, ()):
+        if cand in lowered:
+            return lowered[cand]
+    for cand in USER_COLS_BY_AREA.get(area, GENERIC_USER_COLS):
         if cand in lowered:
             return lowered[cand]
     return None
@@ -227,12 +253,16 @@ def build_query_db_router(
             raise HTTPException(status_code=503, detail=f"PostgreSQL non raggiungibile: {exc}")
         try:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                # Safety net anche sul caricamento tabella (sort su tabelle
+                # grandi senza indice puo' metterci minuti: meglio un errore
+                # netto che una richiesta appesa).
+                cur.execute("SET statement_timeout = 15000")
                 cols = _columns(cur, schema, table)
                 if not cols:
                     raise HTTPException(status_code=404, detail=f"Tabella non trovata: {table}")
 
                 tc = _time_col(cols)
-                uc = _user_col(cols)
+                uc = _user_col(cols, area, table)
 
                 # Ordinamento: colonna temporale DESC (poi id DESC), cosi'
                 # l'anteprima mostra i record piu' recenti per prima.
@@ -324,7 +354,7 @@ def build_query_db_router(
                 cols = _columns(cur, schema, table)
                 if not cols:
                     raise HTTPException(status_code=404, detail=f"Tabella non trovata: {table}")
-                uc = _user_col(cols)
+                uc = _user_col(cols, area, table)
                 if not uc:
                     return {"table": table, "column": None, "users": []}
                 cur.execute(
