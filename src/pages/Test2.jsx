@@ -810,6 +810,9 @@ export default function Test2() {
   const [storyImageCount, setStoryImageCount] = useState(3)
   const [storyImageStatus, setStoryImageStatus] = useState('')
   const [storyImageError, setStoryImageError] = useState('')
+  const [storyKidsFilter, setStoryKidsFilter] = useState(true)
+  const [storyStylePrompt, setStoryStylePrompt] = useState('')
+  const [storyGenre, setStoryGenre] = useState('Random')
 
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [audioCurrentTime, setAudioCurrentTime] = useState(0)
@@ -883,14 +886,23 @@ export default function Test2() {
     setStoryImageError('')
     setStoryImageStatus('')
     // Parte in background: testo e audio SW sono già disponibili e non aspettano l'immagine.
-    if (agent === 'Story Whisper' && wantsStoryImage && replyText) {
-      void generateStoryIllustration(replyText)
+    if ((agent === 'Story Whisper' || agent === 'Night Story') && wantsStoryImage && replyText) {
+      void generateStoryIllustration(replyText, agent)
     }
   }
 
-  async function generateStoryIllustration(storyText) {
+  async function generateStoryIllustration(storyText, agent) {
     if (!idToken || storyImageBusy) return
-    const imageCount = Math.max(1, Math.min(4, Number(storyImageCount) || 3))
+    const imageCount = Math.max(1, Math.min(8, Number(storyImageCount) || 3))
+    const kidsMode = agent === 'Story Whisper' && storyKidsFilter
+    const genre = agent === 'Night Story' ? String(storyGenre || 'Random').trim() : ''
+    const extraStyle = String(storyStylePrompt || '').trim().slice(0, 500)
+    const artDirection = kidsMode
+      ? 'Every image prompt must enforce a colorful cartoon storybook illustration style suitable for young children: safe, wholesome, no violence, no scary or adult content, friendly rounded shapes, bright cheerful lighting. '
+      : genre
+        ? 'Every image prompt must follow an artistic illustration style that matches the story genre "' + genre + '" (mature audiences, never a children style). '
+        : ''
+    const styleExtra = extraStyle ? 'Additional art direction from the user to apply to every scene: ' + extraStyle + '. ' : ''
     setStoryImageBusy(true)
     setStoryImageError('')
     setStoryImages([])
@@ -898,12 +910,13 @@ export default function Test2() {
     let imageStage = 'selezione delle scene con Ollama'
     try {
       const planningPrompt = (count) =>
-        'You are a storyboard planner for a family-friendly story. Select exactly ' + count +
+        'You are a storyboard planner. Select exactly ' + count +
         ' distinct scenes in chronological order, spread across the story from opening to ending. ' +
         'Each scene must depict a real, visually distinct moment. Keep character appearance, clothing, age, and art direction consistent across prompts. ' +
         'Return ONLY a valid JSON object, no markdown, no prose, no code fences, in this exact schema: ' +
         '{"scenes":[{"title":"Short label","prompt":"Detailed English image prompt"}]}. ' +
-        'The scenes array must contain exactly ' + count + ' objects. Each prompt must stand alone and describe characters, setting, action, mood, lighting and a consistent family-friendly storybook style. No text or lettering in images. Do not invent events. ' +
+        'The scenes array must contain exactly ' + count + ' objects. Each prompt must stand alone and describe characters, setting, action, mood, lighting and a consistent style. ' + artDirection + styleExtra +
+        'No text or lettering in images. Do not invent events. ' +
         '\n\nSTORY:\n' + storyText.slice(0, 12000)
       let rawPlan = String(await callLlm(idToken, planningPrompt(imageCount), leleModel, 180000)).trim()
 
@@ -1774,25 +1787,58 @@ export default function Test2() {
                     />
                     Risposta audio (TTS)
                   </label>
-                  {audioAgent === 'Story Whisper' && (
-                    <label className="lc-check" title="Genera tre illustrazioni sequenziali delle scene principali dopo testo e audio">
-                      <input
-                        type="checkbox"
-                        checked={wantsStoryImage}
-                        disabled={isRecording || audioBusy || storyImageBusy}
-                        onChange={(e) => setWantsStoryImage(e.target.checked)}
-                      />
-                      🎨 Crea illustrazioni della storia
+                  {(audioAgent === 'Story Whisper' || audioAgent === 'Night Story') && (
+                    <div className="lc-check" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }} title="Genera illustrazioni sequenziali delle scene principali dopo testo e audio">
+                      <label className="lc-check">
+                        <input
+                          type="checkbox"
+                          checked={wantsStoryImage}
+                          disabled={isRecording || audioBusy || storyImageBusy}
+                          onChange={(e) => setWantsStoryImage(e.target.checked)}
+                        />
+                        🎨 Crea illustrazioni della storia
+                      </label>
                       <select
                         aria-label="Numero di illustrazioni"
                         value={storyImageCount}
                         disabled={isRecording || audioBusy || storyImageBusy}
                         onChange={(e) => setStoryImageCount(Number(e.target.value))}
-                        style={{ marginLeft: 8, padding: '4px 8px', borderRadius: 8, background: 'var(--surface, #fff)', color: 'inherit', border: '1px solid var(--line, #ccc)' }}
+                        style={{ padding: '4px 8px', borderRadius: 8, background: 'var(--surface, #fff)', color: 'inherit', border: '1px solid var(--line, #ccc)' }}
                       >
-                        {[1, 2, 3, 4].map((count) => <option key={count} value={count}>{count} {count === 1 ? 'immagine' : 'immagini'}</option>)}
+                        {[1, 2, 3, 4, 5, 6, 7, 8].map((count) => <option key={count} value={count}>{count} {count === 1 ? 'immagine' : 'immagini'}</option>)}
                       </select>
-                    </label>
+                      {audioAgent === 'Story Whisper' && (
+                        <label className="lc-check" title="Stile cartoon per bambini, contenuti sicuri">
+                          <input
+                            type="checkbox"
+                            checked={storyKidsFilter}
+                            disabled={isRecording || audioBusy || storyImageBusy}
+                            onChange={(e) => setStoryKidsFilter(e.target.checked)}
+                          />
+                          🧒 Bambini
+                        </label>
+                      )}
+                      {audioAgent === 'Night Story' && (
+                        <select
+                          aria-label="Genere Night Story"
+                          value={storyGenre}
+                          disabled={isRecording || audioBusy || storyImageBusy}
+                          onChange={(e) => setStoryGenre(e.target.value)}
+                          style={{ padding: '4px 8px', borderRadius: 8, background: 'var(--surface, #fff)', color: 'inherit', border: '1px solid var(--line, #ccc)' }}
+                        >
+                          {['Random', 'Amore', 'Comico', 'Culturale', 'Drammatica', 'Horror', 'Osè', 'Ricerca'].map((g) => <option key={g} value={g}>{g}</option>)}
+                        </select>
+                      )}
+                      <input
+                        type="text"
+                        aria-label="Prompt di stile extra"
+                        placeholder="Prompt stile extra (opzionale)"
+                        value={storyStylePrompt}
+                        disabled={isRecording || audioBusy || storyImageBusy}
+                        onChange={(e) => setStoryStylePrompt(e.target.value)}
+                        style={{ minWidth: 160, padding: '4px 8px', borderRadius: 8, background: 'var(--surface, #fff)', color: 'inherit', border: '1px solid var(--line, #ccc)' }}
+                      />
+                    </div>
                   )}
                   <div className="lc-row">
                     <button
