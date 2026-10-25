@@ -629,7 +629,7 @@ export default function StoriesTab({ idToken }) {
                 onChange={(event) => setImageCount(Number(event.target.value))}
                 disabled={busy}
               >
-                {[1, 2, 3, 4].map((n) => (
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
                   <option key={n} value={n}>
                     {n} {n === 1 ? "immagine" : "immagini"}
                   </option>
