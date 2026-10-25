@@ -3,8 +3,8 @@ query_db.py — Backend "QueryDB" per QueryDb.jsx (read-only). v4
 
 Endpoint (tutti con Google auth, stesso verify_admin_token del gateway):
     GET  /api/db/status?area=leles|emergence
-    GET  /api/db/table?area=&table=&page=&user=&users=&date_from=&date_to=
-    GET  /api/db/users?area=&table=   (valori distinti colonna user + count)
+    GET  /api/db/table?area=&table=&page=&user=&users=&date_from=&date_to=&agent=&model=
+    GET  /api/db/users?area=&table=&facet=   (valori distinti colonna user + count)
 
 Novità v2:
   - aree = SCHEMI Postgres: "leles" -> schema public, "emergence" -> schema
@@ -67,6 +67,13 @@ TABLE_USER_COLS = {
     "leles": {},
     "emergence": {},
 }
+
+# Emergence: i metadati vivono in una colonna JSON ("metadata"), es.
+# {'agent_name': 'Tester', 'model_name': 'qwen2.5'}. I filtri agente/modello
+# si applicano sulle chiavi JSON, non su colonne relazionali.
+# (parametro query -> chiave JSON)
+META_COL = "metadata"
+META_FILTERS = {"agent": "agent_name", "model": "model_name"}
 
 
 def _readonly(get_connection: Callable):
@@ -139,7 +146,7 @@ def _user_col(cols: list[str], area: str, table: str):
 
     Prima l'eventuale override per tabella, poi la lista candidato
     dell'area (USER_COLS_BY_AREA): la prima colonna presente nella tabella.
-    NB: colonne come agent_id/model_id/role di emergence non sono qui —
+    NB: colonne come agent_id/model_id/role di emergence non sono qui:
     restano dati visibili ma non diventano "utenti".
     """
     lowered = {c.lower(): c for c in cols}
@@ -150,6 +157,10 @@ def _user_col(cols: list[str], area: str, table: str):
         if cand in lowered:
             return lowered[cand]
     return None
+
+
+def _meta_col(cols: list[str]):
+    return next((c for c in cols if c.lower() == META_COL), None)
 
 
 def _recent(cur, schema: str, tables: list[dict]) -> list[dict]:
@@ -235,6 +246,8 @@ def build_query_db_router(
         date_from: str = "",
         date_to: str = "",
         users: str = "",
+        agent: str = "",
+        model: str = "",
         authorization: str | None = Header(None),
     ):
         verify_admin_token(authorization)
@@ -246,6 +259,8 @@ def build_query_db_router(
         users_list = [u.strip()[:200] for u in (users or "").split(",") if u.strip()][:100]
         date_from = (date_from or "").strip()[:10]
         date_to = (date_to or "").strip()[:10]
+        agent = (agent or "").strip()[:200]
+        model = (model or "").strip()[:200]
 
         try:
             conn = _readonly(get_connection)
@@ -263,6 +278,7 @@ def build_query_db_router(
 
                 tc = _time_col(cols)
                 uc = _user_col(cols, area, table)
+                mc = _meta_col(cols)
 
                 # Ordinamento: colonna temporale DESC (poi id DESC), cosi'
                 # l'anteprima mostra i record piu' recenti per prima.
@@ -287,6 +303,17 @@ def build_query_db_router(
                     # Selezione checkbox della UI: solo gli utenti spuntati.
                     conds.append(sql.SQL("{} = ANY(%s)").format(sql.Identifier(uc)))
                     params.append(users_list)
+                if mc:
+                    # Filtri agente/modello sulle chiavi del JSON metadata.
+                    for param_name, json_key in META_FILTERS.items():
+                        val = {"agent": agent, "model": model}[param_name]
+                        if val:
+                            conds.append(
+                                sql.SQL("CAST({} AS jsonb)->>'{}' = %s").format(
+                                    sql.Identifier(mc), sql.SQL(json_key)
+                                )
+                            )
+                            params.append(val)
                 if tc:
                     if date_from:
                         conds.append(sql.SQL("{}::date >= %s").format(sql.Identifier(tc)))
@@ -316,7 +343,11 @@ def build_query_db_router(
                     "rows": rows,
                     "page": page,
                     "order": order_label,
-                    "filterable": {"user_col": uc, "time_col": tc},
+                    "filterable": {
+                        "user_col": uc,
+                        "time_col": tc,
+                        "meta_keys": list(META_FILTERS.values()) if mc else [],
+                    },
                 }
         except HTTPException:
             raise
@@ -336,9 +367,14 @@ def build_query_db_router(
     async def db_users(
         area: str = "leles",
         table: str = "",
+        facet: str = "",
         authorization: str | None = Header(None),
     ):
-        """Valori distinti della colonna user della tabella, con conteggio."""
+        """Valori distinti della colonna user della tabella, con conteggio.
+
+        Con facet=<chiave metadata> (es. agent_name, model_name) restituisce
+        i valori distinti di quella chiave del JSON metadata, con conteggio.
+        """
         verify_admin_token(authorization)
         schema = _schema(area)
         if not table or len(table) > 120 or not table.replace("_", "").isalnum():
@@ -355,6 +391,27 @@ def build_query_db_router(
                 if not cols:
                     raise HTTPException(status_code=404, detail=f"Tabella non trovata: {table}")
                 uc = _user_col(cols, area, table)
+                mc = _meta_col(cols)
+                if facet in META_FILTERS.values():
+                    # Facet su chiave del JSON metadata (Emergence).
+                    if not mc:
+                        return {"table": table, "column": None, "users": []}
+                    cur.execute(
+                        sql.SQL(
+                            "SELECT COALESCE(CAST({} AS jsonb)->> %s, '') AS name, COUNT(*) AS n "
+                            "FROM {} GROUP BY 1 ORDER BY n DESC, name LIMIT 500"
+                        ).format(sql.Identifier(mc), sql.Identifier(schema, table)),
+                        (facet,),
+                    )
+                    facet_users = [
+                        {"name": _jsonable(r["name"]), "count": int(r["n"])}
+                        for r in cur.fetchall()
+                    ]
+                    return {
+                        "table": table,
+                        "column": mc + "->>'" + facet + "'",
+                        "users": facet_users,
+                    }
                 if not uc:
                     return {"table": table, "column": None, "users": []}
                 cur.execute(

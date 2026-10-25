@@ -139,6 +139,9 @@ export default function QueryDb() {
   const [fUser, setFUser] = useState("");
   const [fFrom, setFFrom] = useState("");
   const [fTo, setFTo] = useState("");
+  const [fAgent, setFAgent] = useState("");
+  const [fModel, setFModel] = useState("");
+  const [facets, setFacets] = useState({});
   const [usersInfo, setUsersInfo] = useState(null);
   const [usersOff, setUsersOff] = useState(null);
   const [uSearch, setUSearch] = useState("");
@@ -189,7 +192,20 @@ export default function QueryDb() {
     }
   }, [api]);
 
-  const loadTable = useCallback(async (selectedArea, selectedTable, selectedPage, off) => {
+  const loadFacets = useCallback(async (selectedArea, selectedTable, key) => {
+    try {
+      const data = await api(
+        "/api/db/users?area=" + encodeURIComponent(selectedArea) +
+        "&table=" + encodeURIComponent(selectedTable) +
+        "&facet=" + encodeURIComponent(key)
+      );
+      setFacets((f) => ({ ...f, [key]: data }));
+    } catch {
+      setFacets((f) => ({ ...f, [key]: null }));
+    }
+  }, [api]);
+
+  const loadTable = useCallback(async (selectedArea, selectedTable, selectedPage, off, agent, model) => {
     setBusy("table");
     setError("");
     try {
@@ -200,11 +216,16 @@ export default function QueryDb() {
         const keep = usersInfo.users.map((u) => String(u.name)).filter((n) => !excluded.includes(n));
         usersQ = "&users=" + encodeURIComponent(keep.join(","));
       }
+      // Facet metadata (Emergence): filtri agente/modello.
+      const a = agent !== undefined && agent !== null ? agent : fAgent;
+      const m = model !== undefined && model !== null ? model : fModel;
       const data = await api(
         "/api/db/table?area=" + encodeURIComponent(selectedArea) +
         "&table=" + encodeURIComponent(selectedTable) +
         "&page=" + selectedPage +
         usersQ +
+        (a ? "&agent=" + encodeURIComponent(a) : "") +
+        (m ? "&model=" + encodeURIComponent(m) : "") +
         (fUser ? "&user=" + encodeURIComponent(fUser) : "") +
         (fFrom ? "&date_from=" + fFrom : "") +
         (fTo ? "&date_to=" + fTo : "")
@@ -216,7 +237,15 @@ export default function QueryDb() {
     } finally {
       setBusy("");
     }
-  }, [api, usersInfo, usersOff]);
+  }, [api, usersInfo, usersOff, fAgent, fModel]);
+
+  // Facet metadata (Emergence): valori distinti agente/modello per i select.
+  useEffect(() => {
+    const keys = tableData?.filterable?.meta_keys || [];
+    for (const k of keys) {
+      if (!facets[k]) loadFacets(area, table, k);
+    }
+  }, [tableData, area, table, facets, loadFacets]);
 
   useEffect(() => {
     if (auth.token && auth.allowed) loadStatus(area);
@@ -229,6 +258,9 @@ export default function QueryDb() {
     setFUser("");
     setFFrom("");
     setFTo("");
+    setFAgent("");
+    setFModel("");
+    setFacets({});
     setUsersInfo(null);
     setUsersOff(null);
     setUSearch("");
@@ -374,7 +406,7 @@ export default function QueryDb() {
         <section className="panel preview-panel">
           <div className="section-heading">
             <div><p className="eyebrow">{t("qdb.previewEyebrow")}</p><h2><code>{table}</code> · {t("qdb.page", { n: page + 1 })}{tableData?.order ? <span className="order-badge" title={t("qdb.serverOrder")}>{tableData.order}</span> : null}</h2></div>
-            {(tableData?.filterable?.user_col || tableData?.filterable?.time_col) && (
+            {(tableData?.filterable?.user_col || tableData?.filterable?.time_col || (tableData?.filterable?.meta_keys || []).length) && (
               <div className="filter-bar">
                 {tableData?.filterable?.user_col && (
                   <input className="text-input filter-input" type="text" placeholder={t("qdb.filterBy", { col: tableData.filterable.user_col })} value={fUser} onChange={(e) => setFUser(e.target.value)} />
@@ -385,8 +417,26 @@ export default function QueryDb() {
                     <input className="text-input filter-input" type="date" value={fTo} onChange={(e) => setFTo(e.target.value)} title={t("qdb.to")} />
                   </>
                 )}
-                <button className="btn btn-primary" disabled={busy === "table"} onClick={() => { setPage(0); loadTable(area, table, 0); }}>{t("qdb.apply")}</button>
-                {(fUser || fFrom || fTo) && <button className="btn btn-quiet" onClick={() => { setFUser(""); setFFrom(""); setFTo(""); setUsersOff(null); setPage(0); loadTable(area, table, 0, null); }}>{t("qdb.reset")}</button>}
+                {(tableData?.filterable?.meta_keys || []).includes("agent_name") && (
+                  <select className="text-input filter-input" value={fAgent} title={t("qdb.filterBy", { col: "metadata.agent_name" })}
+                    onChange={(e) => { setFAgent(e.target.value); setPage(0); loadTable(area, table, 0, usersOff, e.target.value, fModel); }}>
+                    <option value="">agent_name · ALL</option>
+                    {(facets.agent_name?.users || []).map((u) => (
+                      <option key={String(u.name)} value={String(u.name)}>{String(u.name)} ({u.count.toLocaleString("it-IT")})</option>
+                    ))}
+                  </select>
+                )}
+                {(tableData?.filterable?.meta_keys || []).includes("model_name") && (
+                  <select className="text-input filter-input" value={fModel} title={t("qdb.filterBy", { col: "metadata.model_name" })}
+                    onChange={(e) => { setFModel(e.target.value); setPage(0); loadTable(area, table, 0, usersOff, fAgent, e.target.value); }}>
+                    <option value="">model_name · ALL</option>
+                    {(facets.model_name?.users || []).map((u) => (
+                      <option key={String(u.name)} value={String(u.name)}>{String(u.name)} ({u.count.toLocaleString("it-IT")})</option>
+                    ))}
+                  </select>
+                )}
+                <button className="btn btn-primary" disabled={busy === "table"} onClick={() => { setPage(0); loadTable(area, table, 0, usersOff); }}>{t("qdb.apply")}</button>
+                {(fUser || fFrom || fTo || fAgent || fModel) && <button className="btn btn-quiet" onClick={() => { setFUser(""); setFFrom(""); setFTo(""); setFAgent(""); setFModel(""); setUsersOff(null); setPage(0); loadTable(area, table, 0, null, "", ""); }}>{t("qdb.reset")}</button>}
               </div>
             )}
             <div className="btn-row">
