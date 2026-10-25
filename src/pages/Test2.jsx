@@ -777,6 +777,9 @@ export default function Test2() {
   const [storyImageBusy, setStoryImageBusy] = useState(false)
   const [storyImages, setStoryImages] = useState([])
   const [storyImageCount, setStoryImageCount] = useState(3)
+  // F4-B/C: formato e step delle illustrazioni della storia.
+  const [storyImageFormat, setStoryImageFormat] = useState('1024x768')
+  const [storyImageSteps, setStoryImageSteps] = useState(8)
   const [storyImageStatus, setStoryImageStatus] = useState('')
   const [storyImageError, setStoryImageError] = useState('')
   const [storyKidsFilter, setStoryKidsFilter] = useState(true)
@@ -937,7 +940,14 @@ export default function Test2() {
           // F3: il filtro stile (kids/genre) ora è applicato anche dal
           // gateway via preset, oltre che dal prompt del planner.
           const scenePreset = kidsMode ? 'sw_kids' : (genre ? 'ns_free' : '')
-          const jobId = await createImageJob(idToken, scene.prompt, { preset: scenePreset })
+          const [fmtWidth, fmtHeight] = String(storyImageFormat || '1024x768').split('x').map(Number)
+          const sceneSteps = Math.max(1, Math.min(100, Number(storyImageSteps) || 8))
+          const jobId = await createImageJob(idToken, scene.prompt, {
+            preset: scenePreset,
+            width: fmtWidth,
+            height: fmtHeight,
+            steps: sceneSteps,
+          })
 
           imageStage = 'controllo stato immagine ' + sceneNumber + '/' + imageCount
           const result = await waitForImageResult(idToken, jobId, {
@@ -1699,6 +1709,24 @@ export default function Test2() {
                       >
                         {[1, 2, 3, 4, 5, 6, 7, 8].map((count) => <option key={count} value={count}>{count} {count === 1 ? 'immagine' : 'immagini'}</option>)}
                       </select>
+                      <select
+                        aria-label="Formato illustrazioni"
+                        value={storyImageFormat}
+                        disabled={isRecording || audioBusy || storyImageBusy}
+                        onChange={(e) => setStoryImageFormat(e.target.value)}
+                        style={{ padding: '4px 8px', borderRadius: 8, background: 'var(--surface, #fff)', color: 'inherit', border: '1px solid var(--line, #ccc)' }}
+                      >
+                        {[['512x512', '1:1 · 512'], ['768x768', '1:1 · 768'], ['1024x1024', '1:1 · 1024'], ['768x576', '4:3 · 768'], ['1024x768', '4:3 · 1024'], ['1280x720', '16:9 · 1280'], ['960x640', '3:2 · 960']].map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                      </select>
+                      <select
+                        aria-label="Step illustrazioni"
+                        value={storyImageSteps}
+                        disabled={isRecording || audioBusy || storyImageBusy}
+                        onChange={(e) => setStoryImageSteps(Number(e.target.value))}
+                        style={{ padding: '4px 8px', borderRadius: 8, background: 'var(--surface, #fff)', color: 'inherit', border: '1px solid var(--line, #ccc)' }}
+                      >
+                        {[1, 3, 4, 5, 6, 7, 8, 9, 12, 15].map((s) => <option key={s} value={s}>{s} step</option>)}
+                      </select>
                       {audioAgent === 'Story Whisper' && (
                         <label className="lc-check" title="Stile cartoon per bambini, contenuti sicuri">
                           <input
@@ -2098,6 +2126,7 @@ const css = `
   .lc-shade{background:linear-gradient(180deg,rgba(11,16,21,.10) 0%,rgba(11,16,21,.22) 70%)}
 }
 ` 
+
 
 
 

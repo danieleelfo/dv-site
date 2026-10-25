@@ -55,6 +55,9 @@ function formatSeconds(seconds) {
 export default function StoriesTab({ idToken }) {
   const [prompt, setPrompt] = useState("");
   const [imageCount, setImageCount] = useState(3);
+  // F4-B/C: formato e step delle illustrazioni.
+  const [imageFormat, setImageFormat] = useState("1024x768");
+  const [imageSteps, setImageSteps] = useState(8);
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState("");
   const [error, setError] = useState("");
@@ -370,8 +373,16 @@ export default function StoriesTab({ idToken }) {
         try {
           // F3: lo stile "storia per bambini" è applicato anche dal
           // gateway via preset sw_kids, oltre che dal prompt planner.
+          // F4-B/C: formato e step selezionati dall'utente.
+          const [fmtWidth, fmtHeight] = String(imageFormat || "1024x768")
+            .split("x")
+            .map(Number);
+          const sceneSteps = Math.max(1, Math.min(100, Number(imageSteps) || 8));
           const jobId = await createImageJob(idToken, scene.prompt, {
             preset: "sw_kids",
+            width: fmtWidth,
+            height: fmtHeight,
+            steps: sceneSteps,
           });
 
           const sceneStart = Date.now();
@@ -509,6 +520,42 @@ export default function StoriesTab({ idToken }) {
                 {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
                   <option key={n} value={n}>
                     {n} {n === 1 ? "immagine" : "immagini"}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="il-label" htmlFor="story-format">
+                Formato
+              </label>
+              <select
+                id="story-format"
+                className="il-input"
+                value={imageFormat}
+                onChange={(event) => setImageFormat(event.target.value)}
+                disabled={busy}
+              >
+                {[["512x512", "1:1 · 512"], ["768x768", "1:1 · 768"], ["1024x1024", "1:1 · 1024"], ["768x576", "4:3 · 768"], ["1024x768", "4:3 · 1024"], ["1280x720", "16:9 · 1280"], ["960x640", "3:2 · 960"]].map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="il-label" htmlFor="story-steps">
+                Step
+              </label>
+              <select
+                id="story-steps"
+                className="il-input"
+                value={imageSteps}
+                onChange={(event) => setImageSteps(Number(event.target.value))}
+                disabled={busy}
+              >
+                {[1, 3, 4, 5, 6, 7, 8, 9, 12, 15].map((s) => (
+                  <option key={s} value={s}>
+                    {s} step
                   </option>
                 ))}
               </select>
@@ -686,4 +733,5 @@ export default function StoriesTab({ idToken }) {
     </div>
   );
 }
+
 

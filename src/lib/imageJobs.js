@@ -115,12 +115,15 @@ export function buildStoryboardPrompt({
   styleClause = "a consistent style. ",
 }) {
   return (
-    "You are a storyboard planner. Select exactly " + count +
+    "You are a storyboard planner for an illustrated story. Select exactly " + count +
     " distinct scenes in chronological order, spread across the story from opening to ending. " +
-    "Each scene must depict a real, visually distinct moment. Keep character appearance, clothing, age, and art direction consistent across prompts. " +
+    "Each scene must depict a real, visually distinct moment. " +
     'Return ONLY a valid JSON object, no markdown, no prose, no code fences, in this exact schema: ' +
-    '{"scenes":[{"title":"Short label","prompt":"Detailed English image prompt"}]}. ' +
-    "The scenes array must contain exactly " + count + " objects. Each prompt must stand alone and describe characters, setting, action, mood, lighting and " +
+    '{"style":"A shared art-direction block of 25-45 words pinning the recurring visual style and the physical appearance of every recurring character (age, look, hair, clothing), identical in all scenes","scenes":[{"title":"Short label","prompt":"Detailed English image prompt"}]}. ' +
+    "The scenes array must contain exactly " + count + " objects. " +
+    "Each prompt must be a complete standalone image prompt of 60-120 words: describe the recurring characters exactly as in the style block, then the setting (place, time of day, weather), the action of this moment, the mood, the lighting, and the camera framing (wide shot, medium shot, close-up). " +
+    "Repeat the full character descriptions in every prompt so each image can be generated independently and the characters stay identical across scenes. " +
+    "Keep character appearance, clothing, age, and art direction consistent across prompts. Each prompt must follow " +
     styleClause + artDirection + styleExtra +
     "No text or lettering in images. Do not invent events. " +
     "\n\nSTORY:\n" + String(storyText || "").slice(0, 12000)
@@ -148,10 +151,21 @@ export function normalizeScenes(parsedPlan, imageCount) {
     throw new Error("L'LLM ha restituito meno di " + imageCount + " scene con prompt separati.");
   }
 
+  // Blocco di stile condiviso: se il planner lo restituisce, viene
+  // anteposto a ogni prompt di scena così tutte le immagini condividono
+  // mondo, personaggi e direzione artistica.
+  const planStyle =
+    !Array.isArray(parsedPlan) && typeof parsedPlan?.style === "string"
+      ? parsedPlan.style.trim()
+      : "";
+
   const fallbackTitles = ["Inizio", "Sviluppo", "Finale", "Epilogo"];
   const scenes = plannedScenes.slice(0, imageCount).map((item, index) => ({
     title: String(item.title || item.scene || fallbackTitles[index]).trim(),
-    prompt: String(item.prompt || item.image_prompt || "").trim(),
+    prompt: (
+      (planStyle ? planStyle + " " : "") +
+      String(item.prompt || item.image_prompt || "").trim()
+    ).trim(),
   }));
 
   if (
@@ -256,3 +270,4 @@ export function resultToDataUrl(result) {
 export async function unloadOllama(idToken) {
   await apiJson(idToken, "/api/admin/ollama/unload", { method: "POST" }, 30000);
 }
+
