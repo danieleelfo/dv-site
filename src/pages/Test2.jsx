@@ -1951,14 +1951,14 @@ export default function Test2() {
                   )}
 
                   <pre className="lc-pre">{audioReply}</pre>
-                  {(storyImageStatus || storyImageError || storyImages.length > 0) && audioReplyAgent === 'Story Whisper' && (
+                  {(storyImageStatus || storyImageError || storyImages.length > 0) && (audioReplyAgent === 'Story Whisper' || audioReplyAgent === 'Night Story') && (
                     <div className="lc-story-illustration" aria-live="polite" style={{ marginTop: 14 }}>
                       {storyImageStatus && <p className="lc-dim lc-small">{storyImageStatus}</p>}
                       {storyImageError && <p className="lc-err lc-small">Illustrazioni: {storyImageError}</p>}
                       {storyImages.map((item) => (
                         <div key={item.id} style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--line)' }}>
                           <p className="lc-dim lc-small" style={{ marginBottom: 6 }}>
-                            <strong>{item.id}/3 · {item.title}</strong> — {item.status}
+                            <strong>{item.id}/{storyImages.length} · {item.title}</strong> — {item.status}
                           </p>
                           {item.src && (
                             <img
