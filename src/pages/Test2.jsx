@@ -28,7 +28,7 @@ import {
 // mostrando il detail del gateway quando presente).
 const adminJson = apiJson
 
-const LELE_API_URL = 'https://api.danielevillanova.com'const LELE_API_URL = 'https://api.danielevillanova.com'
+const LELE_API_URL = 'https://api.danielevillanova.com'
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
 const TOKEN_STORAGE_KEY = 'leles_admin_id_token'
 
@@ -2098,5 +2098,6 @@ const css = `
   .lc-shade{background:linear-gradient(180deg,rgba(11,16,21,.10) 0%,rgba(11,16,21,.22) 70%)}
 }
 ` 
+
 
 
