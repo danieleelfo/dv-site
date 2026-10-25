@@ -16,8 +16,20 @@
 // Le immagini delle scene restano in /api/image/history/{job_id}/image.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-
-const API = "https://api.danielevillanova.com";
+import {
+  API,
+  authBlobUrl,
+  buildRepairPrompt,
+  buildStoryboardPrompt,
+  createImageJob,
+  fetchJobStatusWithRetry,
+  normalizeScenes,
+  parsePlan,
+  resultToDataUrl,
+  sleep,
+  unloadOllama,
+  waitForImageResult,
+} from "../lib/imageJobs";
 const STORY_AGENT = "Story Whisper";
 const CHAT_ID_KEY = "dv_story_chat_id";
 const MAX_PROMPT_CHARS = 4000;
@@ -34,102 +46,10 @@ function getChatId() {
   }
 }
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
 function formatSeconds(seconds) {
   const s = Math.max(0, Math.floor(Number(seconds) || 0));
   return s < 60 ? s + " s" : Math.floor(s / 60) + " min " + String(s % 60).padStart(2, "0") + " s";
 }
-
-// Chiamata admin generica con Bearer token (come Test2 adminJson).
-async function apiJson(idToken, path, init = {}, timeoutMs = 310000) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(`${API}${path}`, {
-      ...init,
-      headers: { ...(init.headers || {}), Authorization: `Bearer ${idToken}` },
-      signal: controller.signal,
-    });
-    if (res.status === 401 || res.status === 403) {
-      const err = new Error(
-        res.status === 401
-          ? "Sessione scaduta: effettua di nuovo il login."
-          : "Accesso non autorizzato per questo account Google."
-      );
-      err.status = res.status;
-      throw err;
-    }
-    if (!res.ok) {
-      let detail = `HTTP ${res.status}: ${res.statusText}`;
-      try {
-        const data = await res.json();
-        if (typeof data.detail === "string") detail = data.detail;
-        else if (data.detail) detail = JSON.stringify(data.detail);
-      } catch (e) {
-        /* formato inatteso: manteniamo il messaggio base */
-      }
-      throw new Error(detail);
-    }
-    return await res.json();
-  } catch (err) {
-    if (err.name === "AbortError") {
-      throw new Error("Timeout: il server non ha risposto in tempo.");
-    }
-    throw err;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-// Blob con auth header -> objectURL (per <audio> e <img> privati).
-async function authBlobUrl(idToken, path, timeoutMs = 60000) {
-  const res = await fetch(`${API}${path}`, {
-    headers: { Authorization: `Bearer ${idToken}` },
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return URL.createObjectURL(await res.blob());
-}
-
-// Estrae il primo oggetto JSON bilanciato dalla risposta dell'LLM
-// (Ollama a volte aggiunge prefazioni o code fence).
-function extractJsonObject(text) {
-  const source = String(text || "").replace(/```(?:json)?/gi, "").trim();
-  const first = source.indexOf("{");
-  if (first < 0) return "";
-  let depth = 0;
-  let quoted = false;
-  let escaped = false;
-  for (let i = first; i < source.length; i += 1) {
-    const ch = source[i];
-    if (quoted) {
-      if (escaped) escaped = false;
-      else if (ch === "\\") escaped = true;
-      else if (ch === '"') quoted = false;
-    } else if (ch === '"') quoted = true;
-    else if (ch === "{") depth += 1;
-    else if (ch === "}") {
-      depth -= 1;
-      if (depth === 0) return source.slice(first, i + 1);
-    }
-  }
-  return "";
-}
-
-function parsePlan(text) {
-  const jsonText = extractJsonObject(text);
-  if (!jsonText) throw new Error("Non trovo un oggetto JSON nella risposta dell'LLM.");
-  return JSON.parse(jsonText);
-}
-
-const planningPrompt = (count, storyText) =>
-  "You are a storyboard planner for a family-friendly story. Select exactly " + count +
-  " distinct scenes in chronological order, spread across the story from opening to ending. " +
-  "Each scene must depict a real, visually distinct moment. Keep character appearance, clothing, age, and art direction consistent across prompts. " +
-  'Return ONLY a valid JSON object, no markdown, no prose, no code fences, in this exact schema: ' +
-  '{"scenes":[{"title":"Short label","prompt":"Detailed English image prompt"}]}. ' +
-  "The scenes array must contain exactly " + count + " objects. Each prompt must stand alone and describe characters, setting, action, mood, lighting and a consistent family-friendly storybook style. No text or lettering in images. Do not invent events. " +
-  "\n\nSTORY:\n" + String(storyText || "").slice(0, 12000);
 
 export default function StoriesTab({ idToken }) {
   const [prompt, setPrompt] = useState("");
@@ -269,26 +189,18 @@ export default function StoriesTab({ idToken }) {
   }, [idToken, loadStories]);
 
   // Controllo dello stato di un job con retry (rete/Cloudflare instabili).
-  const fetchJobStatusWithRetry = useCallback(async (jobId, total) => {
-    let lastError;
-    for (let attempt = 1; attempt <= 4; attempt += 1) {
-      try {
-        return await apiJson(idToken, "/api/image/jobs/" + encodeURIComponent(jobId), {}, 45000);
-      } catch (err) {
-        if (err.status === 401 || err.status === 403) throw err;
-        if (/^HTTP \d+/.test(err.message || "")) throw err;
-        lastError = err;
-        if (attempt < 4) {
+  // F2: implementazione condivisa in src/lib/imageJobs.js.
+  const fetchJobStatus = useCallback(
+    (jobId) =>
+      fetchJobStatusWithRetry(idToken, jobId, {
+        onRetry: (attempt, attempts) =>
           setStage(
             "🔄 Connessione temporaneamente interrotta — nuovo tentativo " +
-              (attempt + 1) + "/4…"
-          );
-          await sleep(attempt * 2500);
-        }
-      }
-    }
-    throw new Error("Gateway non raggiungibile dopo 4 tentativi: " + (lastError?.message || "errore di rete"));
-  }, [idToken]);
+              attempt + "/" + attempts + "…"
+          ),
+      }),
+    [idToken]
+  );
 
   async function generateStory(event) {
     event.preventDefault();
@@ -390,7 +302,11 @@ export default function StoriesTab({ idToken }) {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              prompt: planningPrompt(imageCount, storyText),
+              prompt: buildStoryboardPrompt({
+                count: imageCount,
+                storyText,
+                styleClause: "a consistent family-friendly storybook style. ",
+              }),
               model: "qwen2.5",
               keep_alive: 0,
             }),
@@ -410,11 +326,7 @@ export default function StoriesTab({ idToken }) {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                prompt:
-                  "Convert the text below into valid JSON only. Do not add or remove scenes. " +
-                  'Use exactly this schema: {"scenes":[{"title":"Short label","prompt":"Detailed English image prompt"}]}. ' +
-                  "There must be exactly " + imageCount + " scenes. Preserve the intended scene details. No markdown or commentary.\n\nTEXT TO CONVERT:\n" +
-                  rawPlan.slice(0, 14000),
+                prompt: buildRepairPrompt(imageCount, rawPlan),
                 model: "qwen2.5",
                 keep_alive: 0,
               }),
@@ -428,30 +340,14 @@ export default function StoriesTab({ idToken }) {
         }
       }
 
-      const plannedScenes = Array.isArray(parsedPlan)
-        ? parsedPlan
-        : parsedPlan.scenes || parsedPlan.illustrations || parsedPlan.images;
-
-      if (!Array.isArray(plannedScenes) || plannedScenes.length < imageCount) {
-        throw new Error("L'LLM ha restituito meno di " + imageCount + " scene con prompt separati.");
-      }
-
-      const fallbackTitles = ["Inizio", "Sviluppo", "Finale", "Epilogo"];
-      const scenes = plannedScenes.slice(0, imageCount).map((item, index) => ({
-        title: String(item.title || item.scene || fallbackTitles[index]).trim(),
-        prompt: String(item.prompt || item.image_prompt || "").trim(),
-      }));
-
-      if (scenes.some((s) => !s.prompt)) {
-        throw new Error("Uno o più prompt delle scene sono vuoti.");
-      }
+      const scenes = normalizeScenes(parsedPlan, imageCount);
 
       // ------------------------------------------------------
       // 3. Libero la RAM di Ollama prima del loop immagini.
       // ------------------------------------------------------
       try {
         setStage("🧹 Libero la RAM usata da Ollama prima delle immagini…");
-        await apiJson(idToken, "/api/admin/ollama/unload", { method: "POST" }, 30000);
+        await unloadOllama(idToken);
       } catch (e) {
         /* non blocca le illustrazioni */
       }
@@ -471,47 +367,27 @@ export default function StoriesTab({ idToken }) {
         setStage("🎨 Immagine " + sceneNumber + "/" + total + ": " + scene.title + " — in coda…");
 
         try {
-          const created = await apiJson(idToken, "/api/image/jobs", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ prompt: scene.prompt, width: 512, height: 512, steps: 8, seed: -1 }),
+          // F3: lo stile "storia per bambini" è applicato anche dal
+          // gateway via preset sw_kids, oltre che dal prompt planner.
+          const jobId = await createImageJob(idToken, scene.prompt, {
+            preset: "sw_kids",
           });
-
-          const jobId = created.job_id;
-          if (!jobId) throw new Error("Il gateway non ha restituito job_id.");
 
           const sceneStart = Date.now();
           setImgStart(sceneStart);
-          const deadline = Date.now() + 600000;
-          let result = null;
 
-          while (Date.now() < deadline) {
-            await sleep(5000);
-            imageStage = "controllo stato immagine " + sceneNumber + "/" + total;
-            const job = await fetchJobStatusWithRetry(jobId, total);
-            const status = String(job.status || "").toLowerCase();
+          imageStage = "controllo stato immagine " + sceneNumber + "/" + total;
+          const result = await waitForImageResult(idToken, jobId, {
+            fetchStatus: () => fetchJobStatus(jobId),
+            onProgress: (status) =>
+              setStage(
+                "🎨 Immagine " + sceneNumber + "/" + total + " (" + scene.title + "): " +
+                (status === "running" || status === "processing" ? "generazione in corso" : "in coda") + "…"
+              ),
+          });
 
-            if (["completed", "complete", "succeeded", "success"].includes(status)) {
-              imageStage = "download immagine " + sceneNumber + "/" + total;
-              result = await apiJson(
-                idToken,
-                "/api/image/jobs/" + encodeURIComponent(jobId) + "/result"
-              );
-              break;
-            }
-            if (["failed", "error", "cancelled", "canceled"].includes(status)) {
-              throw new Error(job.error || job.message || "Generazione non riuscita.");
-            }
-            setStage(
-              "🎨 Immagine " + sceneNumber + "/" + total + " (" + scene.title + "): " +
-              (status === "running" || status === "processing" ? "generazione in corso" : "in coda") + "…"
-            );
-          }
-
-          if (!result?.image_base64) throw new Error("Timeout o risultato senza immagine.");
-
-          const b64 = String(result.image_base64).replace(/^data:image\/[^;]+;base64,/i, "");
-          const src = "data:image/png;base64," + b64;
+          imageStage = "download immagine " + sceneNumber + "/" + total;
+          const src = resultToDataUrl(result);
 
           const sceneSeconds = Math.round((Date.now() - sceneStart) / 1000);
           setImgStart(null);
@@ -809,3 +685,4 @@ export default function StoriesTab({ idToken }) {
     </div>
   );
 }
+

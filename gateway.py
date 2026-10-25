@@ -2176,6 +2176,28 @@ class ImageGenerationRequest(BaseModel):
     image_base64: str = Field(default="", max_length=20_000_000)
     strength: float = Field(default=0.5, gt=0.0, le=1.0)
 
+    # F3 — preset di stile applicato dal gateway (filtro client-agnostic).
+    # sw_kids: illustrazione cartoon/storybook sicura per bambini.
+    # ns_free: illustrazione per pubblico adulto, nessun filtro bambini.
+    # Vuoto/assente: comportamento precedente (nessuna direzione di stile).
+    preset: str = Field(default="", max_length=32)
+
+
+# Direzione di stile che il gateway appende al prompt quando il client
+# chiede un preset. Il filtro vive così lato server: vale per qualunque
+# client (web, Telegram, script), non solo per il frontend React.
+IMAGE_PRESETS = {
+    "sw_kids": (
+        "Style: colorful cartoon storybook illustration for young children, "
+        "safe and wholesome, friendly rounded shapes, bright cheerful "
+        "lighting, no violence, no scary or adult content."
+    ),
+    "ns_free": (
+        "Style: artistic illustration for mature audiences, cinematic "
+        "lighting, evocative atmosphere, never a children's book style."
+    ),
+}
+
 
 def _image_cleanup_jobs() -> None:
     now = time.time()
@@ -2779,6 +2801,16 @@ async def image_create_job(
             detail="Inserisci una descrizione dell'immagine.",
         )
 
+    # F3 — preset di stile (opzionale, applicato prima del check lunghezza).
+    preset = (req.preset or "").strip().lower()
+    if preset and preset not in IMAGE_PRESETS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Preset sconosciuto: '{preset}'. Validi: {sorted(IMAGE_PRESETS)}",
+        )
+    if preset:
+        prompt = prompt.rstrip(" .,;") + ". " + IMAGE_PRESETS[preset]
+
     if len(prompt) > IMAGE_MAX_PROMPT_CHARS:
         raise HTTPException(
             status_code=400,
@@ -2839,6 +2871,7 @@ async def image_create_job(
         "message": "Generazione accodata.",
         "error": None,
         "result": None,
+        "preset": preset or None,
         "created_at": time.time(),
         "started_at": None,
         "finished_at": None,
@@ -4023,4 +4056,5 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=9090,
     )
+
 

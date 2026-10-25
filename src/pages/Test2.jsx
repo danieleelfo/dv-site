@@ -10,8 +10,25 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import bgImage from '../assets/DataInFlames.jpg'
 import SystemTiles, { parseSystem, parseOs, cleanRam, OsKpis, statLevel } from '../components/SystemPanel'
+import {
+  apiJson,
+  buildRepairPrompt,
+  buildStoryboardPrompt,
+  createImageJob,
+  fetchJobStatusWithRetry as fetchJobStatusWithRetryShared,
+  normalizeScenes,
+  parsePlan,
+  resultToDataUrl,
+  unloadOllama,
+  waitForImageResult,
+} from '../lib/imageJobs'
 
-const LELE_API_URL = 'https://api.danielevillanova.com'
+// F2: adminJson ora vive nel modulo condiviso src/lib/imageJobs.js
+// (stessa firma di prima; migliora solo il messaggio d'errore HTTP
+// mostrando il detail del gateway quando presente).
+const adminJson = apiJson
+
+const LELE_API_URL = 'https://api.danielevillanova.com'const LELE_API_URL = 'https://api.danielevillanova.com'
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
 const TOKEN_STORAGE_KEY = 'leles_admin_id_token'
 
@@ -292,36 +309,7 @@ async function callLlm(idToken, prompt, model, timeoutMs = 310000) {
   return data.answer || ''
 }
 
-// Chiamata admin generica (JSON o FormData) che restituisce il JSON grezzo.
-async function adminJson(idToken, path, init = {}, timeoutMs = 310000) {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    const res = await fetch(`${LELE_API_URL}${path}`, {
-      ...init,
-      headers: { ...(init.headers || {}), Authorization: `Bearer ${idToken}` },
-      signal: controller.signal,
-    })
-    if (res.status === 401 || res.status === 403) {
-      const err = new Error(
-        res.status === 401
-          ? 'Sessione scaduta, effettua di nuovo il login.'
-          : 'Accesso non autorizzato per questo account Google. 🏴‍☠️'
-      )
-      err.status = res.status
-      throw err
-    }
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`)
-    return await res.json()
-  } catch (err) {
-    if (err.name === 'AbortError') {
-      throw new Error('Timeout: il server non ha risposto in tempo. 😵‍💫')
-    }
-    throw err
-  } finally {
-    clearTimeout(timer)
-  }
-}
+// adminJson: vedi import da src/lib/imageJobs.js (F2).
 
 const timeLabel = (ts) =>
   new Date(ts).toLocaleTimeString('it-IT', {
@@ -681,39 +669,20 @@ export default function Test2() {
     setHistory((h) => [entry, ...h].slice(0, 30))
     setImageBusy(true)
     try {
-      const created = await adminJson(idToken, '/api/image/jobs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: imagePrompt, width: 512, height: 512, steps: 8, seed: -1 }),
-      })
-      const jobId = created.job_id
-      if (!jobId) throw new Error('Il gateway non ha restituito job_id.')
+      const jobId = await createImageJob(idToken, imagePrompt)
 
-      // Polling (max ~10 minuti).
-      const deadline = Date.now() + 600000
-      let result = null
-      while (Date.now() < deadline) {
-        await new Promise((r2) => setTimeout(r2, 5000))
-        const job = await adminJson(idToken, '/api/image/jobs/' + jobId, { timeoutMs: 30000 })
-        const st = String(job.status || '').toLowerCase()
-        const elapsed = Math.round((Date.now() - t0) / 1000)
-        if (['completed', 'complete', 'succeeded', 'success'].includes(st)) {
-          result = await adminJson(idToken, '/api/image/jobs/' + jobId + '/result')
-          break
-        }
-        if (['failed', 'error', 'cancelled', 'canceled'].includes(st)) {
-          throw new Error(job.error || job.message || 'Generazione non riuscita.')
-        }
-        // Stato intermedio: la entry mostra che il job lavora.
-        const label =
-          st === 'running' || st === 'processing'
-            ? '🎨 Generazione in corso… (' + elapsed + 's)'
-            : '🎨 In coda… (' + elapsed + 's)'
-        setHistory((h) =>
-          h.map((x) => (x.id === t0 ? { ...x, ms: Date.now() - t0, text: label } : x))
-        )
-      }
-      if (!result?.image_base64) throw new Error('Timeout o risultato senza immagine.')
+      // Polling (max ~10 minuti) con lo stato mostrato nella entry.
+      const result = await waitForImageResult(idToken, jobId, {
+        onProgress: (status, elapsed) => {
+          const label =
+            status === 'running' || status === 'processing'
+              ? '🎨 Generazione in corso… (' + elapsed + 's)'
+              : '🎨 In coda… (' + elapsed + 's)'
+          setHistory((h) =>
+            h.map((x) => (x.id === t0 ? { ...x, ms: Date.now() - t0, text: label } : x))
+          )
+        },
+      })
 
       const b64 = String(result.image_base64).replace(/^data:image\/png;base64,/i, '')
       setHistory((h) =>
@@ -909,77 +878,27 @@ export default function Test2() {
     setStoryImageStatus('🧠 Ollama seleziona ' + imageCount + ' scene in ordine narrativo…')
     let imageStage = 'selezione delle scene con Ollama'
     try {
-      const planningPrompt = (count) =>
-        'You are a storyboard planner. Select exactly ' + count +
-        ' distinct scenes in chronological order, spread across the story from opening to ending. ' +
-        'Each scene must depict a real, visually distinct moment. Keep character appearance, clothing, age, and art direction consistent across prompts. ' +
-        'Return ONLY a valid JSON object, no markdown, no prose, no code fences, in this exact schema: ' +
-        '{"scenes":[{"title":"Short label","prompt":"Detailed English image prompt"}]}. ' +
-        'The scenes array must contain exactly ' + count + ' objects. Each prompt must stand alone and describe characters, setting, action, mood, lighting and a consistent style. ' + artDirection + styleExtra +
-        'No text or lettering in images. Do not invent events. ' +
-        '\n\nSTORY:\n' + storyText.slice(0, 12000)
-      let rawPlan = String(await callLlm(idToken, planningPrompt(imageCount), leleModel, 180000)).trim()
+      const rawPlan = String(await callLlm(idToken, buildStoryboardPrompt({
+        count: imageCount,
+        storyText,
+        artDirection,
+        styleExtra,
+      }), leleModel, 180000)).trim()
 
-      // Ollama può aggiungere prefazioni o code fence: estraiamo il primo oggetto JSON bilanciato.
-      const extractJsonObject = (text) => {
-        const source = String(text || '').replace(/```(?:json)?/gi, '').trim()
-        const first = source.indexOf('{')
-        if (first < 0) return ''
-        let depth = 0
-        let quoted = false
-        let escaped = false
-        for (let i = first; i < source.length; i += 1) {
-          const ch = source[i]
-          if (quoted) {
-            if (escaped) escaped = false
-            else if (ch === '\\') escaped = true
-            else if (ch === '"') quoted = false
-          } else if (ch === '"') quoted = true
-          else if (ch === '{') depth += 1
-          else if (ch === '}') {
-            depth -= 1
-            if (depth === 0) return source.slice(first, i + 1)
-          }
-        }
-        return ''
-      }
-      const parsePlan = (text) => {
-        const jsonText = extractJsonObject(text)
-        if (!jsonText) throw new Error('Non trovo un oggetto JSON completo nella risposta di Ollama.')
-        return JSON.parse(jsonText)
-      }
       let parsedPlan
       try {
         parsedPlan = parsePlan(rawPlan)
       } catch {
         imageStage = 'correzione del formato JSON con Ollama'
         setStoryImageStatus('🧠 Sistemo il formato della selezione delle scene…')
-        const repairPrompt =
-          'Convert the text below into valid JSON only. Do not add or remove scenes. ' +
-          'Use exactly this schema: {"scenes":[{"title":"Short label","prompt":"Detailed English image prompt"}]}. ' +
-          'There must be exactly ' + imageCount + ' scenes. Preserve the intended scene details. No markdown or commentary.\n\nTEXT TO CONVERT:\n' +
-          rawPlan.slice(0, 14000)
-        rawPlan = String(await callLlm(idToken, repairPrompt, leleModel, 180000)).trim()
+        rawPlan = String(await callLlm(idToken, buildRepairPrompt(imageCount, rawPlan), leleModel, 180000)).trim()
         try {
           parsedPlan = parsePlan(rawPlan)
         } catch {
           throw new Error('Ollama non ha prodotto un JSON valido nemmeno dopo il tentativo di correzione.')
         }
       }
-      const plannedScenes = Array.isArray(parsedPlan)
-        ? parsedPlan
-        : (parsedPlan.scenes || parsedPlan.illustrations || parsedPlan.images)
-      if (!Array.isArray(plannedScenes) || plannedScenes.length < imageCount) {
-        throw new Error('Ollama ha restituito meno di ' + imageCount + ' scene con prompt separati.')
-      }
-      const fallbackTitles = ['Inizio', 'Sviluppo', 'Finale', 'Epilogo']
-      const scenes = plannedScenes.slice(0, imageCount).map((item, index) => ({
-        title: String(item.title || item.scene || fallbackTitles[index]).trim(),
-        prompt: String(item.prompt || item.image_prompt || '').trim(),
-      }))
-      if (scenes.some((scene) => !scene.prompt || /^error\b|^nessuna risposta ricevuta/i.test(scene.prompt))) {
-        throw new Error('Uno o più prompt delle scene sono vuoti o non validi.')
-      }
+      const scenes = normalizeScenes(parsedPlan, imageCount)
 
       setStoryImages(scenes.map((scene, index) => ({
         id: index + 1, title: scene.title, prompt: scene.prompt, src: '', status: 'In attesa',
@@ -989,7 +908,7 @@ export default function Test2() {
       // per liberare RAM sul Mac prima del loop di immagini.
       try {
         setStoryImageStatus('🧹 Libero la RAM usata da Ollama prima delle immagini…')
-        await adminJson(idToken, '/api/admin/ollama/unload', { method: 'POST' }, 30000)
+        await unloadOllama(idToken)
       } catch {
         // Non blocca le illustrazioni: è solo un'ottimizzazione di memoria.
       }
@@ -997,25 +916,14 @@ export default function Test2() {
       // Un solo job per volta: non si avvia la scena successiva finché la precedente non è pronta.
       // Le richieste di stato possono fallire transitoriamente (rete/Cloudflare): ritentiamo
       // senza creare un secondo job e senza perdere l'immagine già generata.
-      const fetchJobStatusWithRetry = async (jobId, sceneNumber) => {
-        let lastError
-        for (let attempt = 1; attempt <= 4; attempt += 1) {
-          try {
-            return await adminJson(idToken, '/api/image/jobs/' + encodeURIComponent(jobId), {}, 45000)
-          } catch (err) {
-            if (err.status === 401 || err.status === 403 || /^HTTP \\d+/.test(err.message || '')) throw err
-            lastError = err
-            if (attempt < 4) {
-              setStoryImageStatus(
-                '🔄 Connessione temporaneamente interrotta durante il controllo dell’immagine ' +
-                sceneNumber + '/' + imageCount + ' — nuovo tentativo ' + (attempt + 1) + '/4…'
-              )
-              await new Promise((resolve) => setTimeout(resolve, attempt * 2500))
-            }
-          }
-        }
-        throw new Error('Gateway non raggiungibile dopo 4 tentativi: ' + (lastError?.message || 'errore di rete'))
-      }
+      const fetchJobStatusWithRetry = (jobId, sceneNumber) =>
+        fetchJobStatusWithRetryShared(idToken, jobId, {
+          onRetry: (attempt, attempts) =>
+            setStoryImageStatus(
+              '🔄 Connessione temporaneamente interrotta durante il controllo dell’immagine ' +
+              sceneNumber + '/' + imageCount + ' — nuovo tentativo ' + attempt + '/' + attempts + '…'
+            ),
+        })
       const sceneRetried = new Set()
       for (let index = 0; index < scenes.length; index += 1) {
         const scene = scenes[index]
@@ -1026,39 +934,23 @@ export default function Test2() {
           item.id === sceneNumber ? { ...item, status: 'In coda' } : item
         ))
         try {
-          const created = await adminJson(idToken, '/api/image/jobs', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: scene.prompt, width: 512, height: 512, steps: 8, seed: -1 }),
-          })
-          const jobId = created.job_id
-          if (!jobId) throw new Error('Il gateway non ha restituito job_id.')
+          // F3: il filtro stile (kids/genre) ora è applicato anche dal
+          // gateway via preset, oltre che dal prompt del planner.
+          const scenePreset = kidsMode ? 'sw_kids' : (genre ? 'ns_free' : '')
+          const jobId = await createImageJob(idToken, scene.prompt, { preset: scenePreset })
 
-          const deadline = Date.now() + 600000
-          let result = null
-          while (Date.now() < deadline) {
-            await new Promise((resolve) => setTimeout(resolve, 5000))
-            imageStage = 'controllo stato immagine ' + sceneNumber + '/' + imageCount
-            const job = await fetchJobStatusWithRetry(jobId, sceneNumber)
-            const status = String(job.status || '').toLowerCase()
-            const elapsed = Math.round((Date.now() - deadline + 600000) / 1000)
-            if (['completed', 'complete', 'succeeded', 'success'].includes(status)) {
-              imageStage = 'download immagine ' + sceneNumber + '/' + imageCount
-              result = await adminJson(idToken, '/api/image/jobs/' + encodeURIComponent(jobId) + '/result')
-              break
-            }
-            if (['failed', 'error', 'cancelled', 'canceled'].includes(status)) {
-              throw new Error(job.error || job.message || 'Generazione non riuscita.')
-            }
-            setStoryImageStatus(
-              '🎨 Immagine ' + sceneNumber + '/' + imageCount + ' (' + scene.title + '): ' +
-              (status === 'running' || status === 'processing' ? 'generazione in corso' : 'in coda') +
-              '… (' + elapsed + 's)'
-            )
-          }
-          if (!result?.image_base64) throw new Error('Timeout o risultato senza immagine.')
-          const b64 = String(result.image_base64).replace(/^data:image\/[^;]+;base64,/i, '')
-          const src = 'data:image/png;base64,' + b64
+          imageStage = 'controllo stato immagine ' + sceneNumber + '/' + imageCount
+          const result = await waitForImageResult(idToken, jobId, {
+            fetchStatus: () => fetchJobStatusWithRetry(jobId, sceneNumber),
+            onProgress: (status, elapsed) =>
+              setStoryImageStatus(
+                '🎨 Immagine ' + sceneNumber + '/' + imageCount + ' (' + scene.title + '): ' +
+                (status === 'running' || status === 'processing' ? 'generazione in corso' : 'in coda') +
+                '… (' + elapsed + 's)'
+              ),
+          })
+          imageStage = 'download immagine ' + sceneNumber + '/' + imageCount
+          const src = resultToDataUrl(result)
           setStoryImages((current) => current.map((item) =>
             item.id === sceneNumber ? { ...item, src, status: 'Pronta' } : item
           ))
@@ -2206,4 +2098,5 @@ const css = `
   .lc-shade{background:linear-gradient(180deg,rgba(11,16,21,.10) 0%,rgba(11,16,21,.22) 70%)}
 }
 ` 
+
 
