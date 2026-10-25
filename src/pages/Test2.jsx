@@ -878,7 +878,7 @@ export default function Test2() {
     setStoryImageStatus('🧠 Ollama seleziona ' + imageCount + ' scene in ordine narrativo…')
     let imageStage = 'selezione delle scene con Ollama'
     try {
-      const rawPlan = String(await callLlm(idToken, buildStoryboardPrompt({
+      let rawPlan = String(await callLlm(idToken, buildStoryboardPrompt({
         count: imageCount,
         storyText,
         artDirection,
