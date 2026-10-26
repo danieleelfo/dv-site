@@ -1,7 +1,6 @@
 // ============================================================
 // IMAGE JOBS — modulo condiviso per i job immagine del gateway
-// (F2: estratto da Test2.jsx e StoriesTab.jsx per eliminare la
-// duplicazione. Un'unica implementazione di: fetch admin con
+// Un'unica implementazione di: fetch admin con
 // Bearer token, creazione job /api/image/jobs, polling con retry,
 // prompt di pianificazione/correzione scene, normalizzazione.)
 //
@@ -14,7 +13,7 @@ export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // ------------------------------------------------------------
 // Fetch admin generica con Bearer token (già usata come
-// adminJson in Test2 e apiJson in StoriesTab).
+// adminJson in LeleAdmin e apiJson in StoriesTab).
 // ------------------------------------------------------------
 export async function apiJson(idToken, path, init = {}, timeoutMs = 310000) {
   const controller = new AbortController();

@@ -1,5 +1,5 @@
 """
-git_admin.py — Backend "Git Admin" per Test2.jsx
+git_admin.py — Backend "Git Admin" 
 
 Endpoint (tutti con Google auth, stesso verify_admin_token del gateway):
     GET  /api/git/admin/status?project=
