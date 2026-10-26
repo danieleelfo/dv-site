@@ -52,7 +52,8 @@ function readStoredToken() {
   try {
     const stored = localStorage.getItem(TOKEN_STORAGE_KEY);
     return isTokenValid(stored) ? stored : null;
-  } catch {
+  } catch
+ {
     return null;
   }
 }
@@ -136,7 +137,8 @@ const TABS = {
     label: "Ingredienti",
     pk: "ingredient_id",
     cols: [
-      { k: "ingredient_id", label: "ID", ro: true },
+      { k:
+ "ingredient_id", label: "ID", ro: true },
       { k: "name", label: "Nome", type: "text" },
       { k: "unit", label: "Unità", type: "select", opts: UNITS },
       { k: "bottle_size_ml", label: "Bottiglia (ml)", type: "number" },
@@ -187,7 +189,8 @@ const TABS = {
       { k: "restaurant_id", label: "Ristorante", type: "number" },
       { k: "order_date", label: "Data", type: "date" },
       { k: "status", label: "Status", type: "select", staticOpts: ORDER_STATUSES },
-      { k: "total_amount", label: "Totale €", type: "number" },
+  
+    { k: "total_amount", label: "Totale €", type: "number" },
     ],
   },
   orderitems: {
@@ -238,7 +241,8 @@ export default function Test6() {
     if (!res.ok) {
       const detail = typeof d.detail === "string" ? d.detail : JSON.stringify(d.detail || "");
       const hint = res.status === 404
-        ? "\n\nL'endpoint admin non è ancora attivo sul gateway: serve il blocco /api/bar-ai/admin in gateway.py e admin_api avviato su porta 8083."
+
+        ? "\n\nIl router admin non risponde: fare 'pull bar_ai' e 'restart bar_ai' sul Mac (router admin montato in main.py, porta 8081; il proxy gateway /api/bar-ai/admin è già attivo)."
         : "";
       throw new Error(detail || "HTTP " + res.status + hint);
     }
@@ -310,7 +314,8 @@ export default function Test6() {
   }
 
   async function addRow() {
-    setError("");
+   
+ setError("");
     setNote("");
     setBusy(true);
     try {
@@ -348,7 +353,8 @@ export default function Test6() {
         .bau-btn:disabled { opacity: .5; cursor: not-allowed; }
         .bau-primary { background: #10b981; border-color: #10b981; color: #06281d; font-weight: 700; }
         .bau-danger { background: rgba(239,68,68,.16); border-color: rgba(239,68,68,.5); color: #fca5a5; }
-        .bau-table-wrap { overflow-x: auto; background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; }
+        .bau-table-wrap { overflow-x: auto; background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08); border-r
+adius: 12px; }
         .bau-table { width: 100%; border-collapse: collapse; font-size: 13px; }
         .bau-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #9ca3af; padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,.1); white-space: nowrap; }
         .bau-table td { padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,.04); vertical-align: middle; }
@@ -365,6 +371,8 @@ export default function Test6() {
         .bau-field { display: flex; flex-direction: column; gap: 4px; }
         .bau-field label { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: #9ca3af; }
         .bau-cell-actions { display: flex; gap: 4px; }
+        .bau-low td { background: rgba(239,68,68,.08); }
+        .bau-low-badge { display: inline-block; margin-left: 6px; font-size: 11px; color: #f87171; }
   `}</style>
       </div>
     );
@@ -386,7 +394,8 @@ export default function Test6() {
         {Object.entries(TABS).map(([key, t]) => (
           <button
             key={key}
-            className={"bau-btn " + (tab === key ? "bau-tab-active" : "")}
+            className={"bau-btn " + (tab === key
+ ? "bau-tab-active" : "")}
             onClick={() => { setTab(key); setError(""); setNote(""); setNewRow({}); }}
           >
             {t.label}
@@ -419,7 +428,15 @@ export default function Test6() {
                 </tr>
               )}
               {rows.map((row) => (
-                <tr key={row[cfg.pk]}>
+                <tr
+                  key={row[cfg.pk]}
+                  className={
+                    tab === "inventory" &&
+                    Number(row.stock_level) < Number(row.min_threshold ?? 0)
+                      ? "bau-low"
+                      : ""
+                  }
+                >
                   {cfg.cols.map((c) => (
                     <td key={c.k}>
                       {c.ro ? (
@@ -439,6 +456,7 @@ export default function Test6() {
                                 l: o[c.optLabel],
                               }))
                             : (c.staticOpts || []).map((s) => ({ v: s, l: s }))
+
                           ).map((o) => (
                             <option key={o.v} value={o.v}>
                               {o.l}
@@ -454,6 +472,11 @@ export default function Test6() {
                           onChange={(e) => setCell(row[cfg.pk], c.k, e.target.value)}
                         />
                       )}
+                      {tab === "inventory" &&
+                        c.k === "stock_level" &&
+                        Number(row.stock_level) < Number(row.min_threshold ?? 0) && (
+                          <span className="bau-low-badge">⚠ sotto soglia</span>
+                        )}
                     </td>
                   ))}
                   <td>
@@ -482,6 +505,7 @@ export default function Test6() {
                         <div className="bau-field">
                           <label>Unità</label>
                           <select className="bau-select" value={newRow.unit || "ml"} onChange={(e) => setNewRow((r) => ({ ...r, unit: e.target.value }))}>
+
                             {UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
                           </select>
                         </div>
@@ -516,7 +540,8 @@ export default function Test6() {
                           </select>
                         </div>
                         <div className="bau-field">
-                          <label>Qtà/porzione</label>
+ 
+                         <label>Qtà/porzione</label>
                           <input className="bau-input" type="number" step="any" value={newRow.quantity_per_serving || ""} onChange={(e) => setNewRow((r) => ({ ...r, quantity_per_serving: e.target.value }))} />
                         </div>
                       </>
@@ -548,7 +573,8 @@ export default function Test6() {
                       <>
                         <div className="bau-field">
                           <label>Nome</label>
-                          <input className="bau-input" value={newRow.name || ""} onChange={(e) => setNewRow((r) => ({ ...r, name: e.target.value }))} />
+                          <input className="ba
+u-input" value={newRow.name || ""} onChange={(e) => setNewRow((r) => ({ ...r, name: e.target.value }))} />
                         </div>
                         <div className="bau-field">
                           <label>Contatto</label>
@@ -576,7 +602,8 @@ export default function Test6() {
                         </div>
                       </>
                     )}
-                    {tab === "orders" && (
+                    {t
+ab === "orders" && (
                       <>
                         <div className="bau-field">
                           <label>Fornitore</label>
@@ -605,7 +632,8 @@ export default function Test6() {
                         </div>
                         <div className="bau-field">
                           <label>Totale €</label>
-                          <input className="bau-input" type="number" step="any" value={newRow.total_amount ?? ""} onChange={(e) => setNewRow((r) => ({ ...r, total_amount: e.target.value }))} />
+                          <input className="bau-input" type="number" step="any" value={newRow.total_amount ?? ""} onChange={(e) => setN
+ewRow((r) => ({ ...r, total_amount: e.target.value }))} />
                         </div>
                       </>
                     )}
@@ -639,7 +667,8 @@ export default function Test6() {
                         </div>
                         <div className="bau-field">
                           <label>Costo unit. €</label>
-                          <input className="bau-input" type="number" step="any" value={newRow.unit_cost ?? ""} onChange={(e) => setNewRow((r) => ({ ...r, unit_cost: e.target.value }))} />
+                          <input className="bau-input" type="n
+umber" step="any" value={newRow.unit_cost ?? ""} onChange={(e) => setNewRow((r) => ({ ...r, unit_cost: e.target.value }))} />
                         </div>
                       </>
                     )}
@@ -672,7 +701,8 @@ export default function Test6() {
         .bau-primary { background: #10b981; border-color: #10b981; color: #06281d; font-weight: 700; }
         .bau-danger { background: rgba(239,68,68,.16); border-color: rgba(239,68,68,.5); color: #fca5a5; }
         .bau-table-wrap { overflow-x: auto; background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; }
-        .bau-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .bau-table { width: 100%; border-collapse: collapse; fo
+nt-size: 13px; }
         .bau-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #9ca3af; padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,.1); white-space: nowrap; }
         .bau-table td { padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,.04); vertical-align: middle; }
         .bau-table tr:hover td { background: rgba(255,255,255,.02); }
