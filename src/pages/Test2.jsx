@@ -915,7 +915,7 @@ export default function Test2() {
     setStoryImageBusy(true)
     setStoryImageError('')
     setStoryImages([])
-    setStoryImageStatus('🧠 Ollama seleziona ' + imageCount + ' scene in ordine narrativo…')
+    setStoryImageStatus(t('lele.story.plan', { count: imageCount }))
     let imageStage = 'selezione delle scene con Ollama'
     try {
       let rawPlan = String(await callLlm(idToken, buildStoryboardPrompt({
@@ -930,7 +930,7 @@ export default function Test2() {
         parsedPlan = parsePlan(rawPlan)
       } catch {
         imageStage = 'correzione del formato JSON con Ollama'
-        setStoryImageStatus('🧠 Sistemo il formato della selezione delle scene…')
+        setStoryImageStatus(t('lele.story.repair'))
         rawPlan = String(await callLlm(idToken, buildRepairPrompt(imageCount, rawPlan), leleModel, 180000)).trim()
         try {
           parsedPlan = parsePlan(rawPlan)
@@ -941,13 +941,13 @@ export default function Test2() {
       const scenes = normalizeScenes(parsedPlan, imageCount)
 
       setStoryImages(scenes.map((scene, index) => ({
-        id: index + 1, title: scene.title, prompt: scene.prompt, src: '', status: 'In attesa',
+        id: index + 1, title: scene.title, prompt: scene.prompt, src: '', status: t('lele.story.waiting'),
       })))
 
       // Pianificazione completata: scarichiamo i modelli Ollama (keep_alive=0)
       // per liberare RAM sul Mac prima del loop di immagini.
       try {
-        setStoryImageStatus('🧹 Libero la RAM usata da Ollama prima delle immagini…')
+        setStoryImageStatus(t('lele.story.unload'))
         await unloadOllama(idToken)
       } catch {
         // Non blocca le illustrazioni: è solo un'ottimizzazione di memoria.
@@ -960,8 +960,7 @@ export default function Test2() {
         fetchJobStatusWithRetryShared(idToken, jobId, {
           onRetry: (attempt, attempts) =>
             setStoryImageStatus(
-              '🔄 Connessione temporaneamente interrotta durante il controllo dell’immagine ' +
-              sceneNumber + '/' + imageCount + ' — nuovo tentativo ' + attempt + '/' + attempts + '…'
+              t('lele.story.retryConn', { n: sceneNumber, total: imageCount, attempt, attempts })
             ),
         })
       const sceneRetried = new Set()
@@ -969,9 +968,9 @@ export default function Test2() {
         const scene = scenes[index]
         const sceneNumber = index + 1
         let imageStage = 'avvio immagine ' + sceneNumber + '/' + imageCount + ' sul gateway'
-        setStoryImageStatus('🎨 Immagine ' + sceneNumber + '/' + imageCount + ': ' + scene.title + ' — in coda…')
+        setStoryImageStatus(t('lele.story.queued', { n: sceneNumber, total: imageCount, title: scene.title }))
         setStoryImages((current) => current.map((item) =>
-          item.id === sceneNumber ? { ...item, status: 'In coda' } : item
+          item.id === sceneNumber ? { ...item, status: t('lele.story.queuedShort') } : item
         ))
         try {
           // F3: il filtro stile (kids/genre) ora è applicato anche dal
@@ -992,9 +991,13 @@ export default function Test2() {
             fetchStatus: () => fetchJobStatusWithRetry(jobId, sceneNumber),
             onProgress: (status, elapsed) =>
               setStoryImageStatus(
-                '🎨 Immagine ' + sceneNumber + '/' + imageCount + ' (' + scene.title + '): ' +
-                (status === 'running' || status === 'processing' ? 'generazione in corso' : 'in coda') +
-                '… (' + elapsed + 's)'
+                t('lele.story.progress', {
+                  n: sceneNumber,
+                  total: imageCount,
+                  title: scene.title,
+                  state: status === 'running' || status === 'processing' ? t('lele.story.runningLabel') : t('lele.story.queuedLabel'),
+                  s: elapsed,
+                })
               ),
           })
           doneScenes.push({
@@ -1006,11 +1009,11 @@ export default function Test2() {
           imageStage = 'download immagine ' + sceneNumber + '/' + imageCount
           const src = resultToDataUrl(result)
           setStoryImages((current) => current.map((item) =>
-            item.id === sceneNumber ? { ...item, src, status: 'Pronta' } : item
+            item.id === sceneNumber ? { ...item, src, status: t('lele.story.ready') } : item
           ))
-          setStoryImageStatus('🖼️ Immagine ' + sceneNumber + '/' + imageCount + ' pronta: ' + scene.title)
+          setStoryImageStatus(t('lele.story.done', { n: sceneNumber, total: imageCount, title: scene.title }))
           if (index < scenes.length - 1) {
-            setStoryImageStatus('⏳ Pausa 12s prima dell’immagine successiva (libero la RAM del Mac)…')
+            setStoryImageStatus(t('lele.story.pause'))
             await new Promise((resolve) => setTimeout(resolve, 12000))
           }
         } catch (err) {
@@ -1021,31 +1024,30 @@ export default function Test2() {
           if (!sceneRetried.has(sceneNumber)) {
             sceneRetried.add(sceneNumber)
             setStoryImages((current) => current.map((item) =>
-              item.id === sceneNumber ? { ...item, status: 'Nuovo tentativo tra 60s…' } : item
+              item.id === sceneNumber ? { ...item, status: t('lele.story.retryStatus') } : item
             ))
             setStoryImageStatus(
-              '🔄 Errore di rete sull’immagine ' + sceneNumber + '/' + imageCount +
-              ' — attendo 60s e riprovo la scena una volta…'
+              t('lele.story.retryScene', { n: sceneNumber, total: imageCount })
             )
             await new Promise((resolve) => setTimeout(resolve, 60000))
             index -= 1
             continue
           }
           setStoryImages((current) => current.map((item) =>
-            item.id === sceneNumber ? { ...item, status: 'Errore: ' + (err.message || 'errore sconosciuto') } : item
+            item.id === sceneNumber ? { ...item, status: t('lele.story.errorShort', { message: err.message || t('lele.story.unknownError') }) } : item
           ))
-          setStoryImageError('Immagine ' + sceneNumber + '/' + imageCount + ' (' + scene.title + '), ' + imageStage + ': ' + (err.message || 'errore sconosciuto'))
-          setStoryImageStatus('⛔ Sequenza fermata alla scena ' + sceneNumber + '/' + imageCount + '; le immagini già pronte restano visibili.')
+          setStoryImageError(t('lele.story.sceneFailed', { n: sceneNumber, total: imageCount, title: scene.title, stage: imageStage, message: err.message || t('lele.story.unknownError') }))
+          setStoryImageStatus(t('lele.story.stopped', { n: sceneNumber, total: imageCount }))
           return
         }
       }
-      setStoryImageStatus('✅ Tutte le ' + imageCount + ' illustrazioni sono pronte.')
+      setStoryImageStatus(t('lele.story.allDone', { count: imageCount }))
     } catch (err) {
       if (err.status === 401 || err.status === 403) {
         logout(err.message)
         return
       }
-      setStoryImageError('Errore in ' + imageStage + ': ' + (err.message || 'errore sconosciuto'))
+      setStoryImageError(t('lele.story.stageError', { stage: imageStage, message: err.message || t('lele.story.unknownError') }))
       setStoryImageStatus('')
     } finally {
       setStoryImageBusy(false)
@@ -1438,11 +1440,7 @@ export default function Test2() {
                   onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
-              <p className="lc-dim lc-small lc-cmd-note">
-                Git, Airflow e revisione file (improve/verifica/review) sono
-                passati alle pagine dedicate — Git Admin · DAG Admin · Improve:
-                link in fondo alla console.
-              </p>
+              <p className="lc-dim lc-small lc-cmd-note">{t('lele.cmdNote')}</p>
 
               {!q && (
                 <div className="lc-tabs" role="tablist">
@@ -1736,7 +1734,7 @@ export default function Test2() {
                     {t('lele.tts')}
                   </label>
                   {(audioAgent === 'Story Whisper' || audioAgent === 'Night Story') && (
-                    <div className="lc-check" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }} title="Genera illustrazioni sequenziali delle scene principali dopo testo e audio">
+                    <div className="lc-check" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }} title={t('lele.story.boxTitle')}>
                       <label className="lc-check">
                         <input
                           type="checkbox"
@@ -1744,19 +1742,19 @@ export default function Test2() {
                           disabled={isRecording || audioBusy || storyImageBusy}
                           onChange={(e) => setWantsStoryImage(e.target.checked)}
                         />
-                        🎨 Crea illustrazioni della storia
+                        {t('lele.story.create')}
                       </label>
                       <select
-                        aria-label="Numero di illustrazioni"
+                        aria-label={t('lele.story.countAria')}
                         value={storyImageCount}
                         disabled={isRecording || audioBusy || storyImageBusy}
                         onChange={(e) => setStoryImageCount(Number(e.target.value))}
                         style={{ padding: '4px 8px', borderRadius: 8, background: 'var(--surface, #fff)', color: 'inherit', border: '1px solid var(--line, #ccc)' }}
                       >
-                        {[1, 2, 3, 4, 5, 6, 7, 8].map((count) => <option key={count} value={count}>{count} {count === 1 ? 'immagine' : 'immagini'}</option>)}
+                        {[1, 2, 3, 4, 5, 6, 7, 8].map((count) => <option key={count} value={count}>{count} {count === 1 ? t('lele.story.imageOne') : t('lele.story.imageMany')}</option>)}
                       </select>
                       <select
-                        aria-label="Formato illustrazioni"
+                        aria-label={t('lele.story.formatAria')}
                         value={storyImageFormat}
                         disabled={isRecording || audioBusy || storyImageBusy}
                         onChange={(e) => setStoryImageFormat(e.target.value)}
@@ -1765,7 +1763,7 @@ export default function Test2() {
                         {[['512x512', '1:1 · 512'], ['768x768', '1:1 · 768'], ['1024x1024', '1:1 · 1024'], ['768x576', '4:3 · 768'], ['1024x768', '4:3 · 1024'], ['1280x720', '16:9 · 1280'], ['960x640', '3:2 · 960']].map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                       </select>
                       <select
-                        aria-label="Step illustrazioni"
+                        aria-label={t('lele.story.stepsAria')}
                         value={storyImageSteps}
                         disabled={isRecording || audioBusy || storyImageBusy}
                         onChange={(e) => setStoryImageSteps(Number(e.target.value))}
@@ -1774,19 +1772,19 @@ export default function Test2() {
                         {[1, 3, 4, 5, 6, 7, 8, 9, 12, 15].map((s) => <option key={s} value={s}>{s} step</option>)}
                       </select>
                       {audioAgent === 'Story Whisper' && (
-                        <label className="lc-check" title="Stile cartoon per bambini, contenuti sicuri">
+                        <label className="lc-check" title={t('lele.story.kidsTitle')}>
                           <input
                             type="checkbox"
                             checked={storyKidsFilter}
                             disabled={isRecording || audioBusy || storyImageBusy}
                             onChange={(e) => setStoryKidsFilter(e.target.checked)}
                           />
-                          🧒 Bambini
+                          {t('lele.story.kids')}
                         </label>
                       )}
                       {audioAgent === 'Night Story' && (
                         <select
-                          aria-label="Genere Night Story"
+                          aria-label={t('lele.story.genreAria')}
                           value={storyGenre}
                           disabled={isRecording || audioBusy || storyImageBusy}
                           onChange={(e) => setStoryGenre(e.target.value)}
@@ -1797,8 +1795,8 @@ export default function Test2() {
                       )}
                       <input
                         type="text"
-                        aria-label="Prompt di stile extra"
-                        placeholder="Prompt stile extra (opzionale)"
+                        aria-label={t('lele.story.styleAria')}
+                        placeholder={t('lele.story.stylePlaceholder')}
                         value={storyStylePrompt}
                         disabled={isRecording || audioBusy || storyImageBusy}
                         onChange={(e) => setStoryStylePrompt(e.target.value)}
@@ -1920,7 +1918,7 @@ export default function Test2() {
                   {(storyImageStatus || storyImageError || storyImages.length > 0) && (audioReplyAgent === 'Story Whisper' || audioReplyAgent === 'Night Story') && (
                     <div className="lc-story-illustration" aria-live="polite" style={{ marginTop: 14 }}>
                       {storyImageStatus && <p className="lc-dim lc-small">{storyImageStatus}</p>}
-                      {storyImageError && <p className="lc-err lc-small">Illustrazioni: {storyImageError}</p>}
+                      {storyImageError && <p className="lc-err lc-small">{t('lele.story.errorPrefix')} {storyImageError}</p>}
                       {storyImages.map((item) => (
                         <div key={item.id} style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--line)' }}>
                           <p className="lc-dim lc-small" style={{ marginBottom: 6 }}>
@@ -1929,7 +1927,7 @@ export default function Test2() {
                           {item.src && (
                             <img
                               src={item.src}
-                              alt={'Illustrazione ' + item.id + ': ' + item.title}
+                              alt={t('lele.story.sceneAlt', { n: item.id, title: item.title })}
                               loading="lazy"
                               style={{ display: 'block', width: '100%', maxWidth: 640, height: 'auto', borderRadius: 12, marginTop: 8 }}
                             />
