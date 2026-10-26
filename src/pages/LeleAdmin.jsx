@@ -1,5 +1,9 @@
 // ============================================================
-// LELES ADMIN CONSOLE — pagina ufficiale /leles
+// TEST2 — Leles Admin Console (v2 "piu' figa")
+// v2: 3 selettori modello (Super-Leles / Leles / Reviewer) sincronizzati
+// col server via comando "modelli"; nuovo ordine sezioni (Comandi, Sessione,
+// Pagine, Audio, Test); restyling (titolo gradient, ombre, hover lift).
+// LeleAdmin.jsx resta la versione ufficiale su /leles.
 // ============================================================
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -8,6 +12,23 @@ import { useTranslation } from 'react-i18next'
 import i18n from '../i18n/i18n'
 import bgImage from '../assets/DataInFlames.jpg'
 import SystemTiles, { parseSystem, parseOs, cleanRam, OsKpis, statLevel } from '../components/SystemPanel'
+import {
+  apiJson,
+  buildRepairPrompt,
+  buildStoryboardPrompt,
+  createImageJob,
+  fetchJobStatusWithRetry as fetchJobStatusWithRetryShared,
+  normalizeScenes,
+  parsePlan,
+  resultToDataUrl,
+  unloadOllama,
+  waitForImageResult,
+} from '../lib/imageJobs'
+
+// F2: adminJson ora vive nel modulo condiviso src/lib/imageJobs.js
+// (stessa firma di prima; migliora solo il messaggio d'errore HTTP
+// mostrando il detail del gateway quando presente).
+const adminJson = apiJson
 
 const LELE_API_URL = 'https://api.danielevillanova.com'
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
@@ -27,7 +48,8 @@ const FORCED_ADMIN_CHAT_ID = 8733881519
 // --- AUDIO: TTS + registrazione + risposta audio ---------------------------
 // Story Whisper e Night Story: API audio complete (/api/chat e /api/chat/audio).
 // Leles: console admin (login Google). Testo e TTS passano da /api/admin/chat.
-
+// ATTENZIONE: le due route qui sotto per audio in ingresso e file TTS sono
+// ASSUNTE (speculari a quelle pubbliche): da verificare lato gateway.
 const LELES_AGENT = 'Leles'
 const LELES_AUDIO_PATH = '/api/admin/chat/audio'
 const LELES_TTS_PATH = '/api/admin/chat/tts'
@@ -274,36 +296,25 @@ async function callAdmin(idToken, prompt, timeoutMs = 310000) {
   }
 }
 
-// Chiamata admin generica (JSON o FormData) che restituisce il JSON grezzo.
-async function adminJson(idToken, path, init = {}, timeoutMs = 310000) {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    const res = await fetch(`${LELE_API_URL}${path}`, {
-      ...init,
-      headers: { ...(init.headers || {}), Authorization: `Bearer ${idToken}` },
-      signal: controller.signal,
-    })
-    if (res.status === 401 || res.status === 403) {
-      const err = new Error(
-        res.status === 401
-          ? i18n.t('lele.err.session')
-          : i18n.t('lele.err.unauth')
-      )
-      err.status = res.status
-      throw err
-    }
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`)
-    return await res.json()
-  } catch (err) {
-    if (err.name === 'AbortError') {
-      throw new Error(i18n.t('lele.err.timeout'))
-    }
-    throw err
-  } finally {
-    clearTimeout(timer)
-  }
+// Chiamata LLM stateless: il prompt va dritto a Ollama via gateway,
+// SENZA passare dagli agenti e dalla loro memoria di conversazione.
+// Usata per la pianificazione delle scene (niente scene "fantasma" di
+// storie precedenti rimaste nella memoria dell'agente).
+async function callLlm(idToken, prompt, model, timeoutMs = 310000) {
+  const data = await adminJson(
+    idToken,
+    '/api/admin/llm',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, model, keep_alive: 0 }),
+    },
+    timeoutMs
+  )
+  return data.answer || ''
 }
+
+// adminJson: vedi import da src/lib/imageJobs.js (F2).
 
 const timeLabel = (ts) =>
   new Date(ts).toLocaleTimeString('it-IT', {
@@ -313,9 +324,8 @@ const timeLabel = (ts) =>
   })
 
 
-export default function LeleAdmin() {
+export default function Test2() {
   const { t } = useTranslation()
-
   const [idToken, setIdToken] = useState(() => {
     try {
       return window.sessionStorage.getItem(TOKEN_STORAGE_KEY) || null
@@ -391,14 +401,18 @@ export default function LeleAdmin() {
       if (cancelled) return
       if (!window.google?.accounts?.id) {
         if (++attempts > 80) {
-          setAuthError(t('lele.err.gsi'))
+          setAuthError(
+            t('lele.err.gsi')
+          )
           return
         }
         setTimeout(tryInit, 150)
         return
       }
       if (!GOOGLE_CLIENT_ID) {
-        setAuthError(t('lele.err.clientId'))
+        setAuthError(
+          t('lele.err.clientId')
+        )
         return
       }
       window.google.accounts.id.initialize({
@@ -661,39 +675,20 @@ export default function LeleAdmin() {
     setHistory((h) => [entry, ...h].slice(0, 30))
     setImageBusy(true)
     try {
-      const created = await adminJson(idToken, '/api/image/jobs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: imagePrompt, width: 512, height: 512, steps: 8, seed: -1 }),
-      })
-      const jobId = created.job_id
-      if (!jobId) throw new Error(t('lele.img.noJob'))
+      const jobId = await createImageJob(idToken, imagePrompt)
 
-      // Polling (max ~10 minuti).
-      const deadline = Date.now() + 600000
-      let result = null
-      while (Date.now() < deadline) {
-        await new Promise((r2) => setTimeout(r2, 5000))
-        const job = await adminJson(idToken, '/api/image/jobs/' + jobId, { timeoutMs: 30000 })
-        const st = String(job.status || '').toLowerCase()
-        const elapsed = Math.round((Date.now() - t0) / 1000)
-        if (['completed', 'complete', 'succeeded', 'success'].includes(st)) {
-          result = await adminJson(idToken, '/api/image/jobs/' + jobId + '/result')
-          break
-        }
-        if (['failed', 'error', 'cancelled', 'canceled'].includes(st)) {
-          throw new Error(job.error || job.message || t('lele.img.failed'))
-        }
-        // Stato intermedio: la entry mostra che il job lavora.
-        const label =
-          st === 'running' || st === 'processing'
-            ? t('lele.img.running', { s: elapsed })
-            : t('lele.img.queued', { s: elapsed })
-        setHistory((h) =>
-          h.map((x) => (x.id === t0 ? { ...x, ms: Date.now() - t0, text: label } : x))
-        )
-      }
-      if (!result?.image_base64) throw new Error(t('lele.img.noResult'))
+      // Polling (max ~10 minuti) con lo stato mostrato nella entry.
+      const result = await waitForImageResult(idToken, jobId, {
+        onProgress: (status, elapsed) => {
+          const label =
+            status === 'running' || status === 'processing'
+              ? t('lele.img.running', { s: elapsed })
+              : t('lele.img.queued', { s: elapsed })
+          setHistory((h) =>
+            h.map((x) => (x.id === t0 ? { ...x, ms: Date.now() - t0, text: label } : x))
+          )
+        },
+      })
 
       const b64 = String(result.image_base64).replace(/^data:image\/png;base64,/i, '')
       setHistory((h) =>
@@ -783,6 +778,19 @@ export default function LeleAdmin() {
   const [audioError, setAudioError] = useState('')
   const [audioBusy, setAudioBusy] = useState(false)
   const [copiedAudioReply, setCopiedAudioReply] = useState(false)
+  // Illustrazione opzionale per Story Whisper; disattivata per default.
+  const [wantsStoryImage, setWantsStoryImage] = useState(false)
+  const [storyImageBusy, setStoryImageBusy] = useState(false)
+  const [storyImages, setStoryImages] = useState([])
+  const [storyImageCount, setStoryImageCount] = useState(3)
+  // F4-B/C: formato e step delle illustrazioni della storia.
+  const [storyImageFormat, setStoryImageFormat] = useState('1024x768')
+  const [storyImageSteps, setStoryImageSteps] = useState(8)
+  const [storyImageStatus, setStoryImageStatus] = useState('')
+  const [storyImageError, setStoryImageError] = useState('')
+  const [storyKidsFilter, setStoryKidsFilter] = useState(true)
+  const [storyStylePrompt, setStoryStylePrompt] = useState('')
+  const [storyGenre, setStoryGenre] = useState('Random')
 
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [audioCurrentTime, setAudioCurrentTime] = useState(0)
@@ -845,12 +853,209 @@ export default function LeleAdmin() {
     setAudioDuration(0)
   }
 
+  // F5: salva la storia (testo + audio + scene con job_id) nella gallery
+  // condivisa di Test4 (POST /api/admin/stories -> STORY_HISTORY_DIR sul
+  // gateway). Così anche le storie lanciate da qui con NS/SW compaiono
+  // nel box 06/Gallery di Test4, con le illustrazioni collegate via job_id.
+  async function saveStoryToGallery(storyText, agent, audioFile, scenes) {
+    if (!idToken) return
+    try {
+      await adminJson(idToken, '/api/admin/stories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: String(audioPrompt || '').slice(0, 4000),
+          text: String(storyText || '').slice(0, 60000),
+          agent,
+          audio_filename: String(audioFile || ''),
+          language: AUDIO_LANGUAGE,
+          scenes: Array.isArray(scenes) ? scenes : [],
+        }),
+      })
+    } catch (err) {
+      // Non blocca il flusso: la storia resta comunque visibile in Test2.
+      console.error('Gallery: salvataggio storia non riuscito', err)
+    }
+  }
+
   function applyAudioReply(data, agent) {
-    setAudioReply(audioText(data))
-    setAudioReplyFile(
-      extractFilename(data.audio_filename) || extractFilename(data.audio_path)
-    )
+    const replyText = audioText(data)
+    const replyFile = extractFilename(data.audio_filename) || extractFilename(data.audio_path)
+    setAudioReply(replyText)
+    setAudioReplyFile(replyFile)
     setAudioReplyAgent(agent)
+    setStoryImages([])
+    setStoryImageError('')
+    setStoryImageStatus('')
+    // Parte in background: testo e audio SW sono già disponibili e non aspettano l'immagine.
+    if ((agent === 'Story Whisper' || agent === 'Night Story') && replyText) {
+      if (wantsStoryImage) {
+        void generateStoryIllustration(replyText, agent, replyFile)
+      } else {
+        // F5: senza illustrazioni la storia finisce subito in gallery.
+        void saveStoryToGallery(replyText, agent, replyFile, [])
+      }
+    }
+  }
+
+  async function generateStoryIllustration(storyText, agent, audioFile) {
+    if (!idToken || storyImageBusy) return
+    const imageCount = Math.max(1, Math.min(8, Number(storyImageCount) || 3))
+    const kidsMode = agent === 'Story Whisper' && storyKidsFilter
+    const genre = agent === 'Night Story' ? String(storyGenre || 'Random').trim() : ''
+    const extraStyle = String(storyStylePrompt || '').trim().slice(0, 500)
+    const artDirection = kidsMode
+      ? 'Every image prompt must enforce a colorful cartoon storybook illustration style suitable for young children: safe, wholesome, no violence, no scary or adult content, friendly rounded shapes, bright cheerful lighting. '
+      : genre
+        ? 'Every image prompt must follow an artistic illustration style that matches the story genre "' + genre + '" (mature audiences, never a children style). '
+        : ''
+    const styleExtra = extraStyle ? 'Additional art direction from the user to apply to every scene: ' + extraStyle + '. ' : ''
+    // F5: scene completate con il proprio job_id, per il salvataggio in gallery.
+    const doneScenes = []
+    setStoryImageBusy(true)
+    setStoryImageError('')
+    setStoryImages([])
+    setStoryImageStatus(t('lele.story.plan', { count: imageCount }))
+    let imageStage = 'selezione delle scene con Ollama'
+    try {
+      let rawPlan = String(await callLlm(idToken, buildStoryboardPrompt({
+        count: imageCount,
+        storyText,
+        artDirection,
+        styleExtra,
+      }), leleModel, 180000)).trim()
+
+      let parsedPlan
+      try {
+        parsedPlan = parsePlan(rawPlan)
+      } catch {
+        imageStage = 'correzione del formato JSON con Ollama'
+        setStoryImageStatus(t('lele.story.repair'))
+        rawPlan = String(await callLlm(idToken, buildRepairPrompt(imageCount, rawPlan), leleModel, 180000)).trim()
+        try {
+          parsedPlan = parsePlan(rawPlan)
+        } catch {
+          throw new Error('Ollama non ha prodotto un JSON valido nemmeno dopo il tentativo di correzione.')
+        }
+      }
+      const scenes = normalizeScenes(parsedPlan, imageCount)
+
+      setStoryImages(scenes.map((scene, index) => ({
+        id: index + 1, title: scene.title, prompt: scene.prompt, src: '', status: t('lele.story.waiting'),
+      })))
+
+      // Pianificazione completata: scarichiamo i modelli Ollama (keep_alive=0)
+      // per liberare RAM sul Mac prima del loop di immagini.
+      try {
+        setStoryImageStatus(t('lele.story.unload'))
+        await unloadOllama(idToken)
+      } catch {
+        // Non blocca le illustrazioni: è solo un'ottimizzazione di memoria.
+      }
+
+      // Un solo job per volta: non si avvia la scena successiva finché la precedente non è pronta.
+      // Le richieste di stato possono fallire transitoriamente (rete/Cloudflare): ritentiamo
+      // senza creare un secondo job e senza perdere l'immagine già generata.
+      const fetchJobStatusWithRetry = (jobId, sceneNumber) =>
+        fetchJobStatusWithRetryShared(idToken, jobId, {
+          onRetry: (attempt, attempts) =>
+            setStoryImageStatus(
+              t('lele.story.retryConn', { n: sceneNumber, total: imageCount, attempt, attempts })
+            ),
+        })
+      const sceneRetried = new Set()
+      for (let index = 0; index < scenes.length; index += 1) {
+        const scene = scenes[index]
+        const sceneNumber = index + 1
+        let imageStage = 'avvio immagine ' + sceneNumber + '/' + imageCount + ' sul gateway'
+        setStoryImageStatus(t('lele.story.queued', { n: sceneNumber, total: imageCount, title: scene.title }))
+        setStoryImages((current) => current.map((item) =>
+          item.id === sceneNumber ? { ...item, status: t('lele.story.queuedShort') } : item
+        ))
+        try {
+          // F3: il filtro stile (kids/genre) ora è applicato anche dal
+          // gateway via preset, oltre che dal prompt del planner.
+          const scenePreset = kidsMode ? 'sw_kids' : (genre ? 'ns_free' : '')
+          const [fmtWidth, fmtHeight] = String(storyImageFormat || '1024x768').split('x').map(Number)
+          const sceneSteps = Math.max(1, Math.min(100, Number(storyImageSteps) || 8))
+          const jobId = await createImageJob(idToken, scene.prompt, {
+            preset: scenePreset,
+            width: fmtWidth,
+            height: fmtHeight,
+            steps: sceneSteps,
+          })
+          const sceneStart = Date.now()
+
+          imageStage = 'controllo stato immagine ' + sceneNumber + '/' + imageCount
+          const result = await waitForImageResult(idToken, jobId, {
+            fetchStatus: () => fetchJobStatusWithRetry(jobId, sceneNumber),
+            onProgress: (status, elapsed) =>
+              setStoryImageStatus(
+                t('lele.story.progress', {
+                  n: sceneNumber,
+                  total: imageCount,
+                  title: scene.title,
+                  state: status === 'running' || status === 'processing' ? t('lele.story.runningLabel') : t('lele.story.queuedLabel'),
+                  s: elapsed,
+                })
+              ),
+          })
+          doneScenes.push({
+            title: scene.title,
+            prompt: scene.prompt,
+            job_id: jobId,
+            seconds: Math.round((Date.now() - sceneStart) / 1000),
+          })
+          imageStage = 'download immagine ' + sceneNumber + '/' + imageCount
+          const src = resultToDataUrl(result)
+          setStoryImages((current) => current.map((item) =>
+            item.id === sceneNumber ? { ...item, src, status: t('lele.story.ready') } : item
+          ))
+          setStoryImageStatus(t('lele.story.done', { n: sceneNumber, total: imageCount, title: scene.title }))
+          if (index < scenes.length - 1) {
+            setStoryImageStatus(t('lele.story.pause'))
+            await new Promise((resolve) => setTimeout(resolve, 12000))
+          }
+        } catch (err) {
+          if (err.status === 401 || err.status === 403) {
+            logout(err.message)
+            return
+          }
+          if (!sceneRetried.has(sceneNumber)) {
+            sceneRetried.add(sceneNumber)
+            setStoryImages((current) => current.map((item) =>
+              item.id === sceneNumber ? { ...item, status: t('lele.story.retryStatus') } : item
+            ))
+            setStoryImageStatus(
+              t('lele.story.retryScene', { n: sceneNumber, total: imageCount })
+            )
+            await new Promise((resolve) => setTimeout(resolve, 60000))
+            index -= 1
+            continue
+          }
+          setStoryImages((current) => current.map((item) =>
+            item.id === sceneNumber ? { ...item, status: t('lele.story.errorShort', { message: err.message || t('lele.story.unknownError') }) } : item
+          ))
+          setStoryImageError(t('lele.story.sceneFailed', { n: sceneNumber, total: imageCount, title: scene.title, stage: imageStage, message: err.message || t('lele.story.unknownError') }))
+          setStoryImageStatus(t('lele.story.stopped', { n: sceneNumber, total: imageCount }))
+          return
+        }
+      }
+      setStoryImageStatus(t('lele.story.allDone', { count: imageCount }))
+    } catch (err) {
+      if (err.status === 401 || err.status === 403) {
+        logout(err.message)
+        return
+      }
+      setStoryImageError(t('lele.story.stageError', { stage: imageStage, message: err.message || t('lele.story.unknownError') }))
+      setStoryImageStatus('')
+    } finally {
+      setStoryImageBusy(false)
+      // F5: la storia finisce in gallery anche se alcune immagini
+      // (o tutte) non sono riuscite — si salvano testo, audio e le
+      // illustrazioni completate.
+      void saveStoryToGallery(storyText, agent, audioFile, doneScenes)
+    }
   }
 
   // Testo -> Gateway (/api/chat)
@@ -866,7 +1071,9 @@ export default function LeleAdmin() {
     // dal prompt principale, che chiede la conferma.
     if (audioAgent === LELES_AGENT) {
       if (isDanger(text)) {
-        setAudioError(t('lele.err.dangerAudio'))
+        setAudioError(
+          t('lele.err.dangerAudio')
+        )
         setAudioBusy(false)
         return
       }
@@ -992,7 +1199,9 @@ export default function LeleAdmin() {
         setRecordingTime((time) => time + 1)
       }, 1000)
     } catch (err) {
-      setAudioError(t('lele.err.mic'))
+      setAudioError(
+        t('lele.err.mic')
+      )
     }
   }
 
@@ -1184,7 +1393,9 @@ export default function LeleAdmin() {
                   🖼️ {t('lele.imagina')}
                 </button>
                 <span className="lc-dim lc-small">
-                  {armed ? t('lele.armed') : t('lele.ctrl')}
+                  {armed
+                    ? t('lele.armed')
+                    : t('lele.ctrl')}
                 </span>
                 <div className="lc-row">
                   <button
@@ -1229,6 +1440,7 @@ export default function LeleAdmin() {
                   onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
+              <p className="lc-dim lc-small lc-cmd-note">{t('lele.cmdNote')}</p>
 
               {!q && (
                 <div className="lc-tabs" role="tablist">
@@ -1301,7 +1513,9 @@ export default function LeleAdmin() {
 
               <div className="lc-chips">
                 {visible.length === 0 && (
-                  <p className="lc-dim">{t('lele.noMatch', { q: search })}</p>
+                  <p className="lc-dim">
+                    {t('lele.noMatch', { q: search })}
+                  </p>
                 )}
                 {visible.map((x, i) => (
                   <button
@@ -1336,7 +1550,9 @@ export default function LeleAdmin() {
 
               <div aria-live="polite" className="lc-log">
                 {history.length === 0 && (
-                  <p className="lc-dim">{t('lele.empty')}</p>
+                  <p className="lc-dim">
+                    {t('lele.empty')}
+                  </p>
                 )}
                 {history.map((h) => (
                   <article key={h.id} className={`lc-entry${h.err ? ' is-err' : ''}`}>
@@ -1402,7 +1618,7 @@ export default function LeleAdmin() {
                 const s = status[key]
                 const tiles = key === 'sys' && !rawSys ? parseSystem(s?.text) : null
                 const osData = key === 'os' ? parseOs(s?.text) : null
-                const ramText = key === 'ram' ? cleanRam(s?.text) : null
+                const ramText = key === 'ram' ? cleanRam(s?.text, t) : null
                 const lvl = statLevel(key, status)
                 return (
                     <div key={key} className="lc-stat">
@@ -1517,6 +1733,77 @@ export default function LeleAdmin() {
                     />
                     {t('lele.tts')}
                   </label>
+                  {(audioAgent === 'Story Whisper' || audioAgent === 'Night Story') && (
+                    <div className="lc-check" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }} title={t('lele.story.boxTitle')}>
+                      <label className="lc-check">
+                        <input
+                          type="checkbox"
+                          checked={wantsStoryImage}
+                          disabled={isRecording || audioBusy || storyImageBusy}
+                          onChange={(e) => setWantsStoryImage(e.target.checked)}
+                        />
+                        {t('lele.story.create')}
+                      </label>
+                      <select
+                        aria-label={t('lele.story.countAria')}
+                        value={storyImageCount}
+                        disabled={isRecording || audioBusy || storyImageBusy}
+                        onChange={(e) => setStoryImageCount(Number(e.target.value))}
+                        style={{ padding: '4px 8px', borderRadius: 8, background: 'var(--surface, #fff)', color: 'inherit', border: '1px solid var(--line, #ccc)' }}
+                      >
+                        {[1, 2, 3, 4, 5, 6, 7, 8].map((count) => <option key={count} value={count}>{count} {count === 1 ? t('lele.story.imageOne') : t('lele.story.imageMany')}</option>)}
+                      </select>
+                      <select
+                        aria-label={t('lele.story.formatAria')}
+                        value={storyImageFormat}
+                        disabled={isRecording || audioBusy || storyImageBusy}
+                        onChange={(e) => setStoryImageFormat(e.target.value)}
+                        style={{ padding: '4px 8px', borderRadius: 8, background: 'var(--surface, #fff)', color: 'inherit', border: '1px solid var(--line, #ccc)' }}
+                      >
+                        {[['512x512', '1:1 · 512'], ['768x768', '1:1 · 768'], ['1024x1024', '1:1 · 1024'], ['768x576', '4:3 · 768'], ['1024x768', '4:3 · 1024'], ['1280x720', '16:9 · 1280'], ['960x640', '3:2 · 960']].map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                      </select>
+                      <select
+                        aria-label={t('lele.story.stepsAria')}
+                        value={storyImageSteps}
+                        disabled={isRecording || audioBusy || storyImageBusy}
+                        onChange={(e) => setStoryImageSteps(Number(e.target.value))}
+                        style={{ padding: '4px 8px', borderRadius: 8, background: 'var(--surface, #fff)', color: 'inherit', border: '1px solid var(--line, #ccc)' }}
+                      >
+                        {[1, 3, 4, 5, 6, 7, 8, 9, 12, 15].map((s) => <option key={s} value={s}>{s} step</option>)}
+                      </select>
+                      {audioAgent === 'Story Whisper' && (
+                        <label className="lc-check" title={t('lele.story.kidsTitle')}>
+                          <input
+                            type="checkbox"
+                            checked={storyKidsFilter}
+                            disabled={isRecording || audioBusy || storyImageBusy}
+                            onChange={(e) => setStoryKidsFilter(e.target.checked)}
+                          />
+                          {t('lele.story.kids')}
+                        </label>
+                      )}
+                      {audioAgent === 'Night Story' && (
+                        <select
+                          aria-label={t('lele.story.genreAria')}
+                          value={storyGenre}
+                          disabled={isRecording || audioBusy || storyImageBusy}
+                          onChange={(e) => setStoryGenre(e.target.value)}
+                          style={{ padding: '4px 8px', borderRadius: 8, background: 'var(--surface, #fff)', color: 'inherit', border: '1px solid var(--line, #ccc)' }}
+                        >
+                          {['Random', 'Amore', 'Comico', 'Culturale', 'Drammatica', 'Horror', 'Osè', 'Ricerca'].map((g) => <option key={g} value={g}>{g}</option>)}
+                        </select>
+                      )}
+                      <input
+                        type="text"
+                        aria-label={t('lele.story.styleAria')}
+                        placeholder={t('lele.story.stylePlaceholder')}
+                        value={storyStylePrompt}
+                        disabled={isRecording || audioBusy || storyImageBusy}
+                        onChange={(e) => setStoryStylePrompt(e.target.value)}
+                        style={{ minWidth: 160, padding: '4px 8px', borderRadius: 8, background: 'var(--surface, #fff)', color: 'inherit', border: '1px solid var(--line, #ccc)' }}
+                      />
+                    </div>
+                  )}
                   <div className="lc-row">
                     <button
                       type="button"
@@ -1628,6 +1915,27 @@ export default function LeleAdmin() {
                   )}
 
                   <pre className="lc-pre">{audioReply}</pre>
+                  {(storyImageStatus || storyImageError || storyImages.length > 0) && (audioReplyAgent === 'Story Whisper' || audioReplyAgent === 'Night Story') && (
+                    <div className="lc-story-illustration" aria-live="polite" style={{ marginTop: 14 }}>
+                      {storyImageStatus && <p className="lc-dim lc-small">{storyImageStatus}</p>}
+                      {storyImageError && <p className="lc-err lc-small">{t('lele.story.errorPrefix')} {storyImageError}</p>}
+                      {storyImages.map((item) => (
+                        <div key={item.id} style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--line)' }}>
+                          <p className="lc-dim lc-small" style={{ marginBottom: 6 }}>
+                            <strong>{item.id}/{storyImages.length} · {item.title}</strong> — {item.status}
+                          </p>
+                          {item.src && (
+                            <img
+                              src={item.src}
+                              alt={t('lele.story.sceneAlt', { n: item.id, title: item.title })}
+                              loading="lazy"
+                              style={{ display: 'block', width: '100%', maxWidth: 640, height: 'auto', borderRadius: 12, marginTop: 8 }}
+                            />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </section>
@@ -1860,3 +2168,7 @@ const css = `
   .lc-shade{background:linear-gradient(180deg,rgba(11,16,21,.10) 0%,rgba(11,16,21,.22) 70%)}
 }
 ` 
+
+
+
+
