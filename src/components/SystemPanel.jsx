@@ -388,11 +388,19 @@ function cleanRam(text, t) {
     .filter((l) => !l.startsWith('```'))
     .filter((l) => !/piper|tts/i.test(l))
     .filter((l) => !/RAM totale/i.test(l))
-    .map((l) =>
-      t && /nessun modello caricato in RAM/i.test(l)
-        ? l.replace(/nessun modello caricato in RAM al momento\.?/i, t('sys.ramNone'))
-        : l
-    )
+    .map((l) => {
+      if (!t) return l
+      if (/Modelli Ollama in RAM ora\s*:/i.test(l))
+        return l.replace(/Modelli Ollama in RAM ora\s*:/i, t('sys.ramModels'))
+      if (/Totale Ollama\s*:/i.test(l))
+        return l.replace(/Totale Ollama\s*:/i, t('sys.ramTotal'))
+      if (/nessun modello caricato in RAM/i.test(l))
+        return l.replace(
+          /nessun modello caricato in RAM al momento\.?/i,
+          t('sys.ramNone')
+        )
+      return l
+    })
   return lines.length ? lines.join('\n') : null
 }
 

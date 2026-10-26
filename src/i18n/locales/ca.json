@@ -117,7 +117,9 @@
     },
     "disk": "Disc",
     "uptime": "Uptime",
-    "ramNone": "cap model carregat a la RAM en aquest moment."
+    "ramNone": "cap model carregat a la RAM en aquest moment.",
+    "ramModels": "Models Ollama a la RAM ara:",
+    "ramTotal": "Total Ollama:"
   },
   "lele": {
     "loginReserved": "Accés reservat.",

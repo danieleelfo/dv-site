@@ -118,7 +118,9 @@
     },
     "disk": "Disco",
     "uptime": "Uptime",
-    "ramNone": "ningún modelo cargado en RAM en este momento."
+    "ramNone": "ningún modelo cargado en RAM en este momento.",
+    "ramModels": "Modelos Ollama en RAM ahora:",
+    "ramTotal": "Total Ollama:"
   },
   "lele": {
     "loginReserved": "Acceso reservado.",

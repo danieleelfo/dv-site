@@ -117,7 +117,9 @@
     },
     "disk": "Schijf",
     "uptime": "Uptime",
-    "ramNone": "geen modellen geladen in RAM op dit moment."
+    "ramNone": "geen modellen geladen in RAM op dit moment.",
+    "ramModels": "Ollama-modellen nu in RAM:",
+    "ramTotal": "Totaal Ollama:"
   },
   "lele": {
     "loginReserved": "Beperkte toegang.",

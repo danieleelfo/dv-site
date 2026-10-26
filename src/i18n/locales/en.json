@@ -118,7 +118,9 @@
     },
     "disk": "Disk",
     "uptime": "Uptime",
-    "ramNone": "no models currently loaded in RAM."
+    "ramNone": "no models currently loaded in RAM.",
+    "ramModels": "Ollama models in RAM now:",
+    "ramTotal": "Ollama total:"
   },
   "lele": {
     "loginReserved": "Restricted access.",
