@@ -73,7 +73,7 @@ async function composeMerge(fileA, fileB, layout, outW, outH) {
   return await new Promise((res, rej) => canvas.toBlob(bl => (bl ? res(bl) : rej(new Error("Composizione non riuscita."))), "image/png"));
 }
 
-export default function Test5() {
+export default function Test5({ embedded = false }) {
   const navigate = useNavigate();
   const loginRef = useRef(null);
   const [token, setToken] = useState(readToken);
@@ -194,8 +194,8 @@ export default function Test5() {
   function logout() { try { localStorage.removeItem(TOKEN_KEY); window.google?.accounts?.id?.disableAutoSelect(); } catch {} setToken(""); setEmail(""); }
 
   return <main className="i2i-page"><div className="i2i-wrap">
-    <header className="i2i-header"><div><p className="i2i-kicker">D. VILLANOVA · IMAGE LAB</p><h1>Image to Image <small>TEST 05</small></h1><p className="i2i-muted">Modifica una foto o fondi due foto in una sola, con prompt e forza di trasformazione.</p></div>
-      <div className="i2i-account">{token ? <><span>{email}</span><button className="i2i-btn" onClick={logout}>Logout</button></> : <div ref={loginRef} />}</div></header>
+    {!embedded && (<header className="i2i-header"><div><p className="i2i-kicker">D. VILLANOVA · IMAGE LAB</p><h1>Image to Image <small>TEST 05</small></h1><p className="i2i-muted">Modifica una foto o fondi due foto in una sola, con prompt e forza di trasformazione.</p></div>
+      <div className="i2i-account">{token ? <><span>{email}</span><button className="i2i-btn" onClick={logout}>Logout</button></> : <div ref={loginRef} />}</div></header>)}
     {!token && <section className="i2i-panel i2i-login"><h2>Accedi con Google</h2><p>Usa lo stesso account abilitato per ImageLab.</p>{!CLIENT_ID && <p className="i2i-error">VITE_GOOGLE_CLIENT_ID mancante.</p>}</section>}
     {token && <form className="i2i-grid" onSubmit={generate}>
       <section className="i2i-panel"><p className="i2i-kicker">01 / SOURCE</p><h2>Immagine originale</h2>
@@ -220,7 +220,7 @@ export default function Test5() {
         {jobId && <p className="i2i-muted">Job ID: <code>{jobId}</code></p>}
       </section>
     </form>}
-    <footer className="i2i-footer"><span>Test5 · endpoint previsto: <code>/api/image/img2img</code></span><button className="i2i-link" onClick={() => navigate("/test4")}>Apri ImageLab Test4 ↗</button><button className="i2i-link" onClick={() => navigate("/improve")}>Improve ↗</button></footer>
+    {!embedded && (<footer className="i2i-footer"><span>Test5 · endpoint previsto: <code>/api/image/img2img</code></span><button className="i2i-link" onClick={() => navigate("/test4")}>Apri ImageLab Test4 ↗</button><button className="i2i-link" onClick={() => navigate("/improve")}>Improve ↗</button></footer>)}
   </div><style>{STYLES}</style></main>;
 }
 
@@ -229,3 +229,4 @@ const STYLES = `
 .i2i-upload-b{min-height:180px}
 @media(max-width:850px){.i2i-grid{grid-template-columns:1fr}.i2i-result{min-height:360px}.i2i-empty{min-height:280px}}@media(max-width:560px){.i2i-page{padding:1rem .7rem 2rem}.i2i-panel{padding:.9rem}.i2i-fields{grid-template-columns:1fr}.i2i-upload{min-height:180px}}
 `;
+

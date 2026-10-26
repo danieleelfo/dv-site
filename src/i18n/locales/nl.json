@@ -800,7 +800,9 @@
     "extractedText": "Geëxtraheerde tekst",
     "copy": "Kopiëren",
     "jcsLabel": "🧾 JCS-interpretatie",
-    "backToImprove": "Terug naar Improve ↗"
+    "backToImprove": "Terug naar Improve ↗",
+    "tabStorie": "📚 Verhalen",
+    "tabMultiFoto": "🧠 Multi-foto"
   },
   "dga": {
     "unauthorized": "Toegang niet toegestaan voor dit Google-account.",

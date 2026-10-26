@@ -801,7 +801,9 @@
     "extractedText": "Texto extraído",
     "copy": "Copiar",
     "jcsLabel": "🧾 Interpretación JCS",
-    "backToImprove": "Volver a Improve ↗"
+    "backToImprove": "Volver a Improve ↗",
+    "tabStorie": "📚 Historias",
+    "tabMultiFoto": "🧠 Multifoto"
   },
   "dga": {
     "unauthorized": "Acceso no autorizado para esta cuenta de Google.",

@@ -801,7 +801,9 @@
     "extractedText": "Extracted text",
     "copy": "Copy",
     "jcsLabel": "🧾 JCS interpretation",
-    "backToImprove": "Back to Improve ↗"
+    "backToImprove": "Back to Improve ↗",
+    "tabStorie": "📚 Stories",
+    "tabMultiFoto": "🧠 Multi-photo"
   },
   "dga": {
     "unauthorized": "Access not authorized for this Google account.",

@@ -22,6 +22,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import StoriesTab from "../components/StoriesTab.jsx";
+import Test5 from "./Test5.jsx";
 
 const API = "https://api.danielevillanova.com";
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -834,7 +836,25 @@ export default function ImageLab() {
           >
             📄 OCR
           </button>
+          <button
+            type="button"
+            className={"il-tab" + (tab === "storie" ? " il-tab-active" : "")}
+            onClick={() => setTab("storie")}
+          >
+            {t("img.tabStorie")}
+          </button>
+          <button
+            type="button"
+            className={"il-tab" + (tab === "multifoto" ? " il-tab-active" : "")}
+            onClick={() => setTab("multifoto")}
+          >
+            {t("img.tabMultiFoto")}
+          </button>
         </div>
+
+        {tab === "storie" && <StoriesTab idToken={idToken} />}
+
+        {tab === "multifoto" && <Test5 embedded />}
 
         {tab === "genera" && (
           <div className="il-layout">
@@ -2063,3 +2083,4 @@ const STYLES = `
   }
 }
 `;
+

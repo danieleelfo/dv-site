@@ -800,7 +800,9 @@
     "extractedText": "Text extret",
     "copy": "Copia",
     "jcsLabel": "🧾 Interpretació JCS",
-    "backToImprove": "Torna a Improve ↗"
+    "backToImprove": "Torna a Improve ↗",
+    "tabStorie": "📚 Històries",
+    "tabMultiFoto": "🧠 Multifoto"
   },
   "dga": {
     "unauthorized": "Accés no autoritzat per a aquest compte de Google.",
