@@ -190,6 +190,19 @@ const TABS = {
       { k: "total_amount", label: "Totale €", type: "number" },
     ],
   },
+  orderitems: {
+    label: "Righe ordine",
+    pk: "item_id",
+    cols: [
+      { k: "item_id", label: "ID", ro: true },
+      { k: "order_id", label: "Ordine", type: "select", opts: "orders", optValue: "order_id", optLabel: "label" },
+      { k: "supplier_name", label: "Fornitore", ro: true },
+      { k: "product_name", label: "Prodotto", ro: true },
+      { k: "product_id", label: "Prodotto (id)", type: "select", opts: "products", optValue: "ProductID", optLabel: "Category" },
+      { k: "quantity", label: "Quantità", type: "number" },
+      { k: "unit_cost", label: "Costo unit. €", type: "number" },
+    ],
+  },
 };
 
 // ------------------------------------------------------------
@@ -201,7 +214,7 @@ export default function Test6() {
   const [tab, setTab] = useState("ingredients");
   const [rows, setRows] = useState([]);
   const [loaded, setLoaded] = useState(false);
-  const [opts, setOpts] = useState({ products: [], ingredients: [], suppliers: [] });
+  const [opts, setOpts] = useState({ products: [], ingredients: [], suppliers: [], orders: [] });
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -241,7 +254,7 @@ export default function Test6() {
         call("/api/bar-ai/admin/options", "GET"),
       ]);
       setRows(t.rows || []);
-      setOpts({ products: o.products || [], ingredients: o.ingredients || [], suppliers: o.suppliers || [] });
+      setOpts({ products: o.products || [], ingredients: o.ingredients || [], suppliers: o.suppliers || [], orders: o.orders || [] });
     } catch (e) {
       setRows([]);
       setError(e.message || String(e));
@@ -593,6 +606,40 @@ export default function Test6() {
                         <div className="bau-field">
                           <label>Totale €</label>
                           <input className="bau-input" type="number" step="any" value={newRow.total_amount ?? ""} onChange={(e) => setNewRow((r) => ({ ...r, total_amount: e.target.value }))} />
+                        </div>
+                      </>
+                    )}
+                    {tab === "orderitems" && (
+                      <>
+                        <div className="bau-field">
+                          <label>Ordine</label>
+                          <select className="bau-select" value={newRow.order_id || ""} onChange={(e) => setNewRow((r) => ({ ...r, order_id: e.target.value }))}>
+                            <option value="">- scegli -</option>
+                            {opts.orders.map((o) => (
+                              <option key={o.order_id} value={o.order_id}>
+                                {o.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="bau-field">
+                          <label>Prodotto</label>
+                          <select className="bau-select" value={newRow.product_id || ""} onChange={(e) => setNewRow((r) => ({ ...r, product_id: e.target.value }))}>
+                            <option value="">- scegli -</option>
+                            {opts.products.map((p) => (
+                              <option key={p.ProductID} value={p.ProductID}>
+                                {p.Category}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="bau-field">
+                          <label>Quantità</label>
+                          <input className="bau-input" type="number" step="any" value={newRow.quantity ?? ""} onChange={(e) => setNewRow((r) => ({ ...r, quantity: e.target.value }))} />
+                        </div>
+                        <div className="bau-field">
+                          <label>Costo unit. €</label>
+                          <input className="bau-input" type="number" step="any" value={newRow.unit_cost ?? ""} onChange={(e) => setNewRow((r) => ({ ...r, unit_cost: e.target.value }))} />
                         </div>
                       </>
                     )}
