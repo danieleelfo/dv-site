@@ -4005,6 +4005,88 @@ async def admin_ollama_unload(
 
 
 # --------------------------------------------------------------------------
+# ADMIN: PROMPTS NIGHT STORY (Agents Lab — proxy verso NS :8666)
+# --------------------------------------------------------------------------
+NS_PORT = AGENTS["Night Story"]["port"]
+
+
+class NsPromptContent(BaseModel):
+    content: str = ""
+
+
+@app.get("/api/admin/ns-prompts")
+async def ns_prompts_list(
+    authorization: str | None = Header(None),
+):
+    """Lista dei prompt di Night Story (nome + contenuto)."""
+
+    verify_admin_token(authorization)
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(
+                f"http://127.0.0.1:{NS_PORT}/prompts"
+            )
+    except httpx.RequestError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                f"Night Story non raggiungibile sulla porta {NS_PORT}: {exc}"
+            ),
+        )
+
+    if response.status_code >= 400:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                f"Night Story ({response.status_code}): "
+                f"{response.text[:500]}"
+            ),
+        )
+
+    return response.json()
+
+
+@app.post("/api/admin/ns-prompts/{name}")
+async def ns_prompt_save(
+    name: str,
+    body: NsPromptContent,
+    authorization: str | None = Header(None),
+):
+    """Salva un prompt di Night Story (solo nomi a-z 0-9 _)."""
+
+    verify_admin_token(authorization)
+
+    if not re.fullmatch(r"[a-z0-9_]+", name):
+        raise HTTPException(status_code=400, detail="Nome prompt non valido.")
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                f"http://127.0.0.1:{NS_PORT}/prompts/{name}",
+                json={"content": body.content},
+            )
+    except httpx.RequestError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                f"Night Story non raggiungibile sulla porta {NS_PORT}: {exc}"
+            ),
+        )
+
+    if response.status_code >= 400:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                f"Night Story ({response.status_code}): "
+                f"{response.text[:500]}"
+            ),
+        )
+
+    return response.json()
+
+
+# --------------------------------------------------------------------------
 # HEALTH CHECK IMAGE LAB
 # --------------------------------------------------------------------------
 

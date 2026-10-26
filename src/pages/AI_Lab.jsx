@@ -109,6 +109,15 @@ export default function EmergenceLab() {
   const [selectedPromptRole, setSelectedPromptRole] = useState(null)
   const [editingPrompt, setEditingPrompt] = useState(false)
 
+  // Agents Lab: tab attiva ('emergence' | 'ns') e stato pannello NS.
+  const [activeTab, setActiveTab] = useState('emergence')
+  const [nsPrompts, setNsPrompts] = useState(null)
+  const [nsSelected, setNsSelected] = useState(null)
+  const [nsText, setNsText] = useState('')
+  const [nsBusy, setNsBusy] = useState(false)
+  const [nsStatus, setNsStatus] = useState('')
+  const [nsError, setNsError] = useState('')
+
   const buttonRef = useRef(null)
   const chatIdRef = useRef(FORCED_ADMIN_CHAT_ID)
 
@@ -197,6 +206,15 @@ export default function EmergenceLab() {
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idToken])
+
+  // Agents Lab: carica i prompt di Night Story la prima volta che
+  // si apre il tab NS.
+  useEffect(() => {
+    if (activeTab === 'ns' && idToken && nsPrompts === null) {
+      fetchNsPrompts()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, idToken])
 
   function handleCredentialResponse(credentialResponse) {
     const token = credentialResponse?.credential
@@ -377,6 +395,98 @@ export default function EmergenceLab() {
     sendCommand(launchCommand)
   }
 
+  // ==============================================================
+  // NIGHT STORY PROMPTS (tab NS — Agents Lab)
+  // Lista + edit + save via gateway /api/admin/ns-prompts.
+  // ==============================================================
+
+  async function fetchNsPrompts() {
+    if (!idToken || nsBusy) return
+    setNsBusy(true)
+    setNsError('')
+    setNsStatus('')
+    try {
+      const res = await fetch(`${LELE_API_URL}/api/admin/ns-prompts`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      })
+      if (res.status === 401 || res.status === 403) {
+        logout()
+        setNsError(
+          res.status === 401
+            ? t('ail.sessionExpired')
+            : t('ail.unauthorizedShort')
+        )
+        return
+      }
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+      }
+      const data = await res.json()
+      setNsPrompts(Array.isArray(data.prompts) ? data.prompts : [])
+    } catch (err) {
+      setNsError(err.message)
+    } finally {
+      setNsBusy(false)
+    }
+  }
+
+  function selectNsPrompt(name) {
+    const item = (nsPrompts || []).find((p) => p.name === name)
+    if (!item) return
+    setNsSelected(name)
+    setNsText(String(item.content || ''))
+    setNsStatus('')
+    setNsError('')
+  }
+
+  async function saveNsPrompt() {
+    if (!idToken || !nsSelected || nsBusy) return
+    setNsBusy(true)
+    setNsError('')
+    setNsStatus('Salvo su Night Story…')
+    try {
+      const res = await fetch(
+        `${LELE_API_URL}/api/admin/ns-prompts/${encodeURIComponent(nsSelected)}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({ content: nsText }),
+        }
+      )
+      if (res.status === 401 || res.status === 403) {
+        logout()
+        setNsError(
+          res.status === 401
+            ? t('ail.sessionExpired')
+            : t('ail.unauthorizedShort')
+        )
+        return
+      }
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        throw new Error(
+          (data && data.detail) || `HTTP ${res.status}: ${res.statusText}`
+        )
+      }
+      setNsPrompts((prev) =>
+        (prev || []).map((p) =>
+          p.name === nsSelected ? { ...p, content: nsText } : p
+        )
+      )
+      setNsStatus(
+        `✅ "${nsSelected}" salvato — Night Story userà il nuovo testo dalla prossima storia.`
+      )
+    } catch (err) {
+      setNsStatus('')
+      setNsError(err.message)
+    } finally {
+      setNsBusy(false)
+    }
+  }
+
   if (!idToken) {
     return (
       <section className="section container" style={styles.wrap}>
@@ -384,7 +494,7 @@ export default function EmergenceLab() {
         <div style={styles.overlay} />
 
         <div style={styles.content}>
-          <h2 style={styles.pageTitle}>Emergence Lab</h2>
+          <h2 style={styles.pageTitle}>Agents Lab</h2>
 
           <div style={styles.loginBox}>
             <p style={styles.loginText}>
@@ -416,7 +526,7 @@ export default function EmergenceLab() {
       <div style={styles.contentWide}>
         <div style={styles.titleRow}>
           <div>
-            <h2 style={styles.pageTitle}>Emergence Lab</h2>
+            <h2 style={styles.pageTitle}>Agents Lab</h2>
 
             <p style={styles.subtitle}>
               {t('ail.subtitle')}{' '}
@@ -440,6 +550,164 @@ export default function EmergenceLab() {
             </button>
           </div>
         </div>
+
+        {/* ============================================================
+            TABS — Agents Lab
+        ============================================================ */}
+        <div style={styles.tabBar}>
+          <button
+            type="button"
+            onClick={() => setActiveTab('emergence')}
+            style={{
+              ...styles.tabBtn,
+              ...(activeTab === 'emergence' ? styles.tabBtnActive : {}),
+            }}
+          >
+            🌌 Emergence
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('ns')}
+            style={{
+              ...styles.tabBtn,
+              ...(activeTab === 'ns' ? styles.tabBtnActive : {}),
+            }}
+          >
+            🌙 Night Story
+          </button>
+        </div>
+
+        {activeTab === 'ns' && (
+          <div style={styles.promptPanel}>
+            <div style={styles.promptPanelHeader}>
+              <div>
+                <span style={styles.label}>🌙 Prompt Night Story</span>
+
+                <p style={styles.promptHint}>
+                  Modifica il testo che Night Story usa per raccontare. Il
+                  salvataggio aggiorna subito la cache dell'agente: la
+                  prossima storia userà il nuovo testo.
+                </p>
+              </div>
+
+              <div style={styles.selectedRoleRow}>
+                <button
+                  type="button"
+                  onClick={fetchNsPrompts}
+                  disabled={nsBusy}
+                  style={{
+                    ...styles.secondaryBtn,
+                    ...(nsBusy ? styles.buttonDisabled : {}),
+                  }}
+                >
+                  ↻ Aggiorna
+                </button>
+              </div>
+            </div>
+
+            {nsBusy && !nsPrompts && (
+              <p style={{ color: '#8fa1ac', margin: 0, fontSize: '0.85rem' }}>
+                Carico i prompt da Night Story…
+              </p>
+            )}
+
+            {nsError && (
+              <p style={{ color: '#ff8f8f', margin: '0.5rem 0 0', fontSize: '0.85rem' }}>
+                ⚠️ {nsError}
+              </p>
+            )}
+
+            {nsPrompts && nsPrompts.length === 0 && (
+              <p style={{ color: '#8fa1ac', margin: 0, fontSize: '0.85rem' }}>
+                Nessun prompt trovato su Night Story (il servizio è attivo?).
+              </p>
+            )}
+
+            {nsPrompts && nsPrompts.length > 0 && (
+              <>
+                <div style={styles.promptRoleGrid}>
+                  {nsPrompts.map((p) => (
+                    <button
+                      key={p.name}
+                      type="button"
+                      disabled={nsBusy}
+                      onClick={() => selectNsPrompt(p.name)}
+                      style={{
+                        ...styles.promptRoleBtn,
+                        ...(nsSelected === p.name
+                          ? styles.promptRoleBtnActive
+                          : {}),
+                      }}
+                    >
+                      <span style={styles.promptRoleIcon}>
+                        {p.name.startsWith('genre_') ? '🎭' : '📜'}
+                      </span>
+
+                      <span>{p.name}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {nsSelected && (
+                  <div style={{ ...styles.response, marginTop: '0.85rem', marginBottom: 0 }}>
+                    <div style={styles.responseHeader}>
+                      <h3 style={styles.responseTitle}>{nsSelected}</h3>
+
+                      <span style={styles.sessionLabel}>
+                        {nsText.length.toLocaleString('it-IT')} caratteri
+                      </span>
+                    </div>
+
+                    <textarea
+                      value={nsText}
+                      onChange={(e) => setNsText(e.target.value)}
+                      style={styles.promptTextarea}
+                      rows={16}
+                    />
+
+                    <div
+                      style={{
+                        display: 'flex',
+                        gap: '0.5rem',
+                        marginTop: '0.65rem',
+                        flexWrap: 'wrap',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={saveNsPrompt}
+                        disabled={nsBusy || !nsText.trim()}
+                        style={{
+                          ...styles.editBtn,
+                          ...(nsBusy || !nsText.trim()
+                            ? styles.buttonDisabled
+                            : {}),
+                        }}
+                      >
+                        {nsBusy ? 'Salvo…' : '💾 Salva su Night Story'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => selectNsPrompt(nsSelected)}
+                        style={styles.secondaryBtn}
+                      >
+                        Ripristina
+                      </button>
+
+                      {nsStatus && (
+                        <span style={styles.sessionLabel}>{nsStatus}</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'emergence' && (<>
 
         {/* ============================================================
             EMERGENCE ROLE PROMPTS
@@ -789,6 +1057,7 @@ export default function EmergenceLab() {
             </pre>
           </div>
         )}
+        </>)}
       </div>
     </section>
   )
@@ -911,6 +1180,35 @@ const styles = {
     display: 'flex',
     justifyContent: 'center',
     minHeight: 40,
+  },
+
+  /* ================================================================
+     TABS — Agents Lab
+  ================================================================ */
+
+  tabBar: {
+    display: 'flex',
+    gap: '0.45rem',
+    marginBottom: '1rem',
+    flexWrap: 'wrap',
+  },
+
+  tabBtn: {
+    background: '#0b1015',
+    border: '1px solid #2a3a48',
+    color: '#c5d4de',
+    borderRadius: 999,
+    padding: '0.5rem 0.95rem',
+    cursor: 'pointer',
+    fontSize: '0.85rem',
+    fontWeight: 600,
+    transition: 'all 0.15s ease',
+  },
+
+  tabBtnActive: {
+    border: '1px solid #3fd0c9',
+    color: '#e8f1f5',
+    background: 'rgba(63,208,201,0.1)',
   },
 
   /* ================================================================
