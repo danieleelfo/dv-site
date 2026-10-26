@@ -1618,7 +1618,7 @@ export default function Test2() {
                 const s = status[key]
                 const tiles = key === 'sys' && !rawSys ? parseSystem(s?.text) : null
                 const osData = key === 'os' ? parseOs(s?.text) : null
-                const ramText = key === 'ram' ? cleanRam(s?.text) : null
+                const ramText = key === 'ram' ? cleanRam(s?.text, t) : null
                 const lvl = statLevel(key, status)
                 return (
                     <div key={key} className="lc-stat">

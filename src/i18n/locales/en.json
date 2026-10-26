@@ -117,7 +117,8 @@
       "off": "not loaded"
     },
     "disk": "Disk",
-    "uptime": "Uptime"
+    "uptime": "Uptime",
+    "ramNone": "no models currently loaded in RAM."
   },
   "lele": {
     "loginReserved": "Restricted access.",

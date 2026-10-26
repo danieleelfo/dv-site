@@ -376,7 +376,10 @@ function OsKpis({ data }) {
 
 // ---------------- RAM: solo la parte Ollama ----------------
 // Toglie recinti ```, riga "RAM totale" (già nei KPI) e nota Piper/TTS.
-function cleanRam(text) {
+// Con `t` opzionale localizza la frase del backend
+// "nessun modello caricato in RAM al momento" (chiave sys.ramNone);
+// le righe con i modelli (nome + GB) restano universali.
+function cleanRam(text, t) {
   if (!text) return null
   const lines = text
     .split('\n')
@@ -385,6 +388,11 @@ function cleanRam(text) {
     .filter((l) => !l.startsWith('```'))
     .filter((l) => !/piper|tts/i.test(l))
     .filter((l) => !/RAM totale/i.test(l))
+    .map((l) =>
+      t && /nessun modello caricato in RAM/i.test(l)
+        ? l.replace(/nessun modello caricato in RAM al momento\.?/i, t('sys.ramNone'))
+        : l
+    )
   return lines.length ? lines.join('\n') : null
 }
 

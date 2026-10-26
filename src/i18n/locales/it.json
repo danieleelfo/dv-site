@@ -117,7 +117,8 @@
       "off": "non caricato"
     },
     "disk": "Disco",
-    "uptime": "Uptime"
+    "uptime": "Uptime",
+    "ramNone": "nessun modello caricato in RAM al momento."
   },
   "lele": {
     "loginReserved": "Accesso riservato.",
