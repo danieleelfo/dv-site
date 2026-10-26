@@ -847,23 +847,52 @@ export default function Test2() {
     setAudioDuration(0)
   }
 
+  // F5: salva la storia (testo + audio + scene con job_id) nella gallery
+  // condivisa di Test4 (POST /api/admin/stories -> STORY_HISTORY_DIR sul
+  // gateway). Così anche le storie lanciate da qui con NS/SW compaiono
+  // nel box 06/Gallery di Test4, con le illustrazioni collegate via job_id.
+  async function saveStoryToGallery(storyText, agent, audioFile, scenes) {
+    if (!idToken) return
+    try {
+      await adminJson(idToken, '/api/admin/stories', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: String(audioPrompt || '').slice(0, 4000),
+          text: String(storyText || '').slice(0, 60000),
+          agent,
+          audio_filename: String(audioFile || ''),
+          language: AUDIO_LANGUAGE,
+          scenes: Array.isArray(scenes) ? scenes : [],
+        }),
+      })
+    } catch (err) {
+      // Non blocca il flusso: la storia resta comunque visibile in Test2.
+      console.error('Gallery: salvataggio storia non riuscito', err)
+    }
+  }
+
   function applyAudioReply(data, agent) {
     const replyText = audioText(data)
+    const replyFile = extractFilename(data.audio_filename) || extractFilename(data.audio_path)
     setAudioReply(replyText)
-    setAudioReplyFile(
-      extractFilename(data.audio_filename) || extractFilename(data.audio_path)
-    )
+    setAudioReplyFile(replyFile)
     setAudioReplyAgent(agent)
     setStoryImages([])
     setStoryImageError('')
     setStoryImageStatus('')
     // Parte in background: testo e audio SW sono già disponibili e non aspettano l'immagine.
-    if ((agent === 'Story Whisper' || agent === 'Night Story') && wantsStoryImage && replyText) {
-      void generateStoryIllustration(replyText, agent)
+    if ((agent === 'Story Whisper' || agent === 'Night Story') && replyText) {
+      if (wantsStoryImage) {
+        void generateStoryIllustration(replyText, agent, replyFile)
+      } else {
+        // F5: senza illustrazioni la storia finisce subito in gallery.
+        void saveStoryToGallery(replyText, agent, replyFile, [])
+      }
     }
   }
 
-  async function generateStoryIllustration(storyText, agent) {
+  async function generateStoryIllustration(storyText, agent, audioFile) {
     if (!idToken || storyImageBusy) return
     const imageCount = Math.max(1, Math.min(8, Number(storyImageCount) || 3))
     const kidsMode = agent === 'Story Whisper' && storyKidsFilter
@@ -875,6 +904,8 @@ export default function Test2() {
         ? 'Every image prompt must follow an artistic illustration style that matches the story genre "' + genre + '" (mature audiences, never a children style). '
         : ''
     const styleExtra = extraStyle ? 'Additional art direction from the user to apply to every scene: ' + extraStyle + '. ' : ''
+    // F5: scene completate con il proprio job_id, per il salvataggio in gallery.
+    const doneScenes = []
     setStoryImageBusy(true)
     setStoryImageError('')
     setStoryImages([])
@@ -948,6 +979,7 @@ export default function Test2() {
             height: fmtHeight,
             steps: sceneSteps,
           })
+          const sceneStart = Date.now()
 
           imageStage = 'controllo stato immagine ' + sceneNumber + '/' + imageCount
           const result = await waitForImageResult(idToken, jobId, {
@@ -958,6 +990,12 @@ export default function Test2() {
                 (status === 'running' || status === 'processing' ? 'generazione in corso' : 'in coda') +
                 '… (' + elapsed + 's)'
               ),
+          })
+          doneScenes.push({
+            title: scene.title,
+            prompt: scene.prompt,
+            job_id: jobId,
+            seconds: Math.round((Date.now() - sceneStart) / 1000),
           })
           imageStage = 'download immagine ' + sceneNumber + '/' + imageCount
           const src = resultToDataUrl(result)
@@ -1005,6 +1043,10 @@ export default function Test2() {
       setStoryImageStatus('')
     } finally {
       setStoryImageBusy(false)
+      // F5: la storia finisce in gallery anche se alcune immagini
+      // (o tutte) non sono riuscite — si salvano testo, audio e le
+      // illustrazioni completate.
+      void saveStoryToGallery(storyText, agent, audioFile, doneScenes)
     }
   }
 
