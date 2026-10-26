@@ -197,8 +197,8 @@ const TABS = {
       { k: "item_id", label: "ID", ro: true },
       { k: "order_id", label: "Ordine", type: "select", opts: "orders", optValue: "order_id", optLabel: "label" },
       { k: "supplier_name", label: "Fornitore", ro: true },
-      { k: "product_name", label: "Prodotto", ro: true },
-      { k: "product_id", label: "Prodotto (id)", type: "select", opts: "products", optValue: "ProductID", optLabel: "Category" },
+      { k: "ingredient_name", label: "Ingrediente", ro: true },
+      { k: "ingredient_id", label: "Ingrediente (id)", type: "select", opts: "ingredients", optValue: "ingredient_id", optLabel: "name" },
       { k: "quantity", label: "Quantità", type: "number" },
       { k: "unit_cost", label: "Costo unit. €", type: "number" },
     ],
@@ -623,12 +623,12 @@ export default function Test6() {
                           </select>
                         </div>
                         <div className="bau-field">
-                          <label>Prodotto</label>
-                          <select className="bau-select" value={newRow.product_id || ""} onChange={(e) => setNewRow((r) => ({ ...r, product_id: e.target.value }))}>
+                          <label>Ingrediente</label>
+                          <select className="bau-select" value={newRow.ingredient_id || ""} onChange={(e) => setNewRow((r) => ({ ...r, ingredient_id: e.target.value }))}>
                             <option value="">- scegli -</option>
-                            {opts.products.map((p) => (
-                              <option key={p.ProductID} value={p.ProductID}>
-                                {p.Category}
+                            {opts.ingredients.map((i) => (
+                              <option key={i.ingredient_id} value={i.ingredient_id}>
+                                {i.name}
                               </option>
                             ))}
                           </select>
