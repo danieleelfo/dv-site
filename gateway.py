@@ -32,7 +32,7 @@ app = FastAPI(title="Lele AI Gateway")
 # --------------------------------------------------------------------------
 # GOOGLE AUTH (per /api/admin/* e /api/agent-arena/start|stop|hand|intervene)
 # --------------------------------------------------------------------------
-# Richiesto da env, niente default in chiaro nel codice.
+# Richiesto da env, niente in chiaro nel codice.
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
 
 # Lista di email autorizzate, separate da virgole:
@@ -133,7 +133,7 @@ def get_connection():
 
 
 # --------------------------------------------------------------------------
-# GIT ADMIN — API per Test2.jsx
+# GIT ADMIN — QueryDB - API
 # --------------------------------------------------------------------------
 app.include_router(
     build_git_admin_router(verify_admin_token)
@@ -418,7 +418,7 @@ async def chat_router_audio(
     if not audio_path:
         raise HTTPException(
             status_code=400,
-            detail=f"'{agent}' non supporta ancora l'input audio.",
+            detail=f"'{agent}' non supporta l'input audio.",
         )
 
     port = config["port"]
@@ -526,7 +526,7 @@ async def tts_proxy(agent: str, filename: str):
 # --------------------------------------------------------------------------
 class AdminChatRequest(BaseModel):
     prompt: str
-    chat_id: int = 1010101010
+    chat_id: int = 1010101011
     language: str = "en"
 
 
@@ -607,7 +607,8 @@ ALLOWED_MODELS = {
     "llama3",
     "mistral",
     "qwen2.5",
-    "deepseek-r1",
+    "deepseek-r1",,
+    "qwen2.5-coder:7b",
 }
 
 # Super-Leles può usare tutti i modelli esposti da Test4.jsx.
@@ -901,6 +902,7 @@ async def _arena_call(
     # parole chiave: un file con "query" o "review" nel testo veniva
     # instradato al comando sbagliato). Se lele_api non conosce il campo
     # Pydantic lo ignora, quindi e retrocompatibile.
+    
     if agent_id in ("qe", "super_leles"):
         payload["arena_agent"] = agent_id
 
@@ -2103,11 +2105,11 @@ async def bar_ai_admin(path: str, request: Request):
 # ==========================================================================
 
 # ==========================================================================
-# AI IMAGE LAB — Z-IMAGE-TURBO VIA GRADIO
+# AI IMAGE LAB — Z-IMAGE-TURBO VIA GraDV
 # ==========================================================================
 #
 # Frontend: /image-lab
-# Backend locale: Gradio sulla porta 7860.
+# Backend locale: GraDV sulla porta 7860.
 #
 # API gateway:
 #   POST /api/image/jobs
@@ -2116,7 +2118,7 @@ async def bar_ai_admin(path: str, request: Request):
 #   GET  /api/image/health
 #
 # Le generazioni sono asincrone e vengono eseguite una alla volta.
-# Il gateway non espone pubblicamente Gradio.
+# Il gateway non espone pubblicamente GraDV.
 # ==========================================================================
 
 import base64
@@ -2135,7 +2137,7 @@ IMAGE_MODEL_URL = os.environ.get(
 IMAGE_GENERATION_TIMEOUT = 900.0
 IMAGE_MAX_PROMPT_CHARS = 12000
 # Tutte le dimensioni (larghezze E altezze) della griglia
-# RESOLUTION_OPTIONS di Gradio (z-image-inference/main.py).
+# RESOLUTION_OPTIONS di GraDV (z-image-inference/main.py).
 # Il set vale per entrambe: una dimensione puo' comparire come width
 # in un formato e come height in un altro.
 _GRADIO_DIMS = set()
@@ -2229,7 +2231,7 @@ def _image_cleanup_jobs() -> None:
 
 def _image_resolution(width: int, height: int) -> tuple[str, str]:
     """
-    Traduce le dimensioni richieste nei due dropdown di Gradio.
+    Traduce le dimensioni richieste nei due dropdown di GraDV.
 
     Il primo dropdown seleziona la categoria 512/768/1024/1280.
     Il secondo seleziona il rapporto d'aspetto.
@@ -2242,7 +2244,7 @@ def _image_resolution(width: int, height: int) -> tuple[str, str]:
 
     requested_ratio = width / height
 
-    # Rapporti disponibili nella UI Gradio, osservati in /config.
+    # Rapporti disponibili nella UI GraDV, osservati in /config.
     ratios = [
         ("1:1", 1.0, lambda c: (c, c)),
         ("5:3", 5 / 3, lambda c: (int(c * 1.25), int(c * 0.75))),
@@ -2272,9 +2274,9 @@ async def _image_gradio_generate(
     seed: int,
 ) -> dict:
     """
-    Invoca direct_generate tramite l'API Gradio.
+    Invoca direct_generate tramite l'API GraDV.
 
-    Gradio restituisce un event_id; il risultato arriva successivamente
+    GraDV restituisce un event_id; il risultato arriva successivamente
     tramite lo stream /gradio_api/call/direct_generate/{event_id}.
     """
 
@@ -2286,7 +2288,7 @@ async def _image_gradio_generate(
     )
 
     async with httpx.AsyncClient(timeout=timeout) as client:
-        # Avvia il lavoro Gradio.
+        # Avvia il lavoro GraDV.
         response = await client.post(
             f"{IMAGE_MODEL_URL}/gradio_api/call/direct_generate",
             json={
@@ -2303,19 +2305,19 @@ async def _image_gradio_generate(
 
         if response.status_code >= 400:
             raise RuntimeError(
-                f"Gradio HTTP {response.status_code}: {response.text[:1500]}"
+                f"GraDV HTTP {response.status_code}: {response.text[:1500]}"
             )
 
         try:
             event_id = response.json().get("event_id")
         except Exception as exc:
             raise RuntimeError(
-                f"Risposta Gradio di avvio non valida: {response.text[:1000]}"
+                f"Risposta GraDV di avvio non valida: {response.text[:1000]}"
             ) from exc
 
         if not event_id:
             raise RuntimeError(
-                f"Gradio non ha restituito event_id: {response.text[:1000]}"
+                f"GraDV non ha restituito event_id: {response.text[:1000]}"
             )
 
         # Attende il risultato senza mantenere aperta la richiesta del browser.
@@ -2331,7 +2333,7 @@ async def _image_gradio_generate(
             if stream.status_code >= 400:
                 body = await stream.aread()
                 raise RuntimeError(
-                    f"Gradio stream HTTP {stream.status_code}: "
+                    f"GraDV stream HTTP {stream.status_code}: "
                     f"{body.decode('utf-8', errors='replace')[:1500]}"
                 )
 
@@ -2346,7 +2348,7 @@ async def _image_gradio_generate(
                 raw_data = line[len("data:"):].strip()
 
                 if current_event == "error":
-                    raise RuntimeError(f"Errore generazione Gradio: {raw_data}")
+                    raise RuntimeError(f"Errore generazione GraDV: {raw_data}")
 
                 if current_event != "complete":
                     continue
@@ -2355,17 +2357,17 @@ async def _image_gradio_generate(
                     result_payload = json.loads(raw_data)
                 except json.JSONDecodeError as exc:
                     raise RuntimeError(
-                        f"Risultato Gradio non JSON: {raw_data[:1000]}"
+                        f"Risultato GraDV non JSON: {raw_data[:1000]}"
                     ) from exc
 
                 break
 
         if result_payload is None:
             raise RuntimeError(
-                "Lo stream Gradio è terminato senza un evento complete."
+                "Lo stream GraDV è terminato senza un evento complete."
             )
 
-        # Normalizza i diversi formati di risposta Gradio.
+        # Normalizza i diversi formati di risposta GraDV.
         if isinstance(result_payload, dict):
             outputs = result_payload.get("data", [])
         else:
@@ -2373,7 +2375,7 @@ async def _image_gradio_generate(
 
         if not isinstance(outputs, list) or len(outputs) < 1:
             raise RuntimeError(
-                f"Formato output Gradio inatteso: {str(result_payload)[:1500]}"
+                f"Formato output GraDV inatteso: {str(result_payload)[:1500]}"
             )
 
         image_output = outputs[0]
@@ -2403,11 +2405,11 @@ async def _image_gradio_generate(
 
         if not isinstance(image_output, dict):
             raise RuntimeError(
-                "Gradio non ha restituito un oggetto immagine riconoscibile: "
+                "GraDV non ha restituito un oggetto immagine riconoscibile: "
                 f"{str(image_output)[:1000]}"
             )
 
-        # Gradio normalmente restituisce un oggetto FileData con "url"
+        # GraDV normalmente restituisce un oggetto FileData con "url"
         # e/o "path". Scarichiamo il file dal server locale.
         image_url = image_output.get("url")
         image_path = image_output.get("path")
@@ -2423,7 +2425,7 @@ async def _image_gradio_generate(
 
                 if (parsed.hostname, parsed.port) != (base.hostname, base.port):
                     raise RuntimeError(
-                        "Gradio ha restituito un URL immagine su un host diverso."
+                        "GraDV ha restituito un URL immagine su un host diverso."
                     )
 
                 download_url = image_url
@@ -2438,21 +2440,21 @@ async def _image_gradio_generate(
             )
         else:
             raise RuntimeError(
-                "Output Gradio senza URL o percorso dell'immagine."
+                "Output GraDV senza URL o percorso dell'immagine."
             )
 
         image_response = await client.get(download_url)
 
         if image_response.status_code >= 400:
             raise RuntimeError(
-                "Impossibile scaricare l'immagine da Gradio: "
+                "Impossibile scaricare l'immagine da GraDV: "
                 f"HTTP {image_response.status_code} "
                 f"{image_response.text[:500]}"
             )
 
         image_bytes = image_response.content
         if not image_bytes:
-            raise RuntimeError("Gradio ha restituito un'immagine vuota.")
+            raise RuntimeError("GraDV ha restituito un'immagine vuota.")
 
         return {
             "image_base64": base64.b64encode(image_bytes).decode("ascii"),
@@ -2467,7 +2469,7 @@ async def _image_gradio_upload(
     image_bytes: bytes,
 ) -> str:
     """
-    Carica l'immagine di partenza su Gradio (/gradio_api/upload)
+    Carica l'immagine di partenza su GraDV (/gradio_api/upload)
     e ritorna il percorso del file sul server (handle per l'API).
     """
     files = {
@@ -2485,18 +2487,18 @@ async def _image_gradio_upload(
 
     if response.status_code >= 400:
         raise RuntimeError(
-            f"Upload Gradio HTTP {response.status_code}: {response.text[:500]}"
+            f"Upload GraDV HTTP {response.status_code}: {response.text[:500]}"
         )
 
     try:
         paths = response.json()
     except Exception as exc:
         raise RuntimeError(
-            f"Risposta upload Gradio non valida: {response.text[:500]}"
+            f"Risposta upload GraDV non valida: {response.text[:500]}"
         ) from exc
 
     if not isinstance(paths, list) or not paths:
-        raise RuntimeError("Upload Gradio senza percorso file.")
+        raise RuntimeError("Upload GraDV senza percorso file.")
 
     return str(paths[0])
 
@@ -2512,7 +2514,7 @@ async def _image_gradio_img2img(
 ) -> dict:
     """
     Come _image_gradio_generate, ma verso l'endpoint direct_img2img:
-    prima carica l'immagine di partenza su Gradio, poi invoca
+    prima carica l'immagine di partenza su GraDV, poi invoca
     [prompt, category, resolution, seed, False, steps, handle, strength].
     """
     category, resolution = _image_resolution(width, height)
@@ -2529,7 +2531,7 @@ async def _image_gradio_img2img(
     async with httpx.AsyncClient(timeout=timeout) as client:
         handle = await _image_gradio_upload(client, raw)
 
-        # Avvia il lavoro Gradio.
+        # Avvia il lavoro GraDV.
         response = await client.post(
             f"{IMAGE_MODEL_URL}/gradio_api/call/direct_img2img",
             json={
@@ -2548,19 +2550,19 @@ async def _image_gradio_img2img(
 
         if response.status_code >= 400:
             raise RuntimeError(
-                f"Gradio HTTP {response.status_code}: {response.text[:1500]}"
+                f"GraDV HTTP {response.status_code}: {response.text[:1500]}"
             )
 
         try:
             event_id = response.json().get("event_id")
         except Exception as exc:
             raise RuntimeError(
-                f"Risposta Gradio di avvio non valida: {response.text[:1000]}"
+                f"Risposta GraDV di avvio non valida: {response.text[:1000]}"
             ) from exc
 
         if not event_id:
             raise RuntimeError(
-                f"Gradio non ha restituito event_id: {response.text[:1000]}"
+                f"GraDV non ha restituito event_id: {response.text[:1000]}"
             )
 
         event_url = (
@@ -2575,7 +2577,7 @@ async def _image_gradio_img2img(
             if stream.status_code >= 400:
                 body = await stream.aread()
                 raise RuntimeError(
-                    f"Gradio stream HTTP {stream.status_code}: "
+                    f"GraDV stream HTTP {stream.status_code}: "
                     f"{body.decode('utf-8', errors='replace')[:1500]}"
                 )
 
@@ -2590,7 +2592,7 @@ async def _image_gradio_img2img(
                 raw_data = line[len("data:"):].strip()
 
                 if current_event == "error":
-                    raise RuntimeError(f"Errore generazione Gradio: {raw_data}")
+                    raise RuntimeError(f"Errore generazione GraDV: {raw_data}")
 
                 if current_event != "complete":
                     continue
@@ -2599,17 +2601,17 @@ async def _image_gradio_img2img(
                     result_payload = json.loads(raw_data)
                 except json.JSONDecodeError as exc:
                     raise RuntimeError(
-                        f"Risultato Gradio non JSON: {raw_data[:1000]}"
+                        f"Risultato GraDV non JSON: {raw_data[:1000]}"
                     ) from exc
 
                 break
 
         if result_payload is None:
             raise RuntimeError(
-                "Lo stream Gradio è terminato senza un evento complete."
+                "Lo stream GraDV è terminato senza un evento complete."
             )
 
-        # Normalizza i diversi formati di risposta Gradio.
+        # Normalizza i diversi formati di risposta GraDV.
         if isinstance(result_payload, dict):
             outputs = result_payload.get("data", [])
         else:
@@ -2617,7 +2619,7 @@ async def _image_gradio_img2img(
 
         if not isinstance(outputs, list) or len(outputs) < 1:
             raise RuntimeError(
-                f"Formato output Gradio inatteso: {str(result_payload)[:1500]}"
+                f"Formato output GraDV inatteso: {str(result_payload)[:1500]}"
             )
 
         image_output = outputs[0]
@@ -2646,7 +2648,7 @@ async def _image_gradio_img2img(
 
         if not isinstance(image_output, dict):
             raise RuntimeError(
-                "Gradio non ha restituito un oggetto immagine riconoscibile: "
+                "GraDV non ha restituito un oggetto immagine riconoscibile: "
                 f"{str(image_output)[:1000]}"
             )
 
@@ -2662,7 +2664,7 @@ async def _image_gradio_img2img(
 
                 if (parsed.hostname, parsed.port) != (base.hostname, base.port):
                     raise RuntimeError(
-                        "Gradio ha restituito un URL immagine su un host diverso."
+                        "GraDV ha restituito un URL immagine su un host diverso."
                     )
 
                 download_url = image_url
@@ -2677,21 +2679,21 @@ async def _image_gradio_img2img(
             )
         else:
             raise RuntimeError(
-                "Output Gradio senza URL o percorso dell'immagine."
+                "Output GraDV senza URL o percorso dell'immagine."
             )
 
         image_response = await client.get(download_url)
 
         if image_response.status_code >= 400:
             raise RuntimeError(
-                "Impossibile scaricare l'immagine da Gradio: "
+                "Impossibile scaricare l'immagine da GraDV: "
                 f"HTTP {image_response.status_code} "
                 f"{image_response.text[:500]}"
             )
 
         image_bytes = image_response.content
         if not image_bytes:
-            raise RuntimeError("Gradio ha restituito un'immagine vuota.")
+            raise RuntimeError("GraDV ha restituito un'immagine vuota.")
 
         return {
             "image_base64": base64.b64encode(image_bytes).decode("ascii"),
@@ -2910,7 +2912,7 @@ async def image_img2img(
     Image-to-image: parte da una foto caricata (multipart) e la modifica
     secondo il prompt, con la strength richiesta.
 
-    Contratto Test5.jsx: FormData con image, prompt, strength, width,
+    Contratto ImgLab: FormData con image, prompt, strength, width,
     height, steps, seed. Il risultato segue la stessa coda e lo stesso
     polling di /api/image/jobs (GET jobs/{id} + jobs/{id}/result).
     """
@@ -3662,7 +3664,7 @@ class VisionOcrRequest(BaseModel):
 
     prompt: str = Field(
         "Estrai tutto il testo presente in questa immagine. "
-        "Riportalo fedelmente, mantenendo l ordine di lettura.",
+        "Riportalo fedelmente, mantenendo ordine di lettura.",
         max_length=2000,
     )
 
@@ -3673,7 +3675,7 @@ async def vision_ocr(
     authorization: str | None = Header(None),
 ):
     """
-    Estrae testo da un'immagine con il modello vision locale.
+    Estrae testo da una immagine con il modello vision locale.
 
     Il body è JSON: { image_base64, prompt? }.
     """
@@ -3808,10 +3810,10 @@ def _jcs_load_prompt() -> str:
     default_prompt = (
         "Sei l'agente JCS (Jay Ca Sheet), specializzato in fogli di presenza. "
         "Ricevi il testo estratto con OCR da un timesheet. "
-        "Ogni tabella corrisponde a un giorno (LUNES, MARTES, ...). "
-        "Per ogni persona ci sono lettere di stato, una per giorno del mese. "
-        "Interpreta il foglio: per ogni giorno riporta chi è presente/assente "
-        "secondo le lettere, segnala anomalie e riassumi le presenze. "
+        "Ogni numero nel titolo colonna corrisponde ad un ora del giorno(7-24) "
+        "Ogni gruppo di righe corrisponde a un giorno (LUNES, MARTES, ...). "
+        "Per ogni riga corrisponde una persona e le celle sono evidenziate se sono ore lavorate. "
+        "Interpreta il foglio: per ogni giorno riporta chi lavora e che range di ore deve lavorare. "
         "Rispondi in italiano, in formato chiaro e strutturato."
 
     )
@@ -3839,7 +3841,6 @@ def _jcs_detect(text: str) -> bool:
     lowered = text.lower()
 
     # Serve almeno un giorno della settimana in spagnolo
-    # e un numero minimo di lettere di stato (F/V/B/D/X).
     #
     # Rilassato rispetto alla v1: l'OCR di una foto spesso attacca le
     # parole, quindi i giorni valgono anche come sottostringhe e le
@@ -3907,7 +3908,7 @@ async def _jcs_interpret(text: str) -> str:
     return (data.get("response") or "").strip()
 
 # --------------------------------------------------------------------------
-# ADMIN: LLM STATELESS (pianificazione scene Test2)
+# ADMIN: LLM STATELESS
 # --------------------------------------------------------------------------
 class AdminLlmRequest(BaseModel):
     prompt: str
@@ -3923,7 +3924,7 @@ async def admin_llm(
     """
     Chiamata LLM stateless: il prompt va dritto a Ollama, SENZA passare
     dagli agenti e quindi senza la loro memoria di conversazione per
-    chat_id. Usata da Test2 per pianificare le scene delle illustrazioni
+    chat_id. Usata per pianificare le scene delle illustrazioni
     senza che le conversazioni precedenti contaminino il piano.
     """
     verify_admin_token(authorization)
@@ -3932,7 +3933,7 @@ async def admin_llm(
         raise HTTPException(status_code=400, detail="Prompt vuoto.")
 
     model = req.model.strip() or os.environ.get(
-        "ADMIN_LLM_DEFAULT_MODEL", "qwen2.5:latest"
+        "ADMIN_LLM_DEFAULT_MODEL", "mistral:latest"
     )
 
     try:
@@ -4106,7 +4107,7 @@ async def image_health(
         if response.status_code >= 400:
             raise HTTPException(
                 status_code=502,
-                detail=f"Gradio DV ha restituito HTTP {response.status_code}.",
+                detail=f"GraDV ha restituito HTTP {response.status_code}.",
             )
 
         info = response.json()
@@ -4125,7 +4126,7 @@ async def image_health(
     except Exception as exc:
         raise HTTPException(
             status_code=503,
-            detail=f"Gradio DV non è raggiungibile su {IMAGE_MODEL_URL}: {exc}",
+            detail=f"GraDV non è raggiungibile su {IMAGE_MODEL_URL}: {exc}",
         )
 
 # AVVIO DIRETTO

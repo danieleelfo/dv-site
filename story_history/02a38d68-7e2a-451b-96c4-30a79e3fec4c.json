@@ -1,0 +1,35 @@
+{
+  "story_id": "02a38d68-7e2a-451b-96c4-30a79e3fec4c",
+  "created_at": 1792867797.759098,
+  "prompt": "Un cane di nome Elfa che viaggia per il mondo",
+  "text": "*Ciao tesoro!* *Ohhh*, un cane viaggiatore? 🐶🌍 Che idea meravigliosa! Mi piace tantissimo! Sembra che la magia stia ancora nel vento, e i nostri amici sono pronti per nuove avventure! ✨\n\nSenti questa storia... Preparati, perché ci sarà tanta risata e tanto *Woosh!* di gioia!\n\nC'era una volta... un cucciolo super speciale. Non era un cucciolo qualunque, no! Si chiamava Elfa! 🐾 Eravamo sicuri che Elfa fosse il cane più coraggioso e allegro di tutti i tempi!\n\nElfa aveva delle zampe così paffute... *Tap-tap-tap* sul prato verde! 💚 I suoi occhietti luccicavano come due stelline nel cielo notturno. ✨ E sapeva fare tanti, tanti versi gioiosi: \"*Bau! Bau! Arf!*\" 🥰\n\nUn giorno, Elfa si svegliò e sentì un *Zing!* di curiosità nel naso! 👃 Era il richiamo del grande mondo che lo aspettava! Voleva vedere cosa c'era oltre la collina del giardino... Oh, quanto era emozionante! 🎉\n\nCosì, con una coda che sferragliava come un pennacchio magico (*Swish! Swish!*), Elfa salutò la sua cuccia comodissima e iniziò il suo viaggio! 🗺️ Partì prima sulla strada sassosa... *Crunch! Crunch!* Poi ha superato un fiume scintillante... *Splash! Splash!* 💦\n\nIncontrò persone fantastiche! C'erano bambini che ridevano (*Hi-hi-hi!*) e signore che gli davano delle coccole morbide. E ogni luogo era diverso! A volte il sole era caldo come una coperta dorata, altre volte c'era una pioggerellina dolce... *Pitter-patter*. 🌧️\n\nElfa non aveva paura di niente! Era un viaggiatore curioso, con un cuore pieno di gioia e le zampine sempre pronte per giocare. Giocava a nascondino dietro i giganteschi alberi che facevano *Shhh...* al vento. E correva così veloce che sembrava sfumare come un colletto colorato (*Whooooosh!*)!\n\nE sai cosa, tesoro? Anche quando era stanco e dormiva sotto la luna piena... ✨ Sognava solo di avventure nuove da vivere con il suo cuore grande e fedele. ❤️\n\nElfa ha imparato che ogni angolo del mondo è un nuovo parco giochi magico per chi sa guardare con occhi curiosi! 👀✨\n\nE dimmi un po', se Elfa continua a viaggiare...Secondo te, quale sarà la prossima cosa meravigliosa che incontrerà? Un colore strano? O magari un animale che parla fluentemente canzoni? 🤔🐾",
+  "agent": "Story Whisper",
+  "language": "it",
+  "has_audio": true,
+  "scenes": [
+    {
+      "title": "Elfa's Awakening",
+      "prompt": "A sunny morning in a suburban garden. Elfa, a cute little puppy with fluffy paws and sparkling eyes, is waking up from his slumber on a cozy bed of green grass under the shade of an old tree. The air is filled with a gentle breeze carrying the scent of new blossoms.",
+      "job_id": "b09d044e-9a88-4814-b92b-41b954963436",
+      "seconds": 98
+    },
+    {
+      "title": "The Curious Nose",
+      "prompt": "On a dirt road, Elfa's curious nose leads him to sniff out the mysteries beyond the garden hill. He sniffs and snorts playfully, his tail wagging excitedly as he follows the trail, leaving a path of paw prints behind.",
+      "job_id": "2ae5fd82-b828-4a6d-a1e7-3ddf42872565",
+      "seconds": 93
+    },
+    {
+      "title": "Meeting Friends Along The Way",
+      "prompt": "By a sparkling river, Elfa meets a group of children playing on the bank. They are laughing and splashing in the water, their happy faces and joyful laughter creating a warm and friendly atmosphere. Elfa's barks of joy resonate through the air, blending with the sound of running water.",
+      "job_id": "e2d9a718-3d15-4b2f-b3cb-4a4a5a75cef4",
+      "seconds": 94
+    },
+    {
+      "title": "Dreaming Under The Moon",
+      "prompt": "A calm night under a full moon. Elfa is curled up on the soft grass, surrounded by the gentle rustling of leaves and the distant chirping of crickets. His heart is filled with dreams of future adventures, his eyes closed in peaceful slumber.",
+      "job_id": "fc5e3317-ae96-4e0a-adad-2ac982c85275",
+      "seconds": 94
+    }
+  ]
+}
