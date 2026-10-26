@@ -718,6 +718,8 @@ nt-size: 13px; }
         .bau-field { display: flex; flex-direction: column; gap: 4px; }
         .bau-field label { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: #9ca3af; }
         .bau-cell-actions { display: flex; gap: 4px; }
+        .bau-low td { background: rgba(239,68,68,.08); }
+        .bau-low-badge { display: inline-block; margin-left: 6px; font-size: 11px; color: #f87171; }
   `}</style>
     </div>
   );
