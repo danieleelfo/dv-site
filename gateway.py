@@ -607,7 +607,7 @@ ALLOWED_MODELS = {
     "llama3",
     "mistral",
     "qwen2.5",
-    "deepseek-r1",,
+    "deepseek-r1",
     "qwen2.5-coder:7b",
 }
 
