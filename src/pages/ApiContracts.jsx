@@ -2,7 +2,7 @@
 // API CONTRACTS (promossa da Test2) (contratti API del gateway)
 // Pagina statica di documentazione: nessuna chiamata al backend
 // oltre alla verifica del login Google. Nessuna modifica backend.
-// Dati allineati a gateway.py / git_admin.py / query_db.py (24 ottobre 2026).
+// Dati allineati a gateway.py / git_admin.py / query_db.py / admin_routes.py (26 ottobre 2026).
 // ============================================================
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -130,10 +130,10 @@ const GROUPS = [
         response: '{ ...summary... }',
       },
       {
-        method: "ANY", path: "/api/bar-ai/admin/{path}", auth: false,
+        method: "ANY", path: "/api/bar-ai/admin/{path}", auth: true,
         summary: "api.ep.barAdmin",
-        request: "GET | POST | PUT | DELETE — inoltrato com'è",
-        response: "{ ...risposta admin_api... }",
+        request: 'GET    /admin/tables/{table}          → righe\nPOST   /admin/tables/{table}          → { "fields": { ... } }\nPUT    /admin/tables/{table}          → { "pk": 1, "fields": { ... } }\nDELETE /admin/tables/{table}?pk=1\nGET    /admin/options\nGET    /admin/health\n\ntable ∈ ingredients | recipes | inventory | suppliers | orders',
+        response: '{ "rows": [ ... ] }  |  { "ok": true, "pk": ... }',
         notes: "api.nt.barAdmin",
       },
     ],
@@ -349,7 +349,6 @@ const PORTS = [
   { port: "8080", name: "Lele I", detail: "api.port.agent" },
   { port: "8081", name: "Bar_AI", detail: "api.port.barai" },
   { port: "8082", name: "Leles", detail: "api.port.leles" },
-  { port: "8083", name: "admin_api", detail: "api.port.adminapi" },
   { port: "8088", name: "Story Whisper", detail: "api.port.sw" },
   { port: "8666", name: "Night Story", detail: "api.port.ns" },
   { port: "7860", name: "Gradio Z-Image-Turbo", detail: "api.port.gradio" },
