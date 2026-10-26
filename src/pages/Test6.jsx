@@ -1,9 +1,9 @@
 // ============================================================
 // TEST6 — Bar AI Update: gestione tabelle gestionali (admin)
 // ============================================================
-// Visualizza e modifica Ingredients, RecipeIngredients e Inventory
-// del database bardata di Bar AI. Quando è approvata diventa
-// BarAIUpdate.jsx con rotta /bar-ai-update.
+// Visualizza e modifica Ingredients, RecipeIngredients, Inventory,
+// Suppliers e PurchaseOrders del database bardata di Bar AI.
+// Quando è approvata diventa BarAIUpdate.jsx con rotta /bar-ai-update.
 //
 // AUTH: login Google, stesso pattern di Improve.jsx
 // (chiave localStorage condivisa dv_google_id_token).
@@ -23,6 +23,7 @@ const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const TOKEN_STORAGE_KEY = "dv_google_id_token";
 
 const UNITS = ["ml", "g", "pcs", "pz", "bottle"];
+const ORDER_STATUSES = ["pending", "received", "cancelled"];
 
 // ------------------------------------------------------------
 // GOOGLE AUTH (identico a Improve.jsx)
@@ -162,6 +163,33 @@ const TABS = {
       { k: "last_updated", label: "Agg.", ro: true },
     ],
   },
+  suppliers: {
+    label: "Fornitori",
+    pk: "supplier_id",
+    cols: [
+      { k: "supplier_id", label: "ID", ro: true },
+      { k: "name", label: "Nome", type: "text" },
+      { k: "contact_name", label: "Contatto", type: "text" },
+      { k: "email", label: "Email", type: "text" },
+      { k: "phone", label: "Telefono", type: "text" },
+      { k: "category", label: "Categoria", type: "text" },
+      { k: "lead_time_days", label: "Lead time (gg)", type: "number" },
+      { k: "notes", label: "Note", type: "text" },
+    ],
+  },
+  orders: {
+    label: "Ordini",
+    pk: "order_id",
+    cols: [
+      { k: "order_id", label: "ID", ro: true },
+      { k: "supplier_name", label: "Fornitore", ro: true },
+      { k: "supplier_id", label: "Fornitore (id)", type: "select", opts: "suppliers", optValue: "supplier_id", optLabel: "name" },
+      { k: "restaurant_id", label: "Ristorante", type: "number" },
+      { k: "order_date", label: "Data", type: "date" },
+      { k: "status", label: "Status", type: "select", staticOpts: ORDER_STATUSES },
+      { k: "total_amount", label: "Totale €", type: "number" },
+    ],
+  },
 };
 
 // ------------------------------------------------------------
@@ -173,7 +201,7 @@ export default function Test6() {
   const [tab, setTab] = useState("ingredients");
   const [rows, setRows] = useState([]);
   const [loaded, setLoaded] = useState(false);
-  const [opts, setOpts] = useState({ products: [], ingredients: [] });
+  const [opts, setOpts] = useState({ products: [], ingredients: [], suppliers: [] });
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -213,7 +241,7 @@ export default function Test6() {
         call("/api/bar-ai/admin/options", "GET"),
       ]);
       setRows(t.rows || []);
-      setOpts({ products: o.products || [], ingredients: o.ingredients || [] });
+      setOpts({ products: o.products || [], ingredients: o.ingredients || [], suppliers: o.suppliers || [] });
     } catch (e) {
       setRows([]);
       setError(e.message || String(e));
@@ -294,7 +322,7 @@ export default function Test6() {
     return (
       <div className="bau-page">
         <h1>Bar AI — Gestione dati</h1>
-        <p>Accedi con Google per gestire ingredienti, ricette e magazzino.</p>
+        <p>Accedi con Google per gestire ingredienti, ricette, magazzino, fornitori e ordini.</p>
         <div ref={buttonRef} />
         <style>{`
         .bau-page { max-width: 1200px; margin: 0 auto; padding: 24px; color: #e5e7eb; min-height: 100vh; background: #0b0e14; }
@@ -385,10 +413,29 @@ export default function Test6() {
                         <span className={c.k === cfg.pk ? "bau-id" : "bau-ro"}>
                           {c.k === "last_updated" ? String(row[c.k] || "").slice(0, 19) : String(row[c.k] ?? "")}
                         </span>
+                      ) : c.type === "select" ? (
+                        <select
+                          className="bau-select"
+                          value={row[c.k] ?? ""}
+                          onChange={(e) => setCell(row[cfg.pk], c.k, e.target.value)}
+                        >
+                          <option value="">-</option>
+                          {(c.opts
+                            ? (opts[c.opts] || []).map((o) => ({
+                                v: o[c.optValue],
+                                l: o[c.optLabel],
+                              }))
+                            : (c.staticOpts || []).map((s) => ({ v: s, l: s }))
+                          ).map((o) => (
+                            <option key={o.v} value={o.v}>
+                              {o.l}
+                            </option>
+                          ))}
+                        </select>
                       ) : (
                         <input
                           className="bau-input"
-                          type={c.type === "number" ? "number" : "text"}
+                          type={c.type === "number" ? "number" : c.type === "date" ? "date" : "text"}
                           step="any"
                           value={row[c.k] ?? ""}
                           onChange={(e) => setCell(row[cfg.pk], c.k, e.target.value)}
@@ -481,6 +528,71 @@ export default function Test6() {
                         <div className="bau-field">
                           <label>Soglia min.</label>
                           <input className="bau-input" type="number" step="any" value={newRow.min_threshold ?? ""} onChange={(e) => setNewRow((r) => ({ ...r, min_threshold: e.target.value }))} />
+                        </div>
+                      </>
+                    )}
+                    {tab === "suppliers" && (
+                      <>
+                        <div className="bau-field">
+                          <label>Nome</label>
+                          <input className="bau-input" value={newRow.name || ""} onChange={(e) => setNewRow((r) => ({ ...r, name: e.target.value }))} />
+                        </div>
+                        <div className="bau-field">
+                          <label>Contatto</label>
+                          <input className="bau-input" value={newRow.contact_name || ""} onChange={(e) => setNewRow((r) => ({ ...r, contact_name: e.target.value }))} />
+                        </div>
+                        <div className="bau-field">
+                          <label>Email</label>
+                          <input className="bau-input" value={newRow.email || ""} onChange={(e) => setNewRow((r) => ({ ...r, email: e.target.value }))} />
+                        </div>
+                        <div className="bau-field">
+                          <label>Telefono</label>
+                          <input className="bau-input" value={newRow.phone || ""} onChange={(e) => setNewRow((r) => ({ ...r, phone: e.target.value }))} />
+                        </div>
+                        <div className="bau-field">
+                          <label>Categoria</label>
+                          <input className="bau-input" value={newRow.category || ""} onChange={(e) => setNewRow((r) => ({ ...r, category: e.target.value }))} />
+                        </div>
+                        <div className="bau-field">
+                          <label>Lead time (gg)</label>
+                          <input className="bau-input" type="number" step="any" value={newRow.lead_time_days ?? ""} onChange={(e) => setNewRow((r) => ({ ...r, lead_time_days: e.target.value }))} />
+                        </div>
+                        <div className="bau-field">
+                          <label>Note</label>
+                          <input className="bau-input" value={newRow.notes || ""} onChange={(e) => setNewRow((r) => ({ ...r, notes: e.target.value }))} />
+                        </div>
+                      </>
+                    )}
+                    {tab === "orders" && (
+                      <>
+                        <div className="bau-field">
+                          <label>Fornitore</label>
+                          <select className="bau-select" value={newRow.supplier_id || ""} onChange={(e) => setNewRow((r) => ({ ...r, supplier_id: e.target.value }))}>
+                            <option value="">- scegli -</option>
+                            {opts.suppliers.map((s) => (
+                              <option key={s.supplier_id} value={s.supplier_id}>
+                                {s.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="bau-field">
+                          <label>Ristorante</label>
+                          <input className="bau-input" type="number" step="any" value={newRow.restaurant_id ?? ""} onChange={(e) => setNewRow((r) => ({ ...r, restaurant_id: e.target.value }))} />
+                        </div>
+                        <div className="bau-field">
+                          <label>Data</label>
+                          <input className="bau-input" type="date" value={newRow.order_date || ""} onChange={(e) => setNewRow((r) => ({ ...r, order_date: e.target.value }))} />
+                        </div>
+                        <div className="bau-field">
+                          <label>Status</label>
+                          <select className="bau-select" value={newRow.status || "pending"} onChange={(e) => setNewRow((r) => ({ ...r, status: e.target.value }))}>
+                            {ORDER_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                        </div>
+                        <div className="bau-field">
+                          <label>Totale €</label>
+                          <input className="bau-input" type="number" step="any" value={newRow.total_amount ?? ""} onChange={(e) => setNewRow((r) => ({ ...r, total_amount: e.target.value }))} />
                         </div>
                       </>
                     )}
