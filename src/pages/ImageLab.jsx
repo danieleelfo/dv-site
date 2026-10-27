@@ -41,6 +41,32 @@ const GRADIO_FORMATS = {
   1280: [["1280 × 1280 (1:1)", 1280, 1280], ["1536 × 1024 (3:2)", 1536, 1024], ["1024 × 1536 (2:3)", 1024, 1536], ["1536 × 864 (16:9)", 1536, 864], ["864 × 1536 (9:16)", 864, 1536]],
 };
 
+// Preset di prompt per il tab OCR (da Test4): clic = inserisce il testo
+// nell'area, dove resta modificabile prima dell'invio. I prompt restano in
+// italiano: sono istruzioni per il modello di visione, gia' testate su Test4.
+const OCR_PROMPT_PRESETS = [
+  {
+    labelKey: "ocrPresetAll",
+    prompt:
+      "Estrai tutto il testo presente in questa immagine. Riproduci fedelmente, mantenendo l'ordine di lettura. Se è una tabella, usa una riga per persona con i valori separati da |.",
+  },
+  {
+    labelKey: "ocrPresetTimesheet",
+    prompt:
+      "Estrai il testo di questo foglio presenze. Per ogni persona riporta il nome seguito dalle lettere di stato di ogni giorno, separate da spazi. Una riga per persona, formato: NOME | lettere.",
+  },
+  {
+    labelKey: "ocrPresetDigits",
+    prompt:
+      "Estrai da questa immagine solo numeri e date. Riportali come elenco, uno per riga, senza testo descrittivo.",
+  },
+  {
+    labelKey: "ocrPresetInvoice",
+    prompt:
+      "Estrai da questo documento i dati principali: mittente, destinatario, numero documento, data, totali e voci (descrizione, quantità, importo). Formatta come elenco.",
+  },
+];
+
 function parseJwt(token) {
   try {
     const base64 = token
@@ -161,6 +187,7 @@ export default function ImageLab() {
   const [ocrStatus, setOcrStatus] = useState("idle");
   const [ocrText, setOcrText] = useState("");
   const [ocrError, setOcrError] = useState("");
+  const [ocrPrompt, setOcrPrompt] = useState(OCR_PROMPT_PRESETS[0].prompt);
   const [jcsInterpretation, setJcsInterpretation] = useState("");
 
   // ----------------------------------------------------------
@@ -371,7 +398,10 @@ export default function ImageLab() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify({ image_base64: base64 }),
+        body: JSON.stringify({
+            image_base64: base64,
+            prompt: ocrPrompt.trim() || OCR_PROMPT_PRESETS[0].prompt,
+          }),
       });
 
       const data = await readResponse(response);
@@ -1422,6 +1452,57 @@ export default function ImageLab() {
                   {ocrImage.name} ({Math.round(ocrImage.size / 1024)} KB)
                 </p>
               )}
+
+              <label className="il-hint" htmlFor="ocr-prompt">
+                {t("img.ocrPromptLabel")}
+              </label>
+              <textarea
+                id="ocr-prompt"
+                rows={3}
+                value={ocrPrompt}
+                disabled={ocrStatus === "running"}
+                placeholder={t("img.ocrPromptPlaceholder")}
+                onChange={(e) => setOcrPrompt(e.target.value)}
+                style={{
+                  width: "100%",
+                  boxSizing: "border-box",
+                  resize: "vertical",
+                  padding: ".7rem .8rem",
+                  borderRadius: "9px",
+                  border: "1px solid rgba(255,255,255,.14)",
+                  background: "rgba(0,0,0,.28)",
+                  color: "inherit",
+                  font: "inherit",
+                  fontSize: ".88rem",
+                  lineHeight: 1.55,
+                  marginBottom: ".6rem",
+                }}
+              />
+
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: ".4rem",
+                  flexWrap: "wrap",
+                  marginBottom: ".9rem",
+                }}
+              >
+                <span className="il-hint">{t("img.ocrPresetHint")}</span>
+                {OCR_PROMPT_PRESETS.map((p) => (
+                  <button
+                    key={p.labelKey}
+                    type="button"
+                    className="il-button"
+                    disabled={ocrStatus === "running"}
+                    onClick={() => setOcrPrompt(p.prompt)}
+                    title={p.prompt}
+                    style={{ fontSize: ".72rem", padding: ".3rem .6rem" }}
+                  >
+                    {t("img." + p.labelKey)}
+                  </button>
+                ))}
+              </div>
 
               <button
                 className="il-button il-primary"

@@ -841,6 +841,13 @@
     "extractedText": "Geëxtraheerde tekst",
     "copy": "Kopiëren",
     "jcsLabel": "🧾 JCS-interpretatie",
+    "ocrPromptLabel": "Extractie-prompt (bewerkbaar)",
+    "ocrPromptPlaceholder": "Bijv. Extraheer alleen de totalen van deze factuur",
+    "ocrPresetHint": "Presets:",
+    "ocrPresetAll": "Alles lezen",
+    "ocrPresetTimesheet": "Timesheet 🧾",
+    "ocrPresetDigits": "Alleen cijfers",
+    "ocrPresetInvoice": "Factuur",
     "backToImprove": "Terug naar Improve ↗",
     "tabStorie": "📚 Verhalen",
     "tabMultiFoto": "🧠 Multi-foto"

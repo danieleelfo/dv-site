@@ -841,6 +841,13 @@
     "extractedText": "Texte extrait",
     "copy": "Copier",
     "jcsLabel": "🧾 Interprétation JCS",
+    "ocrPromptLabel": "Prompt d'extraction (modifiable)",
+    "ocrPromptPlaceholder": "Ex. Extrais uniquement les totaux de cette facture",
+    "ocrPresetHint": "Presets :",
+    "ocrPresetAll": "Tout lire",
+    "ocrPresetTimesheet": "Timesheet 🧾",
+    "ocrPresetDigits": "Chiffres seulement",
+    "ocrPresetInvoice": "Facture",
     "backToImprove": "Retour à Improve ↗",
     "tabStorie": "📚 Histoires",
     "tabMultiFoto": "🧠 Multi-photo"

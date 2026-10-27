@@ -842,6 +842,13 @@
     "extractedText": "Extracted text",
     "copy": "Copy",
     "jcsLabel": "🧾 JCS interpretation",
+    "ocrPromptLabel": "Extraction prompt (editable)",
+    "ocrPromptPlaceholder": "E.g. Extract only the totals from this invoice",
+    "ocrPresetHint": "Presets:",
+    "ocrPresetAll": "Read all",
+    "ocrPresetTimesheet": "Timesheet 🧾",
+    "ocrPresetDigits": "Digits only",
+    "ocrPresetInvoice": "Invoice",
     "backToImprove": "Back to Improve ↗",
     "tabStorie": "📚 Stories",
     "tabMultiFoto": "🧠 Multi-photo"

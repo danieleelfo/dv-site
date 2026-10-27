@@ -841,6 +841,13 @@
     "extractedText": "Text extret",
     "copy": "Copia",
     "jcsLabel": "🧾 Interpretació JCS",
+    "ocrPromptLabel": "Prompt d'extracció (editable)",
+    "ocrPromptPlaceholder": "Ex. Extreu només els totals d'aquesta factura",
+    "ocrPresetHint": "Presets:",
+    "ocrPresetAll": "Llegeix-ho tot",
+    "ocrPresetTimesheet": "Timesheet 🧾",
+    "ocrPresetDigits": "Només xifres",
+    "ocrPresetInvoice": "Factura",
     "backToImprove": "Torna a Improve ↗",
     "tabStorie": "📚 Històries",
     "tabMultiFoto": "🧠 Multifoto"
