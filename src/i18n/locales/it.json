@@ -20,7 +20,7 @@
     "ai": {
       "title": "AI Agents",
       "subtitle": "Intelligenza Sintetica & Agenti con Memoria Persistente",
-      "description": "Architetture multi-agente autonome basate su modelli di inferenza locali e cloud.",
+      "description": "Architetture multi-agente autonome basate su modelli di inferenza locali.",
       "links": {
         "emergence": "Emergence Experiments",
         "console": "Console Playground"
