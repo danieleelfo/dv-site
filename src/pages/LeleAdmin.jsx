@@ -900,7 +900,7 @@ export default function LeleAdmin() {
 
   async function generateStoryIllustration(storyText, agent, audioFile) {
     if (!idToken || storyImageBusy) return
-    const imageCount = Math.max(1, Math.min(8, Number(storyImageCount) || 3))
+    const imageCount = Math.max(1, Math.min(12, Number(storyImageCount) || 3))
     const kidsMode = agent === 'Story Whisper' && storyKidsFilter
     const genre = agent === 'Night Story' ? String(storyGenre || 'Random').trim() : ''
     const extraStyle = String(storyStylePrompt || '').trim().slice(0, 500)
@@ -977,7 +977,7 @@ export default function LeleAdmin() {
           // gateway via preset, oltre che dal prompt del planner.
           const scenePreset = kidsMode ? 'sw_kids' : (genre ? 'ns_free' : '')
           const [fmtWidth, fmtHeight] = String(storyImageFormat || '1024x768').split('x').map(Number)
-          const sceneSteps = Math.max(1, Math.min(100, Number(storyImageSteps) || 8))
+          const sceneSteps = Math.max(1, Math.min(100, Number(storyImageSteps) || 12))
           const jobId = await createImageJob(idToken, scene.prompt, {
             preset: scenePreset,
             width: fmtWidth,
