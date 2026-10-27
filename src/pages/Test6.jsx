@@ -353,9 +353,7 @@ export default function Test6() {
         .bau-btn:disabled { opacity: .5; cursor: not-allowed; }
         .bau-primary { background: #10b981; border-color: #10b981; color: #06281d; font-weight: 700; }
         .bau-danger { background: rgba(239,68,68,.16); border-color: rgba(239,68,68,.5); color: #fca5a5; }
-        .bau-table-wrap { overflow-x: auto; background: rgba(255,255,255,.03); borde
-r: 1px solid rgba(255,255,255,.08); border-r
-adius: 12px; }
+        .bau-table-wrap { overflow-x: auto; background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; }
         .bau-table { width: 100%; border-collapse: collapse; font-size: 13px; }
         .bau-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #9ca3af; padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,.1); white-space: nowrap; }
         .bau-table td { padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,.04); vertical-align: middle; }
@@ -577,8 +575,7 @@ adius: 12px; }
                       <>
                         <div className="bau-field">
                           <label>Nome</label>
-                          <input className="ba
-u-input" value={newRow.name || ""} onChange={(e) => setNewRow((r) => ({ ...r, name: e.target.value }))} />
+                          <input className="bau-input" value={newRow.name || ""} onChange={(e) => setNewRow((r) => ({ ...r, name: e.target.value }))} />
                         </div>
                         <div className="bau-field">
                           <label>Contatto</label>
@@ -607,8 +604,7 @@ u-input" value={newRow.name || ""} onChange={(e) => setNewRow((r) => ({ ...r, na
                         </div>
                       </>
                     )}
-                    {t
-ab === "orders" && (
+                    {tab === "orders" && (
                       <>
                         <div className="bau-field">
                           <label>Fornitore</label>
@@ -638,8 +634,7 @@ ab === "orders" && (
                         </div>
                         <div className="bau-field">
                           <label>Totale €</label>
-                          <input className="bau-input" type="number" step="any" value={newRow.total_amount ?? ""} onChange={(e) => setN
-ewRow((r) => ({ ...r, total_amount: e.target.value }))} />
+                          <input className="bau-input" type="number" step="any" value={newRow.total_amount ?? ""} onChange={(e) => setNewRow((r) => ({ ...r, total_amount: e.target.value }))} />
                         </div>
                       </>
                     )}
@@ -673,8 +668,7 @@ ewRow((r) => ({ ...r, total_amount: e.target.value }))} />
                         </div>
                         <div className="bau-field">
                           <label>Costo unit. €</label>
-                          <input className="bau-input" type="n
-umber" step="any" value={newRow.unit_cost ?? ""} onChange={(e) => setNewRow((r) => ({ ...r, unit_cost: e.target.value }))} />
+                          <input className="bau-input" type="number" step="any" value={newRow.unit_cost ?? ""} onChange={(e) => setNewRow((r) => ({ ...r, unit_cost: e.target.value }))} />
                         </div>
                       </>
                     )}
@@ -700,16 +694,14 @@ umber" step="any" value={newRow.unit_cost ?? ""} onChange={(e) => setNewRow((r) 
         .bau-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
         .bau-auth { display: flex; gap: 10px; align-items: center; font-size: 13px; color: #9ca3af; }
         .bau-tabs { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
-        .bau-tab-active { border-color: #10b981; background: rgb
-a(16,185,129,.16); color: #6ee7b7; }
+        .bau-tab-active { border-color: #10b981; background: rgba(16,185,129,.16); color: #6ee7b7; }
         .bau-btn { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); color: #e5e7eb; border-radius: 8px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
         .bau-btn:hover { background: rgba(255,255,255,.14); }
         .bau-btn:disabled { opacity: .5; cursor: not-allowed; }
         .bau-primary { background: #10b981; border-color: #10b981; color: #06281d; font-weight: 700; }
         .bau-danger { background: rgba(239,68,68,.16); border-color: rgba(239,68,68,.5); color: #fca5a5; }
         .bau-table-wrap { overflow-x: auto; background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; }
-        .bau-table { width: 100%; border-collapse: collapse; fo
-nt-size: 13px; }
+        .bau-table { width: 100%; border-collapse: collapse; font-size: 13px; }
         .bau-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #9ca3af; padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,.1); white-space: nowrap; }
         .bau-table td { padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,.04); vertical-align: middle; }
         .bau-table tr:hover td { background: rgba(255,255,255,.02); }
@@ -722,8 +714,7 @@ nt-size: 13px; }
         .bau-ok { color: #34d399; font-size: 13px; }
         .bau-empty { color: #6b7280; font-size: 13px; padding: 16px; }
         .bau-addrow { display: flex; gap: 6px; flex-wrap: wrap; align-items: flex-end; padding: 12px; }
-        .bau-field { display: flex; flex-direction: column; gap: 4p
-x; }
+        .bau-field { display: flex; flex-direction: column; gap: 4px; }
         .bau-field label { font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: #9ca3af; }
         .bau-cell-actions { display: flex; gap: 4px; }
         .bau-low td { background: rgba(239,68,68,.08); }
