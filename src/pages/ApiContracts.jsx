@@ -132,10 +132,7 @@ const GROUPS = [
       {
         method: "ANY", path: "/api/bar-ai/admin/{path}", auth: true,
         summary: "api.ep.barAdmin",
-        request: 'GET    /admin/tables/{table}          → righe\nPOST   /admin/tables/{table}          → { "fields": { ... } }\nPUT    /admin/tables/{table}          → { "pk": 1, "fields": { ... } }\nDELETE /admin/tables/{table}?pk=1\nGET    /admin/options\nGET    /admin/health
-GET    /admin/schema
-
-table ∈ ingredients | recipes | inventory | suppliers | orders | orderitems',
+        request: 'GET    /admin/tables/{table}          → righe\nPOST   /admin/tables/{table}          → { "fields": { ... } }\nPUT    /admin/tables/{table}          → { "pk": 1, "fields": { ... } }\nDELETE /admin/tables/{table}?pk=1\nGET    /admin/options\nGET    /admin/health\nGET    /admin/schema\n\ntable ∈ ingredients | recipes | inventory | suppliers | orders | orderitems',
         response: '{ "rows": [ ... ] }  |  { "ok": true, "pk": ... }',
         notes: "api.nt.barAdmin",
       },
