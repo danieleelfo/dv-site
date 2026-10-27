@@ -326,6 +326,7 @@
       "errorShort": "Fout: {{message}}",
       "unknownError": "onbekende fout",
       "plan": "🧠 Ollama selecteert {{count}} scènes in verhaalvolgorde…",
+      "planBatch": "🧠 Ollama selecteert scènes {{from}}-{{to}} van {{total}}…",
       "repair": "🧠 Ik herstel het formaat van de scèneselectie…",
       "unload": "🧹 Ik maak het RAM-geheugen van Ollama vrij vóór de afbeeldingen…",
       "retryConn": "🔄 Verbinding tijdelijk verbroken bij het controleren van afbeelding {{n}}/{{total}} — nieuwe poging {{attempt}}/{{attempts}}…",
@@ -687,8 +688,8 @@
     "checkPreview": "Controleer het voorbeeld van de backend voordat je doorgaat.",
     "blocked": "Geblokkeerd",
     "unsafe": "De backend meldt dat deze operatie niet veilig is.",
-    "typePhrase": "Ter bevestiging: voer deze code in",
-    "phrasePlaceholder": "Voer de code in",
+    "typePhrase": "Om te bevestigen, typ:",
+    "phrasePlaceholder": "Typ de exacte zin",
     "cancel": "Annuleren",
     "executing": "Uitvoeren…",
     "confirmRun": "Bevestig en voer uit"

@@ -1,6 +1,7 @@
 // ============================================================
 // IMAGE JOBS — modulo condiviso per i job immagine del gateway
-// Un'unica implementazione di: fetch admin con
+// (F2: estratto da Test2.jsx e StoriesTab.jsx per eliminare la
+// duplicazione. Un'unica implementazione di: fetch admin con
 // Bearer token, creazione job /api/image/jobs, polling con retry,
 // prompt di pianificazione/correzione scene, normalizzazione.)
 //
@@ -13,7 +14,7 @@ export const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // ------------------------------------------------------------
 // Fetch admin generica con Bearer token (già usata come
-// adminJson in LeleAdmin e apiJson in StoriesTab).
+// adminJson in Test2 e apiJson in StoriesTab).
 // ------------------------------------------------------------
 export async function apiJson(idToken, path, init = {}, timeoutMs = 310000) {
   const controller = new AbortController();
@@ -136,6 +137,53 @@ export function buildRepairPrompt(count, rawPlan) {
     'Use exactly this schema: {"scenes":[{"title":"Short label","prompt":"Detailed English image prompt"}]}. ' +
     "There must be exactly " + count + " scenes. Preserve the intended scene details. No markdown or commentary.\n\nTEXT TO CONVERT:\n" +
     String(rawPlan || "").slice(0, 14000)
+  );
+}
+
+// Prompt di pianificazione A LOTTI: con 8 scene una sola chiamata qwen2.5
+// supera i ~100s di Cloudflare (errore "Failed to fetch"): ogni lotto deve
+// restare corto e il blocco di stile condiviso viene riportato dai lotti
+// successivi così i personaggi restano identici tra le scene.
+export function buildStoryboardBatchPrompt({
+  total,
+  from,
+  to,
+  storyText,
+  style = "",
+  prevTitles = [],
+  artDirection = "",
+  styleExtra = "",
+  styleClause = "a consistent style. ",
+}) {
+  const count = to - from + 1;
+  const coverage =
+    "Focus on the part of the story between roughly " +
+    Math.round(((from - 1) / total) * 100) + "% and " +
+    Math.round((to / total) * 100) + "% of the text, from opening to ending. ";
+  const context = prevTitles.length
+    ? "Scenes already planned (do not repeat them, continue the story forward): " +
+      prevTitles.map((t, i) => i + 1 + ". " + t).join("; ") + ". "
+    : "";
+  const schema = style
+    ? '{"scenes":[{"title":"Short label","prompt":"Detailed English image prompt"}]}'
+    : '{"style":"A shared art-direction block of 25-45 words pinning the recurring visual style and the physical appearance of every recurring character (age, look, hair, clothing), identical in all scenes","scenes":[{"title":"Short label","prompt":"Detailed English image prompt"}]}';
+
+  return (
+    "You are a storyboard planner for an illustrated story. The full storyboard has " + total +
+    " scenes in chronological order. Plan ONLY scenes " + from + " to " + to +
+    " — exactly " + count + " scenes of the " + total + ", in order. " +
+    coverage + context +
+    (style
+      ? "The visual style is already fixed. Reuse EXACTLY this shared style block as the opening of every scene prompt, unchanged: \"" + style + "\". Return only the scenes array. "
+      : "You also define the shared art-direction style block. ") +
+    'Return ONLY a valid JSON object, no markdown, no prose, no code fences, in this exact schema: ' + schema + ". " +
+    "The scenes array must contain exactly " + count + " objects. " +
+    "Each prompt must be a complete standalone image prompt of 60-120 words: describe the recurring characters exactly as defined in the style block, then the setting (place, time of day, weather), the action of this moment, the mood, the lighting, and the camera framing (wide shot, medium shot, close-up). " +
+    "Repeat the full character descriptions in every prompt so each image can be generated independently and the characters stay identical across scenes. " +
+    "Keep character appearance, clothing, age, and art direction consistent across prompts. Each prompt must follow " +
+    styleClause + artDirection + styleExtra +
+    "No text or lettering in images. Do not invent events. " +
+    "\n\nSTORY:\n" + String(storyText || "").slice(0, 12000)
   );
 }
 

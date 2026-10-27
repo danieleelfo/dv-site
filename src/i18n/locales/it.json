@@ -20,7 +20,7 @@
     "ai": {
       "title": "AI Agents",
       "subtitle": "Intelligenza Sintetica & Agenti con Memoria Persistente",
-      "description": "Architetture multi-agente autonome basate su modelli di inferenza locali.",
+      "description": "Architetture multi-agente autonome basate su modelli di inferenza locali e cloud.",
       "links": {
         "emergence": "Emergence Experiments",
         "console": "Console Playground"
@@ -327,6 +327,7 @@
       "errorShort": "Errore: {{message}}",
       "unknownError": "errore sconosciuto",
       "plan": "🧠 Ollama seleziona {{count}} scene in ordine narrativo…",
+      "planBatch": "🧠 Ollama seleziona le scene {{from}}-{{to}} di {{total}}…",
       "repair": "🧠 Sistemo il formato della selezione delle scene…",
       "unload": "🧹 Libero la RAM usata da Ollama prima delle immagini…",
       "retryConn": "🔄 Connessione temporaneamente interrotta durante il controllo dell'immagine {{n}}/{{total}} — nuovo tentativo {{attempt}}/{{attempts}}…",
@@ -688,8 +689,8 @@
     "checkPreview": "Controlla l'anteprima restituita dal backend prima di procedere.",
     "blocked": "Bloccato",
     "unsafe": "Il backend segnala che questa operazione non è sicura.",
-    "typePhrase": "Per confermare, inserisci questo codice:",
-    "phrasePlaceholder": "Inserisci il codice",
+    "typePhrase": "Per confermare, scrivi:",
+    "phrasePlaceholder": "Scrivi la frase esatta",
     "cancel": "Annulla",
     "executing": "Esecuzione…",
     "confirmRun": "Conferma ed esegui"

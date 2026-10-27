@@ -326,6 +326,7 @@
       "errorShort": "Error: {{message}}",
       "unknownError": "error desconegut",
       "plan": "🧠 Ollama selecciona {{count}} escenes en ordre narratiu…",
+      "planBatch": "🧠 Ollama selecciona les escenes {{from}}-{{to}} de {{total}}…",
       "repair": "🧠 Corregeixo el format de la selecció d'escenes…",
       "unload": "🧹 Allibero la RAM usada per Ollama abans de les imatges…",
       "retryConn": "🔄 Connexió interrompuda temporalment en comprovar la imatge {{n}}/{{total}} — nou intent {{attempt}}/{{attempts}}…",
@@ -687,8 +688,8 @@
     "checkPreview": "Comprova la vista prèvia retornada pel backend abans de continuar.",
     "blocked": "Blocat",
     "unsafe": "El backend senyala que aquesta operació no és segura.",
-    "typePhrase": "Per confirmar, introdueix aquest codi:",
-    "phrasePlaceholder": "Introdueix el codi",
+    "typePhrase": "Per confirmar, escriu:",
+    "phrasePlaceholder": "Escriu la frase exacta",
     "cancel": "Cancel·la",
     "executing": "Executant…",
     "confirmRun": "Confirma i executa"

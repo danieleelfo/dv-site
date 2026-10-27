@@ -8,13 +8,12 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useTranslation } from 'react-i18next'
-import i18n from '../i18n/i18n'
 import bgImage from '../assets/DataInFlames.jpg'
 import SystemTiles, { parseSystem, parseOs, cleanRam, OsKpis, statLevel } from '../components/SystemPanel'
 import {
   apiJson,
   buildRepairPrompt,
+  buildStoryboardBatchPrompt,
   buildStoryboardPrompt,
   createImageJob,
   fetchJobStatusWithRetry as fetchJobStatusWithRetryShared,
@@ -86,110 +85,107 @@ const REVIEWER_MODEL_KEY = 'lc_reviewer_model'
 
 // Pagine e console ufficiali del sito.
 const QUICK_LINKS = [
-  { to: '/improve', label: 'Improve 🛠️', desc: 'lele.pages.improve', main: true },
-  { to: '/api-contracts', label: 'API Contracts 📡', desc: 'lele.pages.apiContracts', main: true },
-  { to: '/image-lab', label: 'Image Lab 🖼️', desc: 'lele.pages.imageLab', main: true },
-  { to: '/querydb', label: 'QueryDB 🗄️', desc: 'lele.pages.querydb' },
-  { to: '/dagforge', label: 'DagForge 🔨', desc: 'lele.pages.dagforge' },
-  { to: '/git-admin', label: 'Git Admin ⑂', desc: 'lele.pages.gitAdmin' },
-  { to: '/dag-admin', label: 'DAG Admin 🌬️', desc: 'lele.pages.dagAdmin' },
-  { to: '/b2b', label: 'B2B Arena ◎', desc: 'lele.pages.b2b' },
-  { to: '/bar-ai-admin', label: 'Bar AI Admin 🍸', desc: 'lele.pages.barAiAdmin' },
-  { to: '/ai-lab', label: 'AI Lab ◈', desc: 'lele.pages.aiLab' },
+  { to: '/improve', label: 'Improve 🛠️', desc: 'Editor file + revisione AI', main: true },
+  { to: '/api-contracts', label: 'API Contracts 📡', desc: 'Contratti API del gateway', main: true },
+  { to: '/image-lab', label: 'Image Lab 🖼️', desc: 'Z-Image-Turbo · generazione + gallery', main: true },
+  { to: '/git-admin', label: 'Git Admin ⑂', desc: 'Status · diff · commit · push con conferma' },
+  { to: '/dag-admin', label: 'DAG Admin 🌬️', desc: 'Pannello Airflow' },
+  { to: '/b2b', label: 'B2B Arena ◎', desc: 'Bot-to-bot lab' },
+  { to: '/bar-ai-admin', label: 'Bar AI Admin 🍸', desc: 'CRUD tabelle bar' },
+  { to: '/ai-lab', label: 'AI Lab ◈', desc: 'Pagina pubblica degli agenti' },
 ]
 
 // Pagine di test/laboratorio: in fondo, si validano da qui.
 const TEST_LINKS = [
-  { to: '/test', label: 'Test 🕰️' },
-  { to: '/test2', label: 'Test2 🏴‍☠️' },
-  { to: '/test3', label: 'Test3 🗺️' },
-  { to: '/test4', label: 'Test4 🔬' },
-  { to: '/test5', label: 'Test5 🧠' },
-  { to: '/test6', label: 'Test6 🍹' },
-  { to: '/test7', label: 'Test7 🧪' },
-  { to: '/testbarai', label: 'TestBarAI 🧪' },
+  { to: '/test', label: 'Test 🕰️', desc: 'Pagina test storica' },
+  { to: '/test2', label: 'Test2 🏴‍☠️', desc: 'Leles Admin Console (questa pagina)' },
+  { to: '/test3', label: 'Test3 🗺️', desc: 'Arena multi-agente' },
+  { to: '/test4', label: 'Test4 🔬', desc: 'ImageLab preview · gallery · OCR/JCS' },
+  { to: '/test5', label: 'Test5 🧠', desc: 'Image-to-image (img2img)' },
+  { to: '/test6', label: 'Test6 🍹', desc: 'CRUD bar AI (promossa su /bar-ai-admin)' },
+  { to: '/testbarai', label: 'TestBarAI 🧪', desc: 'Variante Bar AI in test' },
 ]
 
 // Comandi mostrati nel pannello di destra (si aggiornano con "Aggiorna").
 const STATUS_CMDS = [
-  ['sys', 'lele.status.sys', 'status sistema'],
-  ['os', 'lele.status.os', 'status os'],
-  ['ram', 'lele.status.ram', 'status ram'],
+  ['sys', 'Sistema', 'status sistema'],
+  ['os', 'OS', 'status os'],
+  ['ram', 'RAM', 'status ram'],
 ]
 
 const c = (label, command, hint, danger) => ({ label, command, hint, danger })
 
 const COMMAND_GROUPS = [
   {
-    id: 'modelli', title: 'lele.group.modelli', icon: '🎛️', color: '#c4b5fd',
+    id: 'modelli', title: 'Modelli & LLM', icon: '🎛️', color: '#c4b5fd',
     commands: [
-      c('lele.cmd.activeModels', 'modelli'),
-      c('lele.cmd.changeReviewer', 'reviewer ', 'lele.hint.modelName'),
-      c('lele.cmd.query', 'query ', 'lele.hint.writeQuery'),
-      c('lele.cmd.gemma', 'gemma ', 'lele.hint.prompt'),
-      c('lele.cmd.llama', 'llama ', 'lele.hint.prompt'),
-      c('lele.cmd.edit', 'edita'),
-      c('lele.cmd.roast', 'roast'),
-      c('lele.cmd.critique', 'critica'),
-      c('lele.cmd.pirate', 'pirata'),
+      c('Modelli attivi', 'modelli'),
+      c('Cambia reviewer', 'reviewer ', 'nome modello'),
+      c('Query', 'query ', 'Scrivi la query'),
+      c('Gemma', 'gemma ', 'prompt'),
+      c('Llama', 'llama ', 'prompt'),
+      c('Edita', 'edita'),
+      c('Roast', 'roast'),
+      c('Critica', 'critica'),
+      c('Pirata', 'pirata'),
     ],
   },
   {
-    id: 'system', title: 'lele.group.system', icon: '⚙️', color: '#3fd0c9',
+    id: 'system', title: 'Sistema', icon: '⚙️', color: '#3fd0c9',
     commands: [
-      c('lele.cmd.sysStatus', 'status sistema'),
-      c('lele.cmd.osStatus', 'status os'),
-      c('lele.cmd.ramStatus', 'status ram'),
-      c('lele.cmd.ipStatus', 'status ip'),
-      c('lele.cmd.uvicornStatus', 'uvicorn status'),
-      c('lele.cmd.telegramStatus', 'telegram status'),
+      c('Status sistema', 'status sistema'),
+      c('Status OS', 'status os'),
+      c('Status RAM', 'status ram'),
+      c('Status IP', 'status ip'),
+      c('Uvicorn status', 'uvicorn status'),
+      c('Telegram status', 'telegram status'),
     ],
   },
   {
-    id: 'processi', title: 'lele.group.processi', icon: '🤖', color: '#fbbf24',
+    id: 'processi', title: 'Processi', icon: '🤖', color: '#fbbf24',
     commands: [
-      c('lele.cmd.startLele', 'start lele'),
-      c('lele.cmd.stopLele', 'stop lele', undefined, true),
-      c('lele.cmd.restartLele', 'restart lele', undefined, true),
-      c('lele.cmd.startSW', 'start story whisper'),
-      c('lele.cmd.stopSW', 'stop story whisper', undefined, true),
-      c('lele.cmd.restartSW', 'restart story whisper', undefined, true),
-      c('lele.cmd.startNS', 'start night story'),
-      c('lele.cmd.stopNS', 'stop night story', undefined, true),
-      c('lele.cmd.restartNS', 'restart night story', undefined, true),
-      c('lele.cmd.restartGateway', 'restart gateway', undefined, true),
-      c('lele.cmd.logsLele', 'logs lele'),
-      c('lele.cmd.logsSW', 'logs story whisper'),
-      c('lele.cmd.logsNS', 'logs night story'),
-      c('lele.cmd.logsLeles', 'logs leles'),
+      c('Start Lele', 'start lele'),
+      c('Stop Lele', 'stop lele', undefined, true),
+      c('Restart Lele', 'restart lele', undefined, true),
+      c('Start Story Whisper', 'start story whisper'),
+      c('Stop Story Whisper', 'stop story whisper', undefined, true),
+      c('Restart Story Whisper', 'restart story whisper', undefined, true),
+      c('Start Night Story', 'start night story'),
+      c('Stop Night Story', 'stop night story', undefined, true),
+      c('Restart Night Story', 'restart night story', undefined, true),
+      c('Restart Gateway', 'restart gateway', undefined, true),
+      c('Logs Lele', 'logs lele'),
+      c('Logs Story Whisper', 'logs story whisper'),
+      c('Logs Night Story', 'logs night story'),
+      c('Logs Leles', 'logs leles'),
     ],
   },
   {
-    id: 'emergence', title: 'lele.group.emergence', icon: '🧠', color: '#a78bfa',
+    id: 'emergence', title: 'Emergence / QE', icon: '🧠', color: '#a78bfa',
     commands: [
-      c('lele.cmd.qeLast10', 'QE last 10'),
-      c('lele.cmd.qeLast3', 'QE last 3'),
-      c('lele.cmd.qeStatus', 'QE status ', 'lele.hint.runIdOpt'),
-      c('lele.cmd.decisione', 'decisione ', 'lele.hint.runId'),
-      c('lele.cmd.decisioneRun', 'decisione run ', 'lele.hint.runId'),
-      c('lele.cmd.sintetizza', 'sintetizza ', 'lele.hint.runId'),
-      c('lele.cmd.queryWorlds', 'query worlds'),
-      c('lele.cmd.queryWorld', 'query world ', 'lele.hint.worldId'),
-      c('lele.cmd.saveWorld', 'save world ', 'lele.hint.worldName'),
+      c('QE last 10', 'QE last 10'),
+      c('QE last 3', 'QE last 3'),
+      c('QE status', 'QE status ', 'run_id opzionale'),
+      c('Decisione', 'decisione ', 'run_id'),
+      c('Decisione run', 'decisione run ', 'run_id'),
+      c('Sintetizza', 'sintetizza ', 'run_id'),
+      c('Query worlds', 'query worlds'),
+      c('Query world', 'query world ', 'world id'),
+      c('Save world', 'save world ', 'nome as "descrizione"'),
     ],
   },
   {
-    id: 'files', title: 'lele.group.files', icon: '📁', color: '#4ade80',
+    id: 'files', title: 'File', icon: '📁', color: '#4ade80',
     commands: [
-      c('lele.cmd.dirLeles', 'directory leles'),
-      c('lele.cmd.ls', 'ls ', 'lele.hint.lsPath'),
-      c('lele.cmd.inviaFile', 'invia file ', 'lele.hint.absPath'),
-      c('lele.cmd.esportaFile', 'esporta file ', 'lele.hint.remotePath'),
-      c('lele.cmd.esportaRecord', 'esporta ', 'lele.hint.yamlRecord'),
-      c('lele.cmd.remotoTest', 'remoto test'),
-      c('lele.cmd.remotoLs', 'remoto ls ', 'lele.hint.path'),
-      c('lele.cmd.remotoDownload', 'remoto download ', 'lele.hint.file'),
-      c('lele.cmd.remotoUpload', 'remoto upload ', 'lele.hint.file', true),
+      c('Directory leles', 'directory leles'),
+      c('LS', 'ls ', 'progetto [subpath]'),
+      c('Invia file', 'invia file ', 'path assoluto'),
+      c('Esporta file', 'esporta file ', 'path del file remoto (via Lele Admin)'),
+      c('Esporta record', 'esporta ', 'record in formato yaml'),
+      c('Remoto test', 'remoto test'),
+      c('Remoto LS', 'remoto ls ', 'path'),
+      c('Remoto download', 'remoto download ', 'file'),
+      c('Remoto upload', 'remoto upload ', 'file', true),
     ],
   },
 ]
@@ -229,7 +225,7 @@ const audioText = (data) => {
       ? data.detail
       : JSON.stringify(data.detail, null, 2)
   }
-  return i18n.t('lele.err.noReply')
+  return 'Nessuna risposta ricevuta'
 }
 
 function formatTime(seconds) {
@@ -269,8 +265,8 @@ async function callAdmin(idToken, prompt, timeoutMs = 310000) {
     if (res.status === 401 || res.status === 403) {
       const err = new Error(
         res.status === 401
-          ? i18n.t('lele.err.session')
-          : i18n.t('lele.err.unauth')
+          ? 'Sessione scaduta, effettua di nuovo il login.'
+          : 'Accesso non autorizzato per questo account Google. 🏴‍☠️'
       )
       err.status = res.status
       throw err
@@ -285,10 +281,10 @@ async function callAdmin(idToken, prompt, timeoutMs = 310000) {
         ? data.detail
         : JSON.stringify(data.detail, null, 2)
     }
-    return i18n.t('lele.err.noReply')
+    return 'Nessuna risposta ricevuta'
   } catch (err) {
     if (err.name === 'AbortError') {
-      throw new Error(i18n.t('lele.err.timeout'))
+      throw new Error('Timeout: il server non ha risposto in tempo. 😵‍💫')
     }
     throw err
   } finally {
@@ -300,14 +296,14 @@ async function callAdmin(idToken, prompt, timeoutMs = 310000) {
 // SENZA passare dagli agenti e dalla loro memoria di conversazione.
 // Usata per la pianificazione delle scene (niente scene "fantasma" di
 // storie precedenti rimaste nella memoria dell'agente).
-async function callLlm(idToken, prompt, model, timeoutMs = 310000) {
+async function callLlm(idToken, prompt, model, timeoutMs = 310000, keepAlive = 0) {
   const data = await adminJson(
     idToken,
     '/api/admin/llm',
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, model, keep_alive: 0 }),
+      body: JSON.stringify({ prompt, model, keep_alive: keepAlive }),
     },
     timeoutMs
   )
@@ -325,7 +321,6 @@ const timeLabel = (ts) =>
 
 
 export default function Test2() {
-  const { t } = useTranslation()
   const [idToken, setIdToken] = useState(() => {
     try {
       return window.sessionStorage.getItem(TOKEN_STORAGE_KEY) || null
@@ -386,7 +381,7 @@ export default function Test2() {
     if (!idToken) return
     const email = decodeJwtPayload(idToken)?.email?.toLowerCase()
     if (!email || !ALLOWED_EMAILS.includes(email)) {
-      logout(t('lele.err.unauth'))
+      logout('Accesso non autorizzato per questo account Google. 🏴‍☠️')
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -402,7 +397,7 @@ export default function Test2() {
       if (!window.google?.accounts?.id) {
         if (++attempts > 80) {
           setAuthError(
-            t('lele.err.gsi')
+            'Impossibile caricare il login Google. Controlla adblock e rete, poi ricarica la pagina.'
           )
           return
         }
@@ -411,7 +406,7 @@ export default function Test2() {
       }
       if (!GOOGLE_CLIENT_ID) {
         setAuthError(
-          t('lele.err.clientId')
+          'GOOGLE_CLIENT_ID non configurato nel frontend (VITE_GOOGLE_CLIENT_ID mancante).'
         )
         return
       }
@@ -441,14 +436,14 @@ export default function Test2() {
   function handleCredentialResponse(credentialResponse) {
     const token = credentialResponse?.credential
     if (!token) {
-      setAuthError(t('lele.err.noToken'))
+      setAuthError('Login Google fallito: nessun token ricevuto.')
       return
     }
     const decoded = decodeJwtPayload(token)
     const email = decoded?.email?.toLowerCase()
 
     if (!email || !ALLOWED_EMAILS.includes(email)) {
-      setAuthError(t('lele.err.unauth'))
+      setAuthError('Accesso non autorizzato per questo account Google.')
       try {
         window.google?.accounts?.id?.disableAutoSelect()
       } catch (e) {
@@ -671,7 +666,7 @@ export default function Test2() {
 
   async function runImage(imagePrompt) {
     const t0 = Date.now()
-    const entry = { id: t0, cmd: 'immagina ' + imagePrompt, at: t0, ms: 0, text: t('lele.img.started') }
+    const entry = { id: t0, cmd: 'immagina ' + imagePrompt, at: t0, ms: 0, text: '🎨 Generazione avviata…' }
     setHistory((h) => [entry, ...h].slice(0, 30))
     setImageBusy(true)
     try {
@@ -682,8 +677,8 @@ export default function Test2() {
         onProgress: (status, elapsed) => {
           const label =
             status === 'running' || status === 'processing'
-              ? t('lele.img.running', { s: elapsed })
-              : t('lele.img.queued', { s: elapsed })
+              ? '🎨 Generazione in corso… (' + elapsed + 's)'
+              : '🎨 In coda… (' + elapsed + 's)'
           setHistory((h) =>
             h.map((x) => (x.id === t0 ? { ...x, ms: Date.now() - t0, text: label } : x))
           )
@@ -697,7 +692,7 @@ export default function Test2() {
             ? {
                 ...x,
                 ms: Date.now() - t0,
-                text: t('lele.img.done', { seed: result.seed ?? '?' }),
+                text: '🖼️ Immagine generata (seed ' + (result.seed ?? '?') + ') — salvata anche in ImageLab.',
                 img: 'data:image/png;base64,' + b64,
               }
             : x
@@ -837,7 +832,7 @@ export default function Test2() {
       return await res.json()
     } catch (err) {
       if (err.name === 'AbortError') {
-        throw new Error(i18n.t('lele.err.timeout'))
+        throw new Error('Timeout: il server non ha risposto in tempo. 😵‍💫')
       }
       throw err
     } finally {
@@ -915,39 +910,76 @@ export default function Test2() {
     setStoryImageBusy(true)
     setStoryImageError('')
     setStoryImages([])
-    setStoryImageStatus(t('lele.story.plan', { count: imageCount }))
+    setStoryImageStatus('🧠 Ollama seleziona ' + imageCount + ' scene in ordine narrativo…')
     let imageStage = 'selezione delle scene con Ollama'
     try {
-      let rawPlan = String(await callLlm(idToken, buildStoryboardPrompt({
-        count: imageCount,
-        storyText,
-        artDirection,
-        styleExtra,
-      }), leleModel, 180000)).trim()
+      // Pianificazione A LOTTI (3 scene per chiamata): con 8 scene una sola
+      // chiamata qwen2.5 supera i ~100s di Cloudflare e il browser riceve
+      // "Failed to fetch". Ogni lotto resta corto; lo stile condiviso del
+      // primo lotto viene riportato ai successivi per la coerenza visiva.
+      const BATCH_SIZE = 3
+      const batches = []
+      for (let s = 1; s <= imageCount; s += BATCH_SIZE) {
+        batches.push([s, Math.min(imageCount, s + BATCH_SIZE - 1)])
+      }
 
-      let parsedPlan
-      try {
-        parsedPlan = parsePlan(rawPlan)
-      } catch {
-        imageStage = 'correzione del formato JSON con Ollama'
-        setStoryImageStatus(t('lele.story.repair'))
-        rawPlan = String(await callLlm(idToken, buildRepairPrompt(imageCount, rawPlan), leleModel, 180000)).trim()
+      let sharedStyle = ''
+      const plannedScenes = []
+
+      for (const [from, to] of batches) {
+        const batchCount = to - from + 1
+        if (batches.length > 1) {
+          setStoryImageStatus('🧠 Ollama seleziona le scene ' + from + '-' + to + ' di ' + imageCount + '…')
+        }
+
+        let rawPlan = String(await callLlm(idToken, buildStoryboardBatchPrompt({
+          total: imageCount,
+          from,
+          to,
+          storyText,
+          style: sharedStyle,
+          prevTitles: plannedScenes.map((s) => s.title),
+          artDirection,
+          styleExtra,
+        }), leleModel, 180000, 300)).trim()
+
+        let parsedPlan
         try {
           parsedPlan = parsePlan(rawPlan)
         } catch {
-          throw new Error('Ollama non ha prodotto un JSON valido nemmeno dopo il tentativo di correzione.')
+          imageStage = 'correzione del formato JSON con Ollama'
+          setStoryImageStatus('🧠 Sistemo il formato delle scene ' + from + '-' + to + '…')
+          rawPlan = String(await callLlm(idToken, buildRepairPrompt(batchCount, rawPlan), leleModel, 180000, 300)).trim()
+          try {
+            parsedPlan = parsePlan(rawPlan)
+          } catch {
+            throw new Error('Ollama non ha prodotto un JSON valido nemmeno dopo il tentativo di correzione (scene ' + from + '-' + to + ').')
+          }
         }
+
+        if (!sharedStyle && !Array.isArray(parsedPlan) && typeof parsedPlan?.style === 'string') {
+          sharedStyle = parsedPlan.style.trim()
+        }
+
+        // Lotti successivi: lo stile è già dentro ogni prompt per istruzione
+        // (il modello lo ripete identico), qui non va anteposto di nuovo.
+        const batchScenes = normalizeScenes(parsedPlan, batchCount)
+        plannedScenes.push(...batchScenes)
       }
-      const scenes = normalizeScenes(parsedPlan, imageCount)
+
+      if (plannedScenes.length < imageCount) {
+        throw new Error('La pianificazione ha prodotto ' + plannedScenes.length + ' scene su ' + imageCount + '.')
+      }
+      const scenes = plannedScenes.slice(0, imageCount)
 
       setStoryImages(scenes.map((scene, index) => ({
-        id: index + 1, title: scene.title, prompt: scene.prompt, src: '', status: t('lele.story.waiting'),
+        id: index + 1, title: scene.title, prompt: scene.prompt, src: '', status: 'In attesa',
       })))
 
       // Pianificazione completata: scarichiamo i modelli Ollama (keep_alive=0)
       // per liberare RAM sul Mac prima del loop di immagini.
       try {
-        setStoryImageStatus(t('lele.story.unload'))
+        setStoryImageStatus('🧹 Libero la RAM usata da Ollama prima delle immagini…')
         await unloadOllama(idToken)
       } catch {
         // Non blocca le illustrazioni: è solo un'ottimizzazione di memoria.
@@ -960,7 +992,8 @@ export default function Test2() {
         fetchJobStatusWithRetryShared(idToken, jobId, {
           onRetry: (attempt, attempts) =>
             setStoryImageStatus(
-              t('lele.story.retryConn', { n: sceneNumber, total: imageCount, attempt, attempts })
+              '🔄 Connessione temporaneamente interrotta durante il controllo dell’immagine ' +
+              sceneNumber + '/' + imageCount + ' — nuovo tentativo ' + attempt + '/' + attempts + '…'
             ),
         })
       const sceneRetried = new Set()
@@ -968,9 +1001,9 @@ export default function Test2() {
         const scene = scenes[index]
         const sceneNumber = index + 1
         let imageStage = 'avvio immagine ' + sceneNumber + '/' + imageCount + ' sul gateway'
-        setStoryImageStatus(t('lele.story.queued', { n: sceneNumber, total: imageCount, title: scene.title }))
+        setStoryImageStatus('🎨 Immagine ' + sceneNumber + '/' + imageCount + ': ' + scene.title + ' — in coda…')
         setStoryImages((current) => current.map((item) =>
-          item.id === sceneNumber ? { ...item, status: t('lele.story.queuedShort') } : item
+          item.id === sceneNumber ? { ...item, status: 'In coda' } : item
         ))
         try {
           // F3: il filtro stile (kids/genre) ora è applicato anche dal
@@ -991,13 +1024,9 @@ export default function Test2() {
             fetchStatus: () => fetchJobStatusWithRetry(jobId, sceneNumber),
             onProgress: (status, elapsed) =>
               setStoryImageStatus(
-                t('lele.story.progress', {
-                  n: sceneNumber,
-                  total: imageCount,
-                  title: scene.title,
-                  state: status === 'running' || status === 'processing' ? t('lele.story.runningLabel') : t('lele.story.queuedLabel'),
-                  s: elapsed,
-                })
+                '🎨 Immagine ' + sceneNumber + '/' + imageCount + ' (' + scene.title + '): ' +
+                (status === 'running' || status === 'processing' ? 'generazione in corso' : 'in coda') +
+                '… (' + elapsed + 's)'
               ),
           })
           doneScenes.push({
@@ -1009,11 +1038,11 @@ export default function Test2() {
           imageStage = 'download immagine ' + sceneNumber + '/' + imageCount
           const src = resultToDataUrl(result)
           setStoryImages((current) => current.map((item) =>
-            item.id === sceneNumber ? { ...item, src, status: t('lele.story.ready') } : item
+            item.id === sceneNumber ? { ...item, src, status: 'Pronta' } : item
           ))
-          setStoryImageStatus(t('lele.story.done', { n: sceneNumber, total: imageCount, title: scene.title }))
+          setStoryImageStatus('🖼️ Immagine ' + sceneNumber + '/' + imageCount + ' pronta: ' + scene.title)
           if (index < scenes.length - 1) {
-            setStoryImageStatus(t('lele.story.pause'))
+            setStoryImageStatus('⏳ Pausa 12s prima dell’immagine successiva (libero la RAM del Mac)…')
             await new Promise((resolve) => setTimeout(resolve, 12000))
           }
         } catch (err) {
@@ -1024,30 +1053,31 @@ export default function Test2() {
           if (!sceneRetried.has(sceneNumber)) {
             sceneRetried.add(sceneNumber)
             setStoryImages((current) => current.map((item) =>
-              item.id === sceneNumber ? { ...item, status: t('lele.story.retryStatus') } : item
+              item.id === sceneNumber ? { ...item, status: 'Nuovo tentativo tra 60s…' } : item
             ))
             setStoryImageStatus(
-              t('lele.story.retryScene', { n: sceneNumber, total: imageCount })
+              '🔄 Errore di rete sull’immagine ' + sceneNumber + '/' + imageCount +
+              ' — attendo 60s e riprovo la scena una volta…'
             )
             await new Promise((resolve) => setTimeout(resolve, 60000))
             index -= 1
             continue
           }
           setStoryImages((current) => current.map((item) =>
-            item.id === sceneNumber ? { ...item, status: t('lele.story.errorShort', { message: err.message || t('lele.story.unknownError') }) } : item
+            item.id === sceneNumber ? { ...item, status: 'Errore: ' + (err.message || 'errore sconosciuto') } : item
           ))
-          setStoryImageError(t('lele.story.sceneFailed', { n: sceneNumber, total: imageCount, title: scene.title, stage: imageStage, message: err.message || t('lele.story.unknownError') }))
-          setStoryImageStatus(t('lele.story.stopped', { n: sceneNumber, total: imageCount }))
+          setStoryImageError('Immagine ' + sceneNumber + '/' + imageCount + ' (' + scene.title + '), ' + imageStage + ': ' + (err.message || 'errore sconosciuto'))
+          setStoryImageStatus('⛔ Sequenza fermata alla scena ' + sceneNumber + '/' + imageCount + '; le immagini già pronte restano visibili.')
           return
         }
       }
-      setStoryImageStatus(t('lele.story.allDone', { count: imageCount }))
+      setStoryImageStatus('✅ Tutte le ' + imageCount + ' illustrazioni sono pronte.')
     } catch (err) {
       if (err.status === 401 || err.status === 403) {
         logout(err.message)
         return
       }
-      setStoryImageError(t('lele.story.stageError', { stage: imageStage, message: err.message || t('lele.story.unknownError') }))
+      setStoryImageError('Errore in ' + imageStage + ': ' + (err.message || 'errore sconosciuto'))
       setStoryImageStatus('')
     } finally {
       setStoryImageBusy(false)
@@ -1072,7 +1102,7 @@ export default function Test2() {
     if (audioAgent === LELES_AGENT) {
       if (isDanger(text)) {
         setAudioError(
-          t('lele.err.dangerAudio')
+          'Comando sensibile: usa il prompt principale, che chiede la conferma.'
         )
         setAudioBusy(false)
         return
@@ -1200,7 +1230,7 @@ export default function Test2() {
       }, 1000)
     } catch (err) {
       setAudioError(
-        t('lele.err.mic')
+        'Impossibile accedere al microfono. Controlla i permessi del browser.'
       )
     }
   }
@@ -1259,8 +1289,8 @@ export default function Test2() {
       setIsSpeaking(false)
       setAudioError(
         isLeles
-          ? t('lele.err.lelesAudio', { msg: err.message })
-          : t('lele.err.audioBlocked')
+          ? `Audio di Leles non disponibile: ${err.message}`
+          : 'Riproduzione audio bloccata dal browser.'
       )
     }
   }
@@ -1290,7 +1320,7 @@ export default function Test2() {
   const group = COMMAND_GROUPS.find((g) => g.id === activeGroup)
   const visible = q
     ? COMMAND_GROUPS.flatMap((g) => g.commands.map((x) => ({ ...x, g }))).filter(
-        (x) => `${t(x.label)} ${x.command} ${x.hint ? t(x.hint) : ''}`.toLowerCase().includes(q)
+        (x) => `${x.label} ${x.command} ${x.hint || ''}`.toLowerCase().includes(q)
       )
     : group.commands.map((x) => ({ ...x, g: group }))
 
@@ -1314,10 +1344,10 @@ export default function Test2() {
             <h1 className="lc-title">Leles Admin Console</h1>
             <div ref={buttonRef} className="lc-gbtn" />
           </div>
-          <p className="lc-dim lc-small lc-login-msg">{t('lele.loginReserved')}</p>
+          <p className="lc-dim lc-small lc-login-msg">Accesso riservato.</p>
           {authError && <p className="lc-err lc-small">{authError}</p>}
           {!gsiReady && !authError && (
-            <p className="lc-dim lc-small">{t('lele.loginLoading')}</p>
+            <p className="lc-dim lc-small">Caricamento login Google…</p>
           )}
         </div>
       </div>
@@ -1336,7 +1366,7 @@ export default function Test2() {
         <div className="lc-top">
           <h1 className="lc-title">Leles Admin Console</h1>
           <div className="lc-session">
-            <span className="lc-ellipsis">{profile?.email || t('lele.account')}</span>
+            <span className="lc-ellipsis">{profile?.email || 'account Google'}</span>
             <button type="button" className="lc-btn lc-btn--sm" onClick={() => logout()}>
               Logout
             </button>
@@ -1348,7 +1378,7 @@ export default function Test2() {
             {/* PROMPT */}
             <form className="lc-panel lc-prompt" onSubmit={run}>
               <label htmlFor="lc-input" className="lc-sr">
-                {t('lele.prompt.label')}
+                Comando per Leles
               </label>
               <div className="lc-prompt-row">
                 <span className="lc-anchor" aria-hidden="true">⚓</span>
@@ -1357,7 +1387,7 @@ export default function Test2() {
                   ref={textareaRef}
                   value={prompt}
                   rows={4}
-                  placeholder={t('lele.prompt.placeholder')}
+                  placeholder="Scrivi a Leles…"
                   onChange={(e) => {
                     setPrompt(e.target.value)
                     setArmed(false)
@@ -1373,29 +1403,29 @@ export default function Test2() {
                   className="lc-btn"
                   onClick={() => setSuperMode((v) => !v)}
                   style={superMode ? { borderColor: '#a78bfa', color: '#a78bfa' } : undefined}
-                  title={t('lele.superTitle')}
+                  title="Quando attivo, il prompt viene inviato come 'super <domanda>' a Super-Leles (grounded)"
                 >
-                  {superMode ? '⚡ ' + t('lele.superOn') : '⚡ ' + t('lele.super')}
+                  {superMode ? '⚡ Super-Leles ON' : '⚡ Super-Leles'}
                 </button>
                 {modelSwitching && (
-                  <span className="lc-dim lc-small">{t('lele.switching')}</span>
+                  <span className="lc-dim lc-small">Switch modello…</span>
                 )}
                 <button
                   type="button"
                   className="lc-btn"
                   disabled={imageBusy || isLoading}
-                  title={t('lele.imaginaTitle')}
+                  title="Prefissa il prompt con immagina: la console genera un immagine con Z-Image-Turbo (via gateway), senza passare da Leles"
                   onClick={() => {
                     setPrompt((v) => (v.startsWith('immagina ') ? v : 'immagina ' + v))
                     textareaRef.current?.focus()
                   }}
                 >
-                  🖼️ {t('lele.imagina')}
+                  🖼️ Immagina
                 </button>
                 <span className="lc-dim lc-small">
                   {armed
-                    ? t('lele.armed')
-                    : t('lele.ctrl')}
+                    ? 'Comando che cambia lo stato del sistema: premi di nuovo per confermare.'
+                    : 'Ctrl+Invio esegue il comando.'}
                 </span>
                 <div className="lc-row">
                   <button
@@ -1406,7 +1436,7 @@ export default function Test2() {
                       setArmed(false)
                     }}
                   >
-                    {t('lele.clear')}
+                    Pulisci
                   </button>
                   <button
                     type="submit"
@@ -1415,12 +1445,12 @@ export default function Test2() {
                   >
                     {isLoading ? (
                       <>
-                        <span className="lc-spin" /> {t('lele.thinking')}
+                        <span className="lc-spin" /> Leles sta pensando… Aspé...🏴‍☠️
                       </>
                     ) : armed ? (
-                      t('lele.confirmRun')
+                      'Conferma ed esegui'
                     ) : (
-                      t('lele.run')
+                      'Esegui'
                     )}
                   </button>
                 </div>
@@ -1428,19 +1458,23 @@ export default function Test2() {
             </form>
 
             {/* COMANDI */}
-            <section className="lc-panel lc-pad" aria-label={t('lele.commands')}>
+            <section className="lc-panel lc-pad" aria-label="Comandi">
               <div className="lc-cmd-head">
-                <h2>{t('lele.commands')}</h2>
+                <h2>Comandi</h2>
                 <input
                   type="search"
                   className="lc-search"
-                  placeholder={t('lele.searchPlaceholder')}
-                  aria-label={t('lele.searchAria')}
+                  placeholder="Cerca tra i comandi"
+                  aria-label="Cerca comandi"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                 />
               </div>
-              <p className="lc-dim lc-small lc-cmd-note">{t('lele.cmdNote')}</p>
+              <p className="lc-dim lc-small lc-cmd-note">
+                Git, Airflow e revisione file (improve/verifica/review) sono
+                passati alle pagine dedicate — Git Admin · DAG Admin · Improve:
+                link in fondo alla console.
+              </p>
 
               {!q && (
                 <div className="lc-tabs" role="tablist">
@@ -1454,7 +1488,7 @@ export default function Test2() {
                       style={{ '--g': g.color }}
                       onClick={() => setActiveGroup(g.id)}
                     >
-                      <span aria-hidden="true">{g.icon}</span> {t(g.title)}
+                      <span aria-hidden="true">{g.icon}</span> {g.title}
                       <span className="lc-count">{g.commands.length}</span>
                     </button>
                   ))}
@@ -1464,14 +1498,14 @@ export default function Test2() {
               {!q && group.id === 'modelli' && (
                 <div className="lc-model-row">
                   <label>
-                    <span className="lc-dim lc-small">{t('lele.model.superLabel')}</span>
+                    <span className="lc-dim lc-small">Super-Leles</span>
                     <select
                       className="lc-select lc-model-select"
-                      aria-label={t('lele.model.superAria')}
+                      aria-label="Modello Super-Leles"
                       value={superModel}
                       disabled={modelSwitching || isLoading}
                       onChange={(e) => switchSuperModel(e.target.value)}
-                      title={t('lele.model.superTitle')}
+                      title="Invia il comando modellosl <nome> e mostra la conferma in Sessione"
                     >
                       {SUPER_MODELS.map((m) => (
                         <option key={m} value={m}>{m}</option>
@@ -1479,14 +1513,14 @@ export default function Test2() {
                     </select>
                   </label>
                   <label>
-                    <span className="lc-dim lc-small">{t('lele.model.leleLabel')}</span>
+                    <span className="lc-dim lc-small">Modello Leles</span>
                     <select
                       className="lc-select lc-model-select"
-                      aria-label={t('lele.model.leleAria')}
+                      aria-label="Modello Leles"
                       value={leleModel}
                       disabled={modelSwitching || isLoading}
                       onChange={(e) => switchModel('lele', e.target.value)}
-                      title={t('lele.model.leleTitle')}
+                      title="Invia il comando modello <nome> e mostra la conferma in Sessione"
                     >
                       {LELE_MODELS.map((m) => (
                         <option key={m} value={m}>{m}</option>
@@ -1494,14 +1528,14 @@ export default function Test2() {
                     </select>
                   </label>
                   <label>
-                    <span className="lc-dim lc-small">{t('lele.model.reviewer')}</span>
+                    <span className="lc-dim lc-small">Reviewer</span>
                     <select
                       className="lc-select lc-model-select"
-                      aria-label={t('lele.model.reviewerAria')}
+                      aria-label="Modello reviewer"
                       value={reviewerModel}
                       disabled={modelSwitching || isLoading}
                       onChange={(e) => switchModel('reviewer', e.target.value)}
-                      title={t('lele.model.reviewerTitle')}
+                      title="Invia il comando reviewer <nome> e mostra la conferma in Sessione"
                     >
                       {LELE_MODELS.map((m) => (
                         <option key={m} value={m}>{m}</option>
@@ -1514,7 +1548,7 @@ export default function Test2() {
               <div className="lc-chips">
                 {visible.length === 0 && (
                   <p className="lc-dim">
-                    {t('lele.noMatch', { q: search })}
+                    Nessun comando corrisponde a “{search}”. ⚓️
                   </p>
                 )}
                 {visible.map((x, i) => (
@@ -1523,27 +1557,27 @@ export default function Test2() {
                     type="button"
                     className="lc-chip"
                     style={{ '--g': x.g.color }}
-                    title={x.danger ? t('lele.chipDanger') : undefined}
+                    title={x.danger ? 'Chiede conferma prima di partire' : undefined}
                     onClick={() => selectCommand(x)}
                   >
                     <span>
-                      {t(x.label)}
+                      {x.label}
                       {x.danger && <span className="lc-bang" aria-label="sensibile"> !</span>}
                     </span>
-                    {x.hint && <small>{t(x.hint)}</small>}
-                    {q && <small>{t(x.g.title)}</small>}
+                    {x.hint && <small>{x.hint}</small>}
+                    {q && <small>{x.g.title}</small>}
                   </button>
                 ))}
               </div>
             </section>
 
             {/* CRONOLOGIA */}
-            <section className="lc-panel lc-pad" aria-label={t('lele.replies')}>
+            <section className="lc-panel lc-pad" aria-label="Risposte">
               <div className="lc-cmd-head">
-                <h2>{t('lele.session')}</h2>
+                <h2>Sessione</h2>
                 {history.length > 0 && (
                   <button type="button" className="lc-btn lc-btn--sm" onClick={() => setHistory([])}>
-                    {t('lele.svuota')}
+                    Svuota
                   </button>
                 )}
               </div>
@@ -1551,7 +1585,7 @@ export default function Test2() {
               <div aria-live="polite" className="lc-log">
                 {history.length === 0 && (
                   <p className="lc-dim">
-                    {t('lele.empty')}
+                    Nessun comando eseguito. Scegline uno qui sopra o scrivilo nel prompt.
                   </p>
                 )}
                 {history.map((h) => (
@@ -1570,17 +1604,17 @@ export default function Test2() {
                           textareaRef.current?.focus()
                         }}
                       >
-                        {t('lele.riusa')}
+                        Riusa
                       </button>
                       <button
                         type="button"
                         className="lc-btn lc-btn--sm"
                         onClick={() => copy(h.text || h.err)}
                       >
-                        {t('lele.copia')}
+                        Copia
                       </button>
                     </header>
-                    {h.img && <img src={h.img} alt={t('lele.genImgAlt')} className="lc-gen-img" />}
+                    {h.img && <img src={h.img} alt="Immagine generata" className="lc-gen-img" />}
                     <pre className="lc-pre">{h.text || h.err}</pre>
                   </article>
                 ))}
@@ -1589,10 +1623,10 @@ export default function Test2() {
           </main>
 
           {/* DASHBOARD DESTRA: Sistema + OS + RAM + Gateway in un solo pannello */}
-          <aside className="lc-side" aria-label={t('lele.statusTitle')}>
+          <aside className="lc-side" aria-label="Stato del sistema">
             <section className="lc-panel lc-pad lc-status">
               <div className="lc-cmd-head">
-                <h2>{t('lele.statusTitle')}</h2>
+                <h2>Stato del sistema</h2>
                 <div className="lc-row">
                   <span
                     className={`lc-pill ${
@@ -1601,7 +1635,7 @@ export default function Test2() {
                     title="Gateway"
                   >
                     <span className={`lc-dot${ping.ok ? ' lc-pulse' : ''}`} />
-                    {ping.ok === null ? '…' : ping.ok ? `${ping.ms} ms` : t('lele.offline')}
+                    {ping.ok === null ? '…' : ping.ok ? `${ping.ms} ms` : 'offline'}
                   </span>
                   <button
                     type="button"
@@ -1609,7 +1643,7 @@ export default function Test2() {
                     onClick={refreshStatus}
                     disabled={statusLoading}
                   >
-                    {statusLoading ? t('lele.loading') : t('lele.refresh')}
+                    {statusLoading ? 'Carico…' : 'Aggiorna'}
                   </button>
                 </div>
               </div>
@@ -1618,19 +1652,19 @@ export default function Test2() {
                 const s = status[key]
                 const tiles = key === 'sys' && !rawSys ? parseSystem(s?.text) : null
                 const osData = key === 'os' ? parseOs(s?.text) : null
-                const ramText = key === 'ram' ? cleanRam(s?.text, t) : null
+                const ramText = key === 'ram' ? cleanRam(s?.text) : null
                 const lvl = statLevel(key, status)
                 return (
                     <div key={key} className="lc-stat">
                     <div className="lc-stat-head">
-                        <h3 className={`lc-stat-name${lvl ? ` is-${lvl}` : ''}`}>{t(label)}</h3>
+                        <h3 className={`lc-stat-name${lvl ? ` is-${lvl}` : ''}`}>{label}</h3>
                         {key === 'sys' && s?.text && parseSystem(s.text) && (
                             <button
                                 type="button"
                                 className="lc-btn lc-btn--sm"
                                 onClick={() => setRawSys((v) => !v)}
                             >
-                                {rawSys ? t('lele.schema') : t('lele.testo')}
+                                {rawSys ? 'Schema' : 'Testo'}
                             </button>
                         )}
                     </div>
@@ -1644,7 +1678,7 @@ export default function Test2() {
                         <pre className="lc-pre lc-pre--sm">
                             {(key === 'ram' && ramText) ||
                                 s?.text ||
-                                (statusLoading ? t('lele.loading') : t('lele.noData'))}
+                                (statusLoading ? 'Carico…' : 'Nessun dato. Premi Aggiorna.')}
                         </pre>
                     )}
                 </div>
@@ -1655,10 +1689,12 @@ export default function Test2() {
         </div>
 
         {/* PAGINE DEL SITO: link alle console esistenti */}
-        <nav className="lc-pages" aria-label={t('lele.pagesNav')}>
+        <nav className="lc-pages" aria-label="Pagine del sito">
           <div className="lc-pages-head">
-            <h2>{t('lele.pagesTitle')}</h2>
-            <span className="lc-dim lc-small">{t('lele.pagesSub')}</span>
+            <h2>Pagine &amp; Console</h2>
+            <span className="lc-dim lc-small">
+              Tutte le rotte attive del sito — da qui validi e poi promuoviamo in nav
+            </span>
           </div>
           <div className="lc-pages-grid">
             {QUICK_LINKS.map((l) => (
@@ -1668,14 +1704,14 @@ export default function Test2() {
                 className={`lc-pagecard${l.main ? ' lc-pagecard--main' : ''}`}
               >
                 <span className="lc-pagecard-label">{l.label}</span>
-                <small>{t(l.desc)}</small>
+                <small>{l.desc}</small>
               </Link>
             ))}
           </div>
 
           {/* AUDIO: Story Whisper / Night Story (penultimo blocco) */}
             {/* AUDIO: Story Whisper / Night Story */}
-            <section className="lc-panel lc-pad lc-audio" aria-label={t('lele.audio')}>
+            <section className="lc-panel lc-pad lc-audio" aria-label="Audio">
               <audio
                 ref={audioPlayerRef}
                 onTimeUpdate={() =>
@@ -1690,15 +1726,15 @@ export default function Test2() {
                 }}
                 onError={() => {
                   setIsSpeaking(false)
-                  setAudioError(t('lele.err.audioPlay'))
+                  setAudioError("Impossibile riprodurre l'audio generato dal server.")
                 }}
               />
 
               <div className="lc-cmd-head">
-                <h2>{t('lele.audio')}</h2>
+                <h2>Audio</h2>
                 <select
                   className="lc-select"
-                  aria-label={t('lele.agentAria')}
+                  aria-label="Agente audio"
                   value={audioAgent}
                   onChange={(e) => setAudioAgent(e.target.value)}
                   disabled={isRecording || audioBusy}
@@ -1717,7 +1753,7 @@ export default function Test2() {
                   rows={3}
                   value={audioPrompt}
                   disabled={isRecording}
-                  placeholder={t('lele.audioPlaceholder', { agent: audioAgent })}
+                  placeholder={`Scrivi a ${audioAgent}…`}
                   onChange={(e) => setAudioPrompt(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) sendAudioText(e)
@@ -1731,10 +1767,10 @@ export default function Test2() {
                       disabled={isRecording || audioBusy}
                       onChange={(e) => setWantsTts(e.target.checked)}
                     />
-                    {t('lele.tts')}
+                    Risposta audio (TTS)
                   </label>
                   {(audioAgent === 'Story Whisper' || audioAgent === 'Night Story') && (
-                    <div className="lc-check" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }} title={t('lele.story.boxTitle')}>
+                    <div className="lc-check" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }} title="Genera illustrazioni sequenziali delle scene principali dopo testo e audio">
                       <label className="lc-check">
                         <input
                           type="checkbox"
@@ -1742,19 +1778,19 @@ export default function Test2() {
                           disabled={isRecording || audioBusy || storyImageBusy}
                           onChange={(e) => setWantsStoryImage(e.target.checked)}
                         />
-                        {t('lele.story.create')}
+                        🎨 Crea illustrazioni della storia
                       </label>
                       <select
-                        aria-label={t('lele.story.countAria')}
+                        aria-label="Numero di illustrazioni"
                         value={storyImageCount}
                         disabled={isRecording || audioBusy || storyImageBusy}
                         onChange={(e) => setStoryImageCount(Number(e.target.value))}
                         style={{ padding: '4px 8px', borderRadius: 8, background: 'var(--surface, #fff)', color: 'inherit', border: '1px solid var(--line, #ccc)' }}
                       >
-                        {[1, 2, 3, 4, 5, 6, 7, 8].map((count) => <option key={count} value={count}>{count} {count === 1 ? t('lele.story.imageOne') : t('lele.story.imageMany')}</option>)}
+                        {[1, 2, 3, 4, 5, 6, 7, 8].map((count) => <option key={count} value={count}>{count} {count === 1 ? 'immagine' : 'immagini'}</option>)}
                       </select>
                       <select
-                        aria-label={t('lele.story.formatAria')}
+                        aria-label="Formato illustrazioni"
                         value={storyImageFormat}
                         disabled={isRecording || audioBusy || storyImageBusy}
                         onChange={(e) => setStoryImageFormat(e.target.value)}
@@ -1763,7 +1799,7 @@ export default function Test2() {
                         {[['512x512', '1:1 · 512'], ['768x768', '1:1 · 768'], ['1024x1024', '1:1 · 1024'], ['768x576', '4:3 · 768'], ['1024x768', '4:3 · 1024'], ['1280x720', '16:9 · 1280'], ['960x640', '3:2 · 960']].map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                       </select>
                       <select
-                        aria-label={t('lele.story.stepsAria')}
+                        aria-label="Step illustrazioni"
                         value={storyImageSteps}
                         disabled={isRecording || audioBusy || storyImageBusy}
                         onChange={(e) => setStoryImageSteps(Number(e.target.value))}
@@ -1772,19 +1808,19 @@ export default function Test2() {
                         {[1, 3, 4, 5, 6, 7, 8, 9, 12, 15].map((s) => <option key={s} value={s}>{s} step</option>)}
                       </select>
                       {audioAgent === 'Story Whisper' && (
-                        <label className="lc-check" title={t('lele.story.kidsTitle')}>
+                        <label className="lc-check" title="Stile cartoon per bambini, contenuti sicuri">
                           <input
                             type="checkbox"
                             checked={storyKidsFilter}
                             disabled={isRecording || audioBusy || storyImageBusy}
                             onChange={(e) => setStoryKidsFilter(e.target.checked)}
                           />
-                          {t('lele.story.kids')}
+                          🧒 Bambini
                         </label>
                       )}
                       {audioAgent === 'Night Story' && (
                         <select
-                          aria-label={t('lele.story.genreAria')}
+                          aria-label="Genere Night Story"
                           value={storyGenre}
                           disabled={isRecording || audioBusy || storyImageBusy}
                           onChange={(e) => setStoryGenre(e.target.value)}
@@ -1795,8 +1831,8 @@ export default function Test2() {
                       )}
                       <input
                         type="text"
-                        aria-label={t('lele.story.styleAria')}
-                        placeholder={t('lele.story.stylePlaceholder')}
+                        aria-label="Prompt di stile extra"
+                        placeholder="Prompt stile extra (opzionale)"
                         value={storyStylePrompt}
                         disabled={isRecording || audioBusy || storyImageBusy}
                         onChange={(e) => setStoryStylePrompt(e.target.value)}
@@ -1811,7 +1847,7 @@ export default function Test2() {
                       disabled={!audioPrompt.trim() || isRecording}
                       onClick={() => setAudioPrompt('')}
                     >
-                      {t('lele.clear')}
+                      Pulisci
                     </button>
                     <button
                       type="button"
@@ -1819,7 +1855,7 @@ export default function Test2() {
                       disabled={audioBusy}
                       onClick={isRecording ? stopRecording : startRecording}
                     >
-                      {isRecording ? `⏹ ${formatTime(recordingTime)}` : t('lele.record')}
+                      {isRecording ? `⏹ ${formatTime(recordingTime)}` : '🎤 Registra'}
                     </button>
                     <button
                       type="submit"
@@ -1828,10 +1864,10 @@ export default function Test2() {
                     >
                       {audioBusy ? (
                         <>
-                          <span className="lc-spin" /> {t('lele.wait')}
+                          <span className="lc-spin" /> Attendi…
                         </>
                       ) : (
-                        t('lele.send')
+                        'Invia'
                       )}
                     </button>
                   </div>
@@ -1841,14 +1877,14 @@ export default function Test2() {
               {recUrl && (
                 <div className="lc-rec">
                   <div className="lc-cmd-head">
-                    <span className="lc-small">{t('lele.recTitle')}</span>
+                    <span className="lc-small">🎤 Audio registrato</span>
                     <button
                       type="button"
                       className="lc-btn lc-btn--sm"
                       disabled={audioBusy || !recBlob}
                       onClick={() => sendRecording()}
                     >
-                      {t('lele.sendAudio')}
+                      Invia audio
                     </button>
                   </div>
                   <audio controls src={recUrl} className="lc-rec-audio" />
@@ -1860,7 +1896,7 @@ export default function Test2() {
               {audioReply && (
                 <div className="lc-audio-out" aria-live="polite">
                   <header>
-                    <span>{t('lele.replyFrom', { agent: audioReplyAgent })}</span>
+                    <span>Risposta da {audioReplyAgent}</span>
                     <button
                       type="button"
                       className="lc-btn lc-btn--sm"
@@ -1870,7 +1906,7 @@ export default function Test2() {
                         setTimeout(() => setCopiedAudioReply(false), 2000)
                       }}
                     >
-                      {copiedAudioReply ? t('lele.copiato') : t('lele.copia')}
+                      {copiedAudioReply ? 'Copiato ✓' : 'Copia'}
                     </button>
                   </header>
 
@@ -1882,7 +1918,7 @@ export default function Test2() {
                           className={`lc-btn lc-btn--sm lc-play${isSpeaking ? ' is-on' : ''}`}
                           onClick={togglePlayAudio}
                         >
-                          {isSpeaking ? t('lele.pause') : t('lele.play')}
+                          {isSpeaking ? '⏸ Pausa' : '▶ Ascolta'}
                         </button>
                         <span className="lc-time">
                           {formatTime(audioCurrentTime)} / {formatTime(audioDuration)}
@@ -1890,7 +1926,7 @@ export default function Test2() {
                         <input
                           type="range"
                           className="lc-seek"
-                          aria-label={t('lele.seekAria')}
+                          aria-label="Posizione audio"
                           min="0"
                           max={audioDuration || 0}
                           step="0.1"
@@ -1899,7 +1935,7 @@ export default function Test2() {
                         />
                       </div>
                       <div className="lc-speed">
-                        <span className="lc-dim lc-small">{t('lele.speed')}</span>
+                        <span className="lc-dim lc-small">Velocità</span>
                         {[1, 1.25, 1.5, 1.75, 2].map((rate) => (
                           <button
                             key={rate}
@@ -1918,7 +1954,7 @@ export default function Test2() {
                   {(storyImageStatus || storyImageError || storyImages.length > 0) && (audioReplyAgent === 'Story Whisper' || audioReplyAgent === 'Night Story') && (
                     <div className="lc-story-illustration" aria-live="polite" style={{ marginTop: 14 }}>
                       {storyImageStatus && <p className="lc-dim lc-small">{storyImageStatus}</p>}
-                      {storyImageError && <p className="lc-err lc-small">{t('lele.story.errorPrefix')} {storyImageError}</p>}
+                      {storyImageError && <p className="lc-err lc-small">Illustrazioni: {storyImageError}</p>}
                       {storyImages.map((item) => (
                         <div key={item.id} style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--line)' }}>
                           <p className="lc-dim lc-small" style={{ marginBottom: 6 }}>
@@ -1927,7 +1963,7 @@ export default function Test2() {
                           {item.src && (
                             <img
                               src={item.src}
-                              alt={t('lele.story.sceneAlt', { n: item.id, title: item.title })}
+                              alt={'Illustrazione ' + item.id + ': ' + item.title}
                               loading="lazy"
                               style={{ display: 'block', width: '100%', maxWidth: 640, height: 'auto', borderRadius: 12, marginTop: 8 }}
                             />
@@ -1942,8 +1978,10 @@ export default function Test2() {
 
 
           <div className="lc-pages-head lc-pages-head--sub">
-            <h3>{t('lele.testTitle')}</h3>
-            <span className="lc-dim lc-small">{t('lele.testSub')}</span>
+            <h3>🧪 Test &amp; Laboratorio</h3>
+            <span className="lc-dim lc-small">
+              Si validano da qui, poi si promuovono tra le pagine ufficiali
+            </span>
           </div>
           <div className="lc-pages-grid lc-pages-grid--test">
             {TEST_LINKS.map((l) => (
@@ -1973,7 +2011,7 @@ const css = `
 .lc-session{display:flex;align-items:center;gap:10px;padding:5px 5px 5px 14px;border:1px solid var(--line);
   border-radius:999px;background:var(--glass);font-size:12px;color:var(--ink-dim);max-width:100%}
 .lc-ellipsis{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-.lc-title{background:linear-gradient(92deg,#3fd0c9 0%,#6fe3dd 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.lc-title{background:linear-gradient(92deg,#3fd0c9 0%,#a78bfa 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
 .lc-panel{box-shadow:0 22px 55px -32px rgba(0,0,0,.75),inset 0 1px 0 rgba(255,255,255,.06)}
 .lc-btn--run{background:linear-gradient(135deg,#3fd0c9,#6fe3dd);border-color:transparent;box-shadow:0 10px 26px -12px rgba(63,208,201,.6)}
 .lc-btn--run:hover:not(:disabled){background:linear-gradient(135deg,#6fe3dd,#9ff0ec);border-color:transparent;transform:translateY(-1px)}
@@ -1983,7 +2021,7 @@ const css = `
 .lc-pagecard:hover{box-shadow:0 16px 36px -18px rgba(63,208,201,.5)}
 .lc-cmd-head h2{position:relative;padding-bottom:7px}
 .lc-cmd-head h2::after{content:'';position:absolute;left:0;bottom:0;width:44px;height:2px;border-radius:2px;
-  background:linear-gradient(90deg,#3fd0c9,#6fe3dd)}
+  background:linear-gradient(90deg,#3fd0c9,#a78bfa)}
 .lc-model-row{background:rgba(63,208,201,.07);border:1px solid rgba(63,208,201,.22);border-radius:12px;padding:10px 12px;margin:10px 0 14px}
 .lc-links{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:28px;padding-top:16px;
   border-top:1px solid var(--line);font-size:13px}
