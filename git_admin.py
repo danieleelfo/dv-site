@@ -473,9 +473,15 @@ async def _diff_payload(path: str, project: str, scope: str) -> dict:
 # PREVIEW
 # --------------------------------------------------------------------------
 def _phrase(action: str, project: str) -> str:
-    if action == "force_pull":
-        return f"SOVRASCRIVI {project.upper()}"
-    return f"CONFERMA {action.upper()}"
+    """Codice di conferma casuale: 4 caratteri maiuscoli (A-Z, 0-9),
+    rigenerato dal server a ogni preview, con almeno una lettera e
+    almeno una cifra (es. A8SX, 34B1). Le vecchie frasi fisse
+    ("CONFERMA PULL" / "SOVRASCRIVI <repo>") non sono piu' accettate."""
+    chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    while True:
+        code = "".join(secrets.choice(chars) for _ in range(4))
+        if any(ch.isalpha() for ch in code) and any(ch.isdigit() for ch in code):
+            return code
 
 
 async def _build_preview(project: str, path: str, action: str, message: str | None) -> dict:
