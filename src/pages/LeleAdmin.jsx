@@ -15,6 +15,7 @@ import SystemTiles, { parseSystem, parseOs, cleanRam, OsKpis, statLevel } from '
 import {
   apiJson,
   buildRepairPrompt,
+  buildStoryboardBatchPrompt,
   buildStoryboardPrompt,
   createImageJob,
   fetchJobStatusWithRetry as fetchJobStatusWithRetryShared,
@@ -300,14 +301,14 @@ async function callAdmin(idToken, prompt, timeoutMs = 310000) {
 // SENZA passare dagli agenti e dalla loro memoria di conversazione.
 // Usata per la pianificazione delle scene (niente scene "fantasma" di
 // storie precedenti rimaste nella memoria dell'agente).
-async function callLlm(idToken, prompt, model, timeoutMs = 310000) {
+async function callLlm(idToken, prompt, model, timeoutMs = 310000, keepAlive = 0) {
   const data = await adminJson(
     idToken,
     '/api/admin/llm',
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, model, keep_alive: 0 }),
+      body: JSON.stringify({ prompt, model, keep_alive: keepAlive }),
     },
     timeoutMs
   )
@@ -921,27 +922,64 @@ export default function LeleAdmin() {
     setStoryImageStatus(t('lele.story.plan', { count: imageCount }))
     let imageStage = 'selezione delle scene con Ollama'
     try {
-      let rawPlan = String(await callLlm(idToken, buildStoryboardPrompt({
-        count: imageCount,
-        storyText,
-        artDirection,
-        styleExtra,
-      }), leleModel, 180000)).trim()
+      // Pianificazione A LOTTI (3 scene per chiamata): con 8 scene una sola
+      // chiamata qwen2.5 supera i ~100s di Cloudflare e il browser riceve
+      // "Failed to fetch". Ogni lotto resta corto; lo stile condiviso del
+      // primo lotto viene riportato ai successivi per la coerenza visiva.
+      const BATCH_SIZE = 3
+      const batches = []
+      for (let s = 1; s <= imageCount; s += BATCH_SIZE) {
+        batches.push([s, Math.min(imageCount, s + BATCH_SIZE - 1)])
+      }
 
-      let parsedPlan
-      try {
-        parsedPlan = parsePlan(rawPlan)
-      } catch {
-        imageStage = 'correzione del formato JSON con Ollama'
-        setStoryImageStatus(t('lele.story.repair'))
-        rawPlan = String(await callLlm(idToken, buildRepairPrompt(imageCount, rawPlan), leleModel, 180000)).trim()
+      let sharedStyle = ''
+      const plannedScenes = []
+
+      for (const [from, to] of batches) {
+        const batchCount = to - from + 1
+        if (batches.length > 1) {
+          setStoryImageStatus(t('lele.story.planBatch', { from, to, total: imageCount }))
+        }
+
+        let rawPlan = String(await callLlm(idToken, buildStoryboardBatchPrompt({
+          total: imageCount,
+          from,
+          to,
+          storyText,
+          style: sharedStyle,
+          prevTitles: plannedScenes.map((s) => s.title),
+          artDirection,
+          styleExtra,
+        }), leleModel, 180000, 300)).trim()
+
+        let parsedPlan
         try {
           parsedPlan = parsePlan(rawPlan)
         } catch {
-          throw new Error('Ollama non ha prodotto un JSON valido nemmeno dopo il tentativo di correzione.')
+          imageStage = 'correzione del formato JSON con Ollama'
+          setStoryImageStatus(t('lele.story.repair'))
+          rawPlan = String(await callLlm(idToken, buildRepairPrompt(batchCount, rawPlan), leleModel, 180000, 300)).trim()
+          try {
+            parsedPlan = parsePlan(rawPlan)
+          } catch {
+            throw new Error('Ollama non ha prodotto un JSON valido nemmeno dopo il tentativo di correzione (scene ' + from + '-' + to + ').')
+          }
         }
+
+        if (!sharedStyle && !Array.isArray(parsedPlan) && typeof parsedPlan?.style === 'string') {
+          sharedStyle = parsedPlan.style.trim()
+        }
+
+        // Lotti successivi: lo stile è già dentro ogni prompt per istruzione
+        // (il modello lo ripete identico), qui non va anteposto di nuovo.
+        const batchScenes = normalizeScenes(parsedPlan, batchCount)
+        plannedScenes.push(...batchScenes)
       }
-      const scenes = normalizeScenes(parsedPlan, imageCount)
+
+      if (plannedScenes.length < imageCount) {
+        throw new Error('La pianificazione ha prodotto ' + plannedScenes.length + ' scene su ' + imageCount + '.')
+      }
+      const scenes = plannedScenes.slice(0, imageCount)
 
       setStoryImages(scenes.map((scene, index) => ({
         id: index + 1, title: scene.title, prompt: scene.prompt, src: '', status: t('lele.story.waiting'),
@@ -2171,6 +2209,7 @@ const css = `
   .lc-shade{background:linear-gradient(180deg,rgba(11,16,21,.10) 0%,rgba(11,16,21,.22) 70%)}
 }
 ` 
+
 
 
 
