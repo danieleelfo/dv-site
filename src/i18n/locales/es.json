@@ -688,8 +688,8 @@
     "checkPreview": "Comprueba la vista previa devuelta por el backend antes de continuar.",
     "blocked": "Bloqueado",
     "unsafe": "El backend señala que esta operación no es segura.",
-    "typePhrase": "Para confirmar, escribe:",
-    "phrasePlaceholder": "Escribe la frase exacta",
+    "typePhrase": "Para confirmar, introduce este código:",
+    "phrasePlaceholder": "Introduce el código",
     "cancel": "Cancelar",
     "executing": "Ejecutando…",
     "confirmRun": "Confirmar y ejecutar"
