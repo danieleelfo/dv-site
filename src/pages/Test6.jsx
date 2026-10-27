@@ -53,6 +53,7 @@ function readStoredToken() {
     const stored = localStorage.getItem(TOKEN_STORAGE_KEY);
     return isTokenValid(stored) ? stored : null;
   } catch
+
  {
     return null;
   }
@@ -137,7 +138,8 @@ const TABS = {
     label: "Ingredienti",
     pk: "ingredient_id",
     cols: [
-      { k:
+      { k
+:
  "ingredient_id", label: "ID", ro: true },
       { k: "name", label: "Nome", type: "text" },
       { k: "unit", label: "Unità", type: "select", opts: UNITS },
@@ -189,6 +191,7 @@ const TABS = {
       { k: "restaurant_id", label: "Ristorante", type: "number" },
       { k: "order_date", label: "Data", type: "date" },
       { k: "status", label: "Status", type: "select", staticOpts: ORDER_STATUSES },
+
   
     { k: "total_amount", label: "Totale €", type: "number" },
     ],
@@ -240,7 +243,8 @@ export default function Test6() {
     const d = await res.json().catch(() => ({}));
     if (!res.ok) {
       const detail = typeof d.detail === "string" ? d.detail : JSON.stringify(d.detail || "");
-      const hint = res.status === 404
+      const hint = res.status === 4
+04
 
         ? "\n\nIl router admin non risponde: fare 'pull bar_ai' e 'restart bar_ai' sul Mac (router admin montato in main.py, porta 8081; il proxy gateway /api/bar-ai/admin è già attivo)."
         : "";
@@ -310,6 +314,7 @@ export default function Test6() {
       setError(e.message || String(e));
     } finally {
       setBusy(false);
+
     }
   }
 
@@ -353,8 +358,7 @@ export default function Test6() {
         .bau-btn:disabled { opacity: .5; cursor: not-allowed; }
         .bau-primary { background: #10b981; border-color: #10b981; color: #06281d; font-weight: 700; }
         .bau-danger { background: rgba(239,68,68,.16); border-color: rgba(239,68,68,.5); color: #fca5a5; }
-        .bau-table-wrap { overflow-x: auto; background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08); border-r
-adius: 12px; }
+        .bau-table-wrap { overflow-x: auto; background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; }
         .bau-table { width: 100%; border-collapse: collapse; font-size: 13px; }
         .bau-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #9ca3af; padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,.1); white-space: nowrap; }
         .bau-table td { padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,.04); vertical-align: middle; }
@@ -386,7 +390,8 @@ adius: 12px; }
         <h1>Bar AI — Gestione dati</h1>
         <div className="bau-auth">
           <span>{email}</span>
-          <button onClick={logout} className="bau-btn">Logout</button>
+          <button onClick={logout} className="bau-btn">Logout</butto
+n>
         </div>
       </div>
 
@@ -447,7 +452,8 @@ adius: 12px; }
                         <select
                           className="bau-select"
                           value={row[c.k] ?? ""}
-                          onChange={(e) => setCell(row[cfg.pk], c.k, e.target.value)}
+         
+                 onChange={(e) => setCell(row[cfg.pk], c.k, e.target.value)}
                         >
                           <option value="">-</option>
                           {(c.opts
@@ -492,7 +498,8 @@ adius: 12px; }
                 </tr>
               ))}
 
-              {/* Riga di aggiunta */}
+      
+        {/* Riga di aggiunta */}
               <tr>
                 <td colSpan={cfg.cols.length + 1}>
                   <div className="bau-addrow">
@@ -526,7 +533,8 @@ adius: 12px; }
                                 #{p.ProductID} · {p.Category} (€{p.Price})
                               </option>
                             ))}
-                          </select>
+                      
+    </select>
                         </div>
                         <div className="bau-field">
                           <label>Ingrediente</label>
@@ -561,7 +569,8 @@ adius: 12px; }
                         </div>
                         <div className="bau-field">
                           <label>Giacenza</label>
-                          <input className="bau-input" type="number" step="any" value={newRow.stock_level ?? ""} onChange={(e) => setNewRow((r) => ({ ...r, stock_level: e.target.value }))} />
+                          <input className="bau-input" typ
+e="number" step="any" value={newRow.stock_level ?? ""} onChange={(e) => setNewRow((r) => ({ ...r, stock_level: e.target.value }))} />
                         </div>
                         <div className="bau-field">
                           <label>Soglia min.</label>
@@ -573,8 +582,7 @@ adius: 12px; }
                       <>
                         <div className="bau-field">
                           <label>Nome</label>
-                          <input className="ba
-u-input" value={newRow.name || ""} onChange={(e) => setNewRow((r) => ({ ...r, name: e.target.value }))} />
+                          <input className="bau-input" value={newRow.name || ""} onChange={(e) => setNewRow((r) => ({ ...r, name: e.target.value }))} />
                         </div>
                         <div className="bau-field">
                           <label>Contatto</label>
@@ -590,7 +598,8 @@ u-input" value={newRow.name || ""} onChange={(e) => setNewRow((r) => ({ ...r, na
                         </div>
                         <div className="bau-field">
                           <label>Categoria</label>
-                          <input className="bau-input" value={newRow.category || ""} onChange={(e) => setNewRow((r) => ({ ...r, category: e.target.value }))} />
+                          <input className="bau-input" value={newRow.category || ""} onChange={(e) => setNewRow((r) => ({ 
+...r, category: e.target.value }))} />
                         </div>
                         <div className="bau-field">
                           <label>Lead time (gg)</label>
@@ -602,8 +611,7 @@ u-input" value={newRow.name || ""} onChange={(e) => setNewRow((r) => ({ ...r, na
                         </div>
                       </>
                     )}
-                    {t
-ab === "orders" && (
+                    {tab === "orders" && (
                       <>
                         <div className="bau-field">
                           <label>Fornitore</label>
@@ -622,7 +630,8 @@ ab === "orders" && (
                         </div>
                         <div className="bau-field">
                           <label>Data</label>
-                          <input className="bau-input" type="date" value={newRow.order_date || ""} onChange={(e) => setNewRow((r) => ({ ...r, order_date: e.target.value }))} />
+                          <input className="bau-input" type="date" value={newRow.order_date || ""} onChange={
+(e) => setNewRow((r) => ({ ...r, order_date: e.target.value }))} />
                         </div>
                         <div className="bau-field">
                           <label>Status</label>
@@ -632,8 +641,7 @@ ab === "orders" && (
                         </div>
                         <div className="bau-field">
                           <label>Totale €</label>
-                          <input className="bau-input" type="number" step="any" value={newRow.total_amount ?? ""} onChange={(e) => setN
-ewRow((r) => ({ ...r, total_amount: e.target.value }))} />
+                          <input className="bau-input" type="number" step="any" value={newRow.total_amount ?? ""} onChange={(e) => setNewRow((r) => ({ ...r, total_amount: e.target.value }))} />
                         </div>
                       </>
                     )}
@@ -654,7 +662,8 @@ ewRow((r) => ({ ...r, total_amount: e.target.value }))} />
                           <label>Ingrediente</label>
                           <select className="bau-select" value={newRow.ingredient_id || ""} onChange={(e) => setNewRow((r) => ({ ...r, ingredient_id: e.target.value }))}>
                             <option value="">- scegli -</option>
-                            {opts.ingredients.map((i) => (
+                            {opts.ingredients.ma
+p((i) => (
                               <option key={i.ingredient_id} value={i.ingredient_id}>
                                 {i.name}
                               </option>
@@ -667,8 +676,7 @@ ewRow((r) => ({ ...r, total_amount: e.target.value }))} />
                         </div>
                         <div className="bau-field">
                           <label>Costo unit. €</label>
-                          <input className="bau-input" type="n
-umber" step="any" value={newRow.unit_cost ?? ""} onChange={(e) => setNewRow((r) => ({ ...r, unit_cost: e.target.value }))} />
+                          <input className="bau-input" type="number" step="any" value={newRow.unit_cost ?? ""} onChange={(e) => setNewRow((r) => ({ ...r, unit_cost: e.target.value }))} />
                         </div>
                       </>
                     )}
@@ -701,8 +709,7 @@ umber" step="any" value={newRow.unit_cost ?? ""} onChange={(e) => setNewRow((r) 
         .bau-primary { background: #10b981; border-color: #10b981; color: #06281d; font-weight: 700; }
         .bau-danger { background: rgba(239,68,68,.16); border-color: rgba(239,68,68,.5); color: #fca5a5; }
         .bau-table-wrap { overflow-x: auto; background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; }
-        .bau-table { width: 100%; border-collapse: collapse; fo
-nt-size: 13px; }
+        .bau-table { width: 100%; border-collapse: collapse; font-size: 13px; }
         .bau-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #9ca3af; padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,.1); white-space: nowrap; }
         .bau-table td { padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,.04); vertical-align: middle; }
         .bau-table tr:hover td { background: rgba(255,255,255,.02); }
