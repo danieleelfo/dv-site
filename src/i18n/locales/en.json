@@ -472,7 +472,7 @@
       "chat": "The gateway forwards to 127.0.0.1:{port}/ask of the respective agent.",
       "chatAudio": "Only Story Whisper (8088) and Night Story (8666) have audio input.",
       "barAsk": "Proxy to Bar AI on port 8081.",
-      "barAdmin": "Forwards to admin_routes in main.py (port 8081). Whitelisted tables: ingredients, recipes, inventory, suppliers, orders. GET /admin/options feeds the dropdown lists.",
+      "barAdmin": "Forwards to admin_routes in main.py (port 8081). Whitelisted tables: ingredients, recipes, inventory, suppliers, orders, orderitems. GET /admin/options feeds the dropdown lists; GET /admin/schema exposes the actual table columns (diagnostics).",
       "adminChat": "If the email is in ADMIN_USER_CHAT_IDS, the Telegram chat_id is resolved server-side.",
       "arenaStart": "Abuse caps: max 50 turns, 600 messages, 3 active runs.",
       "arenaIntervene": "Max 2000 characters, 20 interventions per run.",

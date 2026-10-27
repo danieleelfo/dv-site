@@ -2,7 +2,7 @@
 // API CONTRACTS (promossa da Test2) (contratti API del gateway)
 // Pagina statica di documentazione: nessuna chiamata al backend
 // oltre alla verifica del login Google. Nessuna modifica backend.
-// Dati allineati a gateway.py / git_admin.py / query_db.py / admin_routes.py (26 ottobre 2026).
+// Dati allineati a gateway.py / git_admin.py / query_db.py / admin_routes.py (27 ottobre 2026).
 // ============================================================
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -132,7 +132,10 @@ const GROUPS = [
       {
         method: "ANY", path: "/api/bar-ai/admin/{path}", auth: true,
         summary: "api.ep.barAdmin",
-        request: 'GET    /admin/tables/{table}          → righe\nPOST   /admin/tables/{table}          → { "fields": { ... } }\nPUT    /admin/tables/{table}          → { "pk": 1, "fields": { ... } }\nDELETE /admin/tables/{table}?pk=1\nGET    /admin/options\nGET    /admin/health\n\ntable ∈ ingredients | recipes | inventory | suppliers | orders',
+        request: 'GET    /admin/tables/{table}          → righe\nPOST   /admin/tables/{table}          → { "fields": { ... } }\nPUT    /admin/tables/{table}          → { "pk": 1, "fields": { ... } }\nDELETE /admin/tables/{table}?pk=1\nGET    /admin/options\nGET    /admin/health
+GET    /admin/schema
+
+table ∈ ingredients | recipes | inventory | suppliers | orders | orderitems',
         response: '{ "rows": [ ... ] }  |  { "ok": true, "pk": ... }',
         notes: "api.nt.barAdmin",
       },
