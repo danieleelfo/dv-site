@@ -688,8 +688,8 @@
     "checkPreview": "Controlla l'anteprima restituita dal backend prima di procedere.",
     "blocked": "Bloccato",
     "unsafe": "Il backend segnala che questa operazione non è sicura.",
-    "typePhrase": "Per confermare, scrivi:",
-    "phrasePlaceholder": "Scrivi la frase esatta",
+    "typePhrase": "Per confermare, inserisci questo codice:",
+    "phrasePlaceholder": "Inserisci il codice",
     "cancel": "Annulla",
     "executing": "Esecuzione…",
     "confirmRun": "Conferma ed esegui"
