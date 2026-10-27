@@ -17,6 +17,7 @@ import B2B from './pages/B2B.jsx'
 import ImageLab from './pages/ImageLab.jsx'
 import QueryDb from './pages/QueryDb.jsx'
 import DagForge from './pages/DagForge.jsx'
+import { AIEthicsIndex, AIEthicsArticle } from './pages/AIEthics.jsx'
 
 // Sandbox
 import Test from './pages/Test.jsx'
@@ -150,6 +151,12 @@ export default function App() {
         {/* Bar AI sandbox */}
         <Route path="/testbarai" element={<><Nav /><TestBarAI /></>} />
         <Route path="/:lang/testbarai" element={<><Nav /><LangWrapper><TestBarAI /></LangWrapper></>} />
+
+        {/* AI Ethics: sezione editoriale (indice + articolo) */}
+        <Route path="/ai-ethics" element={<><Nav /><AIEthicsIndex /></>} />
+        <Route path="/:lang/ai-ethics" element={<><Nav /><LangWrapper><AIEthicsIndex /></LangWrapper></>} />
+        <Route path="/ai-ethics/:slug" element={<><Nav /><AIEthicsArticle /></>} />
+        <Route path="/:lang/ai-ethics/:slug" element={<><Nav /><LangWrapper><AIEthicsArticle /></LangWrapper></>} />
       </Routes>
     </BrowserRouter>
   )

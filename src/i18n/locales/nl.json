@@ -997,5 +997,17 @@
     "copyFailed": "Kopiëren mislukt.",
     "pullForceConfirm": "Pull FORCE op '{{project}}':\ngooit ELKE niet-gepushte lokale commit/wijziging weg. Zeker?",
     "pullRebaseConfirm": "Pull REBASE op '{{project}}':\nrebaset lokale commits op origin en publiceert ze (push). Bevestigen?"
+  },
+  "ethics": {
+    "docTitle": "AI Ethics & Safety",
+    "title": "AI Ethics & Safety",
+    "subtitle": "Gedocumenteerde analyse van AI-risico’s, incidenten en governance — van frontierlabs tot lokale agents.",
+    "method": "Deze sectie gebruikt uitsluitend openbare, gedocumenteerde bronnen en onderscheidt vaststaande feiten van interpretaties en toekomstveronderstellingen.",
+    "read": "Lees artikel",
+    "back": "Alle artikelen",
+    "minRead": "{{count}} min lezen",
+    "sources": "Bronnen en verder lezen",
+    "notFound": "Artikel niet gevonden.",
+    "footNote": "Redactionele sectie van Daniele Villanova — AI Ethics & Safety."
   }
 }

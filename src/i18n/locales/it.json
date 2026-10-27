@@ -998,5 +998,17 @@
     "copyFailed": "Copia non riuscita.",
     "pullForceConfirm": "Pull FORCE su '{{project}}':\nbutta via OGNI commit/modifica locale non pushata. Sicuro?",
     "pullRebaseConfirm": "Pull REBASE su '{{project}}':\nribasa i commit locali su origin e li pubblica (push). Confermi?"
+  },
+  "ethics": {
+    "docTitle": "AI Ethics & Safety",
+    "title": "AI Ethics & Safety",
+    "subtitle": "Analisi documentata di rischi, incidenti e governance dell’AI — dai laboratori frontier agli agenti locali.",
+    "method": "Questa sezione lavora solo su fonti pubbliche e documentate, distinguendo i fatti accertati dalle interpretazioni e dalle ipotesi sul futuro.",
+    "read": "Leggi l’articolo",
+    "back": "Tutti gli articoli",
+    "minRead": "{{count}} min di lettura",
+    "sources": "Fonti e approfondimenti",
+    "notFound": "Articolo non trovato.",
+    "footNote": "Sezione editoriale di Daniele Villanova — AI Ethics & Safety."
   }
 }
