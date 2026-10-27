@@ -325,7 +325,7 @@ const timeLabel = (ts) =>
   })
 
 
-export default function Test2() {
+export default function LeleAdmin() {
   const { t } = useTranslation()
   const [idToken, setIdToken] = useState(() => {
     try {
