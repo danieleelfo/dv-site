@@ -687,8 +687,8 @@
     "checkPreview": "Controleer het voorbeeld van de backend voordat je doorgaat.",
     "blocked": "Geblokkeerd",
     "unsafe": "De backend meldt dat deze operatie niet veilig is.",
-    "typePhrase": "Om te bevestigen, typ:",
-    "phrasePlaceholder": "Typ de exacte zin",
+    "typePhrase": "Ter bevestiging: voer deze code in",
+    "phrasePlaceholder": "Voer de code in",
     "cancel": "Annuleren",
     "executing": "Uitvoeren…",
     "confirmRun": "Bevestig en voer uit"
