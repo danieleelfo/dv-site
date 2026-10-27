@@ -331,7 +331,7 @@
       "unload": "🧹 Allibero la RAM usada per Ollama abans de les imatges…",
       "retryConn": "🔄 Connexió interrompuda temporalment en comprovar la imatge {{n}}/{{total}} — nou intent {{attempt}}/{{attempts}}…",
       "queued": "🎨 Imatge {{n}}/{{total}}: {{title}} — a la cua…",
-      "progress": "🎨 Imatge {{n}}/{{total}} ({{title}}): {{state}}… ({{s}}s)",
+      "progress": "🎨 Imatge {{n}}/{{total}} ({{title}}): {{state}}… ({{s}})",
       "runningLabel": "generant",
       "queuedLabel": "a la cua",
       "done": "🖼️ Imatge {{n}}/{{total}} a punt: {{title}}",

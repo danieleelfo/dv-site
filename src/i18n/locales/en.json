@@ -332,7 +332,7 @@
       "unload": "🧹 Freeing the RAM used by Ollama before the images…",
       "retryConn": "🔄 Connection temporarily lost while checking image {{n}}/{{total}} — retry {{attempt}}/{{attempts}}…",
       "queued": "🎨 Image {{n}}/{{total}}: {{title}} — queued…",
-      "progress": "🎨 Image {{n}}/{{total}} ({{title}}): {{state}}… ({{s}}s)",
+      "progress": "🎨 Image {{n}}/{{total}} ({{title}}): {{state}}… ({{s}})",
       "runningLabel": "generating",
       "queuedLabel": "queued",
       "done": "🖼️ Image {{n}}/{{total}} ready: {{title}}",

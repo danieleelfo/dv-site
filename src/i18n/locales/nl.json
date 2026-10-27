@@ -331,7 +331,7 @@
       "unload": "🧹 Ik maak het RAM-geheugen van Ollama vrij vóór de afbeeldingen…",
       "retryConn": "🔄 Verbinding tijdelijk verbroken bij het controleren van afbeelding {{n}}/{{total}} — nieuwe poging {{attempt}}/{{attempts}}…",
       "queued": "🎨 Afbeelding {{n}}/{{total}}: {{title}} — in de wachtrij…",
-      "progress": "🎨 Afbeelding {{n}}/{{total}} ({{title}}): {{state}}… ({{s}}s)",
+      "progress": "🎨 Afbeelding {{n}}/{{total}} ({{title}}): {{state}}… ({{s}})",
       "runningLabel": "generatie bezig",
       "queuedLabel": "in de wachtrij",
       "done": "🖼️ Afbeelding {{n}}/{{total}} klaar: {{title}}",

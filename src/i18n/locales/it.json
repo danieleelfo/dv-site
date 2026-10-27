@@ -332,7 +332,7 @@
       "unload": "🧹 Libero la RAM usata da Ollama prima delle immagini…",
       "retryConn": "🔄 Connessione temporaneamente interrotta durante il controllo dell'immagine {{n}}/{{total}} — nuovo tentativo {{attempt}}/{{attempts}}…",
       "queued": "🎨 Immagine {{n}}/{{total}}: {{title}} — in coda…",
-      "progress": "🎨 Immagine {{n}}/{{total}} ({{title}}): {{state}}… ({{s}}s)",
+      "progress": "🎨 Immagine {{n}}/{{total}} ({{title}}): {{state}}… ({{s}})",
       "runningLabel": "generazione in corso",
       "queuedLabel": "in coda",
       "done": "🖼️ Immagine {{n}}/{{total}} pronta: {{title}}",

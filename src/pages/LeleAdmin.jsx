@@ -898,6 +898,9 @@ export default function LeleAdmin() {
     }
   }
 
+  // Formato min:ss per il timer di elaborazione (come StoriesTab).
+  const formatSeconds = (s) => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0')
+
   async function generateStoryIllustration(storyText, agent, audioFile) {
     if (!idToken || storyImageBusy) return
     const imageCount = Math.max(1, Math.min(12, Number(storyImageCount) || 3))
@@ -996,7 +999,7 @@ export default function LeleAdmin() {
                   total: imageCount,
                   title: scene.title,
                   state: status === 'running' || status === 'processing' ? t('lele.story.runningLabel') : t('lele.story.queuedLabel'),
-                  s: elapsed,
+                  s: formatSeconds(elapsed),
                 })
               ),
           })
