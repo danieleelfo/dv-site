@@ -40,3 +40,5 @@ __pycache__/
 patch_image_lab_gateway.py
 git_admin_audit.log
 image_history/
+
+story_history/
