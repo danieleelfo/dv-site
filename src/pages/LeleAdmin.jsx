@@ -977,7 +977,7 @@ export default function LeleAdmin() {
           // gateway via preset, oltre che dal prompt del planner.
           const scenePreset = kidsMode ? 'sw_kids' : (genre ? 'ns_free' : '')
           const [fmtWidth, fmtHeight] = String(storyImageFormat || '1024x768').split('x').map(Number)
-          const sceneSteps = Math.max(1, Math.min(100, Number(storyImageSteps) || 12))
+          const sceneSteps = Math.max(1, Math.min(100, Number(storyImageSteps) || 8))
           const jobId = await createImageJob(idToken, scene.prompt, {
             preset: scenePreset,
             width: fmtWidth,
@@ -1751,7 +1751,7 @@ export default function LeleAdmin() {
                         onChange={(e) => setStoryImageCount(Number(e.target.value))}
                         style={{ padding: '4px 8px', borderRadius: 8, background: 'var(--surface, #fff)', color: 'inherit', border: '1px solid var(--line, #ccc)' }}
                       >
-                        {[1, 2, 3, 4, 5, 6, 7, 8].map((count) => <option key={count} value={count}>{count} {count === 1 ? t('lele.story.imageOne') : t('lele.story.imageMany')}</option>)}
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((count) => <option key={count} value={count}>{count} {count === 1 ? t('lele.story.imageOne') : t('lele.story.imageMany')}</option>)}
                       </select>
                       <select
                         aria-label={t('lele.story.formatAria')}
