@@ -29,8 +29,9 @@ export const ARTICLES = [
       ],
       content: {
         en: {
+          _enHash: 'e2665f62be8c',
           title: '110 robots, good sync, zero magic',
-          dek: 'In Jinan, 110 humanoids danced in lockstep for a Guinness title. Spectacul is not the same as presence.',
+          dek: 'In Jinan, 110 humanoids danced in lockstep for a Guinness title. Spectacular is not the same as presence.',
           body: [
             { type: 'p', text: 'On 24 October, AgiBot ran 110 full-size Expedition A3 humanoids through a synchronized routine in Jinan, with a Guinness adjudicator watching. The routine lasted under six minutes and included jumps, flips and formation changes.' },
             { type: 'h3', text: 'Where the sync comes from' },
@@ -41,6 +42,7 @@ export const ARTICLES = [
           ],
         },
         it: {
+          _enHash: 'e2665f62be8c',
           title: '110 robot, sincronia accettabile, zero magia',
           dek: 'A Jinan 110 umanoidi hanno ballato all’unisono per un record Guinness. Precisione non vuol dire emozione.',
           body: [
@@ -49,10 +51,63 @@ export const ARTICLES = [
             { type: 'p', text: 'Non dai robot che si ascoltano. Una piattaforma di controllo centrale (LinkBots) e un posizionamento a banda ultra-larga tengono ogni unità sullo stesso orologio e sulla stessa mappa.' },
             { type: 'h3', text: 'La parte sterile' },
             { type: 'p', text: 'La sincronia perfetta è un risultato di ingegneria, non un’esibizione. Nessuno improvvisa, nessuno rischia l’errore, nessuno risponde alla sala. È impressionante, ma priva di ciò che rende umana la danza e unica l’umanità.' },
-            { type: 'p', text: 'Nota utile: il record riguarda robot umanoidi a taglia reale. Guinness elenca già un numero maggiore di piccoli robot nel 2018, quindi il numero in titolo dice meno di quanto sembri.' },
+            { type: 'p', text: 'Nota utile: il record riguarda robot umanoidi a taglia reale. Guinness elenca già un numero maggiore di piccoli robot nel 2018, quindi il numero in titolo dice meno di quanto sembri. La settimana scorsa negli Stati Uniti c’è stato un record numerico di droni...' },
+          ],
+        },
+        es: {
+          _enHash: 'e2665f62be8c',
+          title: '110 robots, buena sincronización, cero magia',
+          dek: 'En Jinán, 110 humanoides bailaron al unísono para un récord Guinness. Espectacular no es lo mismo que presencia.',
+          body: [
+            { type: 'p', text: 'El 24 de octubre, AgiBot hizo ejecutar a 110 humanoides Expedition A3 a tamaño real una coreografía sincronizada en Jinán, ante un juez de Guinness. Menos de seis minutos, con saltos, volteretas y cambios de formación.' },
+            { type: 'h3', text: 'De dónde viene la sincronía' },
+            { type: 'p', text: 'No de robots que se escuchan entre sí. Una plataforma central de control de clúster (LinkBots) y un posicionamiento por banda ultraancha mantienen cada unidad en el mismo reloj y en el mismo mapa.' },
+            { type: 'h3', text: 'La parte estéril' },
+            { type: 'p', text: 'La sincronización perfecta es un resultado de ingeniería, no una actuación. Nadie improvisa, nadie arriesga un error, nadie responde a la sala. Es impresionante, y está vacío de lo que hace humana la danza y única a la humanidad.' },
+            { type: 'p', text: 'Nota útil: el récord se refiere a robots humanoides a tamaño real. Guinness ya lista un número mayor de robots pequeños en 2018, así que la cifra del titular dice menos de lo que parece. La semana pasada hubo un récord numérico de drones en Estados Unidos...' },
+          ],
+        },
+        fr: {
+          _enHash: 'e2665f62be8c',
+          title: '110 robots, bonne synchro, zéro magie',
+          dek: 'À Jinan, 110 humanoïdes ont dansé à l’unisson pour un titre Guinness. Spectaculaire n’est pas présence.',
+          body: [
+            { type: 'p', text: 'Le 24 octobre, AgiBot a fait exécuter à 110 humanoïdes Expedition A3 grandeur nature une chorégraphie synchronisée à Jinan, devant un juge Guinness. Moins de six minutes, avec sauts, cascades et changements de formation.' },
+            { type: 'h3', text: 'D’où vient la synchronisation' },
+            { type: 'p', text: 'Pas des robots qui s’écoutent. Une plateforme centrale de contrôle de cluster (LinkBots) et un positionnement à bande ultra-large gardent chaque unité sur la même horloge et la même carte.' },
+            { type: 'h3', text: 'La partie stérile' },
+            { type: 'p', text: 'La synchronisation parfaite est un résultat d’ingénierie, pas une performance. Personne n’improvise, personne ne risque l’erreur, personne ne répond à la salle. C’est impressionnant, et vidé de ce qui rend la danse humaine et l’humanité unique.' },
+            { type: 'p', text: 'Note utile : le record concerne des robots humanoïdes grandeur nature. Guinness liste déjà un nombre plus grand de petits robots en 2018, donc le chiffre du titre dit moins qu’il n’y paraît. La semaine dernière, un record de drones a eu lieu aux États-Unis...' },
+          ],
+        },
+        ca: {
+          _enHash: 'e2665f62be8c',
+          title: '110 robots, bona sincronia, zero màgia',
+          dek: 'A Jinan, 110 humanoides van ballar a l’uníson per a un rècord Guinness. Espectacular no és el mateix que presència.',
+          body: [
+            { type: 'p', text: 'El 24 d’octubre, AgiBot va fer executar a 110 humanoides Expedition A3 a mida real una coreografia sincronitzada a Jinan, davant d’un jutge de Guinness. Menys de sis minuts, amb salts, tombarelles i canvis de formació.' },
+            { type: 'h3', text: 'D’on ve la sincronia' },
+            { type: 'p', text: 'No pas de robots que s’escolten entre ells. Una plataforma central de control de clúster (LinkBots) i un posicionament per banda ultraample mantenen cada unitat al mateix rellotge i al mateix mapa.' },
+            { type: 'h3', text: 'La part estèril' },
+            { type: 'p', text: 'La sincronització perfecta és un resultat d’enginyeria, no una actuació. Ningú improvisa, ningú s’arrisca a errar, ningú respon a la sala. És impressionant, i és buit del que fa humana la dansa i única la humanitat.' },
+            { type: 'p', text: 'Nota útil: el rècord fa referència a robots humanoides a mida real. Guinness ja llista un nombre més gran de robots petits el 2018, així que el número del títol diu menys del que sembla. La setmana passada hi va haver un rècord numèric de drons als Estats Units...' },
+          ],
+        },
+        nl: {
+          _enHash: 'e2665f62be8c',
+          title: '110 robots, goede synchro, nul magie',
+          dek: 'In Jinan dansten 110 humanoïden in de pas voor een Guinness-titel. Spectaculair is niet hetzelfde als aanwezigheid.',
+          body: [
+            { type: 'p', text: 'Op 24 oktober liet AgiBot 110 Expedition A3-humanoïden in ware grootte een gesynchroniseerde choreografie uitvoeren in Jinan, onder het oog van een Guinness-jury. Minder dan zes minuten, met sprongen, salti en formatiewisselingen.' },
+            { type: 'h3', text: 'Waar de synchro vandaan komt' },
+            { type: 'p', text: 'Niet doordat de robots naar elkaar luisteren. Een centraal cluster-controlplatform (LinkBots) en ultrabreedbandpositionering houden elke unit op dezelfde klok en dezelfde kaart.' },
+            { type: 'h3', text: 'Het steriele deel' },
+            { type: 'p', text: 'Perfecte synchronisatie is een technisch resultaat, geen performance. Niemand improviseert, niemand riskeert een fout, niemand reageert op de zaal. Het is indrukwekkend, en leeg van wat dans menselijk maakt en de mensheid uniek.' },
+            { type: 'p', text: 'Nuttige noot: het record gaat over humanoïde robots in ware grootte. Guinness noteert al een groter aantal kleine robots in 2018, dus het getal in de titel zegt minder dan het lijkt. Vorige week was er in de VS een numeriek dronerecord...' },
           ],
         },
       },
+    },
     },
   {
     slug: 'when-ai-escapes-the-boundaries',
