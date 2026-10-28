@@ -32,6 +32,15 @@ const STORY_AGENT = "Story Whisper";
 const CHAT_ID_KEY = "dv_story_chat_id";
 const MAX_PROMPT_CHARS = 4000;
 
+// Ricette di stile rapide per la rigenerazione V2+: chip che riempiono
+// l'input di stile extra (etichetta IT, prompt EN per il planner).
+const REG_STYLE_PRESETS = [
+  ["💧 Acquerello", "soft watercolor illustration"],
+  ["✏️ Matita colorata", "colored pencil drawing"],
+  ["🐱 Cartoon manga", "clean cartoon manga style"],
+  ["📷 Fotorealistico", "photorealistic, cinematic lighting"],
+];
+
 function getChatId() {
   try {
     const stored = window.localStorage.getItem(CHAT_ID_KEY);
@@ -55,6 +64,10 @@ export default function StoriesTab({ idToken }) {
   // Rigenerazione illustrazioni come nuova versione della stessa storia.
   const [regModel, setRegModel] = useState("qwen2.5");
   const [regStyle, setRegStyle] = useState("");
+  // regCount = "" significa "come la versione esistente" (default).
+  const [regCount, setRegCount] = useState("");
+  const [regFormat, setRegFormat] = useState("1024x768");
+  const [regSteps, setRegSteps] = useState(8);
   const [activeVersion, setActiveVersion] = useState(null);
   // F4-B/C: formato e step delle illustrazioni.
   const [imageFormat, setImageFormat] = useState("1024x768");
@@ -448,7 +461,7 @@ export default function StoriesTab({ idToken }) {
   }
 
   // 🔁 Rigenera le illustrazioni della storia aperta come NUOVA VERSIONE:
-  // stessa storia (testo invariato), nuova selezione scene con un modello
+  // stessa storia (testo invariato), nuova selezione scene con modello
   // Ollama a scelta (e un prompt di stile extra opzionale per Z-Image-Turbo),
   // nuovo loop immagini. Le versioni si affiancano nella stessa storia e
   // si scelgono coi badge V1/V2/… — le scene restano nel DB tutte insieme.
@@ -466,7 +479,11 @@ export default function StoriesTab({ idToken }) {
           (max, s) => Math.max(max, Number(s?.version) || 1),
           0
         ) + 1;
-      const imageN = Math.max(1, Math.min(12, oldScenes.length || imageCount));
+      // Numero di immagini: selettore dedicato, default "come V1".
+      const imageN = Math.max(
+        1,
+        Math.min(12, Number(regCount) || oldScenes.length || imageCount)
+      );
 
       // 1. Pianificazione scene con modello selezionabile.
       const scenes = await planStoryScenes({
@@ -493,7 +510,8 @@ export default function StoriesTab({ idToken }) {
         /* non blocca le illustrazioni */
       }
 
-      // 3. Loop immagini (stessa logica collaudata di generateStory).
+      // 3. Loop immagini (stessa logica collaudata di generateStory),
+      //    con formato e step propri del pannello di rigenerazione.
       const sceneRetried = new Set();
       const doneScenes = [];
       for (let index = 0; index < scenes.length; index += 1) {
@@ -503,10 +521,10 @@ export default function StoriesTab({ idToken }) {
         let imageStage = "avvio immagine " + sceneNumber + "/" + total;
         setStage("🔁 V" + nextVersion + " — Immagine " + sceneNumber + "/" + total + ": " + scene.title + " — in coda…");
         try {
-          const [fmtWidth, fmtHeight] = String(imageFormat || "1024x768")
+          const [fmtWidth, fmtHeight] = String(regFormat || "1024x768")
             .split("x")
             .map(Number);
-          const sceneSteps = Math.max(1, Math.min(100, Number(imageSteps) || 8));
+          const sceneSteps = Math.max(1, Math.min(100, Number(regSteps) || 8));
           const jobId = await createImageJob(idToken, scene.prompt, {
             preset: "sw_kids",
             width: fmtWidth,
@@ -775,11 +793,54 @@ export default function StoriesTab({ idToken }) {
                   onChange={(event) => setRegModel(event.target.value)}
                   style={{ flex: "0 0 auto", minWidth: "9rem" }}
                   aria-label="Modello Ollama per la nuova versione"
+                  disabled={busy}
                 >
                   {["qwen2.5", "mistral", "llama3", "gemma4", "deepseek-r1"].map((m) => (
                     <option key={m} value={m}>{m}</option>
                   ))}
                 </select>
+                <select
+                  className="il-input"
+                  value={regCount}
+                  onChange={(event) => setRegCount(event.target.value ? Number(event.target.value) : "")}
+                  style={{ flex: "0 0 auto", minWidth: "10rem" }}
+                  aria-label="Numero di illustrazioni per la nuova versione"
+                  disabled={busy}
+                >
+                  <option value="">Come V{shownVersion} ({sceneCount})</option>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => (
+                    <option key={n} value={n}>{n} {n === 1 ? "immagine" : "immagini"}</option>
+                  ))}
+                </select>
+                <select
+                  className="il-input"
+                  value={regFormat}
+                  onChange={(event) => setRegFormat(event.target.value)}
+                  style={{ flex: "0 0 auto", minWidth: "9rem" }}
+                  aria-label="Formato immagini per la nuova versione"
+                  disabled={busy}
+                >
+                  {[["512x512", "1:1 · 512"], ["768x768", "1:1 · 768"], ["1024x1024", "1:1 · 1024"], ["768x576", "4:3 · 768"], ["1024x768", "4:3 · 1024"], ["1280x720", "16:9 · 1280"], ["960x640", "3:2 · 960"]].map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+                <select
+                  className="il-input"
+                  value={regSteps}
+                  onChange={(event) => setRegSteps(Number(event.target.value))}
+                  style={{ flex: "0 0 auto", minWidth: "7rem" }}
+                  aria-label="Step di generazione per la nuova versione"
+                  disabled={busy}
+                >
+                  {[1, 3, 4, 5, 6, 7, 8, 9, 12, 15].map((s) => (
+                    <option key={s} value={s}>{s} step</option>
+                  ))}
+                </select>
+                <button className="il-button" type="submit" disabled={busy || !current.text}>
+                  {busy ? "Lavoro in corso…" : "🔁 Rigenera come V" + ((versions[versions.length - 1] || 0) + 1)}
+                </button>
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: ".4rem", marginTop: ".6rem" }}>
                 <input
                   className="il-input"
                   type="text"
@@ -788,10 +849,21 @@ export default function StoriesTab({ idToken }) {
                   placeholder="Es. acquerello soft, matita colorata, cartoon manga…"
                   style={{ flex: "1 1 14rem" }}
                   aria-label="Stile extra per la nuova versione"
+                  disabled={busy}
                 />
-                <button className="il-button" type="submit" disabled={busy || !current.text}>
-                  {busy ? "Lavoro in corso…" : "🔁 Rigenera come V" + ((versions[versions.length - 1] || 0) + 1)}
-                </button>
+                {REG_STYLE_PRESETS.map(([label, value]) => (
+                  <button
+                    key={label}
+                    type="button"
+                    className={"il-page-btn" + (regStyle === value ? " il-page-btn-active" : "")}
+                    onClick={() => setRegStyle(regStyle === value ? "" : value)}
+                    style={{ padding: ".2rem .6rem" }}
+                    title={"Stile: " + value}
+                    disabled={busy}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
               <p className="il-hint" style={{ marginTop: ".5rem", marginBottom: 0 }}>
                 Stessa storia, nuova selezione scene e nuove immagini (ora vedi V{shownVersion}).
@@ -803,17 +875,24 @@ export default function StoriesTab({ idToken }) {
           {versions.length > 1 && (
             <div style={{ marginTop: ".6rem", display: "flex", gap: ".4rem", alignItems: "center", flexWrap: "wrap" }}>
               <span className="il-label" style={{ margin: 0 }}>Versioni illustrazioni:</span>
-              {versions.map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  className={"il-page-btn" + (v === shownVersion ? " il-page-btn-active" : "")}
-                  onClick={() => setActiveVersion(v)}
-                  style={{ padding: ".2rem .6rem" }}
-                >
-                  V{v}
-                </button>
-              ))}
+              {versions.map((v) => {
+                const vScene = (current?.scenes || []).find((s) => sceneVersion(s) === v);
+                const vTitle = "V" + v +
+                  (vScene?.planner ? " · planner: " + vScene.planner : "") +
+                  (vScene?.style_prompt ? " · stile: " + vScene.style_prompt : "");
+                return (
+                  <button
+                    key={v}
+                    type="button"
+                    className={"il-page-btn" + (v === shownVersion ? " il-page-btn-active" : "")}
+                    onClick={() => setActiveVersion(v)}
+                    style={{ padding: ".2rem .6rem" }}
+                    title={vTitle}
+                  >
+                    V{v}
+                  </button>
+                );
+              })}
             </div>
           )}
 
@@ -930,6 +1009,3 @@ export default function StoriesTab({ idToken }) {
     </div>
   );
 }
-
-
-
