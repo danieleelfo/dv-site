@@ -85,6 +85,11 @@ const LELE_MODELS = ['mistral', 'gemma4', 'llama3', 'qwen2.5', 'deepseek-r1']
 const LELE_MODEL_KEY = 'lc_lele_model'
 const REVIEWER_MODEL_KEY = 'lc_reviewer_model'
 
+// Fallback della pianificazione scene: se il modello scelto non produce
+// JSON validi (dopo retry+repair), i lotti riprovano in cascata con
+// questi modelli, nell'ordine.
+const PLANNER_FALLBACK_MODELS = ['mistral', 'qwen2.5']
+
 // Pagine e console ufficiali del sito.
 const QUICK_LINKS = [
   { to: '/improve', label: 'Improve 🛠️', desc: 'lele.pages.improve', main: true },
@@ -919,7 +924,7 @@ export default function LeleAdmin() {
     setStoryImageBusy(true)
     setStoryImageError('')
     setStoryImages([])
-    setStoryImageStatus(t('lele.story.plan', { count: imageCount }))
+    setStoryImageStatus(t('lele.story.plan', { count: imageCount }) + ' (' + leleModel + ')')
     let imageStage = 'selezione delle scene con Ollama'
     try {
       // Pianificazione A LOTTI (3 scene per chiamata): con 8 scene una sola
@@ -941,29 +946,54 @@ export default function LeleAdmin() {
           setStoryImageStatus(t('lele.story.planBatch', { from, to, total: imageCount }))
         }
 
-        let rawPlan = String(await callLlm(idToken, buildStoryboardBatchPrompt({
-          total: imageCount,
-          from,
-          to,
-          storyText,
-          style: sharedStyle,
-          prevTitles: plannedScenes.map((s) => s.title),
-          artDirection,
-          styleExtra,
-        }), leleModel, 180000, 300)).trim()
+        // Retry + fallback: il lotto prova col modello scelto (max 2 chiamate,
+        // ciascuna con fino a 2 correzioni JSON); se non basta, riprova in
+        // cascata con i modelli di fallback (mistral, poi qwen2.5). Il modello
+        // usato compare negli status tra parentesi, così dalla console si
+        // vede quando scatta il cambio.
+        const plannerModels = [leleModel, ...PLANNER_FALLBACK_MODELS].filter(
+          (m, i, arr) => m && arr.indexOf(m) === i
+        )
 
         let parsedPlan
-        try {
-          parsedPlan = parsePlan(rawPlan)
-        } catch {
-          imageStage = 'correzione del formato JSON con Ollama'
-          setStoryImageStatus(t('lele.story.repair'))
-          rawPlan = String(await callLlm(idToken, buildRepairPrompt(batchCount, rawPlan), leleModel, 180000, 300)).trim()
-          try {
-            parsedPlan = parsePlan(rawPlan)
-          } catch {
-            throw new Error('Ollama non ha prodotto un JSON valido nemmeno dopo il tentativo di correzione (scene ' + from + '-' + to + ').')
+        let lastRaw = ''
+        let plannedOk = false
+        for (const plannerModel of plannerModels) {
+          for (let planAttempt = 1; planAttempt <= 2 && !plannedOk; planAttempt += 1) {
+            if (batches.length > 1 || plannerModel !== leleModel) {
+              setStoryImageStatus(t('lele.story.planBatch', { from, to, total: imageCount }) + ' (' + plannerModel + ')')
+            }
+            const rawPlan = String(await callLlm(idToken, buildStoryboardBatchPrompt({
+              total: imageCount,
+              from,
+              to,
+              storyText,
+              style: sharedStyle,
+              prevTitles: plannedScenes.map((s) => s.title),
+              artDirection,
+              styleExtra,
+            }), plannerModel, 180000, 300)).trim()
+            lastRaw = rawPlan
+            try {
+              parsedPlan = parsePlan(rawPlan)
+              plannedOk = true
+            } catch {
+              imageStage = 'correzione del formato JSON con Ollama (' + plannerModel + ')'
+              for (let repairAttempt = 1; repairAttempt <= 2 && !plannedOk; repairAttempt += 1) {
+                setStoryImageStatus(t('lele.story.repair') + ' (' + plannerModel + ')')
+                const repaired = String(await callLlm(idToken, buildRepairPrompt(batchCount, lastRaw), plannerModel, 180000, 300)).trim()
+                try {
+                  parsedPlan = parsePlan(repaired)
+                  plannedOk = true
+                } catch {
+                  lastRaw = repaired
+                }
+              }
+            }
           }
+        }
+        if (!plannedOk) {
+          throw new Error('Ollama non ha prodotto un JSON valido per le scene ' + from + '-' + to + ' (modelli provati: ' + plannerModels.join(', ') + ').')
         }
 
         if (!sharedStyle && !Array.isArray(parsedPlan) && typeof parsedPlan?.style === 'string') {
@@ -2209,6 +2239,7 @@ const css = `
   .lc-shade{background:linear-gradient(180deg,rgba(11,16,21,.10) 0%,rgba(11,16,21,.22) 70%)}
 }
 ` 
+
 
 
 
