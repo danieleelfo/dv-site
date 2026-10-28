@@ -82,6 +82,7 @@ export default function Nav() {
             <Link to={"/" + l} style={styles.link}>{t('nav.home')}</Link>
             <Link to={"/" + l + "/projects"} style={styles.link}>{t('nav.projects')}</Link>
             <Link to={"/" + l + "/ai-lab"} style={styles.link}>AI Lab</Link>
+            <Link to={"/" + l + "/ai-ethics"} style={styles.link}>AI News</Link>
             <Link to={"/" + l + "/leles"} style={styles.link}>Leles</Link>
             <Link to={"/" + l + "/b2b"} style={styles.link}>B2B</Link>
             <Link to={"/" + l + "/image-lab"} style={styles.link}>ImgLab</Link>
