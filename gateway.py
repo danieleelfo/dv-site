@@ -3103,7 +3103,7 @@ IMAGE_HISTORY_DIR = os.environ.get(
 )
 
 # Numero massimo di generazioni conservate su disco.
-IMAGE_HISTORY_MAX = int(os.environ.get("IMAGE_HISTORY_MAX", "100"))
+IMAGE_HISTORY_MAX = int(os.environ.get("IMAGE_HISTORY_MAX", "1000"))
 
 
 def _image_save_history(
@@ -4151,6 +4151,7 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=9090,
     )
+
 
 
 
