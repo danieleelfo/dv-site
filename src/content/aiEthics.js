@@ -38,7 +38,7 @@ export const ARTICLES = [
             { type: 'p', text: 'Not from the robots listening to each other. A central cluster-control platform (LinkBots) and ultra-wideband positioning keep every unit on the same clock and the same map.' },
             { type: 'h3', text: 'The sterile part' },
             { type: 'p', text: 'Perfect synchronization is an engineering result, not a performance. Nobody improvises, nobody risks a mistake, nobody responds to the room. It is impressive, and it is empty of what makes dance human and humanity unique.' },
-            { type: 'p', text: 'Also worth noting: the "record" is for humanoid-sized robots. Guinness already lists a larger count of small robots from 2018, so the headline number says less than it seems. Last week there was a drone number record in USA...' },
+            { type: 'p', text: 'Also worth noting: the "record" is for humanoid-sized robots. Guinness already lists a larger count of small robots from 2018, so the headline number says less than it seems. Last week there was a flying drone number record in USA...' },
           ],
         },
         it: {
