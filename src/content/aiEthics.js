@@ -49,7 +49,7 @@ export const ARTICLES = [
             { type: 'p', text: 'Non dai robot che si ascoltano. Una piattaforma di controllo centrale (LinkBots) e un posizionamento a banda ultra-larga tengono ogni unità sullo stesso orologio e sulla stessa mappa.' },
             { type: 'h3', text: 'La parte sterile' },
             { type: 'p', text: 'La sincronia perfetta è un risultato di ingegneria, non un’esibizione. Nessuno improvvisa, nessuno rischia l’errore, nessuno risponde alla sala. È impressionante, ma priva di ciò che rende umana la danza e unica l’umanità.' },
-            { type: 'p', text: 'Nota utile: il record riguarda robot umanoidi a taglia reale. Guinness elenca già un numero maggiore di piccoli robot nel 2018, quindi il numero in titolo dice meno di quanto sembri. },
+            { type: 'p', text: 'Nota utile: il record riguarda robot umanoidi a taglia reale. Guinness elenca già un numero maggiore di piccoli robot nel 2018, quindi il numero in titolo dice meno di quanto sembri.' },
           ],
         },
       },
