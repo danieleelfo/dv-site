@@ -108,7 +108,6 @@ export const ARTICLES = [
         },
       },
     },
-    },
   {
     slug: 'when-ai-escapes-the-boundaries',
     number: '001',
