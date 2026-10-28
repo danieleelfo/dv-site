@@ -24,7 +24,7 @@ DV_SITE_DIR = pathlib.Path(__file__).resolve().parent
 DATA_FILE = DV_SITE_DIR / "src" / "content" / "aiEthics.js"
 
 LLM_URL = "http://127.0.0.1:11434/api/chat"   # API Ollama-compatible
-LLM_MODEL = "gemma3:12b"                        # adatta al modello locale tuo
+LLM_MODEL = "mistral:latest"                    # adatta al modello locale tuo
 LLM_OPTIONS = {"temperature": 0.3}
 
 LANGS = ["it", "es", "fr", "ca", "nl"]
