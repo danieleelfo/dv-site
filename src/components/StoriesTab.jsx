@@ -20,12 +20,9 @@ import {
   API,
   apiJson,
   authBlobUrl,
-  buildRepairPrompt,
-  buildStoryboardPrompt,
   createImageJob,
   fetchJobStatusWithRetry,
-  normalizeScenes,
-  parsePlan,
+  planStoryScenes,
   resultToDataUrl,
   sleep,
   unloadOllama,
@@ -55,6 +52,10 @@ function formatSeconds(seconds) {
 export default function StoriesTab({ idToken }) {
   const [prompt, setPrompt] = useState("");
   const [imageCount, setImageCount] = useState(3);
+  // Rigenerazione illustrazioni come nuova versione della stessa storia.
+  const [regModel, setRegModel] = useState("qwen2.5");
+  const [regStyle, setRegStyle] = useState("");
+  const [activeVersion, setActiveVersion] = useState(null);
   // F4-B/C: formato e step delle illustrazioni.
   const [imageFormat, setImageFormat] = useState("1024x768");
   const [imageSteps, setImageSteps] = useState(8);
@@ -120,6 +121,7 @@ export default function StoriesTab({ idToken }) {
   const openStory = useCallback(async (item) => {
     setError("");
     setStage("");
+    setActiveVersion(null);
     try {
       const data = await apiJson(
         idToken,
@@ -295,56 +297,23 @@ export default function StoriesTab({ idToken }) {
       await loadStories();
 
       // ------------------------------------------------------
-      // 2. Pianificazione scene STATELESS (/api/admin/llm).
+      // 2. Pianificazione scene STATELESS (planStoryScenes condivisa:
+      //    lotti di 3, retry + repair, fallback mistral → qwen2.5).
       // ------------------------------------------------------
-      setStage("🧠 Pianificazione di " + imageCount + " scene…");
-
-      let rawPlan = String((await apiJson(
-          idToken,
-          "/api/admin/llm",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              prompt: buildStoryboardPrompt({
-                count: imageCount,
-                storyText,
-                styleClause: "a consistent family-friendly storybook style. ",
-              }),
-              model: "qwen2.5",
-              keep_alive: 0,
-            }),
-          },
-          180000
-        )).answer || "").trim();
-
-      let parsedPlan;
-      try {
-        parsedPlan = parsePlan(rawPlan);
-      } catch (e) {
-        setStage("🧠 Correzione del formato della selezione scene…");
-        rawPlan = String((await apiJson(
-            idToken,
-            "/api/admin/llm",
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                prompt: buildRepairPrompt(imageCount, rawPlan),
-                model: "qwen2.5",
-                keep_alive: 0,
-              }),
-            },
-            180000
-          )).answer || "").trim();
-        try {
-          parsedPlan = parsePlan(rawPlan);
-        } catch (e2) {
-          throw new Error("L'LLM non ha prodotto un JSON valido nemmeno dopo la correzione.");
-        }
-      }
-
-      const scenes = normalizeScenes(parsedPlan, imageCount);
+      const scenes = await planStoryScenes({
+        idToken,
+        storyText,
+        imageCount,
+        styleClause: "a consistent family-friendly storybook style. ",
+        model: "qwen2.5",
+        onStatus: (s) => {
+          if (s.kind === "batch") {
+            setStage("🧠 Ollama seleziona le scene " + s.from + "-" + s.to + " di " + s.total + "… (" + s.model + ")");
+          } else if (s.kind === "repair") {
+            setStage("🧠 Correzione del formato JSON… (" + s.model + ")");
+          }
+        },
+      });
 
       // ------------------------------------------------------
       // 3. Libero la RAM di Ollama prima del loop immagini.
@@ -456,6 +425,9 @@ export default function StoriesTab({ idToken }) {
                 prompt: s.prompt,
                 job_id: s.job_id,
                 seconds: s.seconds,
+                version: 1,
+                planner: "qwen2.5",
+                style_prompt: "",
               })),
             }),
           });
@@ -475,7 +447,177 @@ export default function StoriesTab({ idToken }) {
     }
   }
 
-  const sceneCount = current?.scenes?.length || 0;
+  // 🔁 Rigenera le illustrazioni della storia aperta come NUOVA VERSIONE:
+  // stessa storia (testo invariato), nuova selezione scene con un modello
+  // Ollama a scelta (e un prompt di stile extra opzionale per Z-Image-Turbo),
+  // nuovo loop immagini. Le versioni si affiancano nella stessa storia e
+  // si scelgono coi badge V1/V2/… — le scene restano nel DB tutte insieme.
+  async function regenerateIllustrations(event) {
+    event.preventDefault();
+    if (!current?.story_id || !current?.text) return;
+    setBusy(true);
+    setError("");
+    setImgStart(null);
+    try {
+      const storyText = current.text;
+      const oldScenes = current.scenes || [];
+      const nextVersion =
+        oldScenes.reduce(
+          (max, s) => Math.max(max, Number(s?.version) || 1),
+          0
+        ) + 1;
+      const imageN = Math.max(1, Math.min(12, oldScenes.length || imageCount));
+
+      // 1. Pianificazione scene con modello selezionabile.
+      const scenes = await planStoryScenes({
+        idToken,
+        storyText,
+        imageCount: imageN,
+        styleExtra: regStyle ? "Additional style requirements: " + regStyle.trim() + ". " : "",
+        styleClause: "a consistent family-friendly storybook style. ",
+        model: regModel,
+        onStatus: (s) => {
+          if (s.kind === "batch") {
+            setStage("🔁 V" + nextVersion + " — Ollama (" + s.model + ") seleziona le scene " + s.from + "-" + s.to + " di " + s.total + "…");
+          } else if (s.kind === "repair") {
+            setStage("🔁 V" + nextVersion + " — Correzione del formato JSON… (" + s.model + ")");
+          }
+        },
+      });
+
+      // 2. Libero la RAM di Ollama prima delle immagini.
+      try {
+        setStage("🧹 Libero la RAM usata da Ollama prima delle immagini…");
+        await unloadOllama(idToken);
+      } catch (e) {
+        /* non blocca le illustrazioni */
+      }
+
+      // 3. Loop immagini (stessa logica collaudata di generateStory).
+      const sceneRetried = new Set();
+      const doneScenes = [];
+      for (let index = 0; index < scenes.length; index += 1) {
+        const scene = scenes[index];
+        const sceneNumber = index + 1;
+        const total = scenes.length;
+        let imageStage = "avvio immagine " + sceneNumber + "/" + total;
+        setStage("🔁 V" + nextVersion + " — Immagine " + sceneNumber + "/" + total + ": " + scene.title + " — in coda…");
+        try {
+          const [fmtWidth, fmtHeight] = String(imageFormat || "1024x768")
+            .split("x")
+            .map(Number);
+          const sceneSteps = Math.max(1, Math.min(100, Number(imageSteps) || 8));
+          const jobId = await createImageJob(idToken, scene.prompt, {
+            preset: "sw_kids",
+            width: fmtWidth,
+            height: fmtHeight,
+            steps: sceneSteps,
+          });
+          const sceneStart = Date.now();
+          setImgStart(sceneStart);
+          imageStage = "controllo stato immagine " + sceneNumber + "/" + total;
+          const result = await waitForImageResult(idToken, jobId, {
+            fetchStatus: () => fetchJobStatus(jobId),
+            onProgress: (status) =>
+              setStage(
+                "🔁 V" + nextVersion + " — Immagine " + sceneNumber + "/" + total + " (" + scene.title + "): " +
+                  (status === "running" || status === "processing" ? "generazione in corso" : "in coda") + "…"
+              ),
+          });
+          imageStage = "download immagine " + sceneNumber + "/" + total;
+          const src = resultToDataUrl(result);
+          const sceneSeconds = Math.round((Date.now() - sceneStart) / 1000);
+          setImgStart(null);
+          doneScenes.push({
+            ...scene,
+            job_id: jobId,
+            src,
+            seconds: sceneSeconds,
+            status: "Pronta",
+            version: nextVersion,
+            planner: regModel,
+            style_prompt: regStyle.trim(),
+          });
+          setCurrent((c) =>
+            c ? { ...c, scenes: [...(c.scenes || []).filter((s) => (Number(s?.version) || 1) !== nextVersion), ...doneScenes.map((s) => ({ ...s }))] } : c
+          );
+          if (index < scenes.length - 1) {
+            setStage("⏳ Pausa 12s prima dell'immagine successiva (libero la RAM del Mac)…");
+            await sleep(12000);
+          }
+        } catch (err) {
+          setImgStart(null);
+          if (err.status === 401 || err.status === 403) {
+            setError(err.message);
+            setBusy(false);
+            return;
+          }
+          if (!sceneRetried.has(sceneNumber)) {
+            sceneRetried.add(sceneNumber);
+            setStage("🔄 Errore di rete sull'immagine " + sceneNumber + "/" + scenes.length + " — attendo 60s e riprovo la scena…");
+            await sleep(60000);
+            index -= 1;
+            continue;
+          }
+          setError(
+            "Immagine " + sceneNumber + "/" + scenes.length + " (" + scene.title + "), " +
+              imageStage + ": " + (err.message || "errore sconosciuto")
+          );
+          break;
+        }
+      }
+
+      // 4. Persistenza: affianca le nuove scene alle vecchie versioni.
+      if (doneScenes.length) {
+        setStage("💾 Aggiorno lo storico con le illustrazioni V" + nextVersion + "…");
+        const oldKept = (current.scenes || []).filter(
+          (s) => (Number(s?.version) || 1) !== nextVersion
+        );
+        await apiJson(idToken, "/api/admin/stories/" + encodeURIComponent(current.story_id), {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: current.prompt || "",
+            text: storyText,
+            agent: STORY_AGENT,
+            audio_filename: current.audio_filename || "",
+            language: "it",
+            scenes: [...oldKept, ...doneScenes].map((s) => ({
+              title: s.title,
+              prompt: s.prompt,
+              job_id: s.job_id,
+              seconds: s.seconds,
+              version: Number(s?.version) || 1,
+              planner: s.planner || "",
+              style_prompt: s.style_prompt || "",
+            })),
+          }),
+        });
+        setCurrent((c) =>
+          c ? { ...c, scenes: [...oldKept, ...doneScenes.map((s) => ({ ...s }))] } : c
+        );
+        setActiveVersion(nextVersion);
+        await loadStories();
+        setStage("✅ Versione V" + nextVersion + " pronta (" + doneScenes.length + " illustrazioni con " + regModel + ").");
+      } else {
+        setStage("⏹ Nessuna illustrazione generata per V" + nextVersion + ".");
+      }
+    } catch (err) {
+      setError(err.message || String(err));
+    } finally {
+      setBusy(false);
+      setImgStart(null);
+    }
+  }
+
+  // Versioni disponibili nella storia aperta (V1, V2, …) e versione visibile.
+  const sceneVersion = (s) => Number(s?.version) || 1;
+  const versions = [...new Set((current?.scenes || []).map(sceneVersion))].sort((a, b) => a - b);
+  const shownVersion = activeVersion && versions.includes(activeVersion)
+    ? activeVersion
+    : versions[versions.length - 1] || 1;
+  const visibleScenes = current?.scenes?.filter((s) => sceneVersion(s) === shownVersion) || [];
+  const sceneCount = visibleScenes.length;
 
   return (
     <div>
@@ -517,7 +659,7 @@ export default function StoriesTab({ idToken }) {
                 onChange={(event) => setImageCount(Number(event.target.value))}
                 disabled={busy}
               >
-                {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => (
                   <option key={n} value={n}>
                     {n} {n === 1 ? "immagine" : "immagini"}
                   </option>
@@ -620,11 +762,66 @@ export default function StoriesTab({ idToken }) {
             </div>
           )}
 
+          {current.story_id && (
+            <form
+              onSubmit={regenerateIllustrations}
+              style={{ marginTop: "1rem", padding: ".9rem", border: "1px solid var(--border, #1f2b35)", borderRadius: "8px" }}
+            >
+              <label className="il-label">🔁 Rigenera illustrazioni (nuova versione)</label>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: ".6rem", alignItems: "center" }}>
+                <select
+                  className="il-input"
+                  value={regModel}
+                  onChange={(event) => setRegModel(event.target.value)}
+                  style={{ flex: "0 0 auto", minWidth: "9rem" }}
+                  aria-label="Modello Ollama per la nuova versione"
+                >
+                  {["qwen2.5", "mistral", "llama3", "gemma4", "deepseek-r1"].map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+                <input
+                  className="il-input"
+                  type="text"
+                  value={regStyle}
+                  onChange={(event) => setRegStyle(event.target.value)}
+                  placeholder="Es. acquerello soft, matita colorata, cartoon manga…"
+                  style={{ flex: "1 1 14rem" }}
+                  aria-label="Stile extra per la nuova versione"
+                />
+                <button className="il-button" type="submit" disabled={busy || !current.text}>
+                  {busy ? "Lavoro in corso…" : "🔁 Rigenera come V" + ((versions[versions.length - 1] || 0) + 1)}
+                </button>
+              </div>
+              <p className="il-hint" style={{ marginTop: ".5rem", marginBottom: 0 }}>
+                Stessa storia, nuova selezione scene e nuove immagini (ora vedi V{shownVersion}).
+                Se il modello scelto non produce JSON validi, riprova in cascata con mistral → qwen2.5.
+              </p>
+            </form>
+          )}
+
+          {versions.length > 1 && (
+            <div style={{ marginTop: ".6rem", display: "flex", gap: ".4rem", alignItems: "center", flexWrap: "wrap" }}>
+              <span className="il-label" style={{ margin: 0 }}>Versioni illustrazioni:</span>
+              {versions.map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  className={"il-page-btn" + (v === shownVersion ? " il-page-btn-active" : "")}
+                  onClick={() => setActiveVersion(v)}
+                  style={{ padding: ".2rem .6rem" }}
+                >
+                  V{v}
+                </button>
+              ))}
+            </div>
+          )}
+
           {sceneCount > 0 && (
             <div style={{ marginTop: "1rem" }}>
               <label className="il-label">🖼 Illustrazioni</label>
               <div className="il-history-grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
-                {current.scenes.map((scene, i) => (
+                {visibleScenes.map((scene, i) => (
                   <figure key={i} style={{ margin: 0 }}>
                     {scene.src ? (
                       <img
@@ -733,5 +930,6 @@ export default function StoriesTab({ idToken }) {
     </div>
   );
 }
+
 
 

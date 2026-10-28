@@ -14,13 +14,10 @@ import bgImage from '../assets/DataInFlames.jpg'
 import SystemTiles, { parseSystem, parseOs, cleanRam, OsKpis, statLevel } from '../components/SystemPanel'
 import {
   apiJson,
-  buildRepairPrompt,
-  buildStoryboardBatchPrompt,
-  buildStoryboardPrompt,
   createImageJob,
   fetchJobStatusWithRetry as fetchJobStatusWithRetryShared,
-  normalizeScenes,
-  parsePlan,
+  planStoryScenes,
+  PLANNER_FALLBACK_MODELS,
   resultToDataUrl,
   unloadOllama,
   waitForImageResult,
@@ -84,11 +81,6 @@ const SUPER_MODEL_KEY = 'lc_super_model'
 const LELE_MODELS = ['mistral', 'gemma4', 'llama3', 'qwen2.5', 'deepseek-r1']
 const LELE_MODEL_KEY = 'lc_lele_model'
 const REVIEWER_MODEL_KEY = 'lc_reviewer_model'
-
-// Fallback della pianificazione scene: se il modello scelto non produce
-// JSON validi (dopo retry+repair), i lotti riprovano in cascata con
-// questi modelli, nell'ordine.
-const PLANNER_FALLBACK_MODELS = ['mistral', 'qwen2.5']
 
 // Pagine e console ufficiali del sito.
 const QUICK_LINKS = [
@@ -300,24 +292,6 @@ async function callAdmin(idToken, prompt, timeoutMs = 310000) {
   } finally {
     clearTimeout(timer)
   }
-}
-
-// Chiamata LLM stateless: il prompt va dritto a Ollama via gateway,
-// SENZA passare dagli agenti e dalla loro memoria di conversazione.
-// Usata per la pianificazione delle scene (niente scene "fantasma" di
-// storie precedenti rimaste nella memoria dell'agente).
-async function callLlm(idToken, prompt, model, timeoutMs = 310000, keepAlive = 0) {
-  const data = await adminJson(
-    idToken,
-    '/api/admin/llm',
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, model, keep_alive: keepAlive }),
-    },
-    timeoutMs
-  )
-  return data.answer || ''
 }
 
 // adminJson: vedi import da src/lib/imageJobs.js (F2).
@@ -927,89 +901,26 @@ export default function LeleAdmin() {
     setStoryImageStatus(t('lele.story.plan', { count: imageCount }) + ' (' + leleModel + ')')
     let imageStage = 'selezione delle scene con Ollama'
     try {
-      // Pianificazione A LOTTI (3 scene per chiamata): con 8 scene una sola
-      // chiamata qwen2.5 supera i ~100s di Cloudflare e il browser riceve
-      // "Failed to fetch". Ogni lotto resta corto; lo stile condiviso del
-      // primo lotto viene riportato ai successivi per la coerenza visiva.
-      const BATCH_SIZE = 3
-      const batches = []
-      for (let s = 1; s <= imageCount; s += BATCH_SIZE) {
-        batches.push([s, Math.min(imageCount, s + BATCH_SIZE - 1)])
-      }
-
-      let sharedStyle = ''
-      const plannedScenes = []
-
-      for (const [from, to] of batches) {
-        const batchCount = to - from + 1
-        if (batches.length > 1) {
-          setStoryImageStatus(t('lele.story.planBatch', { from, to, total: imageCount }))
-        }
-
-        // Retry + fallback: il lotto prova col modello scelto (max 2 chiamate,
-        // ciascuna con fino a 2 correzioni JSON); se non basta, riprova in
-        // cascata con i modelli di fallback (mistral, poi qwen2.5). Il modello
-        // usato compare negli status tra parentesi, così dalla console si
-        // vede quando scatta il cambio.
-        const plannerModels = [leleModel, ...PLANNER_FALLBACK_MODELS].filter(
-          (m, i, arr) => m && arr.indexOf(m) === i
-        )
-
-        let parsedPlan
-        let lastRaw = ''
-        let plannedOk = false
-        for (const plannerModel of plannerModels) {
-          for (let planAttempt = 1; planAttempt <= 2 && !plannedOk; planAttempt += 1) {
-            if (batches.length > 1 || plannerModel !== leleModel) {
-              setStoryImageStatus(t('lele.story.planBatch', { from, to, total: imageCount }) + ' (' + plannerModel + ')')
-            }
-            const rawPlan = String(await callLlm(idToken, buildStoryboardBatchPrompt({
-              total: imageCount,
-              from,
-              to,
-              storyText,
-              style: sharedStyle,
-              prevTitles: plannedScenes.map((s) => s.title),
-              artDirection,
-              styleExtra,
-            }), plannerModel, 180000, 300)).trim()
-            lastRaw = rawPlan
-            try {
-              parsedPlan = parsePlan(rawPlan)
-              plannedOk = true
-            } catch {
-              imageStage = 'correzione del formato JSON con Ollama (' + plannerModel + ')'
-              for (let repairAttempt = 1; repairAttempt <= 2 && !plannedOk; repairAttempt += 1) {
-                setStoryImageStatus(t('lele.story.repair') + ' (' + plannerModel + ')')
-                const repaired = String(await callLlm(idToken, buildRepairPrompt(batchCount, lastRaw), plannerModel, 180000, 300)).trim()
-                try {
-                  parsedPlan = parsePlan(repaired)
-                  plannedOk = true
-                } catch {
-                  lastRaw = repaired
-                }
-              }
-            }
+      // Pianificazione a lotti condivisa in src/lib/imageJobs.js
+      // (planStoryScenes): lotti di 3, retry + repair JSON, fallback in
+      // cascata mistral → qwen2.5, modello visibile negli status.
+      const scenes = await planStoryScenes({
+        idToken,
+        storyText,
+        imageCount,
+        artDirection,
+        styleExtra,
+        model: leleModel,
+        fallbackModels: PLANNER_FALLBACK_MODELS,
+        onStatus: (s) => {
+          if (s.kind === 'batch') {
+            setStoryImageStatus(t('lele.story.planBatch', { from: s.from, to: s.to, total: s.total }) + ' (' + s.model + ')')
+          } else if (s.kind === 'repair') {
+            imageStage = 'correzione del formato JSON con Ollama (' + s.model + ')'
+            setStoryImageStatus(t('lele.story.repair') + ' (' + s.model + ')')
           }
-        }
-        if (!plannedOk) {
-          throw new Error('Ollama non ha prodotto un JSON valido per le scene ' + from + '-' + to + ' (modelli provati: ' + plannerModels.join(', ') + ').')
-        }
-
-        if (!sharedStyle && !Array.isArray(parsedPlan) && typeof parsedPlan?.style === 'string') {
-          sharedStyle = parsedPlan.style.trim()
-        }
-
-        // Lotti successivi: lo stile è già dentro ogni prompt per istruzione
-        // (il modello lo ripete identico), qui non va anteposto di nuovo.
-        const batchScenes = normalizeScenes(parsedPlan, batchCount)
-        plannedScenes.push(...batchScenes)
-      }
-
-      if (plannedScenes.length < imageCount) {
-        throw new Error('La pianificazione ha prodotto ' + plannedScenes.length + ' scene su ' + imageCount + '.')
-      }
-      const scenes = plannedScenes.slice(0, imageCount)
+        },
+      })
 
       setStoryImages(scenes.map((scene, index) => ({
         id: index + 1, title: scene.title, prompt: scene.prompt, src: '', status: t('lele.story.waiting'),
@@ -2239,6 +2150,7 @@ const css = `
   .lc-shade{background:linear-gradient(180deg,rgba(11,16,21,.10) 0%,rgba(11,16,21,.22) 70%)}
 }
 ` 
+
 
 
 

@@ -312,9 +312,117 @@ export function resultToDataUrl(result) {
   return "data:image/png;base64," + b64;
 }
 
+// Chiamata LLM stateless condivisa: il prompt va dritto a Ollama via gateway.
+// keepAlive=0 di default così il planner non lascia il modello in RAM quando
+// non serve più (il chiamante può passare keepAlive>0 per tenerlo caldo).
+async function callLlmStateless(idToken, prompt, model, timeoutMs = 310000, keepAlive = 0) {
+  const data = await apiJson(idToken, "/api/admin/llm", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt, model, keep_alive: keepAlive }),
+  }, timeoutMs);
+  return data.answer || "";
+}
+
+// Modelli usati come fallback quando il planner principale non produce un
+// JSON valido (es. gemma4 va in timeout sulle scene 7-12).
+export const PLANNER_FALLBACK_MODELS = ["mistral", "qwen2.5"];
+
+// Pianificazione delle scene di una storia, condivisa da LeleAdmin e ImgLab.
+// - A lotti di 3 scene per chiamata (con 12 scene una chiamata unica supera
+//   i ~100s di Cloudflare e la run muore prima delle immagini).
+// - Per ogni lotto prova max 2 modelli (primario + fallback) e, per modello,
+//   fino a 2 chiamate con 2 repair JSON ciascuna.
+// - onStatus({kind: "batch"|"repair", from, to, total, model}) per la UI.
+// Ritorna l'array di scene normalizzate (slice a imageCount).
+export async function planStoryScenes({
+  idToken,
+  storyText,
+  imageCount,
+  artDirection = "",
+  styleExtra = "",
+  styleClause,
+  model,
+  fallbackModels = PLANNER_FALLBACK_MODELS,
+  onStatus = () => {},
+  timeoutMs = 180000,
+}) {
+  const models = [...new Set([model, ...fallbackModels])].filter(Boolean);
+  const BATCH_SIZE = 3;
+  const plannedScenes = [];
+  const triedModels = [];
+  let sharedStyle = "";
+  for (let from = 0; from < imageCount; from += BATCH_SIZE) {
+    const to = Math.min(from + BATCH_SIZE, imageCount);
+    const batchCount = to - from;
+    const prevTitles = plannedScenes.map((s) => s.title);
+    let batchError = null;
+    for (const m of models) {
+      if (!triedModels.includes(m)) triedModels.push(m);
+      for (let attempt = 0; attempt < 2; attempt++) {
+        onStatus({ kind: "batch", from: from + 1, to, total: imageCount, model: m, attempt });
+        const prompt = buildStoryboardBatchPrompt({
+          total: imageCount,
+          from: from + 1,
+          to,
+          storyText,
+          style: sharedStyle,
+          prevTitles,
+          artDirection,
+          styleExtra,
+          styleClause,
+        });
+        let raw = "";
+        let parsedPlan = null;
+        try {
+          raw = await callLlmStateless(idToken, prompt, m, timeoutMs);
+          parsedPlan = parsePlan(raw);
+        } catch (err) {
+          parsedPlan = null;
+        }
+        if (parsedPlan && Array.isArray(parsedPlan.scenes) && parsedPlan.scenes.length) {
+          const scenes = normalizeScenes(parsedPlan, batchCount);
+          if (!sharedStyle && parsedPlan.style) sharedStyle = parsedPlan.style;
+          plannedScenes.push(...scenes);
+          batchError = null;
+          break;
+        }
+        // Repair JSON: max 2 tentativi per chiamata.
+        let repaired = false;
+        for (let r = 0; r < 2; r++) {
+          onStatus({ kind: "repair", from: from + 1, to, total: imageCount, model: m, attempt: r + 1 });
+          try {
+            const repairPrompt = buildRepairPrompt(batchCount, raw);
+            raw = await callLlmStateless(idToken, repairPrompt, m, timeoutMs);
+            const reparsed = parsePlan(raw);
+            if (reparsed && Array.isArray(reparsed.scenes) && reparsed.scenes.length) {
+              const scenes = normalizeScenes(reparsed, batchCount);
+              if (!sharedStyle && reparsed.style) sharedStyle = reparsed.style;
+              plannedScenes.push(...scenes);
+              repaired = true;
+              batchError = null;
+              break;
+            }
+          } catch (err) {
+            // passa al repair successivo / modello successivo
+          }
+        }
+        if (repaired) break;
+        batchError = new Error(`Ollama non ha prodotto un JSON valido per le scene ${from + 1}-${to} con il modello ${m}.`);
+      }
+      if (!batchError) break;
+    }
+    if (batchError) {
+      throw new Error(`Ollama non ha prodotto un JSON valido per le scene ${from + 1}-${to} (modelli provati: ${triedModels.join(", ")}).`);
+    }
+  }
+  return plannedScenes.slice(0, imageCount);
+}
+
 // Libera la RAM di Ollama prima del loop immagini (keep_alive=0).
 // Non blocca le illustrazioni se fallisce: il chiamante fa try/catch.
 export async function unloadOllama(idToken) {
   await apiJson(idToken, "/api/admin/ollama/unload", { method: "POST" }, 30000);
 }
+
 

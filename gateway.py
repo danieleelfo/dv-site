@@ -3311,6 +3311,12 @@ class StoryScene(BaseModel):
     prompt: str = ""
     job_id: str = ""
     seconds: int | None = None
+    # Versionamento illustrazioni: la stessa storia può avere più "versioni"
+    # di scene (rigenerazioni con modello/stile diversi). Il planner registra
+    # quale modello Ollama ha selezionato le scene e lo style_prompt extra.
+    version: int = 1
+    planner: str = ""
+    style_prompt: str = ""
 
 
 class StorySaveRequest(BaseModel):
@@ -3456,6 +3462,9 @@ async def story_save(
                 "prompt": s.prompt,
                 "job_id": s.job_id,
                 "seconds": s.seconds,
+                "version": s.version,
+                "planner": s.planner,
+                "style_prompt": s.style_prompt,
             }
             for s in req.scenes
         ],
@@ -3560,6 +3569,9 @@ async def story_update(
                 "prompt": scene.prompt,
                 "job_id": scene.job_id,
                 "seconds": scene.seconds,
+                "version": scene.version,
+                "planner": scene.planner,
+                "style_prompt": scene.style_prompt,
             }
             for scene in req.scenes
         ],
@@ -4139,5 +4151,6 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=9090,
     )
+
 
 
