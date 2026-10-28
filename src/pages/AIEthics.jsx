@@ -5,6 +5,15 @@
 // quindi aggiungere un articolo NON richiede toccare questo
 // componente. I testi dell'interfaccia sono in i18n (ethics.*),
 // i contenuti degli articoli hanno fallback inglese.
+//
+// Tipi di blocco supportati nel body:
+//   { type: 'p',     text }
+//   { type: 'h3',    text }
+//   { type: 'list',  items: [] }
+//   { type: 'video', id, title, caption }   <- embed YouTube ufficiale
+// Campo opzionale a livello di articolo:
+//   video: { id, title, caption }  -> anteprima nell'indice + player in cima all'articolo
+// L'indice ordina per data (più recente in alto); il primo mostra anche l'inizio del testo.
 // ============================================================
 
 import { useEffect } from 'react'
@@ -33,6 +42,9 @@ export function AIEthicsIndex() {
     document.title = t('ethics.docTitle')
   }, [t])
 
+  // Più recente in alto
+  const sorted = [...ARTICLES].sort((x, y) => y.date.localeCompare(x.date))
+
   return (
     <section className="ae-page">
       <style>{`
@@ -45,6 +57,11 @@ export function AIEthicsIndex() {
 .ae-list{margin-top:44px;display:flex;flex-direction:column;gap:20px}
 .ae-card{border:1px solid #1e2a36;border-radius:14px;padding:24px;background:#0e1620;transition:border-color .2s,transform .2s}
 .ae-card:hover{border-color:#31485e;transform:translateY(-2px)}
+.ae-featured{border-color:#1f4d47}
+.ae-thumb{position:relative;display:block;aspect-ratio:16/9;margin-top:16px;border-radius:10px;overflow:hidden;background:#000}
+.ae-thumb img{width:100%;height:100%;object-fit:cover;display:block;opacity:.9}
+.ae-play{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:34px;color:#fff;text-shadow:0 2px 12px rgba(0,0,0,.6)}
+.ae-card .ae-intro{margin-top:10px;color:#b8c6d4}
 .ae-card-top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
 .ae-chip{font-family:var(--mono,monospace);font-size:11px;letter-spacing:.14em;color:#5eead4;border:1px solid #1f4d47;border-radius:999px;padding:4px 10px}
 .ae-date{font-size:12.5px;color:#75879a}
@@ -61,18 +78,31 @@ export function AIEthicsIndex() {
         <div className="ae-note">{t('ethics.method')}</div>
 
         <div className="ae-list">
-          {ARTICLES.map((a) => {
+          {sorted.map((a, idx) => {
             const c = getArticleContent(a, lang)
+            const featured = idx === 0
+            const intro = featured ? c.body?.find((b) => b.type === 'p')?.text : null
             return (
-              <article key={a.slug} className="ae-card">
+              <article key={a.slug} className={`ae-card${featured ? ' ae-featured' : ''}`}>
                 <div className="ae-card-top">
                   <span className="ae-chip">{a.category} #{a.number}</span>
                   <span className="ae-date">
                     {fmtDate(a.date, lang)} · {t('ethics.minRead', { count: a.readTime })}
                   </span>
                 </div>
+                {a.video && (
+                  <Link className="ae-thumb" to={`/ai-ethics/${a.slug}`} aria-label={c.title}>
+                    <img
+                      src={`https://i.ytimg.com/vi/${a.video.id}/hqdefault.jpg`}
+                      alt=""
+                      loading="lazy"
+                    />
+                    <span className="ae-play">▶</span>
+                  </Link>
+                )}
                 <h2>{c.title}</h2>
                 <p>{c.dek}</p>
+                {intro && <p className="ae-intro">{intro}</p>}
                 <Link className="ae-more" to={`/ai-ethics/${a.slug}`}>{t('ethics.read')} →</Link>
               </article>
             )
@@ -86,6 +116,52 @@ export function AIEthicsIndex() {
 }
 
 // ------------------------------------------------------------
+// Blocco del body
+// ------------------------------------------------------------
+function renderBlock(block, i) {
+  if (block.type === 'h3') return <h3 key={i}>{block.text}</h3>
+
+  if (block.type === 'list') {
+    return (
+      <ul key={i}>
+        {block.items.map((item, j) => <li key={j}>{item}</li>)}
+      </ul>
+    )
+  }
+
+  if (block.type === 'video') {
+    // Embed del player ufficiale: il video resta sul canale del titolare dei diritti.
+    // youtube-nocookie = meno tracciamento finché l'utente non avvia il video.
+    return (
+      <figure key={i} className="ae-video">
+        <div className="ae-video-frame">
+          <iframe
+            src={`https://www.youtube-nocookie.com/embed/${block.id}`}
+            title={block.title}
+            loading="lazy"
+            allow="encrypted-media; picture-in-picture"
+            allowFullScreen
+            referrerPolicy="strict-origin-when-cross-origin"
+          />
+        </div>
+        <figcaption>
+          {block.caption}{' '}
+          <a
+            href={`https://www.youtube.com/watch?v=${block.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            YouTube
+          </a>
+        </figcaption>
+      </figure>
+    )
+  }
+
+  return <p key={i}>{block.text}</p>
+}
+
+// ------------------------------------------------------------
 // Articolo
 // ------------------------------------------------------------
 export function AIEthicsArticle() {
@@ -93,7 +169,8 @@ export function AIEthicsArticle() {
   const { t, i18n } = useTranslation()
   const lang = i18n.language || 'en'
   const article = getArticle(slug)
-  const c = getArticleContent(article, lang)
+  // Guard: con uno slug inesistente non chiamiamo getArticleContent
+  const c = article ? getArticleContent(article, lang) : null
 
   useEffect(() => {
     if (c) document.title = c.title + ' — AI Ethics'
@@ -123,18 +200,10 @@ export function AIEthicsArticle() {
         </div>
         <p className="ae-dek">{c.dek}</p>
 
+        {article.video && renderBlock({ type: 'video', ...article.video }, 'top-video')}
+
         <div className="ae-body">
-          {c.body.map((block, i) => {
-            if (block.type === 'h3') return <h3 key={i}>{block.text}</h3>
-            if (block.type === 'list') {
-              return (
-                <ul key={i}>
-                  {block.items.map((item, j) => <li key={j}>{item}</li>)}
-                </ul>
-              )
-            }
-            return <p key={i}>{block.text}</p>
-          })}
+          {c.body.map(renderBlock)}
         </div>
 
         <h3 className="ae-sources-title">{t('ethics.sources')}</h3>
@@ -163,6 +232,12 @@ const AE_STYLE = `
 .ae-body h3{font-size:21px;color:#fff;font-weight:700;margin:38px 0 14px}
 .ae-body ul{margin:0 0 22px;padding-left:22px}
 .ae-body li{font-size:15.5px;line-height:1.7;color:#c8d3de;margin-bottom:10px}
+.ae-video{margin:0 0 24px}
+.ae-video-frame{position:relative;aspect-ratio:16/9;border-radius:12px;overflow:hidden;border:1px solid #1e2a36;background:#000}
+.ae-video-frame iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.ae-video figcaption{font-size:12.5px;color:#75879a;margin-top:8px}
+.ae-video a{color:#5eead4;text-decoration:none}
+.ae-video a:hover{text-decoration:underline}
 .ae-sources-title{font-size:18px;color:#fff;font-weight:700;margin:44px 0 14px;border-top:1px solid #1e2a36;padding-top:30px}
 .ae-sources{margin:0;padding-left:22px}
 .ae-sources li{font-size:13.5px;line-height:1.6;color:#8ea0b3;margin-bottom:8px}
