@@ -41,6 +41,18 @@ const REG_STYLE_PRESETS = [
   ["📷 Fotorealistico", "photorealistic, cinematic lighting"],
 ];
 
+// Preset di stile base del gateway (F3, lato server):
+// - sw_kids: cartoon storybook per bambini (Story Whisper)
+// - ns_free: illustrazione artistica per pubblici adulti (Night Story)
+// La rigenerazione segue per default l'agente della storia, ma il
+// selettore permette di cambiarlo per testare i comportamenti.
+const NS_AGENT = "Night Story";
+const storyPreset = (agent) => (agent === NS_AGENT ? "ns_free" : "sw_kids");
+const PRESET_CLAUSES = {
+  sw_kids: "a consistent family-friendly storybook style. ",
+  ns_free: "a consistent artistic illustration style for mature audiences. ",
+};
+
 function getChatId() {
   try {
     const stored = window.localStorage.getItem(CHAT_ID_KEY);
@@ -68,6 +80,9 @@ export default function StoriesTab({ idToken }) {
   const [regCount, setRegCount] = useState("");
   const [regFormat, setRegFormat] = useState("1024x768");
   const [regSteps, setRegSteps] = useState(8);
+  // regPreset = "" significa "come la storia" (sw_kids per Story Whisper,
+  // ns_free per Night Story), altrimenti override esplicito per test.
+  const [regPreset, setRegPreset] = useState("");
   const [activeVersion, setActiveVersion] = useState(null);
   // F4-B/C: formato e step delle illustrazioni.
   const [imageFormat, setImageFormat] = useState("1024x768");
@@ -180,6 +195,7 @@ export default function StoriesTab({ idToken }) {
         story_id: item.story_id,
         prompt: data.prompt || item.prompt,
         text: data.text || "",
+        agent: data.agent || STORY_AGENT,
         audioUrl,
         scenes,
         createdAt: data.created_at,
@@ -284,6 +300,7 @@ export default function StoriesTab({ idToken }) {
         story_id: null,
         prompt: prompt.trim(),
         text: storyText,
+        agent: STORY_AGENT,
         audioUrl,
         scenes: [],
         createdAt: Date.now() / 1000,
@@ -317,7 +334,7 @@ export default function StoriesTab({ idToken }) {
         idToken,
         storyText,
         imageCount,
-        styleClause: "a consistent family-friendly storybook style. ",
+        styleClause: PRESET_CLAUSES.sw_kids,
         model: "qwen2.5",
         onStatus: (s) => {
           if (s.kind === "batch") {
@@ -465,6 +482,8 @@ export default function StoriesTab({ idToken }) {
   // Ollama a scelta (e un prompt di stile extra opzionale per Z-Image-Turbo),
   // nuovo loop immagini. Le versioni si affiancano nella stessa storia e
   // si scelgono coi badge V1/V2/… — le scene restano nel DB tutte insieme.
+  // Il preset di stile base segue l'agente della storia (ns_free per
+  // Night Story, sw_kids per Story Whisper), con override dal selettore.
   async function regenerateIllustrations(event) {
     event.preventDefault();
     if (!current?.story_id || !current?.text) return;
@@ -484,6 +503,8 @@ export default function StoriesTab({ idToken }) {
         1,
         Math.min(12, Number(regCount) || oldScenes.length || imageCount)
       );
+      // Preset di stile base: default = quello dell'agente della storia.
+      const preset = regPreset || storyPreset(current.agent);
 
       // 1. Pianificazione scene con modello selezionabile.
       const scenes = await planStoryScenes({
@@ -491,7 +512,7 @@ export default function StoriesTab({ idToken }) {
         storyText,
         imageCount: imageN,
         styleExtra: regStyle ? "Additional style requirements: " + regStyle.trim() + ". " : "",
-        styleClause: "a consistent family-friendly storybook style. ",
+        styleClause: PRESET_CLAUSES[preset] || PRESET_CLAUSES.sw_kids,
         model: regModel,
         onStatus: (s) => {
           if (s.kind === "batch") {
@@ -526,7 +547,7 @@ export default function StoriesTab({ idToken }) {
             .map(Number);
           const sceneSteps = Math.max(1, Math.min(100, Number(regSteps) || 8));
           const jobId = await createImageJob(idToken, scene.prompt, {
-            preset: "sw_kids",
+            preset,
             width: fmtWidth,
             height: fmtHeight,
             steps: sceneSteps,
@@ -597,7 +618,7 @@ export default function StoriesTab({ idToken }) {
           body: JSON.stringify({
             prompt: current.prompt || "",
             text: storyText,
-            agent: STORY_AGENT,
+            agent: current.agent || STORY_AGENT,
             audio_filename: current.audio_filename || "",
             language: "it",
             scenes: [...oldKept, ...doneScenes].map((s) => ({
@@ -616,7 +637,7 @@ export default function StoriesTab({ idToken }) {
         );
         setActiveVersion(nextVersion);
         await loadStories();
-        setStage("✅ Versione V" + nextVersion + " pronta (" + doneScenes.length + " illustrazioni con " + regModel + ").");
+        setStage("✅ Versione V" + nextVersion + " pronta (" + doneScenes.length + " illustrazioni con " + regModel + ", preset " + preset + ").");
       } else {
         setStage("⏹ Nessuna illustrazione generata per V" + nextVersion + ".");
       }
@@ -636,6 +657,7 @@ export default function StoriesTab({ idToken }) {
     : versions[versions.length - 1] || 1;
   const visibleScenes = current?.scenes?.filter((s) => sceneVersion(s) === shownVersion) || [];
   const sceneCount = visibleScenes.length;
+  const autoPreset = storyPreset(current?.agent);
 
   return (
     <div>
@@ -801,6 +823,18 @@ export default function StoriesTab({ idToken }) {
                 </select>
                 <select
                   className="il-input"
+                  value={regPreset}
+                  onChange={(event) => setRegPreset(event.target.value)}
+                  style={{ flex: "0 0 auto", minWidth: "11rem" }}
+                  aria-label="Preset di stile base per la nuova versione"
+                  disabled={busy}
+                >
+                  <option value="">Come la storia ({autoPreset})</option>
+                  <option value="sw_kids">Kids cartoon (sw_kids)</option>
+                  <option value="ns_free">Adulta (ns_free)</option>
+                </select>
+                <select
+                  className="il-input"
                   value={regCount}
                   onChange={(event) => setRegCount(event.target.value ? Number(event.target.value) : "")}
                   style={{ flex: "0 0 auto", minWidth: "10rem" }}
@@ -867,6 +901,7 @@ export default function StoriesTab({ idToken }) {
               </div>
               <p className="il-hint" style={{ marginTop: ".5rem", marginBottom: 0 }}>
                 Stessa storia, nuova selezione scene e nuove immagini (ora vedi V{shownVersion}).
+                Stile base {regPreset || autoPreset} ({(regPreset || autoPreset) === "ns_free" ? "Night Story" : "Story Whisper"}), modificabile sopra per test.
                 Se il modello scelto non produce JSON validi, riprova in cascata con mistral → qwen2.5.
               </p>
             </form>
