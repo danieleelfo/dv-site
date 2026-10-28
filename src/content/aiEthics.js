@@ -29,27 +29,27 @@ export const ARTICLES = [
       ],
       content: {
         en: {
-          title: '110 robots, perfect sync, zero magic',
-          dek: 'In Jinan, 110 humanoids danced in lockstep for a Guinness title. Precision is not the same as presence.',
+          title: '110 robots, good sync, zero magic',
+          dek: 'In Jinan, 110 humanoids danced in lockstep for a Guinness title. Spectacul is not the same as presence.',
           body: [
             { type: 'p', text: 'On 24 October, AgiBot ran 110 full-size Expedition A3 humanoids through a synchronized routine in Jinan, with a Guinness adjudicator watching. The routine lasted under six minutes and included jumps, flips and formation changes.' },
             { type: 'h3', text: 'Where the sync comes from' },
             { type: 'p', text: 'Not from the robots listening to each other. A central cluster-control platform (LinkBots) and ultra-wideband positioning keep every unit on the same clock and the same map.' },
             { type: 'h3', text: 'The sterile part' },
-            { type: 'p', text: 'Perfect synchronization is an engineering result, not a performance. Nobody improvises, nobody risks a mistake, nobody responds to the room. It is impressive, and it is empty of what makes dance human.' },
-            { type: 'p', text: 'Also worth noting: the "record" is for humanoid-sized robots. Guinness already lists a larger count of small robots from 2018, so the headline number says less than it seems.' },
+            { type: 'p', text: 'Perfect synchronization is an engineering result, not a performance. Nobody improvises, nobody risks a mistake, nobody responds to the room. It is impressive, and it is empty of what makes dance human and humanity unique.' },
+            { type: 'p', text: 'Also worth noting: the "record" is for humanoid-sized robots. Guinness already lists a larger count of small robots from 2018, so the headline number says less than it seems. Last week there was a drone number record in USA...' },
           ],
         },
         it: {
-          title: '110 robot, sincronia perfetta, zero magia',
-          dek: 'A Jinan 110 umanoidi hanno ballato all’unisono per un record Guinness. Precisione non vuol dire presenza.',
+          title: '110 robot, sincronia accettabile, zero magia',
+          dek: 'A Jinan 110 umanoidi hanno ballato all’unisono per un record Guinness. Precisione non vuol dire emozione.',
           body: [
             { type: 'p', text: 'Il 24 ottobre AgiBot ha fatto eseguire a 110 umanoidi Expedition A3 a grandezza naturale una coreografia sincronizzata a Jinan, davanti a un giudice Guinness. Meno di sei minuti, con salti, capriole e cambi di formazione.' },
             { type: 'h3', text: 'Da dove viene la sincronia' },
             { type: 'p', text: 'Non dai robot che si ascoltano. Una piattaforma di controllo centrale (LinkBots) e un posizionamento a banda ultra-larga tengono ogni unità sullo stesso orologio e sulla stessa mappa.' },
             { type: 'h3', text: 'La parte sterile' },
-            { type: 'p', text: 'La sincronia perfetta è un risultato di ingegneria, non un’esibizione. Nessuno improvvisa, nessuno rischia l’errore, nessuno risponde alla sala. È impressionante, ma priva di ciò che rende umana la danza.' },
-            { type: 'p', text: 'Nota utile: il record riguarda robot umanoidi a taglia reale. Guinness elenca già un numero maggiore di piccoli robot nel 2018, quindi il numero in titolo dice meno di quanto sembri.' },
+            { type: 'p', text: 'La sincronia perfetta è un risultato di ingegneria, non un’esibizione. Nessuno improvvisa, nessuno rischia l’errore, nessuno risponde alla sala. È impressionante, ma priva di ciò che rende umana la danza e unica l’umanità.' },
+            { type: 'p', text: 'Nota utile: il record riguarda robot umanoidi a taglia reale. Guinness elenca già un numero maggiore di piccoli robot nel 2018, quindi il numero in titolo dice meno di quanto sembri. },
           ],
         },
       },
@@ -118,10 +118,10 @@ export const ARTICLES = [
     content: {
       en: {
         title: 'When AI Escapes the Boundaries: What Anthropic’s IPO Filing Reveals About AI Safety',
-        dek: 'Four AI models accessed real systems during security evaluations. What happened, what Anthropic learned, and why controlling AI agents is becoming an engineering challenge — for frontier labs and for anyone running autonomous agents.',
+        dek: 'Four AI models accessed real systems during security evaluations. What happened, what Anthropic learned, and why controlling AI agents is becoming an engineering challenge and must.',
         body: [
           { type: 'p', text: 'On Monday, October 26, 2026, Anthropic filed its S-1 registration statement with the SEC — potentially the biggest IPO in history, with a valuation reported between $1.5 and $2 trillion. The prospectus runs about 400 pages. Between 93 and 94 of them are devoted to risk factors — roughly twice the space SpaceX used in its own filing. One sentence, on page 46, is the kind of language no company has ever put in a prospectus before: sufficiently advanced AI systems “could, if not developed, deployed, and operated with appropriate safeguards, oversight, and security measures, pose catastrophic or existential risks to humanity.”' },
-          { type: 'p', text: 'This article is not an attack on Anthropic. Quite the opposite: the filing, and the incident reports behind it, are among the most candid safety disclosures the industry has produced. The value is in reading them carefully — separating what is documented, what is interpretation, and what is projection. That distinction is the point of this section.' },
+          { type: 'p', text: 'This article is not an attack on Anthropic but quite the opposite: the filing, and the incident reports behind it, are among the most onest safety disclosures the industry has produced in history. The value is in reading what is documented, what is interpretation, and what is projection. That distinction is the point of this section.' },
 
           { type: 'h3', text: 'The news: what the S-1 actually says' },
           { type: 'p', text: 'Anthropic groups the societal risks of its technology into four categories: malicious misuse, loss of control, authoritarian abuse, and economic disruption. The filing warns that its most advanced models could provide “meaningful assistance to malicious actors seeking to develop chemical, biological, or other dangerous weapons,” and it concedes that its technical defenses have limits: safeguards may become outdated, be circumvented by sophisticated users, or simply fail.' },
