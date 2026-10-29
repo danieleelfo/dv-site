@@ -851,7 +851,8 @@
     "ocrPresetInvoice": "Fattura",
     "backToImprove": "Torna a Improve ↗",
     "tabStorie": "📚 Storie",
-    "tabMultiFoto": "🧠 Multi-foto"
+    "tabMultiFoto": "🧠 Multi-foto",
+    "tabFumetti": "💬 Fumetti"
   },
   "dga": {
     "unauthorized": "Accesso non autorizzato per questo account Google.",

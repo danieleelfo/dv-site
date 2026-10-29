@@ -24,6 +24,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import StoriesTab from "../components/StoriesTab.jsx";
 import MultifotoTab from "../components/MultifotoTab.jsx";
+import FumettiTab from "../components/FumettiTab.jsx";
 
 const API = "https://api.danielevillanova.com";
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -880,11 +881,20 @@ export default function ImageLab() {
           >
             {t("img.tabMultiFoto")}
           </button>
+          <button
+            type="button"
+            className={"il-tab" + (tab === "fumetti" ? " il-tab-active" : "")}
+            onClick={() => setTab("fumetti")}
+          >
+            {t("img.tabFumetti")}
+          </button>
         </div>
 
         {tab === "storie" && <StoriesTab idToken={idToken} />}
 
         {tab === "multifoto" && <MultifotoTab embedded />}
+
+        {tab === "fumetti" && <FumettiTab embedded />}
 
         {tab === "genera" && (
           <div className="il-layout">

@@ -850,7 +850,8 @@
     "ocrPresetInvoice": "Facture",
     "backToImprove": "Retour à Improve ↗",
     "tabStorie": "📚 Histoires",
-    "tabMultiFoto": "🧠 Multi-photo"
+    "tabMultiFoto": "🧠 Multi-photo",
+    "tabFumetti": "💬 BD"
   },
   "dga": {
     "unauthorized": "Accès non autorisé pour ce compte Google.",

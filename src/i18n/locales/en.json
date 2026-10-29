@@ -851,7 +851,8 @@
     "ocrPresetInvoice": "Invoice",
     "backToImprove": "Back to Improve ↗",
     "tabStorie": "📚 Stories",
-    "tabMultiFoto": "🧠 Multi-photo"
+    "tabMultiFoto": "🧠 Multi-photo",
+    "tabFumetti": "💬 Comics"
   },
   "dga": {
     "unauthorized": "Access not authorized for this Google account.",

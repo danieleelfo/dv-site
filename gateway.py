@@ -13,6 +13,7 @@ import re
 
 from git_admin import build_git_admin_router
 from query_db import build_query_db_router
+from image_bubbles import build_bubbles_router
 
 import httpx
 from fastapi import FastAPI, Header, HTTPException, Request, UploadFile, File, Form
@@ -142,6 +143,11 @@ app.include_router(
 # QUERYDB — browse DB read-only per QueryDb.jsx
 app.include_router(
     build_query_db_router(verify_admin_token, get_connection)
+)
+
+# FUMETTI — tab Fumetti di ImageLab: 1 foto + fumetti disegnati con Pillow
+app.include_router(
+    build_bubbles_router(verify_admin_token)
 )
 
 # --------------------------------------------------------------------------
