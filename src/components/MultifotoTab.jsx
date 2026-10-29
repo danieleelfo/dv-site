@@ -63,6 +63,38 @@ async function composeServer(token, files, layout, blend, outW, outH) {
   return await res.blob();
 }
 
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// Invia un'immagine all'img2img e fa polling inline del job fino al risultato.
+async function runImg2Img(token, payload, name, opts) {
+  const { prompt, antiArtifact, strength, outW, outH, steps, seed, onJobId } = opts;
+  const body = new FormData();
+  body.append("image", payload, name);
+  body.append("prompt", antiArtifact ? prompt.trim() + ", seamless unified photo, no text, no Chinese characters, no watermark" : prompt.trim());
+  body.append("strength", String(strength)); body.append("width", String(outW)); body.append("height", String(outH));
+  body.append("steps", steps); body.append("seed", seed.trim() || "-1");
+  const data = await request(`${API}/api/image/img2img`, token, { method: "POST", body });
+  const id = data.job_id || data.id;
+  if (!id) {
+    if (data.image_base64) return data.image_base64.startsWith("data:") ? data.image_base64 : `data:image/png;base64,${data.image_base64}`;
+    throw new Error("Risposta senza job_id o immagine.");
+  }
+  onJobId(String(id));
+  for (;;) {
+    await sleep(POLL_MS);
+    const st = await request(`${API}/api/image/jobs/${encodeURIComponent(String(id))}`, token);
+    const sv = String(st.status || "").toLowerCase();
+    if (["failed", "error", "cancelled"].includes(sv)) throw new Error(st.error || st.detail || "Generazione fallita.");
+    if (["completed", "complete", "succeeded"].includes(sv)) {
+      const out = await request(`${API}/api/image/jobs/${encodeURIComponent(String(id))}/result`, token);
+      const img = out.image_base64 || out.image || out.result_base64;
+      if (img) return img.startsWith("data:") ? img : `data:image/png;base64,${img}`;
+      if (out.image_url) return out.image_url;
+      throw new Error("Job completato ma il server non ha restituito un'immagine.");
+    }
+  }
+}
+
 export default function MultifotoTab({ embedded = true }) {
   const navigate = useNavigate();
   const loginRef = useRef(null);
@@ -75,6 +107,8 @@ export default function MultifotoTab({ embedded = true }) {
   const [layout, setLayout] = useState("grid");
   const [blend, setBlend] = useState(0.25);
   const [antiArtifact, setAntiArtifact] = useState(true);
+  // Modalità: mix = fusione Pillow + img2img · compose = solo fusione · split = solo img2img, una per foto.
+  const [mode, setMode] = useState("mix");
   const [prompt, setPrompt] = useState("Keep the main subject and composition, improve the lighting and details.");
   const [strength, setStrength] = useState(0.65);
   const [size, setSize] = useState(512);
@@ -86,6 +120,7 @@ export default function MultifotoTab({ embedded = true }) {
   const [status, setStatus] = useState("idle");
   const [jobId, setJobId] = useState("");
   const [result, setResult] = useState("");
+  const [results, setResults] = useState([]);
   const [error, setError] = useState("");
   const [started, setStarted] = useState(0);
   const [elapsed, setElapsed] = useState(0);
@@ -122,30 +157,7 @@ export default function MultifotoTab({ embedded = true }) {
     const t = setInterval(() => setElapsed(Math.floor((Date.now() - started) / 1000)), 1000);
     return () => clearInterval(t);
   }, [started, busy]);
-  useEffect(() => {
-    if (!token || !jobId || !["queued", "running"].includes(status)) return;
-    let dead = false;
-    const poll = async () => {
-      try {
-        const data = await request(`${API}/api/image/jobs/${encodeURIComponent(jobId)}`, token);
-        if (dead) return;
-        const s = String(data.status || "").toLowerCase();
-        if (["failed", "error", "cancelled"].includes(s)) { setError(data.error || data.detail || "Generazione fallita."); setStatus("error"); return; }
-        if (["completed", "complete", "succeeded"].includes(s)) {
-          const out = await request(`${API}/api/image/jobs/${encodeURIComponent(jobId)}/result`, token);
-          if (dead) return;
-          const img = out.image_base64 || out.image || out.result_base64;
-          if (img) setResult(img.startsWith("data:") ? img : `data:image/png;base64,${img}`);
-          else if (out.image_url) setResult(out.image_url);
-          else throw new Error("Job completato ma il server non ha restituito un'immagine.");
-          setStatus("completed");
-        } else setStatus("running");
-      } catch (e) { if (!dead) { setError(e.message); setStatus("error"); } }
-    };
-    poll();
-    const t = setInterval(poll, POLL_MS);
-    return () => { dead = true; clearInterval(t); };
-  }, [token, jobId, status]);
+  // Il polling dei job è inline in runImg2Img (vale per tutte le modalità).
 
   function pickFiles(list) {
     if (!list || !list.length) return;
@@ -179,27 +191,37 @@ export default function MultifotoTab({ embedded = true }) {
   async function generate(e) {
     e.preventDefault();
     if (!files.length || !prompt.trim() || busy) return;
-    setError(""); setResult(""); setJobId(""); setStatus("submitting");
+    setError(""); setResult(""); setResults([]); setJobId(""); setStatus("submitting");
     const now = Date.now(); setStarted(now); setElapsed(0);
+    const opts = { prompt, antiArtifact, strength, outW, outH, steps, seed, onJobId: id => setJobId(id) };
     try {
-      // 1 foto: va dritta all'img2img. Più foto: il gateway le fonde
-      // con Pillow (/api/image/compose) e il composito va all'img2img.
-      const payload = files.length > 1
-        ? await composeServer(token, files, layout, blend, outW, outH)
-        : files[0];
-      const body = new FormData();
-      body.append("image", payload, files.length > 1 ? "merge.png" : files[0].name);
-      body.append("prompt", antiArtifact ? prompt.trim() + ", seamless unified photo, no text, no Chinese characters, no watermark" : prompt.trim());
-      body.append("strength", String(strength)); body.append("width", String(outW)); body.append("height", String(outH));
-      body.append("steps", steps); body.append("seed", seed.trim() || "-1");
-      const data = await request(`${API}/api/image/img2img`, token, { method: "POST", body });
-      const id = data.job_id || data.id;
-      if (id) { setJobId(String(id)); setStatus("queued"); }
-      else if (data.image_base64) { setResult(data.image_base64.startsWith("data:") ? data.image_base64 : `data:image/png;base64,${data.image_base64}`); setStatus("completed"); }
-      else throw new Error("Risposta senza job_id o immagine.");
+      if (mode === "compose") {
+        // Solo fusione Pillow: nessuna generazione AI.
+        if (files.length < 2) throw new Error("Per la sola fusione servono almeno 2 foto.");
+        const blob = await composeServer(token, files, layout, blend, outW, outH);
+        setResult(URL.createObjectURL(blob));
+        setStatus("completed");
+      } else if (mode === "split") {
+        // Esclude la fusione: ogni foto va separatamente all'img2img.
+        const outs = [];
+        for (let i = 0; i < files.length; i++) {
+          const src = await runImg2Img(token, files[i], files[i].name, opts);
+          outs.push({ src, name: files[i].name });
+          setResults([...outs]);
+        }
+        setStatus("completed");
+      } else {
+        // Mix: 1 foto dritta all'img2img, più foto fuse con Pillow e
+        // il composito va all'img2img (flusso originale).
+        const payload = files.length > 1
+          ? await composeServer(token, files, layout, blend, outW, outH)
+          : files[0];
+        setResult(await runImg2Img(token, payload, files.length > 1 ? "merge.png" : files[0].name, opts));
+        setStatus("completed");
+      }
     } catch (e) { setError(e.message); setStatus("error"); }
   }
-  function reset() { setStatus("idle"); setJobId(""); setResult(""); setError(""); }
+  function reset() { setStatus("idle"); setJobId(""); setResult(""); setResults([]); setError(""); }
   function logout() { try { localStorage.removeItem(TOKEN_KEY); window.google?.accounts?.id?.disableAutoSelect(); } catch {} setToken(""); setEmail(""); }
 
   return <main className="i2i-page"><div className="i2i-wrap">
@@ -220,7 +242,7 @@ export default function MultifotoTab({ embedded = true }) {
             ))}
           </div>
         )}
-        {files.length > 1 && (
+        {files.length > 1 && mode !== "split" && (
           <>
             <div className="i2i-field"><span className="i2i-label">Composizione (Pillow sul Mac)</span>
               <select className="i2i-input" value={layout} onChange={e => setLayout(e.target.value)} disabled={busy}>
@@ -236,18 +258,36 @@ export default function MultifotoTab({ embedded = true }) {
             </div>
           </>
         )}
-        <label className="i2i-label" htmlFor="i2i-prompt">Istruzioni per la modifica</label><textarea id="i2i-prompt" className="i2i-input i2i-prompt" value={prompt} onChange={e => setPrompt(e.target.value)} maxLength={3000} required disabled={busy} />
+        <div className="i2i-field"><span className="i2i-label">Modalità</span>
+          <select className="i2i-input" value={mode} onChange={e => { setMode(e.target.value); setResults([]); setResult(""); setStatus("idle"); }} disabled={busy}>
+            <option value="mix">Mix — fusione Pillow + img2img</option>
+            <option value="compose">Solo fusione Pillow (no AI)</option>
+            <option value="split">Solo img2img — ogni foto separata</option>
+          </select>
+        </div>
+        <label className="i2i-label" htmlFor="i2i-prompt">Istruzioni per la modifica</label><textarea id="i2i-prompt" className="i2i-input i2i-prompt" value={prompt} onChange={e => setPrompt(e.target.value)} maxLength={3000} required={mode !== "compose"} disabled={busy} />
         <div className="i2i-field"><label className="i2i-label" htmlFor="i2i-strength">Forza modifica: {strength.toFixed(2)}</label><input id="i2i-strength" type="range" min=".1" max="1" step=".05" value={strength} onChange={e => setStrength(Number(e.target.value))} disabled={busy} /><div className="i2i-range"><span>Più fedele</span><span>Più trasformata</span></div></div>
         <label className="i2i-check"><input type="checkbox" checked={antiArtifact} onChange={e => setAntiArtifact(e.target.checked)} disabled={busy} /> Clausola anti-artefatti (no testo, no caratteri cinesi, no watermark)</label>
         <div className="i2i-fields"><label className="i2i-field"><span className="i2i-label">Categoria</span><select className="i2i-input" value={size} onChange={e => { setSize(Number(e.target.value)); setFormatIdx(0); }} disabled={busy}>{Object.keys(GRADIO_FORMATS).map(c => <option key={c} value={c}>{c}</option>)}</select></label><label className="i2i-field"><span className="i2i-label">Formato</span><select className="i2i-input" value={formatIdx} onChange={e => setFormatIdx(Number(e.target.value))} disabled={busy}>{formats.map((f, i) => <option key={f[0]} value={i}>{f[0]}</option>)}</select></label>
         <label className="i2i-field"><span className="i2i-label">Steps</span><select className="i2i-input" value={steps} onChange={e => setSteps(e.target.value)} disabled={busy}><option>1</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>12</option><option>15</option></select></label></div>
         <label className="i2i-label" htmlFor="i2i-seed">Seed (facoltativo)</label><input id="i2i-seed" className="i2i-input" placeholder="Casuale" value={seed} onChange={e => setSeed(e.target.value.replace(/[^0-9-]/g, ""))} disabled={busy} />
-        <div className="i2i-actions"><button className="i2i-btn i2i-primary" type="submit" disabled={!files.length || !prompt.trim() || busy}>{busy ? "Elaborazione…" : "✦ Modifica immagine"}</button><button className="i2i-btn" type="button" onClick={reset} disabled={busy}>Reset risultato</button></div>
+        <div className="i2i-actions"><button className="i2i-btn i2i-primary" type="submit" disabled={!files.length || (mode !== "compose" && !prompt.trim()) || busy}>{busy ? "Elaborazione…" : "✦ Modifica immagine"}</button><button className="i2i-btn" type="button" onClick={reset} disabled={busy}>Reset risultato</button></div>
       </section>
       <section className="i2i-panel i2i-result"><div className="i2i-result-head"><div><p className="i2i-kicker">02 / RESULT</p><h2>Risultato generato</h2></div><span>{busy ? "● IN CORSO" : status === "completed" ? "● COMPLETATO" : "● PRONTO"}</span></div>
         {status === "idle" && <div className="i2i-empty"><span>✧</span><h3>La variante apparirà qui</h3><p>Carica una o più foto, scegli composizione e dissolvenza, descrivi la modifica e avvia.</p></div>}
-        {busy && <div className="i2i-empty"><div className="i2i-spinner" /><h3>{status === "submitting" ? (files.length > 1 ? "Composizione + invio richiesta" : "Invio richiesta") : status === "queued" ? "In coda" : "Generazione in corso"}</h3><p>Tempo trascorso: {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")}</p>{jobId && <small>Job ID: {jobId}</small>}</div>}
-        {status === "completed" && result && <div className="i2i-output"><img src={result} alt="Risultato image-to-image" /><div className="i2i-actions"><a className="i2i-btn i2i-primary" href={result} download="multifoto.png">↓ Scarica PNG</a><button className="i2i-btn" type="button" onClick={() => { clearPhotos(); reset(); }}>Nuove foto</button></div></div>}
+        {busy && <div className="i2i-empty"><div className="i2i-spinner" /><h3>{status === "submitting" ? (files.length > 1 ? "Composizione + invio richiesta" : "Invio richiesta") : status === "queued" ? "In coda" : "Generazione in corso"}</h3><p>Tempo trascorso: {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")}</p>{jobId && <small>Job ID: {jobId}</small>}{mode === "split" && <small>Foto elaborate: {results.length}/{files.length}</small>}</div>}
+        {status === "completed" && result && mode !== "split" && <div className="i2i-output"><img src={result} alt="Risultato image-to-image" /><div className="i2i-actions"><a className="i2i-btn i2i-primary" href={result} download="multifoto.png">↓ Scarica PNG</a><button className="i2i-btn" type="button" onClick={() => { clearPhotos(); reset(); }}>Nuove foto</button></div></div>}
+        {status === "completed" && mode === "split" && results.length > 0 && (
+          <div className="i2i-output">
+            {results.map((r, i) => (
+              <figure key={i} style={{ margin: "0 0 1.2rem" }}>
+                <img src={r.src} alt={"Variante foto " + (i + 1)} style={{ marginBottom: ".45rem" }} />
+                <figcaption className="i2i-actions"><span style={{ fontSize: ".72rem", color: "var(--ink-dim,#8fa1ac)" }}>{r.name}</span><a className="i2i-btn i2i-primary" href={r.src} download={"multifoto_" + (i + 1) + ".png"}>↓ Scarica foto {i + 1}</a></figcaption>
+              </figure>
+            ))}
+            <div className="i2i-actions"><button className="i2i-btn" type="button" onClick={() => { clearPhotos(); reset(); }}>Nuove foto</button></div>
+          </div>
+        )}
         {status === "error" && <div className="i2i-error"><h3>Test non completato</h3><p>{error}</p><button className="i2i-btn" type="button" onClick={reset}>Riprova</button></div>}
         {jobId && <p className="i2i-muted">Job ID: <code>{jobId}</code></p>}
       </section>
