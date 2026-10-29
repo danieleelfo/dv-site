@@ -18,7 +18,7 @@ export default function Games() {
       <section className="games-card" aria-labelledby="snaelfa-title">
         <div className="games-card-header">
           <div>
-            <h2 id="snaelfa-title">SnÆlfa 🐍</h2>
+            <h2 id="snaelfa-title">SnÆlfa 🐍 🐕 🐍 </h2>
             <p>Swipe or use the arrow keys to play.</p>
           </div>
           <span className="games-badge">PLAYER 1</span>
