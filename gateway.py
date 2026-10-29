@@ -283,9 +283,19 @@ class ChatRequest(BaseModel):
 # --------------------------------------------------------------------------
 @app.get("/")
 async def root():
+    # Versione Pillow installata (per il box GraDV/Pillow in LeleAdmin):
+    # lettura locale, nessun overhead di rete.
+    try:
+        import PIL
+
+        pillow_version = PIL.__version__
+    except Exception:
+        pillow_version = None
+
     return {
         "status": "Gateway Online",
         "agents": list(AGENTS.keys()),
+        "pillow": pillow_version,
     }
 
 

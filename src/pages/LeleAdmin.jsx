@@ -357,7 +357,9 @@ export default function LeleAdmin() {
   const [status, setStatus] = useState({})
   const [statusLoading, setStatusLoading] = useState(false)
   const [rawSys, setRawSys] = useState(false)
-  const [ping, setPing] = useState({ ok: null, ms: null, agents: [] })
+  const [ping, setPing] = useState({ ok: null, ms: null, agents: [], pillow: null })
+  // GraDV (generatore immagini): risultato di /api/image/health.
+  const [gradv, setGradv] = useState({})
 
   const buttonRef = useRef(null)
   const textareaRef = useRef(null)
@@ -479,6 +481,7 @@ export default function LeleAdmin() {
             ok: res.ok,
             ms: Math.round(performance.now() - t0),
             agents: data.agents || [],
+            pillow: data.pillow || null,
           })
         }
       } catch (e) {
@@ -509,6 +512,17 @@ export default function LeleAdmin() {
         }
         setStatus((s) => ({ ...s, [key]: { err: err.message } }))
       }
+    }
+    // GraDV: health del generatore immagini (GET /api/image/health, token admin).
+    try {
+      const data = await adminJson(idToken, '/api/image/health')
+      setGradv({ data })
+    } catch (err) {
+      if (err.status === 401 || err.status === 403) {
+        logout(err.message)
+        return
+      }
+      setGradv({ err: err.message || String(err) })
     }
     setStatusLoading(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1633,6 +1647,27 @@ export default function LeleAdmin() {
                 </div>
             )
         })}
+              {/* GraDV + PILLOW: stato generatore immagini e composizione foto */}
+              <div className="lc-stat">
+                <div className="lc-stat-head">
+                  <h3 className={`lc-stat-name${gradv.data ? ' is-ok' : gradv.err ? ' is-bad' : ''}`}>GraDV · Pillow</h3>
+                </div>
+                <div className="lc-tiles">
+                  <div className={`lc-tile${gradv.data ? ' is-ok' : gradv.err ? ' is-bad' : ''}`}>
+                    <b>GraDV</b>
+                    <small>{gradv.data ? 'online' : gradv.err ? 'offline' : '…'}</small>
+                  </div>
+                  <div className={`lc-tile${gradv.data?.api ? ' is-ok' : ' is-off'}`}>
+                    <b>direct_generate</b>
+                    <small>{gradv.data ? (gradv.data.api ? 'API ok' : 'API mancante') : '—'}</small>
+                  </div>
+                  <div className={`lc-tile${ping.pillow ? ' is-ok' : ' is-off'}`}>
+                    <b>Pillow</b>
+                    <small>{ping.pillow || '—'}</small>
+                  </div>
+                </div>
+                {gradv.err && <p className="lc-err lc-small">{gradv.err}</p>}
+              </div>
             </section>
           </aside>
         </div>
