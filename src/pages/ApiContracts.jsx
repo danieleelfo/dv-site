@@ -1,5 +1,5 @@
 // ============================================================
-// API CONTRACTS (promossa da Test2) (contratti API del gateway)
+// API CONTRACTS (contratti API del gateway)
 // Pagina statica di documentazione: nessuna chiamata al backend
 // oltre alla verifica del login Google. Nessuna modifica backend.
 // Dati allineati a gateway.py / git_admin.py / query_db.py / admin_routes.py (27 ottobre 2026).

@@ -42,3 +42,6 @@ git_admin_audit.log
 image_history/
 
 story_history/
+
+/.news_agent_tmp
+/.news_agent_tmp.base

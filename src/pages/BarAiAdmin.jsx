@@ -1,3 +1,8 @@
+// ============================================================
+// BarAI Admin Console
+// Frontend prepared for the authenticated BarAI Admin API.
+// ============================================================
+
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { t as tg } from 'i18next'

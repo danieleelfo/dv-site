@@ -1,3 +1,6 @@
+// ============================================================
+// Old Console. trial
+// ============================================================
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import bgImage from '../assets/DataInFlames.jpg'

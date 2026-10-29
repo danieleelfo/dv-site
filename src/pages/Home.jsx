@@ -1,3 +1,7 @@
+// ============================================================
+// Home page dv-site
+// ============================================================
+
 import React, { useState, useEffect } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'

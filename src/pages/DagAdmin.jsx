@@ -1,3 +1,8 @@
+// ============================================================
+// Dag Admin Console
+// Frontend prepared for the authenticated Dag Admin.
+// ============================================================
+
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import bgImage from '../assets/Faro.jpeg'
@@ -128,6 +133,18 @@ const DAGS = [
       { k: 'story_match', label: 'Story match', type: 'str', def: '', hint: "sottostringa nel prompt della storia (es. 'cane pirata')" },
       { k: 'send', label: 'Send', type: 'bool', def: true, hint: 'false = genera soltanto senza inviare' },
     ],
+  },
+  {
+    id: 'bronze_ingest_dag',
+    name: 'Bronze Ingest',
+    desc: "Copia i dati grezzi (db lele: public+emergence, db lele_ns, db lele_sw, ImageLab history) nello schema leles_dbt_dev_bronze. Full refresh idempotente, report su Telegram.",
+    params: [],
+  },
+  {
+    id: 'bronze_check_dag',
+    name: 'Bronze Check (governance)',
+    desc: "Integrity check sorgenti vs leles_dbt_dev_bronze: confronta i conteggi righe di ogni tabella e segnala mismatch/missing/orfane. Report su Telegram ogni giorno alle 16:00, lanciabile anche a mano.",
+    params: [],
   },
   {
     id: 'process_uploaded_file',

@@ -1,5 +1,5 @@
 // src/pages/ImageLab.jsx
-// AI IMAGE LAB — fusione di Test4 (txt2img + history + OCR), Multifoto (img2img multifoto)
+// AI IMAGE LAB — fusione di Test4 (txt2img + history + OCR), Multifoto (img2img multifoto) +
 // ============================================================
 // AI IMAGE LAB — Z-Image-Turbo
 //
@@ -191,7 +191,7 @@ export default function ImageLab() {
   const [jcsInterpretation, setJcsInterpretation] = useState("");
 
   // ----------------------------------------------------------
-  // Google login condiviso con Improve.jsx
+  // Google login condiviso
   // ----------------------------------------------------------
 
   useEffect(() => {
