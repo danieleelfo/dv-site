@@ -71,7 +71,7 @@ export default function Games() {
           <div className="games-frame-wrap games-frame-wrap-ocean">
             <iframe
               className="games-frame games-frame-ocean"
-              src="/bn2/"
+              src="https://bn2.danielevillanova.com/"
               title="Battaglia Navale multiplayer"
               loading="eager"
               allow="autoplay"
