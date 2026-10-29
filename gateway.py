@@ -4190,6 +4190,158 @@ async def ns_prompt_save(
 
 
 # --------------------------------------------------------------------------
+# COMPOSIZIONE MULTIFOTO (Pillow) — tab Multifoto di ImageLab
+# --------------------------------------------------------------------------
+#
+# N foto (fino a 12) in un'unica immagine: griglia automatica, fila,
+# colonna o prima-come-sfondo, con dissolvenza (cross-fade) tra le
+# foto. Composta server-side con Pillow; il PNG torna al browser e da
+# lì va all'img2img esistente (/api/image/img2img), che non cambia.
+# --------------------------------------------------------------------------
+
+MAX_COMPOSE_IMAGES = 12
+MAX_COMPOSE_BLEND = 0.45
+MAX_COMPOSE_UPLOAD_BYTES = 15 * 1024 * 1024
+
+
+@app.post("/api/image/compose")
+async def image_compose(
+    images: list[UploadFile] = File(...),
+    layout: str = Form("grid"),
+    blend: float = Form(0.0),
+    width: int = Form(1024),
+    height: int = Form(1024),
+    authorization: str | None = Header(None),
+):
+    """
+    Compone N foto in un'immagine unica con Pillow (tab Multifoto).
+
+    Form-data: images[] + layout (grid|side|stack|bg) + blend (0-0.45)
+    + width/height del canvas di destinazione. Ritorna il PNG composito.
+    """
+    import io as _io
+    import math as _math
+
+    from PIL import Image, ImageDraw
+
+    def _cover_fit(img, box_w, box_h):
+        scale = max(box_w / img.width, box_h / img.height)
+        thumb = img.resize(
+            (max(1, round(img.width * scale)), max(1, round(img.height * scale))),
+            Image.LANCZOS,
+        )
+        return thumb, (box_w - thumb.width) // 2, (box_h - thumb.height) // 2
+
+    def _leading_fade_mask(size, blend, fade_left, fade_top):
+        """Alfa 255 pieno, con bordo sinistro/superiore in rampa (cross-fade)."""
+        w, h = size
+        mask = Image.new("L", size, 255)
+        d = ImageDraw.Draw(mask)
+        if fade_left:
+            fw = max(2, int(w * blend))
+            for x in range(fw):
+                d.line([(x, 0), (x, h)], fill=int(255 * (x / (fw - 1))))
+        if fade_top:
+            fh = max(2, int(h * blend))
+            for y in range(fh):
+                d.line([(0, y), (w, y)], fill=int(255 * (y / (fh - 1))))
+        return mask
+
+    verify_admin_token(authorization)
+
+    if not images:
+        raise HTTPException(status_code=400, detail="Nessuna immagine ricevuta.")
+    if len(images) > MAX_COMPOSE_IMAGES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Massimo {MAX_COMPOSE_IMAGES} immagini per composizione.",
+        )
+
+    layout = (layout or "grid").strip().lower()
+    if layout not in ("side", "stack", "grid", "bg"):
+        raise HTTPException(
+            status_code=400,
+            detail="layout non valido (grid, side, stack, bg).",
+        )
+
+    width = max(64, min(4096, int(width)))
+    height = max(64, min(4096, int(height)))
+    blend = max(0.0, min(MAX_COMPOSE_BLEND, float(blend)))
+
+    imgs = []
+    for upload in images:
+        data = await upload.read()
+        if len(data) > MAX_COMPOSE_UPLOAD_BYTES:
+            raise HTTPException(status_code=400, detail="Immagine oltre 15 MB.")
+        try:
+            img = Image.open(_io.BytesIO(data)).convert("RGB")
+        except Exception:
+            raise HTTPException(status_code=400, detail="Immagine non leggibile.")
+        # Limita la RAM: mai oltre 2048px di lato per foto.
+        if max(img.size) > 2048:
+            img.thumbnail((2048, 2048), Image.LANCZOS)
+        imgs.append(img)
+
+    n = len(imgs)
+    base = Image.new("RGB", (width, height), (11, 16, 21))
+
+    if layout == "bg":
+        # La prima foto copre tutto il canvas; le altre (dissolte)
+        # formano una fila al centro.
+        cover, cx, cy = _cover_fit(imgs[0], width, height)
+        base.paste(cover, (max(0, cx), max(0, cy)))
+        rest = imgs[1:]
+        if rest:
+            k = len(rest)
+            cell_w = int(width * 0.75 / k)
+            cell_h = int(height * 0.55) if k > 1 else int(height * 0.7)
+            ox = (width - cell_w * k) // 2
+            oy = (height - cell_h) // 2
+            for i, img in enumerate(rest):
+                cell, dx, dy = _cover_fit(img, cell_w, cell_h)
+                mask = _leading_fade_mask(cell.size, max(blend, 0.10), True, True)
+                base.paste(cell, (ox + i * cell_w + dx, oy + dy), mask)
+    else:
+        if layout == "grid":
+            cols = max(1, _math.ceil(_math.sqrt(n)))
+            rows = max(1, _math.ceil(n / cols))
+        elif layout == "side":
+            cols, rows = n, 1
+        else:  # stack
+            cols, rows = 1, n
+
+        if blend > 0:
+            cell_w = int(width / (cols - (cols - 1) * blend))
+            cell_h = int(height / (rows - (rows - 1) * blend))
+            step_x = int(cell_w * (1 - blend))
+            step_y = int(cell_h * (1 - blend))
+        else:
+            cell_w, cell_h = width // cols, height // rows
+            step_x, step_y = cell_w, cell_h
+
+        for i, img in enumerate(imgs):
+            if layout == "grid":
+                r, c = divmod(i, cols)
+            elif layout == "side":
+                r, c = 0, i
+            else:
+                r, c = i, 0
+            cell, dx, dy = _cover_fit(img, cell_w, cell_h)
+            x, y = c * step_x + dx, r * step_y + dy
+            if blend > 0 and (c > 0 or r > 0):
+                mask = _leading_fade_mask(
+                    cell.size, blend, c > 0 and layout != "stack", r > 0 and layout != "side"
+                )
+                base.paste(cell, (x, y), mask)
+            else:
+                base.paste(cell, (x, y))
+
+    buf = _io.BytesIO()
+    base.save(buf, "PNG")
+    return Response(content=buf.getvalue(), media_type="image/png")
+
+
+# --------------------------------------------------------------------------
 # HEALTH CHECK IMAGE LAB
 # --------------------------------------------------------------------------
 
