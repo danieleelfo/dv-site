@@ -120,6 +120,17 @@ const DAGS = [
     params: [],
   },
   {
+    id: 'story_pdf_dag',
+    name: 'Story Fumetto PDF',
+    desc: "Fumetto PDF dalle storie dv-site (versione attiva) inviato via Telegram. Senza parametri invia solo i PDF nuovi; con story_match e resend=true invia anche i PDF gia' generati su richiesta.",
+    params: [
+      { k: 'story_id', label: 'Story ID', type: 'str', def: '', hint: "match esatto sull'id della storia" },
+      { k: 'story_match', label: 'Story match', type: 'str', def: '', hint: "sottostringa nel prompt della storia (es. 'cane pirata')" },
+      { k: 'resend', label: 'Resend', type: 'bool', def: false, hint: 'invia anche i PDF gia generati (solo con filtro attivo)' },
+      { k: 'send', label: 'Send', type: 'bool', def: true, hint: 'false = genera soltanto senza inviare' },
+    ],
+  },
+  {
     id: 'process_uploaded_file',
     name: 'Sposta File',
     desc: 'Sposta un file gia presente sul filesystem (directory consentite: leles, airflow, AI_TMP).',
