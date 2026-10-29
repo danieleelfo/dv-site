@@ -1,7 +1,14 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+const GAMES = [
+  { id: 'snelfa', label: '🐍 SnÆlfa' },
+  { id: 'bn2', label: '⚓ Battaglia Navale' },
+]
 
 export default function Games() {
   const { t } = useTranslation()
+  const [activeGame, setActiveGame] = useState('snelfa')
 
   return (
     <main className="games-page">
@@ -15,25 +22,63 @@ export default function Games() {
         </div>
       </header>
 
-      <section className="games-card" aria-labelledby="snaelfa-title">
-        <div className="games-card-header">
-          <div>
-            <h2 id="snaelfa-title">SnÆlfa 🐍 🐕 🐍 </h2>
-            <p>Swipe or use the arrow keys to play.</p>
-          </div>
-          <span className="games-badge">PLAYER 1</span>
-        </div>
+      <nav className="games-tabs" aria-label="Seleziona gioco">
+        {GAMES.map((game) => (
+          <button
+            key={game.id}
+            type="button"
+            className={'games-tab' + (activeGame === game.id ? ' active' : '')}
+            onClick={() => setActiveGame(game.id)}
+            aria-pressed={activeGame === game.id}
+          >
+            {game.label}
+          </button>
+        ))}
+      </nav>
 
-        <div className="games-frame-wrap">
-          <iframe
-            className="games-frame"
-            src="/games/snelfa.html"
-            title="SnÆlfa — retro snake game"
-            loading="eager"
-            allow="autoplay"
-          />
-        </div>
-      </section>
+      {activeGame === 'snelfa' && (
+        <section className="games-card" aria-labelledby="snaelfa-title">
+          <div className="games-card-header">
+            <div>
+              <h2 id="snaelfa-title">SnÆlfa 🐍 🐕 🐍 </h2>
+              <p>Swipe or use the arrow keys to play.</p>
+            </div>
+            <span className="games-badge">PLAYER 1</span>
+          </div>
+
+          <div className="games-frame-wrap">
+            <iframe
+              className="games-frame"
+              src="/games/snelfa.html"
+              title="SnÆlfa — retro snake game"
+              loading="eager"
+              allow="autoplay"
+            />
+          </div>
+        </section>
+      )}
+
+      {activeGame === 'bn2' && (
+        <section className="games-card" aria-labelledby="bn2-title">
+          <div className="games-card-header">
+            <div>
+              <h2 id="bn2-title">⚓ Battaglia Navale</h2>
+              <p>Sfida un altro giocatore da un telefono o da un computer.</p>
+            </div>
+            <span className="games-badge games-badge-gold">2 PLAYERS</span>
+          </div>
+
+          <div className="games-frame-wrap games-frame-wrap-ocean">
+            <iframe
+              className="games-frame games-frame-ocean"
+              src="/bn2/"
+              title="Battaglia Navale multiplayer"
+              loading="eager"
+              allow="autoplay"
+            />
+          </div>
+        </section>
+      )}
 
       <style>{`
         .games-page {
@@ -62,6 +107,30 @@ export default function Games() {
         .games-subtitle {
           opacity: 0.75;
           margin-top: 10px;
+        }
+
+        .games-tabs {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          margin-bottom: 24px;
+        }
+
+        .games-tab {
+          font: inherit;
+          padding: 10px 18px;
+          border-radius: 10px;
+          border: 1px solid var(--border, rgba(128,128,128,.4));
+          background: transparent;
+          color: inherit;
+          cursor: pointer;
+          opacity: 0.75;
+        }
+
+        .games-tab.active {
+          border-color: currentColor;
+          opacity: 1;
+          font-weight: bold;
         }
 
         .games-card {
@@ -100,10 +169,20 @@ export default function Games() {
           color: #4dff7a;
         }
 
+        .games-badge-gold {
+          border-color: rgba(212,168,67,.5);
+          color: #d4a843;
+        }
+
         .games-frame-wrap {
           width: 100%;
           background: #06140a;
           border-top: 1px solid rgba(77,255,122,.2);
+        }
+
+        .games-frame-wrap-ocean {
+          background: #0d2137;
+          border-top: 1px solid rgba(93,173,226,.25);
         }
 
         .games-frame {
@@ -112,6 +191,10 @@ export default function Games() {
           height: 680px;
           border: 0;
           background: #06140a;
+        }
+
+        .games-frame-ocean {
+          background: #0d2137;
         }
 
         @media (max-width: 600px) {
