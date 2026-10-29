@@ -3622,6 +3622,91 @@ async def story_audio(
     return FileResponse(audio_path, media_type="audio/ogg")
 
 
+class ComicPdfRequest(BaseModel):
+    # Indici 0-based delle scene della versione attiva da includere
+    # (lista vuota = tutte le scene).
+    scene_indexes: list[int] = []
+    captions: bool = True
+    # pages = 1 scena per pagina, collage = griglia 2x2, strip = unica
+    # pagina verticale lunga.
+    layout: str = "pages"
+    # landscape / portrait (A4 @ 96 dpi).
+    page_format: str = "landscape"
+
+
+@app.post("/api/admin/stories/{story_id}/comic_pdf")
+async def story_comic_pdf(
+    story_id: str,
+    req: ComicPdfRequest,
+    authorization: str | None = Header(None),
+):
+    """
+    Fumetto PDF on-demand della storia (versione attiva): compone le
+    pagine con Pillow tramite leles/core/story_pdf_report e restituisce
+    il PDF in download diretto, senza passare da Airflow/Telegram.
+    """
+    import sys
+
+    verify_admin_token(authorization)
+    meta = _story_load(story_id)
+
+    layout = (req.layout or "pages").strip().lower()
+    if layout not in ("pages", "collage", "strip"):
+        raise HTTPException(
+            status_code=400,
+            detail="layout non valido (pages, collage, strip).",
+        )
+
+    page_format = (req.page_format or "landscape").strip().lower()
+    if page_format not in ("landscape", "portrait"):
+        raise HTTPException(
+            status_code=400,
+            detail="page_format non valido (landscape, portrait).",
+        )
+
+    # story_pdf_report vive nel repo leles (stesso Mac): ../leles/core
+    leles_core = os.path.abspath(
+        os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "..",
+            "leles",
+            "core",
+        )
+    )
+    if not os.path.isdir(leles_core):
+        raise HTTPException(
+            status_code=500,
+            detail=f"Repo leles non trovato: {leles_core}",
+        )
+    if leles_core not in sys.path:
+        sys.path.insert(0, leles_core)
+
+    import story_pdf_report as comic_builder
+
+    pdf_bytes, info = comic_builder.build_story_pdf_bytes(
+        meta,
+        IMAGE_HISTORY_DIR,
+        {
+            "scene_indexes": req.scene_indexes,
+            "captions": req.captions,
+            "layout": layout,
+            "page_format": page_format,
+        },
+    )
+    if not pdf_bytes:
+        raise HTTPException(
+            status_code=404,
+            detail=(info or {}).get("error", "Fumetto non generabile."),
+        )
+
+    filename = f"fumetto_{story_id}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @app.delete("/api/admin/stories/{story_id}")
 async def story_delete(
     story_id: str,

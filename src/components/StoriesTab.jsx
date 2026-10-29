@@ -84,6 +84,13 @@ export default function StoriesTab({ idToken }) {
   // ns_free per Night Story), altrimenti override esplicito per test.
   const [regPreset, setRegPreset] = useState("");
   const [activeVersion, setActiveVersion] = useState(null);
+  // 📖 Crea fumetto PDF: opzioni di composizione on-demand.
+  const [comicLayout, setComicLayout] = useState("pages");
+  const [comicFormat, setComicFormat] = useState("landscape");
+  const [comicCaptions, setComicCaptions] = useState(true);
+  // Mappa indice-scena -> incluso; assente = incluso (default tutte).
+  const [comicScenes, setComicScenes] = useState({});
+  const [comicBusy, setComicBusy] = useState(false);
   // F4-B/C: formato e step delle illustrazioni.
   const [imageFormat, setImageFormat] = useState("1024x768");
   const [imageSteps, setImageSteps] = useState(8);
@@ -649,6 +656,61 @@ export default function StoriesTab({ idToken }) {
     }
   }
 
+  // 📖 Composizione fumetto on-demand: il gateway genera il PDF con
+  // Pillow (leles/core/story_pdf_report) e il browser lo scarica subito.
+  async function downloadComicPdf(event) {
+    event.preventDefault();
+    if (!current?.story_id || comicBusy) return;
+    setComicBusy(true);
+    setError("");
+    try {
+      const selected = visibleScenes
+        .map((scene, i) => ({ scene, i }))
+        .filter(({ i }) => comicScenes[i] !== false)
+        .map(({ i }) => i);
+      if (!selected.length) throw new Error("Seleziona almeno una scena per il fumetto.");
+
+      const res = await fetch(
+        `${API}/api/admin/stories/${encodeURIComponent(current.story_id)}/comic_pdf`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + idToken,
+          },
+          body: JSON.stringify({
+            scene_indexes: selected,
+            captions: comicCaptions,
+            layout: comicLayout,
+            page_format: comicFormat,
+          }),
+        }
+      );
+      if (!res.ok) {
+        let detail = "HTTP " + res.status;
+        try {
+          const j = await res.json();
+          detail = (j && (j.detail || j.error)) || detail;
+          if (typeof detail !== "string") detail = JSON.stringify(detail);
+        } catch (e) { /* corpo non JSON */ }
+        throw new Error(detail);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "fumetto_" + current.story_id + ".pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (err) {
+      setError(err.message || String(err));
+    } finally {
+      setComicBusy(false);
+    }
+  }
+
   // Versioni disponibili nella storia aperta (V1, V2, …) e versione visibile.
   const sceneVersion = (s) => Number(s?.version) || 1;
   const versions = [...new Set((current?.scenes || []).map(sceneVersion))].sort((a, b) => a - b);
@@ -903,6 +965,72 @@ export default function StoriesTab({ idToken }) {
                 Stessa storia, nuova selezione scene e nuove immagini (ora vedi V{shownVersion}).
                 Stile base {regPreset || autoPreset} ({(regPreset || autoPreset) === "ns_free" ? "Night Story" : "Story Whisper"}), modificabile sopra per test.
                 Se il modello scelto non produce JSON validi, riprova in cascata con mistral → qwen2.5.
+              </p>
+            </form>
+          )}
+
+          {current.story_id && sceneCount > 0 && (
+            <form
+              onSubmit={downloadComicPdf}
+              style={{ marginTop: "1rem", padding: ".9rem", border: "1px solid var(--border, #1f2b35)", borderRadius: "8px" }}
+            >
+              <label className="il-label">📖 Crea fumetto PDF (V{shownVersion})</label>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: ".6rem", alignItems: "center" }}>
+                <select
+                  className="il-input"
+                  value={comicLayout}
+                  onChange={(event) => setComicLayout(event.target.value)}
+                  style={{ flex: "0 0 auto", minWidth: "11rem" }}
+                  aria-label="Layout del fumetto"
+                  disabled={comicBusy}
+                >
+                  <option value="pages">Pagine (1 scena per pagina)</option>
+                  <option value="collage">Collage (griglia 2×2)</option>
+                  <option value="strip">Striscia unica verticale</option>
+                </select>
+                <select
+                  className="il-input"
+                  value={comicFormat}
+                  onChange={(event) => setComicFormat(event.target.value)}
+                  style={{ flex: "0 0 auto", minWidth: "10rem" }}
+                  aria-label="Formato pagina"
+                  disabled={comicBusy}
+                >
+                  <option value="landscape">A4 orizzontale</option>
+                  <option value="portrait">A4 verticale</option>
+                </select>
+                <label style={{ display: "flex", alignItems: "center", gap: ".35rem", fontSize: ".8rem", color: "var(--ink-dim, #8fa1ac)" }}>
+                  <input
+                    type="checkbox"
+                    checked={comicCaptions}
+                    onChange={(event) => setComicCaptions(event.target.checked)}
+                    disabled={comicBusy}
+                  />
+                  Didascalie
+                </label>
+                <button className="il-button il-primary" type="submit" disabled={comicBusy}>
+                  {comicBusy ? "Compongo…" : "📖 Genera e scarica PDF"}
+                </button>
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: ".4rem", marginTop: ".6rem" }}>
+                {visibleScenes.map((scene, i) => (
+                  <label
+                    key={i}
+                    className={"il-page-btn" + (comicScenes[i] !== false ? " il-page-btn-active" : "")}
+                    style={{ padding: ".2rem .6rem", display: "flex", alignItems: "center", gap: ".3rem", cursor: "pointer" }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={comicScenes[i] !== false}
+                      onChange={(event) => setComicScenes((prev) => ({ ...prev, [i]: event.target.checked }))}
+                      disabled={comicBusy}
+                    />
+                    {i + 1} · {String(scene.title || "").slice(0, 24)}
+                  </label>
+                ))}
+              </div>
+              <p className="il-hint" style={{ marginTop: ".5rem", marginBottom: 0 }}>
+                Il PDF si compone sul Mac dalle illustrazioni V{shownVersion} e si scarica subito nel browser (niente Telegram).
               </p>
             </form>
           )}
