@@ -1,3 +1,5 @@
+//multifoto tab, txt2img, img2img and pillow
+
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 

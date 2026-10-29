@@ -94,6 +94,7 @@ const QUICK_LINKS = [
   { to: '/b2b', label: 'B2B Arena ◎', desc: 'lele.pages.b2b' },
   { to: '/bar-ai-admin', label: 'Bar AI Admin 🍸', desc: 'lele.pages.barAiAdmin' },
   { to: '/ai-lab', label: 'AI Lab ◈', desc: 'lele.pages.aiLab' },
+  { to: '/games', label: 'Games 🎮', desc: 'Games & Arcade' },
 ]
 
 // Pagine di test/laboratorio: in fondo, si validano da qui.

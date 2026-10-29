@@ -45,3 +45,5 @@ story_history/
 
 /.news_agent_tmp
 /.news_agent_tmp.base
+
+src/components/snake conf.pages

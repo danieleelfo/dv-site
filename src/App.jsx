@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import Home from './pages/Home.jsx'
+import Games from './pages/Games.jsx'
 import Projects from './pages/Projects.jsx'
 import Console from './pages/Console.jsx'
 import Nav from './components/Nav.jsx'
@@ -91,6 +92,9 @@ export default function App() {
 
         <Route path="/b2b" element={<><Nav /><B2B /></>} />
         <Route path="/:lang/b2b" element={<><Nav /><LangWrapper><B2B /></LangWrapper></>} />
+        
+        <Route path="/games" element={<><Nav /><Games /></>} />
+        <Route path="/:lang/games" element={<><Nav /><LangWrapper><Games /></LangWrapper></>} />
 
         <Route path="/improve" element={<><Nav /><Improve /></>} />
         <Route path="/:lang/improve" element={<><Nav /><LangWrapper><Improve /></LangWrapper></>} />
