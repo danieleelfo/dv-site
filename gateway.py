@@ -4362,17 +4362,11 @@ async def image_compose(
 # --------------------------------------------------------------------------
 
 
-def _gradv_process_info():
-    """PID, comando e RAM (MB) del processo GraDV, se attivo su questo Mac.
-
-    Trova chi ascolta sulla porta di IMAGE_MODEL_URL con lsof, poi legge
-    l'RSS con ps. Nessuna dipendenza nuova: solo lsof + ps di macOS.
-    """
+def _port_process_info(port):
+    """PID, comando e RAM (MB) dei processi che ascoltano su una porta locale."""
     import subprocess as _sp
-    from urllib.parse import urlparse as _urlparse
 
     try:
-        port = _urlparse(IMAGE_MODEL_URL).port or 80
         out = _sp.run(
             ["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN"],
             capture_output=True,
@@ -4409,12 +4403,47 @@ def _gradv_process_info():
         return {
             "running": True,
             "pid": first["pid"] if first else None,
-            # RAM totale di tutti i processi sulla porta (es. master + worker).
             "ram_mb": round(total_kb / 1024, 1),
             "command": first["command"] if first else None,
         }
     except Exception as exc:
-        return {"running": None, "error": str(exc)}
+        return {"running": None, "error": str(exc), "pid": None, "ram_mb": None, "command": None}
+
+
+def _gradv_process_info():
+    """Processo GraDV (UI Gradio) che ascolta sulla porta di IMAGE_MODEL_URL."""
+    from urllib.parse import urlparse as _urlparse
+
+    try:
+        port = _urlparse(IMAGE_MODEL_URL).port or 80
+    except Exception:
+        port = 7860
+    return _port_process_info(port)
+
+
+def _model_server_info():
+    """Model server GraDV (porta 7999): e' lui che tiene il modello in RAM,
+    non l'UI Gradio. Si spegne da solo quando inattivo (lite: dopo 5 min;
+    full: subito dopo ogni richiesta): 'spento' e' uno stato normale.
+    """
+    proc = _port_process_info(7999)
+    info = {
+        "running": proc.get("running"),
+        "pid": proc.get("pid"),
+        "ram_mb": proc.get("ram_mb"),
+        "backend": None,
+        "model_loaded": None,
+    }
+    if info["running"]:
+        try:
+            r = httpx.get("http://127.0.0.1:7999/health", timeout=3.0)
+            if r.status_code == 200:
+                data = r.json()
+                info["backend"] = data.get("backend")
+                info["model_loaded"] = data.get("model_loaded")
+        except Exception:
+            pass
+    return info
 
 
 @app.get("/api/image/health")
@@ -4447,6 +4476,7 @@ async def image_health(
             "url": IMAGE_MODEL_URL,
             "api": "direct_generate" in endpoints,
             "process": proc,
+            "model_server": _model_server_info(),
         }
 
     except HTTPException:
