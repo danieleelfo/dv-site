@@ -3632,6 +3632,9 @@ class ComicPdfRequest(BaseModel):
     layout: str = "pages"
     # landscape / portrait (A4 @ 96 dpi).
     page_format: str = "landscape"
+    # Versione delle illustrazioni (badge V1/V2/… in Stories);
+    # assente = versione attiva (max).
+    version: int | None = None
 
 
 @app.post("/api/admin/stories/{story_id}/comic_pdf")
@@ -3691,6 +3694,7 @@ async def story_comic_pdf(
             "captions": req.captions,
             "layout": layout,
             "page_format": page_format,
+            "version": req.version,
         },
     )
     if not pdf_bytes:
@@ -3699,7 +3703,8 @@ async def story_comic_pdf(
             detail=(info or {}).get("error", "Fumetto non generabile."),
         )
 
-    filename = f"fumetto_{story_id}.pdf"
+    version_used = (info or {}).get("version") or 1
+    filename = f"fumetto_{story_id}_V{version_used}.pdf"
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

@@ -683,6 +683,7 @@ export default function StoriesTab({ idToken }) {
             captions: comicCaptions,
             layout: comicLayout,
             page_format: comicFormat,
+            version: shownVersion,
           }),
         }
       );
@@ -699,7 +700,7 @@ export default function StoriesTab({ idToken }) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "fumetto_" + current.story_id + ".pdf";
+      a.download = "fumetto_" + current.story_id + "_V" + shownVersion + ".pdf";
       document.body.appendChild(a);
       a.click();
       a.remove();
