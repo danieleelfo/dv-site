@@ -4362,11 +4362,69 @@ async def image_compose(
 # --------------------------------------------------------------------------
 
 
+def _gradv_process_info():
+    """PID, comando e RAM (MB) del processo GraDV, se attivo su questo Mac.
+
+    Trova chi ascolta sulla porta di IMAGE_MODEL_URL con lsof, poi legge
+    l'RSS con ps. Nessuna dipendenza nuova: solo lsof + ps di macOS.
+    """
+    import subprocess as _sp
+    from urllib.parse import urlparse as _urlparse
+
+    try:
+        port = _urlparse(IMAGE_MODEL_URL).port or 80
+        out = _sp.run(
+            ["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        ).stdout
+
+        pids = set()
+        for line in out.splitlines()[1:]:
+            parts = line.split()
+            if len(parts) > 1 and parts[1].isdigit():
+                pids.add(int(parts[1]))
+
+        if not pids:
+            return {"running": False, "pid": None, "ram_mb": None, "command": None}
+
+        ps_out = _sp.run(
+            ["ps", "-o", "pid=,rss=,command=", "-p", ",".join(str(p) for p in pids)],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        ).stdout
+
+        total_kb = 0
+        first = None
+        for line in ps_out.splitlines():
+            parts = line.strip().split(None, 2)
+            if len(parts) == 3:
+                kb = int(parts[1])
+                total_kb += kb
+                if first is None:
+                    first = {"pid": int(parts[0]), "command": parts[2][:120]}
+
+        return {
+            "running": True,
+            "pid": first["pid"] if first else None,
+            # RAM totale di tutti i processi sulla porta (es. master + worker).
+            "ram_mb": round(total_kb / 1024, 1),
+            "command": first["command"] if first else None,
+        }
+    except Exception as exc:
+        return {"running": None, "error": str(exc)}
+
+
 @app.get("/api/image/health")
 async def image_health(
     authorization: str | None = Header(None),
 ):
     verify_admin_token(authorization)
+
+    # Stato locale del processo GraDV: attivo + RAM (lsof/ps sul Mac).
+    proc = _gradv_process_info()
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -4388,15 +4446,21 @@ async def image_health(
             "generator": "ok",
             "url": IMAGE_MODEL_URL,
             "api": "direct_generate" in endpoints,
+            "process": proc,
         }
 
     except HTTPException:
         raise
 
     except Exception as exc:
+        stato = (
+            f"attivo (RAM {proc.get('ram_mb')} MB)"
+            if proc.get("running")
+            else "non in esecuzione su questa macchina"
+        )
         raise HTTPException(
             status_code=503,
-            detail=f"GraDV non è raggiungibile su {IMAGE_MODEL_URL}: {exc}",
+            detail=f"GraDV non è raggiungibile su {IMAGE_MODEL_URL}: {exc} · processo: {stato}",
         )
 
 # AVVIO DIRETTO
