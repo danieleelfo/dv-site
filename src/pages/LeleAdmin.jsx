@@ -1655,15 +1655,11 @@ export default function LeleAdmin() {
                 <div className="lc-tiles">
                   <div className={`lc-tile${gradv.data ? ' is-ok' : gradv.err ? ' is-bad' : ''}`}>
                     <b>GraDV</b>
-                    <small>{gradv.data ? (gradv.data.process?.running ? `online · PID ${gradv.data.process.pid}` : 'online') : gradv.err ? 'offline' : '…'}</small>
+                    <small>{gradv.data ? (gradv.data.process?.running ? `online · ${Math.round(gradv.data.process.ram_mb)} MB` : 'online') : gradv.err ? 'offline' : '…'}</small>
                   </div>
                   <div className={`lc-tile${gradv.data?.api ? ' is-ok' : ' is-off'}`}>
                     <b>direct_generate</b>
                     <small>{gradv.data ? (gradv.data.api ? 'API ok' : 'API mancante') : '—'}</small>
-                  </div>
-                  <div className={`lc-tile${gradv.data?.process?.running ? ' is-ok' : ' is-off'}`}>
-                    <b>RAM GraDV</b>
-                    <small>{gradv.data?.process?.running ? `${Math.round(gradv.data.process.ram_mb)} MB` : '—'}</small>
                   </div>
                   <div className={`lc-tile${ping.pillow ? ' is-ok' : ' is-off'}`}>
                     <b>Pillow</b>
