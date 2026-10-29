@@ -56,6 +56,7 @@ REPO_DIRS = {
     "lele": "lele",
     "lele_story_whisper": "lele_story_whisper",
     "lele_night_story": "lele_night_story",
+    "airflow": "airflow",
     "dv_site": "dv-site",
     "gradv": "GraDV",
 }
