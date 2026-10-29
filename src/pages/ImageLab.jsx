@@ -1,5 +1,5 @@
 // src/pages/ImageLab.jsx
-// AI IMAGE LAB — fusione di Test4 (txt2img + history + OCR) e Test5 (img2img)
+// AI IMAGE LAB — fusione di Test4 (txt2img + history + OCR), Multifoto (img2img multifoto)
 // ============================================================
 // AI IMAGE LAB — Z-Image-Turbo
 //
@@ -23,7 +23,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import StoriesTab from "../components/StoriesTab.jsx";
-import Test5 from "./Test5.jsx";
+import MultifotoTab from "../components/MultifotoTab.jsx";
 
 const API = "https://api.danielevillanova.com";
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -884,7 +884,7 @@ export default function ImageLab() {
 
         {tab === "storie" && <StoriesTab idToken={idToken} />}
 
-        {tab === "multifoto" && <Test5 embedded />}
+        {tab === "multifoto" && <MultifotoTab embedded />}
 
         {tab === "genera" && (
           <div className="il-layout">

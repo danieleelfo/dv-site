@@ -27,7 +27,6 @@ import ApiContracts from './pages/ApiContracts.jsx'
 import BarAiAdmin from './pages/BarAiAdmin.jsx'
 import Test3 from './pages/Test3.jsx'
 import Test4 from './pages/Test4.jsx'
-import Test5 from './pages/Test5.jsx'
 import Test6 from './pages/Test6.jsx'
 import TestBarAI from './pages/TestBarAI.jsx'
 
@@ -141,8 +140,6 @@ export default function App() {
         <Route path="/test4" element={<><Nav /><Test4 /></>} />
         <Route path="/:lang/test4" element={<><Nav /><LangWrapper><Test4 /></LangWrapper></>} />
 
-        <Route path="/test5" element={<><Nav /><Test5 /></>} />
-        <Route path="/:lang/test5" element={<><Nav /><LangWrapper><Test5 /></LangWrapper></>} />
 
         {/* Test6 resta dedicato agli endpoint admin futuri. */}
         <Route path="/test6" element={<><Nav /><Test6 /></>} />
