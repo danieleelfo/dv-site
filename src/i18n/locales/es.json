@@ -395,11 +395,19 @@
     "guard3": "Autenticación de Google con verificación de email, revalidada por el backend.",
     "guard4": "Esta página no ejecuta SQL directamente en el navegador.",
     "g": {
-      "status": "📊 Status / Sistema",
-      "airflow": "🌬️ Airflow",
-      "logs": "📜 Logs",
+      "stories": "📖 Historias (SW/NS)",
+      "core": "🤖 Core chat",
+      "db": "🗄️ Query DB",
+      "improve": "🛠️ Improve",
+      "synth": "🧪 Verify/Export/Synth",
+      "emergence": "🧠 Emergence / QE",
+      "worlds": "🌍 Worlds",
+      "airflow": "🌬️ Airflow / DAG",
+      "remote": "📁 Remoto / Archivos",
+      "tts": "🔊 TTS",
+      "process": "⚙️ Procesos / Script",
+      "health": "📊 Salud",
       "git": "🔀 Git",
-      "users": "👤 Usuarios",
       "other": "🔧 Otros"
     },
     "err": {
