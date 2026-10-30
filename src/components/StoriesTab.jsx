@@ -29,6 +29,23 @@ import {
   waitForImageResult,
 } from "../lib/imageJobs";
 const STORY_AGENT = "Story Whisper";
+const STRIP_MODES = [
+    ["", "—"],
+    ["2", "2 · affiancate"],
+    ["3", "3 · in colonna"],
+    ["4", "4 · griglia 2x2"],
+  ];
+
+  // Art direction per la fumettatura deliberata: 2 pannelli affiancati,
+  // 3 in colonna, 4 in griglia 2x2 (ordine di lettura orizzontale).
+  const stripClause = (mode) =>
+    mode === "2"
+      ? "Each image must be rendered as a comic strip of exactly 2 side-by-side panels with clear panel borders, showing two consecutive micro-moments of this scene, read from left to right. "
+      : mode === "3"
+        ? "Each image must be rendered as a vertical comic strip of exactly 3 stacked panels with clear panel borders, telling three consecutive micro-moments of this scene from top to bottom. "
+        : mode === "4"
+          ? "Each image must be rendered as a 2x2 comic grid of exactly 4 panels with clear panel borders, read in horizontal order (top-left, top-right, bottom-left, bottom-right), showing four consecutive micro-moments of this scene. "
+          : "";
 const CHAT_ID_KEY = "dv_story_chat_id";
 const MAX_PROMPT_CHARS = 4000;
 
@@ -82,6 +99,9 @@ export default function StoriesTab({ idToken }) {
   const [storyGenre, setStoryGenre] = useState("Random");
   const [storyStyle, setStoryStyle] = useState("");
   const [storyModel, setStoryModel] = useState("qwen2.5");
+  // Fumettatura deliberata: 2 pannelli affiancati, 3 in colonna,
+  // 4 in griglia 2x2 (nata dal "bug figo" di mistral).
+  const [storyStrip, setStoryStrip] = useState("");
   // Rigenerazione illustrazioni come nuova versione della stessa storia.
   const [regModel, setRegModel] = useState("qwen2.5");
   const [regStyle, setRegStyle] = useState("");
@@ -369,7 +389,7 @@ export default function StoriesTab({ idToken }) {
         idToken,
         storyText,
         imageCount,
-        artDirection,
+        artDirection: artDirection + stripClause(storyStrip),
         styleExtra,
         model: storyModel,
         onStatus: (s) => {
@@ -843,6 +863,18 @@ export default function StoriesTab({ idToken }) {
             >
               {["qwen2.5", "mistral", "llama3", "gemma4", "deepseek-r1"].map((m) => (
                 <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+            <select
+              className="il-input"
+              value={storyStrip}
+              onChange={(event) => setStoryStrip(event.target.value)}
+              style={{ flex: "0 0 auto", minWidth: "10rem" }}
+              aria-label="Pannelli fumetto per immagine"
+              disabled={busy}
+            >
+              {STRIP_MODES.map(([value, label]) => (
+                <option key={value} value={value}>📚 {label}</option>
               ))}
             </select>
           </div>

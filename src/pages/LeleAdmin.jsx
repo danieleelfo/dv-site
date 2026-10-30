@@ -49,6 +49,23 @@ const FORCED_ADMIN_CHAT_ID = 8733881519
 // ATTENZIONE: le due route qui sotto per audio in ingresso e file TTS sono
 // ASSUNTE (speculari a quelle pubbliche): da verificare lato gateway.
 const LELES_AGENT = 'Leles'
+const STRIP_MODES = [
+    ["", "—"],
+    ["2", "2 · affiancate"],
+    ["3", "3 · in colonna"],
+    ["4", "4 · griglia 2x2"],
+  ];
+
+  // Art direction per la fumettatura deliberata: 2 pannelli affiancati,
+  // 3 in colonna, 4 in griglia 2x2 (ordine di lettura orizzontale).
+  const stripClause = (mode) =>
+    mode === "2"
+      ? "Each image must be rendered as a comic strip of exactly 2 side-by-side panels with clear panel borders, showing two consecutive micro-moments of this scene, read from left to right. "
+      : mode === "3"
+        ? "Each image must be rendered as a vertical comic strip of exactly 3 stacked panels with clear panel borders, telling three consecutive micro-moments of this scene from top to bottom. "
+        : mode === "4"
+          ? "Each image must be rendered as a 2x2 comic grid of exactly 4 panels with clear panel borders, read in horizontal order (top-left, top-right, bottom-left, bottom-right), showing four consecutive micro-moments of this scene. "
+          : "";
 const LELES_AUDIO_PATH = '/api/admin/chat/audio'
 const LELES_TTS_PATH = '/api/admin/chat/tts'
 const AUDIO_AGENTS = [
@@ -786,6 +803,8 @@ export default function LeleAdmin() {
   const [storyKidsFilter, setStoryKidsFilter] = useState(true)
   const [storyStylePrompt, setStoryStylePrompt] = useState('')
   const [storyGenre, setStoryGenre] = useState('Random')
+  // Fumettatura deliberata: 2 affiancate, 3 in colonna, 4 griglia 2x2.
+  const [storyStrip, setStoryStrip] = useState('')
 
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [audioCurrentTime, setAudioCurrentTime] = useState(0)
@@ -923,7 +942,7 @@ export default function LeleAdmin() {
         idToken,
         storyText,
         imageCount,
-        artDirection,
+        artDirection: artDirection + stripClause(storyStrip),
         styleExtra,
         model: leleModel,
         fallbackModels: PLANNER_FALLBACK_MODELS,
@@ -1784,6 +1803,15 @@ export default function LeleAdmin() {
                         style={{ padding: '4px 8px', borderRadius: 8, background: 'var(--surface, #fff)', color: 'inherit', border: '1px solid var(--line, #ccc)' }}
                       >
                         {[1, 3, 4, 5, 6, 7, 8, 9, 12, 15].map((s) => <option key={s} value={s}>{s} step</option>)}
+                      </select>
+                      <select
+                        aria-label="Pannelli fumetto per immagine"
+                        value={storyStrip}
+                        disabled={isRecording || audioBusy || storyImageBusy}
+                        onChange={(e) => setStoryStrip(e.target.value)}
+                        style={{ padding: '4px 8px', borderRadius: 8, background: 'var(--surface, #fff)', color: 'inherit', border: '1px solid var(--line, #ccc)' }}
+                      >
+                        {STRIP_MODES.map(([value, label]) => <option key={value} value={value}>📚 {label}</option>)}
                       </select>
                       {audioAgent === 'Story Whisper' && (
                         <label className="lc-check" title={t('lele.story.kidsTitle')}>

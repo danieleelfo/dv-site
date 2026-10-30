@@ -126,6 +126,7 @@ export function buildStoryboardPrompt({
     "Keep character appearance, clothing, age, and art direction consistent across prompts. Each prompt must follow " +
     styleClause + artDirection + styleExtra +
     "No text or lettering in images. Do not invent events. " +
+    "Unless the art direction explicitly requires a multi-panel strip, each image must depict exactly ONE moment in ONE single frame: never a grid, a collage, a comic page, or a stack of multiple images. " +
     "\n\nSTORY:\n" + String(storyText || "").slice(0, 12000)
   );
 }
@@ -183,6 +184,7 @@ export function buildStoryboardBatchPrompt({
     "Keep character appearance, clothing, age, and art direction consistent across prompts. Each prompt must follow " +
     styleClause + artDirection + styleExtra +
     "No text or lettering in images. Do not invent events. " +
+    "Unless the art direction explicitly requires a multi-panel strip, each image must depict exactly ONE moment in ONE single frame: never a grid, a collage, a comic page, or a stack of multiple images. " +
     "\n\nSTORY:\n" + String(storyText || "").slice(0, 12000)
   );
 }
