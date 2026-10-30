@@ -209,13 +209,7 @@ const GROUPS = [
         method: "GET", path: "/api/image/health", auth: true,
         summary: "api.ep.imgHealth",
         request: "—",
-        response: '{
-  "gateway": "ok", "generator": "ok",
-  "url": "http://127.0.0.1:7860",
-  "api": true,
-  "process":      { "running", "pid", "ram_mb", "command" },  // UI Gradio (7860)
-  "model_server": { "running", "pid", "ram_mb", "backend", "model_loaded" }  // motore lite/full (7999)
-}',
+        response: "{\n  \"gateway\": \"ok\", \"generator\": \"ok\",\n  \"url\": \"http://127.0.0.1:7860\",\n  \"api\": true,\n  \"process\":      { \"running\", \"pid\", \"ram_mb\", \"command\" },  // UI Gradio (7860)\n  \"model_server\": { \"running\", \"pid\", \"ram_mb\", \"backend\", \"model_loaded\" }  // motore lite/full (7999)\n}",
         notes: "api.nt.imgHealth",
       },
       {
@@ -247,13 +241,7 @@ const GROUPS = [
       {
         method: "POST", path: "/api/image/compose", auth: true,
         summary: "api.ep.imgCompose",
-        request: 'Content-Type: multipart/form-data
-
-images:  <1-12 file immagine, max 15 MB ciascuna>
-layout:  "grid" | "side" | "stack" | "bg"
-blend:   0.0    // dissolvenza cross-fade, 0-0.45
-width:   1024
-height:  1024',
+        request: "Content-Type: multipart/form-data\n\nimages:  <1-12 file immagine, max 15 MB ciascuna>\nlayout:  \"grid\" | \"side\" | \"stack\" | \"bg\"\nblend:   0.0    // dissolvenza cross-fade, 0-0.45\nwidth:   1024\nheight:  1024",
         response: "image/png — il composito (da mandare poi a /api/image/img2img)",
         notes: "api.nt.imgCompose",
       },
@@ -278,12 +266,7 @@ height:  1024',
       {
         method: "POST", path: "/api/admin/stories/{story_id}/comic_pdf", auth: true,
         summary: "api.ep.comicPdf",
-        request: '{
-  "captions": true,
-  "layout": "pages",          // pages | collage | strip
-  "page_format": "landscape", // landscape | portrait (A4 @ 96 dpi)
-  "version": 2                // opzionale: assente = versione attiva
-}',
+        request: "{\n  \"captions\": true,\n  \"layout\": \"pages\",          // pages | collage | strip\n  \"page_format\": \"landscape\", // landscape | portrait (A4 @ 96 dpi)\n  \"version\": 2                // opzionale: assente = versione attiva\n}",
         response: "application/pdf — fumetto_{story_id}_V{n}.pdf (download diretto)",
         notes: "api.nt.comicPdf",
       },
