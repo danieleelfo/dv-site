@@ -1,2212 +1,1492 @@
-// ============================================================
-// TEST2 — Leles Admin Console (v2 "piu' figa")
-// v2: 3 selettori modello (Super-Leles / Leles / Reviewer) sincronizzati
-// col server via comando "modelli"; nuovo ordine sezioni (Comandi, Sessione,
-// Pagine, Audio, Test); restyling (titolo gradient, ombre, hover lift).
-// LeleAdmin.jsx resta la versione ufficiale su /leles.
-// ============================================================
+// src/pages/Test2.jsx
+// TEST2 — tab Stories di ImgLab come pagina standalone (sovrascrive la
+// vecchia Leles Admin Console). Basato su src/components/StoriesTab.jsx.
+// Aggiornato con le funzionalita LeleAdmin: titoli di tutte le scene subito,
+// stato per card (In attesa/In coda/Generazione/Pronta), step default 5 (max 15).
+//
+// Flusso:
+//   1. POST /api/chat (agent "Story Whisper", prompt "audio e testo …")
+//      -> testo della storia + audio_path (TTS)
+//   2. POST /api/admin/llm (STATELESS) -> pianificazione N scene in JSON
+//   3. POST /api/admin/ollama/unload -> libera la RAM prima delle immagini
+//   4. Loop POST /api/image/jobs + polling (pausa 12s tra scene,
+//      1 retry per scena) — stessa logica già collaudata in Test2
+//   5. POST /api/admin/stories -> persistenza (testo + audio + job_id)
+//
+// Storico: GET /api/admin/stories (+ dettaglio, audio, DELETE).
+// Le immagini delle scene restano in /api/image/history/{job_id}/image.
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
-import bgImage from '../assets/DataInFlames.jpg'
-import SystemTiles, { parseSystem, parseOs, cleanRam, OsKpis, statLevel } from '../components/SystemPanel'
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  API,
   apiJson,
-  buildRepairPrompt,
-  buildStoryboardBatchPrompt,
-  buildStoryboardPrompt,
+  authBlobUrl,
   createImageJob,
-  fetchJobStatusWithRetry as fetchJobStatusWithRetryShared,
-  normalizeScenes,
-  parsePlan,
+  fetchJobStatusWithRetry,
+  planStoryScenes,
   resultToDataUrl,
+  sleep,
   unloadOllama,
   waitForImageResult,
-} from '../lib/imageJobs'
+} from "../lib/imageJobs";
+const STORY_AGENT = "Story Whisper";
+const STRIP_MODES = [
+    ["", "—"],
+    ["2", "2 · affiancate"],
+    ["3", "3 · in colonna"],
+    ["4", "4 · griglia 2x2"],
+  ];
 
-// F2: adminJson ora vive nel modulo condiviso src/lib/imageJobs.js
-// (stessa firma di prima; migliora solo il messaggio d'errore HTTP
-// mostrando il detail del gateway quando presente).
-const adminJson = apiJson
+  // Art direction per la fumettatura deliberata: 2 pannelli affiancati,
+  // 3 in colonna, 4 in griglia 2x2 (ordine di lettura orizzontale).
+  const stripClause = (mode) =>
+    mode === "2"
+      ? "Each image must be rendered as a comic strip of exactly 2 side-by-side panels with clear panel borders, showing two consecutive micro-moments of this scene, read from left to right. "
+      : mode === "3"
+        ? "Each image must be rendered as a vertical comic strip of exactly 3 stacked panels with clear panel borders, telling three consecutive micro-moments of this scene from top to bottom. "
+        : mode === "4"
+          ? "Each image must be rendered as a 2x2 comic grid of exactly 4 panels with clear panel borders, read in horizontal order (top-left, top-right, bottom-left, bottom-right), showing four consecutive micro-moments of this scene. "
+          : "";
+const CHAT_ID_KEY = "dv_story_chat_id";
+const MAX_PROMPT_CHARS = 4000;
 
-const LELE_API_URL = 'https://api.danielevillanova.com'
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
-const TOKEN_STORAGE_KEY = 'leles_admin_id_token'
+// Ricette di stile rapide per la rigenerazione V2+: chip che riempiono
+// l'input di stile extra (etichetta IT, prompt EN per il planner).
+const REG_STYLE_PRESETS = [
+  ["💧 Acquerello", "soft watercolor illustration"],
+  ["✏️ Matita colorata", "colored pencil drawing"],
+  ["🐱 Cartoon manga", "clean cartoon manga style"],
+  ["📷 Fotorealistico", "photorealistic, cinematic lighting"],
+];
 
-// --- TEST TEMPORANEO: whitelist email per accesso alla console -----------
-// TODO: rimuovere/estendere quando arriva il login Telegram con ADMIN_IDS.
-const ALLOWED_EMAILS = [
-  'dannybydanny@hotmail.com',
-  'salatinodenise@gmail.com',
-]
-// Forza il chat_id a un ADMIN_IDS di Leles, così i comandi riservati
-// al "capitano" funzionano anche dalla console web.
-const FORCED_ADMIN_CHAT_ID = 8733881519
-// ---------------------------------------------------------------------------
+// Preset di stile base del gateway (F3, lato server):
+// - sw_kids: cartoon storybook per bambini (Story Whisper)
+// - ns_free: illustrazione artistica per pubblici adulti (Night Story)
+// La rigenerazione segue per default l'agente della storia, ma il
+// selettore permette di cambiarlo per testare i comportamenti.
+const NS_AGENT = "Night Story";
+const storyPreset = (agent) => (agent === NS_AGENT ? "ns_free" : "sw_kids");
+const PRESET_CLAUSES = {
+  sw_kids: "a consistent family-friendly storybook style. ",
+  ns_free: "a consistent artistic illustration style for mature audiences. ",
+};
 
-// --- AUDIO: TTS + registrazione + risposta audio ---------------------------
-// Story Whisper e Night Story: API audio complete (/api/chat e /api/chat/audio).
-// Leles: console admin (login Google). Testo e TTS passano da /api/admin/chat.
-// ATTENZIONE: le due route qui sotto per audio in ingresso e file TTS sono
-// ASSUNTE (speculari a quelle pubbliche): da verificare lato gateway.
-const LELES_AGENT = 'Leles'
-const LELES_AUDIO_PATH = '/api/admin/chat/audio'
-const LELES_TTS_PATH = '/api/admin/chat/tts'
-const AUDIO_AGENTS = [
-  { value: 'Story Whisper', label: 'Story Whisper 🌈' },
-  { value: 'Night Story', label: 'Night Story 🌙' },
-  { value: LELES_AGENT, label: 'Leles 🏴‍☠️' },
-]
-const AUDIO_CHAT_ID_KEY = 'lele_chat_id'
-const AUDIO_LANGUAGE = 'it'
-const AUTO_SEND_RECORDING = true
-// ---------------------------------------------------------------------------
-
-// --- SUPER-LELES: selettore modello nel prompt ------------------------------
-// La lista combacia con SUPER_LELES_ALLOWED_MODELS del gateway (gateway.py).
-// Il cambio modello viene inviato come comando "modellosl <nome>", già
-// supportato dal backend: nessuna sintassi nuova.
-const SUPER_MODELS = [
-  'mistral',
-  'gemma4',
-  'llama3',
-  'qwen2.5',
-  'deepseek-r1',
-  'qwen2.5-coder:7b',
-  'gpt-oss:20b',
-]
-const SUPER_MODEL_KEY = 'lc_super_model'
-
-// Modelli permessi per gli agenti normali (ALLOWED_MODELS in gateway.py).
-// Usati sia dal selettore "modello" (Leles) sia dal "reviewer".
-const LELE_MODELS = ['mistral', 'gemma4', 'llama3', 'qwen2.5', 'deepseek-r1']
-const LELE_MODEL_KEY = 'lc_lele_model'
-const REVIEWER_MODEL_KEY = 'lc_reviewer_model'
-
-// Pagine e console ufficiali del sito.
-const QUICK_LINKS = [
-  { to: '/improve', label: 'Improve 🛠️', desc: 'Editor file + revisione AI', main: true },
-  { to: '/api-contracts', label: 'API Contracts 📡', desc: 'Contratti API del gateway', main: true },
-  { to: '/image-lab', label: 'Image Lab 🖼️', desc: 'Z-Image-Turbo · generazione + gallery', main: true },
-  { to: '/git-admin', label: 'Git Admin ⑂', desc: 'Status · diff · commit · push con conferma' },
-  { to: '/dag-admin', label: 'DAG Admin 🌬️', desc: 'Pannello Airflow' },
-  { to: '/b2b', label: 'B2B Arena ◎', desc: 'Bot-to-bot lab' },
-  { to: '/bar-ai-admin', label: 'Bar AI Admin 🍸', desc: 'CRUD tabelle bar' },
-  { to: '/ai-lab', label: 'AI Lab ◈', desc: 'Pagina pubblica degli agenti' },
-]
-
-// Pagine di test/laboratorio: in fondo, si validano da qui.
-const TEST_LINKS = [
-  { to: '/test', label: 'Test 🕰️', desc: 'Pagina test storica' },
-  { to: '/test2', label: 'Test2 🏴‍☠️', desc: 'Leles Admin Console (questa pagina)' },
-  { to: '/test3', label: 'Test3 🗺️', desc: 'Arena multi-agente' },
-  { to: '/test4', label: 'Test4 🔬', desc: 'ImageLab preview · gallery · OCR/JCS' },
-  { to: '/test5', label: 'Test5 🧠', desc: 'Image-to-image (img2img)' },
-  { to: '/test6', label: 'Test6 🍹', desc: 'CRUD bar AI (promossa su /bar-ai-admin)' },
-  { to: '/testbarai', label: 'TestBarAI 🧪', desc: 'Variante Bar AI in test' },
-]
-
-// Comandi mostrati nel pannello di destra (si aggiornano con "Aggiorna").
-const STATUS_CMDS = [
-  ['sys', 'Sistema', 'status sistema'],
-  ['os', 'OS', 'status os'],
-  ['ram', 'RAM', 'status ram'],
-]
-
-const c = (label, command, hint, danger) => ({ label, command, hint, danger })
-
-const COMMAND_GROUPS = [
-  {
-    id: 'modelli', title: 'Modelli & LLM', icon: '🎛️', color: '#c4b5fd',
-    commands: [
-      c('Modelli attivi', 'modelli'),
-      c('Cambia reviewer', 'reviewer ', 'nome modello'),
-      c('Query', 'query ', 'Scrivi la query'),
-      c('Gemma', 'gemma ', 'prompt'),
-      c('Llama', 'llama ', 'prompt'),
-      c('Edita', 'edita'),
-      c('Roast', 'roast'),
-      c('Critica', 'critica'),
-      c('Pirata', 'pirata'),
-    ],
-  },
-  {
-    id: 'system', title: 'Sistema', icon: '⚙️', color: '#3fd0c9',
-    commands: [
-      c('Status sistema', 'status sistema'),
-      c('Status OS', 'status os'),
-      c('Status RAM', 'status ram'),
-      c('Status IP', 'status ip'),
-      c('Uvicorn status', 'uvicorn status'),
-      c('Telegram status', 'telegram status'),
-    ],
-  },
-  {
-    id: 'processi', title: 'Processi', icon: '🤖', color: '#fbbf24',
-    commands: [
-      c('Start Lele', 'start lele'),
-      c('Stop Lele', 'stop lele', undefined, true),
-      c('Restart Lele', 'restart lele', undefined, true),
-      c('Start Story Whisper', 'start story whisper'),
-      c('Stop Story Whisper', 'stop story whisper', undefined, true),
-      c('Restart Story Whisper', 'restart story whisper', undefined, true),
-      c('Start Night Story', 'start night story'),
-      c('Stop Night Story', 'stop night story', undefined, true),
-      c('Restart Night Story', 'restart night story', undefined, true),
-      c('Restart Gateway', 'restart gateway', undefined, true),
-      c('Logs Lele', 'logs lele'),
-      c('Logs Story Whisper', 'logs story whisper'),
-      c('Logs Night Story', 'logs night story'),
-      c('Logs Leles', 'logs leles'),
-    ],
-  },
-  {
-    id: 'emergence', title: 'Emergence / QE', icon: '🧠', color: '#a78bfa',
-    commands: [
-      c('QE last 10', 'QE last 10'),
-      c('QE last 3', 'QE last 3'),
-      c('QE status', 'QE status ', 'run_id opzionale'),
-      c('Decisione', 'decisione ', 'run_id'),
-      c('Decisione run', 'decisione run ', 'run_id'),
-      c('Sintetizza', 'sintetizza ', 'run_id'),
-      c('Query worlds', 'query worlds'),
-      c('Query world', 'query world ', 'world id'),
-      c('Save world', 'save world ', 'nome as "descrizione"'),
-    ],
-  },
-  {
-    id: 'files', title: 'File', icon: '📁', color: '#4ade80',
-    commands: [
-      c('Directory leles', 'directory leles'),
-      c('LS', 'ls ', 'progetto [subpath]'),
-      c('Invia file', 'invia file ', 'path assoluto'),
-      c('Esporta file', 'esporta file ', 'path del file remoto (via Lele Admin)'),
-      c('Esporta record', 'esporta ', 'record in formato yaml'),
-      c('Remoto test', 'remoto test'),
-      c('Remoto LS', 'remoto ls ', 'path'),
-      c('Remoto download', 'remoto download ', 'file'),
-      c('Remoto upload', 'remoto upload ', 'file', true),
-    ],
-  },
-]
-
-// Comandi che cambiano lo stato del sistema: chiedono una seconda conferma.
-const DANGER = COMMAND_GROUPS.flatMap((g) =>
-  g.commands.filter((x) => x.danger).map((x) => x.command.trim().toLowerCase())
-)
-const isDanger = (text) => {
-  const t = text.trim().toLowerCase()
-  return DANGER.some((d) => t.startsWith(d))
+function newChatId() {
+  return Math.floor(Math.random() * 9_000_000_000) + 1_000_000_000;
 }
 
-// chat_id anonimo e persistente per le API audio pubbliche.
-function getAudioChatId() {
+function getChatId() {
   try {
-    const stored = window.localStorage.getItem(AUDIO_CHAT_ID_KEY)
-    if (stored) return parseInt(stored, 10)
-    const newId = Math.floor(Math.random() * 9_000_000_000) + 1_000_000_000
-    window.localStorage.setItem(AUDIO_CHAT_ID_KEY, String(newId))
-    return newId
+    const stored = window.localStorage.getItem(CHAT_ID_KEY);
+    if (stored) return parseInt(stored, 10);
+    const newId = Math.floor(Math.random() * 9_000_000_000) + 1_000_000_000;
+    window.localStorage.setItem(CHAT_ID_KEY, String(newId));
+    return newId;
   } catch (e) {
-    return Math.floor(Math.random() * 9_000_000_000) + 1_000_000_000
+    return Math.floor(Math.random() * 9_000_000_000) + 1_000_000_000;
   }
 }
 
-const extractFilename = (value) => {
-  if (!value || typeof value !== 'string') return null
-  return value.split(/[/\\]/).pop() || null
+function formatSeconds(seconds) {
+  const s = Math.max(0, Math.floor(Number(seconds) || 0));
+  return s < 60 ? s + " s" : Math.floor(s / 60) + " min " + String(s % 60).padStart(2, "0") + " s";
 }
 
-const audioText = (data) => {
-  if (data.answer) return data.answer
-  if (data.error) return data.error
-  if (data.detail) {
-    return typeof data.detail === 'string'
-      ? data.detail
-      : JSON.stringify(data.detail, null, 2)
-  }
-  return 'Nessuna risposta ricevuta'
-}
+function StoriesTab({ idToken }) {
+  const [prompt, setPrompt] = useState("");
+  const [imageCount, setImageCount] = useState(3);
+  // Opzioni del box Audio di LeleAdmin, portate qui: agente (anche
+  // Night Story), TTS opzionale, filtro kids, genere NS, stile extra
+  // e modello planner della CREAZIONE (prima era fisso qwen2.5).
+  const [storyAgent, setStoryAgent] = useState(STORY_AGENT);
+  const [wantsTts, setWantsTts] = useState(true);
+  const [storyKids, setStoryKids] = useState(true);
+  const [storyGenre, setStoryGenre] = useState("Random");
+  const [storyStyle, setStoryStyle] = useState("");
+  const [storyModel, setStoryModel] = useState("qwen2.5");
+  // Fumettatura deliberata: 2 pannelli affiancati, 3 in colonna,
+  // 4 in griglia 2x2 (nata dal "bug figo" di mistral).
+  const [storyStrip, setStoryStrip] = useState("");
+  // Nuovo contesto: se attivo, ogni storia parte con un chat_id nuovo
+  // (l'agente non vede le storie precedenti e non ricicla i personaggi).
+  // Se spento, usa il chat_id fisso salvato: l'agente ricorda tutto.
+  const [freshStory, setFreshStory] = useState(true);
+  // Rigenerazione illustrazioni come nuova versione della stessa storia.
+  const [regModel, setRegModel] = useState("qwen2.5");
+  const [regStyle, setRegStyle] = useState("");
+  // regCount = "" significa "come la versione esistente" (default).
+  const [regCount, setRegCount] = useState("");
+  const [regFormat, setRegFormat] = useState("1024x768");
+  const [regSteps, setRegSteps] = useState(5);
+  // regPreset = "" significa "come la storia" (sw_kids per Story Whisper,
+  // ns_free per Night Story), altrimenti override esplicito per test.
+  const [regPreset, setRegPreset] = useState("");
+  const [activeVersion, setActiveVersion] = useState(null);
+  // 📖 Crea fumetto PDF: opzioni di composizione on-demand.
+  const [comicLayout, setComicLayout] = useState("pages");
+  const [comicFormat, setComicFormat] = useState("landscape");
+  const [comicCaptions, setComicCaptions] = useState(true);
+  // Estrai narrazione: estratto del testo della storia accanto a ogni
+  // immagine nel PDF (deterministico, lato server).
+  const [comicNarration, setComicNarration] = useState(false);
+  // Mappa indice-scena -> incluso; assente = incluso (default tutte).
+  const [comicScenes, setComicScenes] = useState({});
+  const [comicBusy, setComicBusy] = useState(false);
+  // Progress della rigenerazione: {done, total} per la barra, e messaggio
+  // di fine che resta visibile anche dopo il busy.
+  const [regProgress, setRegProgress] = useState(null);
+  const [regDone, setRegDone] = useState("");
+  // F4-B/C: formato e step delle illustrazioni.
+  const [imageFormat, setImageFormat] = useState("1024x768");
+  const [imageSteps, setImageSteps] = useState(5);
+  const [busy, setBusy] = useState(false);
+  const [stage, setStage] = useState("");
+  const [error, setError] = useState("");
 
-function formatTime(seconds) {
-  if (!seconds || isNaN(seconds)) return '00:00'
-  const m = Math.floor(seconds / 60)
-  const sec = Math.floor(seconds % 60)
-  return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
-}
+  // Storia corrente (appena generata o aperta dallo storico).
+  const [current, setCurrent] = useState(null);
 
-function decodeJwtPayload(token) {
-  try {
-    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
-    return JSON.parse(decodeURIComponent(escape(window.atob(base64))))
-  } catch (e) {
-    return null
-  }
-}
+  // Storico.
+  const [stories, setStories] = useState([]);
+  const [listLoading, setListLoading] = useState(false);
+  const [listError, setListError] = useState("");
 
-async function callAdmin(idToken, prompt, timeoutMs = 310000) {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    const res = await fetch(`${LELE_API_URL}/api/admin/chat`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${idToken}`,
-      },
-      signal: controller.signal,
-      body: JSON.stringify({
-        prompt,
-        language: 'en',
-        chat_id: FORCED_ADMIN_CHAT_ID,
+  const objectUrlsRef = useRef([]);
+
+  // Timer dei secondi di elaborazione dell'immagine corrente.
+  const [imgStart, setImgStart] = useState(null);
+  const [imgElapsed, setImgElapsed] = useState(0);
+
+  // Rilascio degli objectURL quando il tab si smonta.
+  useEffect(() => {
+    const urls = objectUrlsRef.current;
+    return () => {
+      urls.forEach((u) => URL.revokeObjectURL(u));
+      urls.length = 0;
+    };
+  }, []);
+
+  // Contatore live 1s mentre il Mac genera l'immagine corrente.
+  useEffect(() => {
+    if (imgStart == null) return;
+    const update = () => setImgElapsed(Math.floor((Date.now() - imgStart) / 1000));
+    update();
+    const timer = window.setInterval(update, 1000);
+    return () => window.clearInterval(timer);
+  }, [imgStart]);
+
+  const trackUrl = (url) => {
+    objectUrlsRef.current.push(url);
+    return url;
+  };
+
+  const loadStories = useCallback(async () => {
+    if (!idToken) return;
+    setListLoading(true);
+    setListError("");
+    try {
+      const data = await apiJson(idToken, "/api/admin/stories", {}, 60000);
+      setStories(Array.isArray(data.items) ? data.items : []);
+    } catch (err) {
+      setListError(err.message || String(err));
+    } finally {
+      setListLoading(false);
+    }
+  }, [idToken]);
+
+  useEffect(() => {
+    loadStories();
+  }, [loadStories]);
+
+  const openStory = useCallback(async (item) => {
+    setError("");
+    setStage("");
+    setActiveVersion(null);
+    try {
+      const data = await apiJson(
+        idToken,
+        "/api/admin/stories/" + encodeURIComponent(item.story_id),
+        {},
+        60000
+      );
+
+      const scenes = await Promise.all(
+        (data.scenes || []).map(async (scene) => {
+          let src = "";
+          if (scene.job_id) {
+            try {
+              src = trackUrl(
+                await authBlobUrl(
+                  idToken,
+                  "/api/image/history/" + encodeURIComponent(scene.job_id) + "/image"
+                )
+              );
+            } catch (e) {
+              // Immagine ripulita dalla history: la scena resta senza anteprima.
+            }
+          }
+          return { ...scene, src, status: "Pronta" };
+        })
+      );
+
+      let audioUrl = "";
+      if (data.has_audio) {
+        try {
+          audioUrl = trackUrl(
+            await authBlobUrl(
+              idToken,
+              "/api/admin/stories/" + encodeURIComponent(item.story_id) + "/audio"
+            )
+          );
+        } catch (e) {
+          /* audio non disponibile: la storia resta leggibile */
+        }
+      }
+
+      setCurrent({
+        story_id: item.story_id,
+        prompt: data.prompt || item.prompt,
+        text: data.text || "",
+        agent: data.agent || STORY_AGENT,
+        audioUrl,
+        scenes,
+        createdAt: data.created_at,
+      });
+
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (err) {
+      setError(err.message || String(err));
+    }
+  }, [idToken]);
+
+  const deleteStory = useCallback(async (item, event) => {
+    event.stopPropagation();
+    try {
+      await apiJson(
+        idToken,
+        "/api/admin/stories/" + encodeURIComponent(item.story_id),
+        { method: "DELETE" },
+        60000
+      );
+      setCurrent((c) => (c && c.story_id === item.story_id ? null : c));
+      loadStories();
+    } catch (err) {
+      setListError(err.message || String(err));
+    }
+  }, [idToken, loadStories]);
+
+  // Controllo dello stato di un job con retry (rete/Cloudflare instabili).
+  // F2: implementazione condivisa in src/lib/imageJobs.js.
+  const fetchJobStatus = useCallback(
+    (jobId) =>
+      fetchJobStatusWithRetry(idToken, jobId, {
+        onRetry: (attempt, attempts) =>
+          setStage(
+            "🔄 Connessione temporaneamente interrotta — nuovo tentativo " +
+              attempt + "/" + attempts + "…"
+          ),
       }),
-    })
+    [idToken]
+  );
 
-    if (res.status === 401 || res.status === 403) {
-      const err = new Error(
-        res.status === 401
-          ? 'Sessione scaduta, effettua di nuovo il login.'
-          : 'Accesso non autorizzato per questo account Google. 🏴‍☠️'
-      )
-      err.status = res.status
-      throw err
+  async function generateStory(event) {
+    event.preventDefault();
+
+    if (!idToken || busy) return;
+    if (!prompt.trim()) {
+      setError("Scrivi l'idea della storia.");
+      return;
     }
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`)
 
-    const data = await res.json()
-    if (data.answer) return data.answer
-    if (data.error) return data.error
-    if (data.detail) {
-      return typeof data.detail === 'string'
-        ? data.detail
-        : JSON.stringify(data.detail, null, 2)
-    }
-    return 'Nessuna risposta ricevuta'
-  } catch (err) {
-    if (err.name === 'AbortError') {
-      throw new Error('Timeout: il server non ha risposto in tempo. 😵‍💫')
-    }
-    throw err
-  } finally {
-    clearTimeout(timer)
-  }
-}
+    setBusy(true);
+    setError("");
+    setStage("");
+    setCurrent(null);
 
-// Chiamata LLM stateless: il prompt va dritto a Ollama via gateway,
-// SENZA passare dagli agenti e dalla loro memoria di conversazione.
-// Usata per la pianificazione delle scene (niente scene "fantasma" di
-// storie precedenti rimaste nella memoria dell'agente).
-async function callLlm(idToken, prompt, model, timeoutMs = 310000, keepAlive = 0) {
-  const data = await adminJson(
-    idToken,
-    '/api/admin/llm',
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt, model, keep_alive: keepAlive }),
-    },
-    timeoutMs
-  )
-  return data.answer || ''
-}
+    const chatId = freshStory ? newChatId() : getChatId();
+    let storyText = "";
+    let audioFilename = "";
+    let savedStoryId = "";
 
-// adminJson: vedi import da src/lib/imageJobs.js (F2).
-
-const timeLabel = (ts) =>
-  new Date(ts).toLocaleTimeString('it-IT', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  })
-
-
-export default function Test2() {
-  const [idToken, setIdToken] = useState(() => {
     try {
-      return window.sessionStorage.getItem(TOKEN_STORAGE_KEY) || null
-    } catch (e) {
-      return null
-    }
-  })
-  const [profile, setProfile] = useState(() =>
-    idToken ? decodeJwtPayload(idToken) : null
-  )
-  const [authError, setAuthError] = useState('')
-  const [gsiReady, setGsiReady] = useState(false)
+      // ------------------------------------------------------
+      // 1. Storia + TTS da Story Whisper (via /api/chat).
+      // ------------------------------------------------------
+      setStage("🌈 " + storyAgent + " scrive la storia" + (wantsTts ? " (testo + audio)" : "") + "…");
 
-  const [prompt, setPrompt] = useState('')
-  const [superMode, setSuperMode] = useState(false)
-  const [superModel, setSuperModel] = useState(() => {
-    try {
-      const stored = window.localStorage.getItem(SUPER_MODEL_KEY)
-      return SUPER_MODELS.includes(stored) ? stored : SUPER_MODELS[0]
-    } catch (e) {
-      return SUPER_MODELS[0]
-    }
-  })
-  const [modelSwitching, setModelSwitching] = useState(false)
-  const [leleModel, setLeleModel] = useState(() => {
-    try {
-      const stored = window.localStorage.getItem(LELE_MODEL_KEY)
-      return LELE_MODELS.includes(stored) ? stored : LELE_MODELS[0]
-    } catch (e) {
-      return LELE_MODELS[0]
-    }
-  })
-  const [reviewerModel, setReviewerModel] = useState(() => {
-    try {
-      const stored = window.localStorage.getItem(REVIEWER_MODEL_KEY)
-      return LELE_MODELS.includes(stored) ? stored : LELE_MODELS[0]
-    } catch (e) {
-      return LELE_MODELS[0]
-    }
-  })
-  const [armed, setArmed] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [history, setHistory] = useState([])
-
-  const [activeGroup, setActiveGroup] = useState(COMMAND_GROUPS[0].id)
-  const [search, setSearch] = useState('')
-
-  const [status, setStatus] = useState({})
-  const [statusLoading, setStatusLoading] = useState(false)
-  const [rawSys, setRawSys] = useState(false)
-  const [ping, setPing] = useState({ ok: null, ms: null, agents: [] })
-
-  const buttonRef = useRef(null)
-  const textareaRef = useRef(null)
-
-  // Token salvato ma email non (più) in whitelist: fuori subito.
-  useEffect(() => {
-    if (!idToken) return
-    const email = decodeJwtPayload(idToken)?.email?.toLowerCase()
-    if (!email || !ALLOWED_EMAILS.includes(email)) {
-      logout('Accesso non autorizzato per questo account Google. 🏴‍☠️')
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // Login Google (SDK caricato da index.html).
-  useEffect(() => {
-    if (idToken) return
-    let cancelled = false
-    let attempts = 0
-
-    function tryInit() {
-      if (cancelled) return
-      if (!window.google?.accounts?.id) {
-        if (++attempts > 80) {
-          setAuthError(
-            'Impossibile caricare il login Google. Controlla adblock e rete, poi ricarica la pagina.'
-          )
-          return
-        }
-        setTimeout(tryInit, 150)
-        return
-      }
-      if (!GOOGLE_CLIENT_ID) {
-        setAuthError(
-          'GOOGLE_CLIENT_ID non configurato nel frontend (VITE_GOOGLE_CLIENT_ID mancante).'
-        )
-        return
-      }
-      window.google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: handleCredentialResponse,
-      })
-      if (buttonRef.current) {
-        window.google.accounts.id.renderButton(buttonRef.current, {
-          type: 'standard',
-          theme: 'filled_black',
-          size: 'small',
-          text: 'signin',
-          shape: 'pill',
-        })
-      }
-      setGsiReady(true)
-    }
-
-    tryInit()
-    return () => {
-      cancelled = true
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idToken])
-
-  function handleCredentialResponse(credentialResponse) {
-    const token = credentialResponse?.credential
-    if (!token) {
-      setAuthError('Login Google fallito: nessun token ricevuto.')
-      return
-    }
-    const decoded = decodeJwtPayload(token)
-    const email = decoded?.email?.toLowerCase()
-
-    if (!email || !ALLOWED_EMAILS.includes(email)) {
-      setAuthError('Accesso non autorizzato per questo account Google.')
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 310000);
+      let storyData;
       try {
-        window.google?.accounts?.id?.disableAutoSelect()
-      } catch (e) {
-        /* no-op */
+        const res = await fetch(`${API}/api/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({
+            agent: storyAgent,
+            prompt: (wantsTts ? "audio e testo " : "") + prompt.trim(),
+            chat_id: chatId,
+            language: "it",
+          }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        storyData = await res.json();
+      } finally {
+        clearTimeout(timer);
       }
-      return
-    }
 
-    setAuthError('')
-    setProfile(decoded)
-    setIdToken(token)
-    try {
-      window.sessionStorage.setItem(TOKEN_STORAGE_KEY, token)
-    } catch (e) {
-      /* no-op */
-    }
-  }
+      storyText = String(storyData.answer || "").trim();
+      if (!storyText) throw new Error("Story Whisper non ha risposto.");
+      audioFilename = String(storyData.audio_path || storyData.audio || "").trim();
 
-  function logout(message = '') {
-    setIdToken(null)
-    setProfile(null)
-    setHistory([])
-    setStatus({})
-    setPrompt('')
-    setArmed(false)
-    setAuthError(message)
-    try {
-      window.sessionStorage.removeItem(TOKEN_STORAGE_KEY)
-      window.google?.accounts?.id?.disableAutoSelect()
-    } catch (e) {
-      /* no-op */
-    }
-  }
-
-  // Stato del gateway: GET / è aperto, niente token.
-  useEffect(() => {
-    if (!idToken) return
-    let stop = false
-
-    async function check() {
-      const t0 = performance.now()
-      try {
-        const res = await fetch(`${LELE_API_URL}/`)
-        const data = await res.json()
-        if (!stop) {
-          setPing({
-            ok: res.ok,
-            ms: Math.round(performance.now() - t0),
-            agents: data.agents || [],
-          })
-        }
-      } catch (e) {
-        if (!stop) setPing((p) => ({ ...p, ok: false, ms: null }))
+      let audioUrl = "";
+      if (audioFilename) {
+        audioUrl =
+          `${API}/api/chat/tts/` +
+          encodeURIComponent(storyAgent) +
+          "/" +
+          encodeURIComponent(audioFilename);
       }
-    }
 
-    check()
-    const id = setInterval(check, 30000)
-    return () => {
-      stop = true
-      clearInterval(id)
-    }
-  }, [idToken])
+      setCurrent({
+        story_id: null,
+        prompt: prompt.trim(),
+        text: storyText,
+        agent: storyAgent,
+        audioUrl,
+        scenes: [],
+        createdAt: Date.now() / 1000,
+      });
 
-  // Status sistema/OS/RAM: un comando alla volta, via console admin.
-  const refreshStatus = useCallback(async () => {
-    if (!idToken) return
-    setStatusLoading(true)
-    for (const [key, , cmd] of STATUS_CMDS) {
-      try {
-        const text = await callAdmin(idToken, cmd, 60000)
-        setStatus((s) => ({ ...s, [key]: { text } }))
-      } catch (err) {
-        if (err.status === 401 || err.status === 403) {
-          logout(err.message)
-          break
-        }
-        setStatus((s) => ({ ...s, [key]: { err: err.message } }))
-      }
-    }
-    setStatusLoading(false)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idToken])
-
-  useEffect(() => {
-    refreshStatus()
-  }, [refreshStatus])
-
-  function selectCommand(command) {
-    setPrompt(command.command)
-    setArmed(false)
-    setTimeout(() => {
-      const ta = textareaRef.current
-      if (ta) {
-        ta.focus()
-        ta.setSelectionRange(ta.value.length, ta.value.length)
-      }
-    }, 30)
-  }
-
-  // Selettore modello Super-Leles: invia subito "modellosl <nome>".
-  async function switchSuperModel(model) {
-    setSuperModel(model)
-    try {
-      window.localStorage.setItem(SUPER_MODEL_KEY, model)
-    } catch (e) {
-      /* no-op */
-    }
-    if (!idToken || modelSwitching) return
-
-    setModelSwitching(true)
-    const cmd = `modellosl ${model}`
-    const t0 = Date.now()
-    let outcome
-    try {
-      outcome = { text: await callAdmin(idToken, cmd) }
-    } catch (err) {
-      if (err.status === 401 || err.status === 403) {
-        logout(err.message)
-        return
-      }
-      outcome = { err: err.message }
-    } finally {
-      setModelSwitching(false)
-    }
-    setHistory((h) =>
-      [{ id: t0, cmd, at: t0, ms: Date.now() - t0, ...outcome }, ...h].slice(0, 30)
-    )
-  }
-
-  // Selettore modello Leles / reviewer: invia "modello <nome>" o
-  // "reviewer <nome>" e logga la risposta in Sessione.
-  async function switchModel(kind, model) {
-    if (kind === 'lele') setLeleModel(model)
-    else setReviewerModel(model)
-    try {
-      window.localStorage.setItem(
-        kind === 'lele' ? LELE_MODEL_KEY : REVIEWER_MODEL_KEY,
-        model
-      )
-    } catch (e) {
-      /* no-op */
-    }
-    if (!idToken || modelSwitching) return
-
-    setModelSwitching(true)
-    const cmd = (kind === 'lele' ? 'modello ' : 'reviewer ') + model
-    const t0 = Date.now()
-    let outcome
-    try {
-      outcome = { text: await callAdmin(idToken, cmd) }
-    } catch (err) {
-      if (err.status === 401 || err.status === 403) {
-        logout(err.message)
-        return
-      }
-      outcome = { err: err.message }
-    } finally {
-      setModelSwitching(false)
-    }
-    setHistory((h) =>
-      [{ id: t0, cmd, at: t0, ms: Date.now() - t0, ...outcome }, ...h].slice(0, 30)
-    )
-  }
-
-  // ----------------------------------------------------------
-  // SYNC MODELLI: all'apertura chiede "modelli" e allinea i 3
-  // selettori ai modelli ATTIVI (fallback: localStorage, poi default).
-  // ----------------------------------------------------------
-  const modelsSyncedRef = useRef(false)
-
-  useEffect(() => {
-    if (!idToken || modelsSyncedRef.current) return
-    modelsSyncedRef.current = true
-    let cancelled = false
-    ;(async () => {
-      try {
-        const text = await callAdmin(idToken, 'modelli', 60000)
-        if (cancelled || !text) return
-        const lines = String(text).split('\n')
-        const esc = (m) => m.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-        const pick = (models, includeKeys, excludeKeys) => {
-          const re = new RegExp('\\b(' + models.map(esc).sort((a, b) => b.length - a.length).join('|') + ')\\b', 'i')
-          for (const line of lines) {
-            const low = line.toLowerCase()
-            if (excludeKeys && excludeKeys.some((k) => low.includes(k))) continue
-            if (!includeKeys.some((k) => low.includes(k))) continue
-            const m = line.match(re)
-            if (m) return m[1].toLowerCase()
-          }
-          return null
-        }
-        const sup = pick(SUPER_MODELS, ['super', 'sl '], ['reviewer'])
-        const rev = pick(LELE_MODELS, ['reviewer'], ['super', 'sl '])
-        const lel = pick(LELE_MODELS, ['lele', 'modello', 'attiv'], ['super', 'sl ', 'reviewer'])
-        if (sup && SUPER_MODELS.includes(sup)) {
-          setSuperModel(sup)
-          try { window.localStorage.setItem(SUPER_MODEL_KEY, sup) } catch (e) { /* no-op */ }
-        }
-        if (lel && LELE_MODELS.includes(lel)) {
-          setLeleModel(lel)
-          try { window.localStorage.setItem(LELE_MODEL_KEY, lel) } catch (e) { /* no-op */ }
-        }
-        if (rev && LELE_MODELS.includes(rev)) {
-          setReviewerModel(rev)
-          try { window.localStorage.setItem(REVIEWER_MODEL_KEY, rev) } catch (e) { /* no-op */ }
-        }
-      } catch (e) {
-        /* silenzioso: si restano i valori locali */
-      }
-    })()
-    return () => { cancelled = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [idToken])
-
-  // IMMAGINI: prompt che inizia con "immagina ..." non passa da Leles:
-  // la console chiama direttamente il gateway (POST /api/image/jobs),
-  // fa polling e mostra il PNG in Sessione. Zero modifiche a lele_api.
-  const [imageBusy, setImageBusy] = useState(false)
-
-  async function runImage(imagePrompt) {
-    const t0 = Date.now()
-    const entry = { id: t0, cmd: 'immagina ' + imagePrompt, at: t0, ms: 0, text: '🎨 Generazione avviata…' }
-    setHistory((h) => [entry, ...h].slice(0, 30))
-    setImageBusy(true)
-    try {
-      const jobId = await createImageJob(idToken, imagePrompt)
-
-      // Polling (max ~10 minuti) con lo stato mostrato nella entry.
-      const result = await waitForImageResult(idToken, jobId, {
-        onProgress: (status, elapsed) => {
-          const label =
-            status === 'running' || status === 'processing'
-              ? '🎨 Generazione in corso… (' + elapsed + 's)'
-              : '🎨 In coda… (' + elapsed + 's)'
-          setHistory((h) =>
-            h.map((x) => (x.id === t0 ? { ...x, ms: Date.now() - t0, text: label } : x))
-          )
-        },
-      })
-
-      const b64 = String(result.image_base64).replace(/^data:image\/png;base64,/i, '')
-      setHistory((h) =>
-        h.map((x) =>
-          x.id === t0
-            ? {
-                ...x,
-                ms: Date.now() - t0,
-                text: '🖼️ Immagine generata (seed ' + (result.seed ?? '?') + ') — salvata anche in ImageLab.',
-                img: 'data:image/png;base64,' + b64,
-              }
-            : x
-        )
-      )
-    } catch (err) {
-      if (err.status === 401 || err.status === 403) {
-        logout(err.message)
-        return
-      }
-      setHistory((h) =>
-        h.map((x) => (x.id === t0 ? { ...x, ms: Date.now() - t0, err: err.message } : x))
-      )
-    } finally {
-      setImageBusy(false)
-    }
-  }
-
-  async function run(e) {
-    e?.preventDefault()
-    // Super-Leles: se il toggle e' attivo, il prompt parte come 'super <domanda>'
-    // (a meno che non sia gia' un comando super/sl/modellosl).
-    const raw = prompt.trim()
-    // "immagina <prompt>" → generazione immagini via gateway (no Leles).
-    const imgMatch = raw.match(/^immagina\s+(.+)$/i)
-    if (imgMatch) {
-      if (!idToken || imageBusy) return
-      setPrompt('')
-      await runImage(imgMatch[1].trim())
-      return
-    }
-    const cmd = superMode && !/^(super|super-leles|sl|modellosl)\b/i.test(raw) ? 'super ' + raw : raw
-    if (!cmd || !idToken || isLoading) return
-
-    // Comandi sensibili: serve una seconda pressione.
-    if (isDanger(cmd) && !armed) {
-      setArmed(true)
-      return
-    }
-
-    setArmed(false)
-    setIsLoading(true)
-    const t0 = Date.now()
-    let outcome
-    try {
-      outcome = { text: await callAdmin(idToken, cmd) }
-    } catch (err) {
-      if (err.status === 401 || err.status === 403) {
-        logout(err.message)
-        return
-      }
-      outcome = { err: err.message }
-    } finally {
-      setIsLoading(false)
-    }
-    setHistory((h) =>
-      [{ id: t0, cmd, at: t0, ms: Date.now() - t0, ...outcome }, ...h].slice(0, 30)
-    )
-  }
-
-  function copy(text) {
-    try {
-      navigator.clipboard?.writeText(text)
-    } catch (e) {
-      /* no-op */
-    }
-  }
-
-  // ----------------------------------------------------------
-  // AUDIO: TTS + registrazione + risposta audio
-  // ----------------------------------------------------------
-  const [audioAgent, setAudioAgent] = useState(AUDIO_AGENTS[0].value)
-  const [audioPrompt, setAudioPrompt] = useState('')
-  const [wantsTts, setWantsTts] = useState(false)
-  const [audioReply, setAudioReply] = useState('')
-  const [audioReplyFile, setAudioReplyFile] = useState(null)
-  const [audioReplyAgent, setAudioReplyAgent] = useState('')
-  const [audioError, setAudioError] = useState('')
-  const [audioBusy, setAudioBusy] = useState(false)
-  const [copiedAudioReply, setCopiedAudioReply] = useState(false)
-  // Illustrazione opzionale per Story Whisper; disattivata per default.
-  const [wantsStoryImage, setWantsStoryImage] = useState(false)
-  const [storyImageBusy, setStoryImageBusy] = useState(false)
-  const [storyImages, setStoryImages] = useState([])
-  const [storyImageCount, setStoryImageCount] = useState(3)
-  // F4-B/C: formato e step delle illustrazioni della storia.
-  const [storyImageFormat, setStoryImageFormat] = useState('1024x768')
-  const [storyImageSteps, setStoryImageSteps] = useState(8)
-  const [storyImageStatus, setStoryImageStatus] = useState('')
-  const [storyImageError, setStoryImageError] = useState('')
-  const [storyKidsFilter, setStoryKidsFilter] = useState(true)
-  const [storyStylePrompt, setStoryStylePrompt] = useState('')
-  const [storyGenre, setStoryGenre] = useState('Random')
-
-  const [isSpeaking, setIsSpeaking] = useState(false)
-  const [audioCurrentTime, setAudioCurrentTime] = useState(0)
-  const [audioDuration, setAudioDuration] = useState(0)
-  const [playbackRate, setPlaybackRate] = useState(1)
-
-  const [isRecording, setIsRecording] = useState(false)
-  const [recordingTime, setRecordingTime] = useState(0)
-  const [recUrl, setRecUrl] = useState(null)
-  const [recBlob, setRecBlob] = useState(null)
-
-  const audioChatIdRef = useRef(getAudioChatId())
-  const audioPlayerRef = useRef(null)
-  const recorderRef = useRef(null)
-  const chunksRef = useRef([])
-  const recTimerRef = useRef(null)
-  const recBlobRef = useRef(null)
-  const lelesAudioRef = useRef(null)
-
-  useEffect(() => {
-    return () => {
-      if (recUrl) URL.revokeObjectURL(recUrl)
-    }
-  }, [recUrl])
-
-  useEffect(() => {
-    return () => {
-      if (recTimerRef.current) clearInterval(recTimerRef.current)
-      if (lelesAudioRef.current) URL.revokeObjectURL(lelesAudioRef.current.url)
-      const tracks = recorderRef.current?.stream?.getTracks?.() || []
-      tracks.forEach((track) => track.stop())
-    }
-  }, [])
-
-  async function audioRequest(path, init) {
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 120000)
-    try {
-      const res = await fetch(`${LELE_API_URL}${path}`, {
-        ...init,
-        signal: controller.signal,
-      })
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`)
-      return await res.json()
-    } catch (err) {
-      if (err.name === 'AbortError') {
-        throw new Error('Timeout: il server non ha risposto in tempo. 😵‍💫')
-      }
-      throw err
-    } finally {
-      clearTimeout(timer)
-    }
-  }
-
-  function resetAudioReply() {
-    stopSpeaking()
-    setAudioError('')
-    setAudioReply('')
-    setAudioReplyFile(null)
-    setAudioDuration(0)
-  }
-
-  // F5: salva la storia (testo + audio + scene con job_id) nella gallery
-  // condivisa di Test4 (POST /api/admin/stories -> STORY_HISTORY_DIR sul
-  // gateway). Così anche le storie lanciate da qui con NS/SW compaiono
-  // nel box 06/Gallery di Test4, con le illustrazioni collegate via job_id.
-  async function saveStoryToGallery(storyText, agent, audioFile, scenes) {
-    if (!idToken) return
-    try {
-      await adminJson(idToken, '/api/admin/stories', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      // Salva subito testo e audio: un errore successivo sulle immagini
+      // non deve cancellare la storia dalla Gallery.
+      setStage("💾 Salvo subito testo e audio nello storico…");
+      const saved = await apiJson(idToken, "/api/admin/stories", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: String(audioPrompt || '').slice(0, 4000),
-          text: String(storyText || '').slice(0, 60000),
-          agent,
-          audio_filename: String(audioFile || ''),
-          language: AUDIO_LANGUAGE,
-          scenes: Array.isArray(scenes) ? scenes : [],
+          prompt: prompt.trim(),
+          text: storyText,
+          agent: storyAgent,
+          audio_filename: audioFilename,
+          language: "it",
+          scenes: [],
         }),
-      })
-    } catch (err) {
-      // Non blocca il flusso: la storia resta comunque visibile in Test2.
-      console.error('Gallery: salvataggio storia non riuscito', err)
-    }
-  }
+      });
+      savedStoryId = String(saved.story_id || "");
+      if (!savedStoryId) throw new Error("La storia è stata generata ma il gateway non ha restituito story_id per salvarla.");
+      setCurrent((c) => c ? { ...c, story_id: savedStoryId } : c);
+      await loadStories();
 
-  function applyAudioReply(data, agent) {
-    const replyText = audioText(data)
-    const replyFile = extractFilename(data.audio_filename) || extractFilename(data.audio_path)
-    setAudioReply(replyText)
-    setAudioReplyFile(replyFile)
-    setAudioReplyAgent(agent)
-    setStoryImages([])
-    setStoryImageError('')
-    setStoryImageStatus('')
-    // Parte in background: testo e audio SW sono già disponibili e non aspettano l'immagine.
-    if ((agent === 'Story Whisper' || agent === 'Night Story') && replyText) {
-      if (wantsStoryImage) {
-        void generateStoryIllustration(replyText, agent, replyFile)
-      } else {
-        // F5: senza illustrazioni la storia finisce subito in gallery.
-        void saveStoryToGallery(replyText, agent, replyFile, [])
-      }
-    }
-  }
-
-  async function generateStoryIllustration(storyText, agent, audioFile) {
-    if (!idToken || storyImageBusy) return
-    const imageCount = Math.max(1, Math.min(8, Number(storyImageCount) || 3))
-    const kidsMode = agent === 'Story Whisper' && storyKidsFilter
-    const genre = agent === 'Night Story' ? String(storyGenre || 'Random').trim() : ''
-    const extraStyle = String(storyStylePrompt || '').trim().slice(0, 500)
-    const artDirection = kidsMode
-      ? 'Every image prompt must enforce a colorful cartoon storybook illustration style suitable for young children: safe, wholesome, no violence, no scary or adult content, friendly rounded shapes, bright cheerful lighting. '
-      : genre
-        ? 'Every image prompt must follow an artistic illustration style that matches the story genre "' + genre + '" (mature audiences, never a children style). '
-        : ''
-    const styleExtra = extraStyle ? 'Additional art direction from the user to apply to every scene: ' + extraStyle + '. ' : ''
-    // F5: scene completate con il proprio job_id, per il salvataggio in gallery.
-    const doneScenes = []
-    setStoryImageBusy(true)
-    setStoryImageError('')
-    setStoryImages([])
-    setStoryImageStatus('🧠 Ollama seleziona ' + imageCount + ' scene in ordine narrativo…')
-    let imageStage = 'selezione delle scene con Ollama'
-    try {
-      // Pianificazione A LOTTI (3 scene per chiamata): con 8 scene una sola
-      // chiamata qwen2.5 supera i ~100s di Cloudflare e il browser riceve
-      // "Failed to fetch". Ogni lotto resta corto; lo stile condiviso del
-      // primo lotto viene riportato ai successivi per la coerenza visiva.
-      const BATCH_SIZE = 3
-      const batches = []
-      for (let s = 1; s <= imageCount; s += BATCH_SIZE) {
-        batches.push([s, Math.min(imageCount, s + BATCH_SIZE - 1)])
-      }
-
-      let sharedStyle = ''
-      const plannedScenes = []
-
-      for (const [from, to] of batches) {
-        const batchCount = to - from + 1
-        if (batches.length > 1) {
-          setStoryImageStatus('🧠 Ollama seleziona le scene ' + from + '-' + to + ' di ' + imageCount + '…')
-        }
-
-        let rawPlan = String(await callLlm(idToken, buildStoryboardBatchPrompt({
-          total: imageCount,
-          from,
-          to,
-          storyText,
-          style: sharedStyle,
-          prevTitles: plannedScenes.map((s) => s.title),
-          artDirection,
-          styleExtra,
-        }), leleModel, 180000, 300)).trim()
-
-        let parsedPlan
-        try {
-          parsedPlan = parsePlan(rawPlan)
-        } catch {
-          imageStage = 'correzione del formato JSON con Ollama'
-          setStoryImageStatus('🧠 Sistemo il formato delle scene ' + from + '-' + to + '…')
-          rawPlan = String(await callLlm(idToken, buildRepairPrompt(batchCount, rawPlan), leleModel, 180000, 300)).trim()
-          try {
-            parsedPlan = parsePlan(rawPlan)
-          } catch {
-            throw new Error('Ollama non ha prodotto un JSON valido nemmeno dopo il tentativo di correzione (scene ' + from + '-' + to + ').')
+      // ------------------------------------------------------
+      // 2. Pianificazione scene STATELESS (planStoryScenes condivisa:
+      //    lotti di 3, retry + repair, fallback mistral → qwen2.5).
+      // ------------------------------------------------------
+      // Art direction come nel box LeleAdmin: kids filter per Story
+      // Whisper, genere per Night Story, stile extra libero.
+      const kidsMode = storyAgent === STORY_AGENT && storyKids;
+      const genre = storyAgent === NS_AGENT ? String(storyGenre || "Random").trim() : "";
+      const artDirection = kidsMode
+        ? "Every image prompt must enforce a colorful cartoon storybook illustration style suitable for young children: safe, wholesome, no violence, no scary or adult content, friendly rounded shapes, bright cheerful lighting. "
+        : genre
+          ? 'Every image prompt must follow an artistic illustration style that matches the story genre "' + genre + '" (mature audiences, never a children style). '
+          : "";
+      const styleExtra = storyStyle.trim()
+        ? "Additional art direction from the user to apply to every scene: " + storyStyle.trim().slice(0, 500) + ". "
+        : "";
+      const scenes = await planStoryScenes({
+        idToken,
+        storyText,
+        imageCount,
+        artDirection: artDirection + stripClause(storyStrip),
+        styleExtra,
+        model: storyModel,
+        onStatus: (s) => {
+          if (s.kind === "batch") {
+            setStage("🧠 Ollama seleziona le scene " + s.from + "-" + s.to + " di " + s.total + "… (" + s.model + ")");
+          } else if (s.kind === "repair") {
+            setStage("🧠 Correzione del formato JSON… (" + s.model + ")");
           }
-        }
+        },
+      });
 
-        if (!sharedStyle && !Array.isArray(parsedPlan) && typeof parsedPlan?.style === 'string') {
-          sharedStyle = parsedPlan.style.trim()
-        }
+      // ------------------------------------------------------
+      // Tutte le scene in UI SUBITO dopo la pianificazione
+      // (come LeleAdmin): si vedono i 12 titoli in griglia, poi
+      // ogni card passa da "In attesa" a "In coda…" → "Pronta".
+      // ------------------------------------------------------
+      setCurrent((c) =>
+        c ? { ...c, scenes: scenes.map((s) => ({ ...s, src: "", status: "In attesa" })) } : c
+      );
+      setStage(
+        "✍️ Piano pronto: " + scenes.length + " scene selezionate " +
+        "(planner: " + storyModel + " · " + Math.max(1, Math.min(15, Number(imageSteps) || 5)) + " step) — inizio illustrazioni…"
+      );
 
-        // Lotti successivi: lo stile è già dentro ogni prompt per istruzione
-        // (il modello lo ripete identico), qui non va anteposto di nuovo.
-        const batchScenes = normalizeScenes(parsedPlan, batchCount)
-        plannedScenes.push(...batchScenes)
-      }
-
-      if (plannedScenes.length < imageCount) {
-        throw new Error('La pianificazione ha prodotto ' + plannedScenes.length + ' scene su ' + imageCount + '.')
-      }
-      const scenes = plannedScenes.slice(0, imageCount)
-
-      setStoryImages(scenes.map((scene, index) => ({
-        id: index + 1, title: scene.title, prompt: scene.prompt, src: '', status: 'In attesa',
-      })))
-
-      // Pianificazione completata: scarichiamo i modelli Ollama (keep_alive=0)
-      // per liberare RAM sul Mac prima del loop di immagini.
+      // ------------------------------------------------------
+      // 3. Libero la RAM di Ollama prima del loop immagini.
+      // ------------------------------------------------------
       try {
-        setStoryImageStatus('🧹 Libero la RAM usata da Ollama prima delle immagini…')
-        await unloadOllama(idToken)
-      } catch {
-        // Non blocca le illustrazioni: è solo un'ottimizzazione di memoria.
+        setStage("🧹 Libero la RAM usata da Ollama prima delle immagini…");
+        await unloadOllama(idToken);
+      } catch (e) {
+        /* non blocca le illustrazioni */
       }
 
-      // Un solo job per volta: non si avvia la scena successiva finché la precedente non è pronta.
-      // Le richieste di stato possono fallire transitoriamente (rete/Cloudflare): ritentiamo
-      // senza creare un secondo job e senza perdere l'immagine già generata.
-      const fetchJobStatusWithRetry = (jobId, sceneNumber) =>
-        fetchJobStatusWithRetryShared(idToken, jobId, {
-          onRetry: (attempt, attempts) =>
-            setStoryImageStatus(
-              '🔄 Connessione temporaneamente interrotta durante il controllo dell’immagine ' +
-              sceneNumber + '/' + imageCount + ' — nuovo tentativo ' + attempt + '/' + attempts + '…'
-            ),
-        })
-      const sceneRetried = new Set()
+      // ------------------------------------------------------
+      // 4. Loop immagini: un job per volta, pausa 12s, 1 retry.
+      // ------------------------------------------------------
+      const sceneRetried = new Set();
+      const doneScenes = [];
+
       for (let index = 0; index < scenes.length; index += 1) {
-        const scene = scenes[index]
-        const sceneNumber = index + 1
-        let imageStage = 'avvio immagine ' + sceneNumber + '/' + imageCount + ' sul gateway'
-        setStoryImageStatus('🎨 Immagine ' + sceneNumber + '/' + imageCount + ': ' + scene.title + ' — in coda…')
-        setStoryImages((current) => current.map((item) =>
-          item.id === sceneNumber ? { ...item, status: 'In coda' } : item
-        ))
+        const scene = scenes[index];
+        const sceneNumber = index + 1;
+        const total = scenes.length;
+        let imageStage = "avvio immagine " + sceneNumber + "/" + total;
+
+        setStage("🎨 Immagine " + sceneNumber + "/" + total + ": " + scene.title + " — in coda…");
+        setCurrent((c) =>
+          c ? { ...c, scenes: (c.scenes || []).map((s, i) =>
+            i === index ? { ...s, status: "In coda…" } : s) } : c
+        );
+
         try {
-          // F3: il filtro stile (kids/genre) ora è applicato anche dal
-          // gateway via preset, oltre che dal prompt del planner.
-          const scenePreset = kidsMode ? 'sw_kids' : (genre ? 'ns_free' : '')
-          const [fmtWidth, fmtHeight] = String(storyImageFormat || '1024x768').split('x').map(Number)
-          const sceneSteps = Math.max(1, Math.min(100, Number(storyImageSteps) || 8))
+          // F3: lo stile "storia per bambini" è applicato anche dal
+          // gateway via preset sw_kids, oltre che dal prompt planner.
+          // F4-B/C: formato e step selezionati dall'utente.
+          const [fmtWidth, fmtHeight] = String(imageFormat || "1024x768")
+            .split("x")
+            .map(Number);
+          const sceneSteps = Math.max(1, Math.min(15, Number(imageSteps) || 5));
           const jobId = await createImageJob(idToken, scene.prompt, {
-            preset: scenePreset,
+            preset: kidsMode ? "sw_kids" : (genre ? "ns_free" : ""),
             width: fmtWidth,
             height: fmtHeight,
             steps: sceneSteps,
-          })
-          const sceneStart = Date.now()
+          });
 
-          imageStage = 'controllo stato immagine ' + sceneNumber + '/' + imageCount
+          const sceneStart = Date.now();
+          setImgStart(sceneStart);
+
+          imageStage = "controllo stato immagine " + sceneNumber + "/" + total;
           const result = await waitForImageResult(idToken, jobId, {
-            fetchStatus: () => fetchJobStatusWithRetry(jobId, sceneNumber),
-            onProgress: (status, elapsed) =>
-              setStoryImageStatus(
-                '🎨 Immagine ' + sceneNumber + '/' + imageCount + ' (' + scene.title + '): ' +
-                (status === 'running' || status === 'processing' ? 'generazione in corso' : 'in coda') +
-                '… (' + elapsed + 's)'
-              ),
-          })
-          doneScenes.push({
-            title: scene.title,
-            prompt: scene.prompt,
-            job_id: jobId,
-            seconds: Math.round((Date.now() - sceneStart) / 1000),
-          })
-          imageStage = 'download immagine ' + sceneNumber + '/' + imageCount
-          const src = resultToDataUrl(result)
-          setStoryImages((current) => current.map((item) =>
-            item.id === sceneNumber ? { ...item, src, status: 'Pronta' } : item
-          ))
-          setStoryImageStatus('🖼️ Immagine ' + sceneNumber + '/' + imageCount + ' pronta: ' + scene.title)
+            fetchStatus: () => fetchJobStatus(jobId),
+            onProgress: (status) => {
+              setStage(
+                "🎨 Immagine " + sceneNumber + "/" + total + " (" + scene.title + "): " +
+                (status === "running" || status === "processing" ? "generazione in corso" : "in coda") + "…"
+              );
+              setCurrent((c) =>
+                c ? { ...c, scenes: (c.scenes || []).map((s, i) =>
+                  i === index ? { ...s, status: "Generazione…" } : s) } : c
+              );
+            },
+          });
+
+          imageStage = "download immagine " + sceneNumber + "/" + total;
+          const src = resultToDataUrl(result);
+
+          const sceneSeconds = Math.round((Date.now() - sceneStart) / 1000);
+          setImgStart(null);
+          doneScenes.push({ ...scene, job_id: jobId, src, seconds: sceneSeconds, status: "Pronta" });
+          setStage("✅ Immagine " + sceneNumber + "/" + scenes.length + " pronta in " + formatSeconds(sceneSeconds) + ".");
+          setCurrent((c) =>
+            c ? { ...c, scenes: (c.scenes || []).map((s, i) =>
+              i === index
+                ? { ...s, job_id: jobId, src, seconds: sceneSeconds, status: "Pronta" }
+                : s) } : c
+          );
+
           if (index < scenes.length - 1) {
-            setStoryImageStatus('⏳ Pausa 12s prima dell’immagine successiva (libero la RAM del Mac)…')
-            await new Promise((resolve) => setTimeout(resolve, 12000))
+            setStage("⏳ Pausa 12s prima dell'immagine successiva (libero la RAM del Mac)…");
+            await sleep(12000);
           }
         } catch (err) {
+          setImgStart(null);
           if (err.status === 401 || err.status === 403) {
-            logout(err.message)
-            return
+            setError(err.message);
+            setBusy(false);
+            return;
           }
           if (!sceneRetried.has(sceneNumber)) {
-            sceneRetried.add(sceneNumber)
-            setStoryImages((current) => current.map((item) =>
-              item.id === sceneNumber ? { ...item, status: 'Nuovo tentativo tra 60s…' } : item
-            ))
-            setStoryImageStatus(
-              '🔄 Errore di rete sull’immagine ' + sceneNumber + '/' + imageCount +
-              ' — attendo 60s e riprovo la scena una volta…'
-            )
-            await new Promise((resolve) => setTimeout(resolve, 60000))
-            index -= 1
-            continue
+            sceneRetried.add(sceneNumber);
+            setStage("🔄 Errore di rete sull'immagine " + sceneNumber + "/" + scenes.length + " — attendo 60s e riprovo la scena…");
+            setCurrent((c) =>
+              c ? { ...c, scenes: (c.scenes || []).map((s, i) =>
+                i === index ? { ...s, status: "Riprovo…" } : s) } : c
+            );
+            await sleep(60000);
+            index -= 1;
+            continue;
           }
-          setStoryImages((current) => current.map((item) =>
-            item.id === sceneNumber ? { ...item, status: 'Errore: ' + (err.message || 'errore sconosciuto') } : item
-          ))
-          setStoryImageError('Immagine ' + sceneNumber + '/' + imageCount + ' (' + scene.title + '), ' + imageStage + ': ' + (err.message || 'errore sconosciuto'))
-          setStoryImageStatus('⛔ Sequenza fermata alla scena ' + sceneNumber + '/' + imageCount + '; le immagini già pronte restano visibili.')
-          return
+          // Secondo fallimento: la sequenza si ferma, ma testo+audio restano.
+          setError(
+            "Immagine " + sceneNumber + "/" + scenes.length + " (" + scene.title + "), " +
+            imageStage + ": " + (err.message || "errore sconosciuto")
+          );
+          setCurrent((c) =>
+            c ? { ...c, scenes: (c.scenes || []).map((s, i) =>
+              i === index ? { ...s, status: "Errore" } : s) } : c
+          );
+          break;
         }
       }
-      setStoryImageStatus('✅ Tutte le ' + imageCount + ' illustrazioni sono pronte.')
-    } catch (err) {
-      if (err.status === 401 || err.status === 403) {
-        logout(err.message)
-        return
+
+      // ------------------------------------------------------
+      // 5. Aggiorna la storia già salvata con le illustrazioni riuscite.
+      // ------------------------------------------------------
+      if (savedStoryId) {
+        setStage("💾 Aggiorno lo storico con le illustrazioni…");
+        try {
+          await apiJson(idToken, "/api/admin/stories/" + encodeURIComponent(savedStoryId), {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              prompt: prompt.trim(),
+              text: storyText,
+              agent: storyAgent,
+              audio_filename: audioFilename,
+              language: "it",
+              scenes: doneScenes.map((s) => ({
+                title: s.title,
+                prompt: s.prompt,
+                job_id: s.job_id,
+                seconds: s.seconds,
+                version: 1,
+                planner: storyModel,
+                style_prompt: "",
+              })),
+            }),
+          });
+          await loadStories();
+        } catch (err) {
+          setError((prev) => (prev ? prev + " · " : "") + "Storia salvata, ma aggiornamento illustrazioni non riuscito: " + (err.message || err));
+          await loadStories();
+        }
       }
-      setStoryImageError('Errore in ' + imageStage + ': ' + (err.message || 'errore sconosciuto'))
-      setStoryImageStatus('')
+
+      setStage("✅ Storia completata.");
+    } catch (err) {
+      setError(err.message || String(err));
     } finally {
-      setStoryImageBusy(false)
-      // F5: la storia finisce in gallery anche se alcune immagini
-      // (o tutte) non sono riuscite — si salvano testo, audio e le
-      // illustrazioni completate.
-      void saveStoryToGallery(storyText, agent, audioFile, doneScenes)
+      setBusy(false);
+      setImgStart(null);
     }
   }
 
-  // Testo -> Gateway (/api/chat)
-  async function sendAudioText(e) {
-    e?.preventDefault()
-    const text = audioPrompt.trim()
-    if (!text || audioBusy || isRecording) return
+  // 🔁 Rigenera le illustrazioni della storia aperta come NUOVA VERSIONE:
+  // stessa storia (testo invariato), nuova selezione scene con modello
+  // Ollama a scelta (e un prompt di stile extra opzionale per Z-Image-Turbo),
+  // nuovo loop immagini. Le versioni si affiancano nella stessa storia e
+  // si scelgono coi badge V1/V2/… — le scene restano nel DB tutte insieme.
+  // Il preset di stile base segue l'agente della storia (ns_free per
+  // Night Story, sw_kids per Story Whisper), con override dal selettore.
+  async function regenerateIllustrations(event) {
+    event.preventDefault();
+    if (!current?.story_id || !current?.text) return;
+    setBusy(true);
+    setError("");
+    setImgStart(null);
+    setRegProgress(null);
+    setRegDone("");
+    try {
+      const storyText = current.text;
+      const oldScenes = current.scenes || [];
+      const nextVersion =
+        oldScenes.reduce(
+          (max, s) => Math.max(max, Number(s?.version) || 1),
+          0
+        ) + 1;
+      // Numero di immagini: selettore dedicato, default "come V1".
+      const imageN = Math.max(
+        1,
+        Math.min(12, Number(regCount) || oldScenes.length || imageCount)
+      );
+      // Preset di stile base: default = quello dell'agente della storia.
+      const preset = regPreset || storyPreset(current.agent);
 
-    resetAudioReply()
-    setAudioBusy(true)
+      // 1. Pianificazione scene con modello selezionabile.
+      const scenes = await planStoryScenes({
+        idToken,
+        storyText,
+        imageCount: imageN,
+        styleExtra: regStyle ? "Additional style requirements: " + regStyle.trim() + ". " : "",
+        styleClause: PRESET_CLAUSES[preset] || PRESET_CLAUSES.sw_kids,
+        model: regModel,
+        onStatus: (s) => {
+          if (s.kind === "batch") {
+            setStage("🔁 V" + nextVersion + " — Ollama (" + s.model + ") seleziona le scene " + s.from + "-" + s.to + " di " + s.total + "…");
+          } else if (s.kind === "repair") {
+            setStage("🔁 V" + nextVersion + " — Correzione del formato JSON… (" + s.model + ")");
+          }
+        },
+      });
 
-    // Leles: console admin (con token). I comandi sensibili passano solo
-    // dal prompt principale, che chiede la conferma.
-    if (audioAgent === LELES_AGENT) {
-      if (isDanger(text)) {
-        setAudioError(
-          'Comando sensibile: usa il prompt principale, che chiede la conferma.'
-        )
-        setAudioBusy(false)
-        return
-      }
-      const lelesClean = text.replace(/^(audio e testo|audio)\s*/i, '')
+      // ------------------------------------------------------
+      // Tutte le scene della nuova versione in UI SUBITO
+      // (come LeleAdmin): titoli V{nextVersion} visibili da
+      // subito, poi ogni card "In attesa" → "Pronta".
+      // ------------------------------------------------------
+      setCurrent((c) =>
+        c ? { ...c, scenes: [
+          ...(c.scenes || []).filter((s) => (Number(s?.version) || 1) !== nextVersion),
+          ...scenes.map((s, i) => ({ ...s, src: "", status: "In attesa", version: nextVersion, regIndex: i })),
+        ] } : c
+      );
+      setActiveVersion(nextVersion);
+      setStage(
+        "✍️ V" + nextVersion + " — piano pronto: " + scenes.length + " scene selezionate " +
+        "(planner: " + regModel + " · " + Math.max(1, Math.min(15, Number(regSteps) || 5)) + " step) — inizio illustrazioni…"
+      );
+
+      // 2. Libero la RAM di Ollama prima delle immagini.
       try {
-        const data = await adminJson(idToken, '/api/admin/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            prompt: wantsTts ? `audio e testo ${lelesClean}` : text,
-            language: 'en',
-            chat_id: FORCED_ADMIN_CHAT_ID,
-          }),
-        })
-        applyAudioReply(data, LELES_AGENT)
-      } catch (err) {
-        if (err.status === 401 || err.status === 403) {
-          logout(err.message)
-          return
+        setStage("🧹 Libero la RAM usata da Ollama prima delle immagini…");
+        await unloadOllama(idToken);
+      } catch (e) {
+        /* non blocca le illustrazioni */
+      }
+
+      // 3. Loop immagini (stessa logica collaudata di generateStory),
+      //    con formato e step propri del pannello di rigenerazione.
+      const sceneRetried = new Set();
+      const doneScenes = [];
+      for (let index = 0; index < scenes.length; index += 1) {
+        const scene = scenes[index];
+        const sceneNumber = index + 1;
+        const total = scenes.length;
+        let imageStage = "avvio immagine " + sceneNumber + "/" + total;
+        setStage("🔁 V" + nextVersion + " — Immagine " + sceneNumber + "/" + total + ": " + scene.title + " — in coda…");
+        setCurrent((c) =>
+          c ? { ...c, scenes: (c.scenes || []).map((s) =>
+            (Number(s?.version) || 1) === nextVersion && s.regIndex === index
+              ? { ...s, status: "In coda…" } : s) } : c
+        );
+        try {
+          const [fmtWidth, fmtHeight] = String(regFormat || "1024x768")
+            .split("x")
+            .map(Number);
+          const sceneSteps = Math.max(1, Math.min(15, Number(regSteps) || 5));
+          const jobId = await createImageJob(idToken, scene.prompt, {
+            preset,
+            width: fmtWidth,
+            height: fmtHeight,
+            steps: sceneSteps,
+          });
+          const sceneStart = Date.now();
+          setImgStart(sceneStart);
+          imageStage = "controllo stato immagine " + sceneNumber + "/" + total;
+          const result = await waitForImageResult(idToken, jobId, {
+            fetchStatus: () => fetchJobStatus(jobId),
+            onProgress: (status) => {
+              setStage(
+                "🔁 V" + nextVersion + " — Immagine " + sceneNumber + "/" + total + " (" + scene.title + "): " +
+                (status === "running" || status === "processing" ? "generazione in corso" : "in coda") + "…"
+              );
+              setCurrent((c) =>
+                c ? { ...c, scenes: (c.scenes || []).map((s) =>
+                  (Number(s?.version) || 1) === nextVersion && s.regIndex === index
+                    ? { ...s, status: "Generazione…" } : s) } : c
+              );
+            },
+          });
+          imageStage = "download immagine " + sceneNumber + "/" + total;
+          const src = resultToDataUrl(result);
+          const sceneSeconds = Math.round((Date.now() - sceneStart) / 1000);
+          setImgStart(null);
+          doneScenes.push({
+            ...scene,
+            job_id: jobId,
+            src,
+            seconds: sceneSeconds,
+            status: "Pronta",
+            version: nextVersion,
+            planner: regModel,
+            style_prompt: regStyle.trim(),
+          });
+          setRegProgress({ done: doneScenes.length, total: scenes.length });
+          setCurrent((c) =>
+            c ? { ...c, scenes: (c.scenes || []).map((s) =>
+              (Number(s?.version) || 1) === nextVersion && s.regIndex === index
+                ? { ...s, job_id: jobId, src, seconds: sceneSeconds, status: "Pronta" }
+                : s) } : c
+          );
+          if (index < scenes.length - 1) {
+            setStage("⏳ Pausa 12s prima dell'immagine successiva (libero la RAM del Mac)…");
+            await sleep(12000);
+          }
+        } catch (err) {
+          setImgStart(null);
+          if (err.status === 401 || err.status === 403) {
+            setError(err.message);
+            setBusy(false);
+            return;
+          }
+          if (!sceneRetried.has(sceneNumber)) {
+            sceneRetried.add(sceneNumber);
+            setStage("🔄 Errore di rete sull'immagine " + sceneNumber + "/" + scenes.length + " — attendo 60s e riprovo la scena…");
+            setCurrent((c) =>
+              c ? { ...c, scenes: (c.scenes || []).map((s) =>
+                (Number(s?.version) || 1) === nextVersion && s.regIndex === index
+                  ? { ...s, status: "Riprovo…" } : s) } : c
+            );
+            await sleep(60000);
+            index -= 1;
+            continue;
+          }
+          setError(
+            "Immagine " + sceneNumber + "/" + scenes.length + " (" + scene.title + "), " +
+              imageStage + ": " + (err.message || "errore sconosciuto")
+          );
+          setCurrent((c) =>
+            c ? { ...c, scenes: (c.scenes || []).map((s) =>
+              (Number(s?.version) || 1) === nextVersion && s.regIndex === index
+                ? { ...s, status: "Errore" } : s) } : c
+          );
+          break;
         }
-        setAudioError(err.message)
-      } finally {
-        setAudioBusy(false)
       }
-      return
-    }
 
-    const clean = text.replace(/^(audio e testo|audio)\s*/i, '')
-    const promptToSend = wantsTts ? `audio e testo ${clean}` : audioPrompt
-
-    try {
-      const data = await audioRequest('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          agent: audioAgent,
-          prompt: promptToSend,
-          language: AUDIO_LANGUAGE,
-          chat_id: audioChatIdRef.current,
-        }),
-      })
-      applyAudioReply(data, audioAgent)
+      // 4. Persistenza: affianca le nuove scene alle vecchie versioni.
+      if (doneScenes.length) {
+        setStage("💾 Aggiorno lo storico con le illustrazioni V" + nextVersion + "…");
+        const oldKept = (current.scenes || []).filter(
+          (s) => (Number(s?.version) || 1) !== nextVersion
+        );
+        await apiJson(idToken, "/api/admin/stories/" + encodeURIComponent(current.story_id), {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: current.prompt || "",
+            text: storyText,
+            agent: current.agent || STORY_AGENT,
+            audio_filename: current.audio_filename || "",
+            language: "it",
+            scenes: [...oldKept, ...doneScenes].map((s) => ({
+              title: s.title,
+              prompt: s.prompt,
+              job_id: s.job_id,
+              seconds: s.seconds,
+              version: Number(s?.version) || 1,
+              planner: s.planner || "",
+              style_prompt: s.style_prompt || "",
+            })),
+          }),
+        });
+        setCurrent((c) =>
+          c ? { ...c, scenes: [...oldKept, ...doneScenes.map((s) => ({ ...s }))] } : c
+        );
+        setActiveVersion(nextVersion);
+        await loadStories();
+        const doneMsg = "✅ Versione V" + nextVersion + " pronta (" + doneScenes.length + " illustrazioni con " + regModel + ", preset " + preset + ").";
+        setStage(doneMsg);
+        setRegDone(doneMsg);
+      } else {
+        setStage("⏹ Nessuna illustrazione generata per V" + nextVersion + ".");
+      }
     } catch (err) {
-      setAudioError(err.message)
+      setRegDone("");
+      setError(err.message || String(err));
     } finally {
-      setAudioBusy(false)
+      setBusy(false);
+      setImgStart(null);
     }
   }
 
-  // Audio registrato -> Gateway (/api/chat/audio)
-  async function sendRecording(blobOverride) {
-    const blob = blobOverride || recBlobRef.current
-    if (!blob) return
-
-    resetAudioReply()
-    setAudioBusy(true)
-
-    const isLeles = audioAgent === LELES_AGENT
-
+  // 📖 Composizione fumetto on-demand: il gateway genera il PDF con
+  // Pillow (leles/core/story_pdf_report) e il browser lo scarica subito.
+  async function downloadComicPdf(event) {
+    event.preventDefault();
+    if (!current?.story_id || comicBusy) return;
+    setComicBusy(true);
+    setError("");
     try {
-      const form = new FormData()
-      form.append('audio', blob, 'recording.webm')
-      if (!isLeles) form.append('agent', audioAgent)
-      form.append('language', AUDIO_LANGUAGE)
-      form.append(
-        'chat_id',
-        String(isLeles ? FORCED_ADMIN_CHAT_ID : audioChatIdRef.current)
-      )
+      const selected = visibleScenes
+        .map((scene, i) => ({ scene, i }))
+        .filter(({ i }) => comicScenes[i] !== false)
+        .map(({ i }) => i);
+      if (!selected.length) throw new Error("Seleziona almeno una scena per il fumetto.");
 
-      const data = isLeles
-        ? await adminJson(idToken, LELES_AUDIO_PATH, { method: 'POST', body: form })
-        : await audioRequest('/api/chat/audio', { method: 'POST', body: form })
-      applyAudioReply(data, audioAgent)
-    } catch (err) {
-      if (err.status === 401 || err.status === 403) {
-        logout(err.message)
-        return
+      const res = await fetch(
+        `${API}/api/admin/stories/${encodeURIComponent(current.story_id)}/comic_pdf`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + idToken,
+          },
+          body: JSON.stringify({
+            scene_indexes: selected,
+            captions: comicCaptions,
+            narration: comicNarration,
+            layout: comicLayout,
+            page_format: comicFormat,
+            version: shownVersion,
+          }),
+        }
+      );
+      if (!res.ok) {
+        let detail = "HTTP " + res.status;
+        try {
+          const j = await res.json();
+          detail = (j && (j.detail || j.error)) || detail;
+          if (typeof detail !== "string") detail = JSON.stringify(detail);
+        } catch (e) { /* corpo non JSON */ }
+        throw new Error(detail);
       }
-      setAudioError(err.message)
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "fumetto_" + current.story_id + "_V" + shownVersion + ".pdf";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (err) {
+      setError(err.message || String(err));
     } finally {
-      setAudioBusy(false)
+      setComicBusy(false);
     }
   }
 
-  async function startRecording() {
-    try {
-      setAudioError('')
-      setRecUrl(null)
-      setRecBlob(null)
-      recBlobRef.current = null
+  // Versioni disponibili nella storia aperta (V1, V2, …) e versione visibile.
+  const sceneVersion = (s) => Number(s?.version) || 1;
+  const versions = [...new Set((current?.scenes || []).map(sceneVersion))].sort((a, b) => a - b);
+  const shownVersion = activeVersion && versions.includes(activeVersion)
+    ? activeVersion
+    : versions[versions.length - 1] || 1;
+  const visibleScenes = current?.scenes?.filter((s) => sceneVersion(s) === shownVersion) || [];
+  const sceneCount = visibleScenes.length;
+  const autoPreset = storyPreset(current?.agent);
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const options = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? { mimeType: 'audio/webm;codecs=opus' }
-        : {}
-      const recorder = new MediaRecorder(stream, options)
-
-      recorderRef.current = recorder
-      chunksRef.current = []
-
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) chunksRef.current.push(event.data)
-      }
-
-      recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, {
-          type: recorder.mimeType || 'audio/webm',
-        })
-        recBlobRef.current = blob
-        setRecBlob(blob)
-        setRecUrl(URL.createObjectURL(blob))
-        stream.getTracks().forEach((track) => track.stop())
-
-        // Invio automatico appena termina la registrazione.
-        // Con Leles (admin) niente invio automatico: si invia a mano.
-        if (AUTO_SEND_RECORDING && audioAgent !== LELES_AGENT) sendRecording(blob)
-      }
-
-      recorder.start()
-      setIsRecording(true)
-      setRecordingTime(0)
-      recTimerRef.current = setInterval(() => {
-        setRecordingTime((time) => time + 1)
-      }, 1000)
-    } catch (err) {
-      setAudioError(
-        'Impossibile accedere al microfono. Controlla i permessi del browser.'
-      )
-    }
-  }
-
-  function stopRecording() {
-    if (recorderRef.current && recorderRef.current.state !== 'inactive') {
-      recorderRef.current.stop()
-    }
-    setIsRecording(false)
-    if (recTimerRef.current) {
-      clearInterval(recTimerRef.current)
-      recTimerRef.current = null
-    }
-  }
-
-  // Audio TTS di Leles: richiede il token, quindi si scarica come blob.
-  async function getLelesAudioUrl(file) {
-    if (lelesAudioRef.current?.file === file) return lelesAudioRef.current.url
-    const res = await fetch(
-      `${LELE_API_URL}${LELES_TTS_PATH}/${encodeURIComponent(file)}`,
-      { headers: { Authorization: `Bearer ${idToken}` } }
-    )
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const url = URL.createObjectURL(await res.blob())
-    if (lelesAudioRef.current) URL.revokeObjectURL(lelesAudioRef.current.url)
-    lelesAudioRef.current = { file, url }
-    return url
-  }
-
-  // Riproduzione audio generato dal backend
-  async function togglePlayAudio() {
-    const player = audioPlayerRef.current
-    if (!audioReplyFile || !player) return
-
-    if (isSpeaking) {
-      player.pause()
-      setIsSpeaking(false)
-      return
-    }
-
-    const isLeles = audioReplyAgent === LELES_AGENT
-    try {
-      const url = isLeles
-        ? await getLelesAudioUrl(audioReplyFile)
-        : `${LELE_API_URL}/api/chat/tts/${encodeURIComponent(
-            audioReplyAgent
-          )}/${encodeURIComponent(audioReplyFile)}`
-
-      if (player.src !== url) {
-        player.src = url
-        player.playbackRate = playbackRate
-      }
-      await player.play()
-      setIsSpeaking(true)
-    } catch (err) {
-      setIsSpeaking(false)
-      setAudioError(
-        isLeles
-          ? `Audio di Leles non disponibile: ${err.message}`
-          : 'Riproduzione audio bloccata dal browser.'
-      )
-    }
-  }
-
-  function stopSpeaking() {
-    const player = audioPlayerRef.current
-    if (player) {
-      player.pause()
-      player.currentTime = 0
-    }
-    setIsSpeaking(false)
-    setAudioCurrentTime(0)
-  }
-
-  function handleRateChange(rate) {
-    setPlaybackRate(rate)
-    if (audioPlayerRef.current) audioPlayerRef.current.playbackRate = rate
-  }
-
-  function handleSeek(e) {
-    const t = parseFloat(e.target.value)
-    setAudioCurrentTime(t)
-    if (audioPlayerRef.current) audioPlayerRef.current.currentTime = t
-  }
-
-  const q = search.trim().toLowerCase()
-  const group = COMMAND_GROUPS.find((g) => g.id === activeGroup)
-  const visible = q
-    ? COMMAND_GROUPS.flatMap((g) => g.commands.map((x) => ({ ...x, g }))).filter(
-        (x) => `${x.label} ${x.command} ${x.hint || ''}`.toLowerCase().includes(q)
-      )
-    : group.commands.map((x) => ({ ...x, g: group }))
-
-  const backdrop = (
-    <>
-      <img src={bgImage} alt="" className="lc-bg" />
-      <div className="lc-shade" />
-    </>
-  )
-
-  // ==========================================================
-  // LOGIN
-  // ==========================================================
-  if (!idToken) {
-    return (
-      <div className="lc-page">
-        <style>{css}</style>
-        {backdrop}
-        <div className="lc-wrap">
-          <div className="lc-top">
-            <h1 className="lc-title">Leles Admin Console</h1>
-            <div ref={buttonRef} className="lc-gbtn" />
-          </div>
-          <p className="lc-dim lc-small lc-login-msg">Accesso riservato.</p>
-          {authError && <p className="lc-err lc-small">{authError}</p>}
-          {!gsiReady && !authError && (
-            <p className="lc-dim lc-small">Caricamento login Google…</p>
-          )}
-        </div>
-      </div>
-    )
-  }
-
-  // ==========================================================
-  // CONSOLE
-  // ==========================================================
   return (
-    <div className="lc-page">
-      <style>{css}</style>
-      {backdrop}
+    <div>
+      <section className="il-panel" style={{ marginBottom: "1rem" }}>
+        <div className="il-section-heading">
+          <div>
+            <p className="il-eyebrow">05 / STORIES</p>
+            <h2>Storia con testo, audio e illustrazioni</h2>
+          </div>
+        </div>
 
-      <div className="lc-wrap">
-        <div className="lc-top">
-          <h1 className="lc-title">Leles Admin Console</h1>
-          <div className="lc-session">
-            <span className="lc-ellipsis">{profile?.email || 'account Google'}</span>
-            <button type="button" className="lc-btn lc-btn--sm" onClick={() => logout()}>
-              Logout
+        <form onSubmit={generateStory}>
+          <label className="il-label" htmlFor="story-prompt">
+            Idea della storia
+          </label>
+          <textarea
+            id="story-prompt"
+            className="il-input il-prompt"
+            placeholder="Es. Un cane con un cappello da pirata che rincorre una palla per i bar di Barcellona…"
+            value={prompt}
+            onChange={(event) => setPrompt(event.target.value)}
+            rows={5}
+            maxLength={MAX_PROMPT_CHARS}
+            disabled={busy}
+          />
+          <div className="il-char-count">
+            {prompt.length.toLocaleString()} / {MAX_PROMPT_CHARS.toLocaleString()}
+          </div>
+
+          <div style={{ display: "flex", flexWrap: "wrap", gap: ".6rem", alignItems: "center", marginBottom: ".6rem" }}>
+            <select
+              className="il-input"
+              value={storyAgent}
+              onChange={(event) => setStoryAgent(event.target.value)}
+              style={{ flex: "0 0 auto", minWidth: "11rem" }}
+              aria-label="Agente della storia"
+              disabled={busy}
+            >
+              <option value="Story Whisper">🌈 Story Whisper</option>
+              <option value="Night Story">🌙 Night Story</option>
+            </select>
+            <label style={{ display: "flex", alignItems: "center", gap: ".35rem", fontSize: ".8rem", color: "var(--ink-dim, #8fa1ac)" }}>
+              <input
+                type="checkbox"
+                checked={wantsTts}
+                onChange={(event) => setWantsTts(event.target.checked)}
+                disabled={busy}
+              />
+              🎧 TTS
+            </label>
+            <label title="Con un nuovo chat_id l'agente parte senza memoria: niente personaggi riciclati dalle storie precedenti">
+              <input
+                type="checkbox"
+                checked={freshStory}
+                onChange={(event) => setFreshStory(event.target.checked)}
+                disabled={busy}
+                style={{ verticalAlign: "middle" }}
+              />{" "}
+              <span style={{ fontSize: ".8rem", color: "var(--ink-dim, #8fa1ac)" }}>🔄 Nuovo contesto</span>
+            </label>
+            {storyAgent === STORY_AGENT && (
+              <label title="Stile cartoon storybook per bambini (preset sw_kids)">
+                <input
+                  type="checkbox"
+                  checked={storyKids}
+                  onChange={(event) => setStoryKids(event.target.checked)}
+                  disabled={busy}
+                  style={{ verticalAlign: "middle" }}
+                />{" "}
+                <span style={{ fontSize: ".8rem", color: "var(--ink-dim, #8fa1ac)" }}>🧒 Filtro kids</span>
+              </label>
+            )}
+            {storyAgent === NS_AGENT && (
+              <select
+                className="il-input"
+                value={storyGenre}
+                onChange={(event) => setStoryGenre(event.target.value)}
+                style={{ flex: "0 0 auto", minWidth: "9rem" }}
+                aria-label="Genere (Night Story)"
+                disabled={busy}
+              >
+                {["Random", "Amore", "Comico", "Culturale", "Drammatica", "Horror", "Osè", "Ricerca"].map((g) => (
+                  <option key={g} value={g}>{g}</option>
+                ))}
+              </select>
+            )}
+            <select
+              className="il-input"
+              value={storyModel}
+              onChange={(event) => setStoryModel(event.target.value)}
+              style={{ flex: "0 0 auto", minWidth: "9rem" }}
+              aria-label="Modello Ollama per la pianificazione scene"
+              disabled={busy}
+            >
+              {["qwen2.5", "mistral", "llama3", "gemma4", "deepseek-r1"].map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+            <select
+              className="il-input"
+              value={storyStrip}
+              onChange={(event) => setStoryStrip(event.target.value)}
+              style={{ flex: "0 0 auto", minWidth: "10rem" }}
+              aria-label="Pannelli fumetto per immagine"
+              disabled={busy}
+            >
+              {STRIP_MODES.map(([value, label]) => (
+                <option key={value} value={value}>📚 {label}</option>
+              ))}
+            </select>
+          </div>
+          <input
+            className="il-input"
+            type="text"
+            value={storyStyle}
+            onChange={(event) => setStoryStyle(event.target.value)}
+            placeholder="Stile extra (opzionale): es. acquerello soft, matita colorata, cartoon manga…"
+            aria-label="Stile extra per la creazione"
+            style={{ marginBottom: ".6rem" }}
+            disabled={busy}
+          />
+
+          <div className="il-form-grid">
+            <div>
+              <label className="il-label" htmlFor="story-count">
+                Illustrazioni
+              </label>
+              <select
+                id="story-count"
+                className="il-input"
+                value={imageCount}
+                onChange={(event) => setImageCount(Number(event.target.value))}
+                disabled={busy}
+              >
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => (
+                  <option key={n} value={n}>
+                    {n} {n === 1 ? "immagine" : "immagini"}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="il-label" htmlFor="story-format">
+                Formato
+              </label>
+              <select
+                id="story-format"
+                className="il-input"
+                value={imageFormat}
+                onChange={(event) => setImageFormat(event.target.value)}
+                disabled={busy}
+              >
+                {[["512x512", "1:1 · 512"], ["768x768", "1:1 · 768"], ["1024x1024", "1:1 · 1024"], ["768x576", "4:3 · 768"], ["1024x768", "4:3 · 1024"], ["1280x720", "16:9 · 1280"], ["960x640", "3:2 · 960"]].map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="il-label" htmlFor="story-steps">
+                Step
+              </label>
+              <select
+                id="story-steps"
+                className="il-input"
+                value={imageSteps}
+                onChange={(event) => setImageSteps(Number(event.target.value))}
+                disabled={busy}
+              >
+                {[1, 3, 4, 5, 6, 7, 8, 9, 12, 15].map((s) => (
+                  <option key={s} value={s}>
+                    {s} step
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <p className="il-hint">
+            Story Whisper scrive la storia e genera l'audio (TTS); le illustrazioni
+            vengono pianificate e generate sul Mac una alla volta, con pausa tra le
+            scene per liberare la RAM.
+          </p>
+
+          {error && (
+            <div className="il-error" role="alert">
+              {error}
+            </div>
+          )}
+
+          <div className="il-actions">
+            <button
+              className="il-button il-primary"
+              type="submit"
+              disabled={busy || !prompt.trim()}
+            >
+              {busy ? "Elaborazione…" : "🌈 Crea storia + illustrazioni →"}
             </button>
           </div>
-        </div>
 
-        <div className="lc-grid">
-          <main className="lc-main">
-            {/* PROMPT */}
-            <form className="lc-panel lc-prompt" onSubmit={run}>
-              <label htmlFor="lc-input" className="lc-sr">
-                Comando per Leles
-              </label>
-              <div className="lc-prompt-row">
-                <span className="lc-anchor" aria-hidden="true">⚓</span>
-                <textarea
-                  id="lc-input"
-                  ref={textareaRef}
-                  value={prompt}
-                  rows={4}
-                  placeholder="Scrivi a Leles…"
-                  onChange={(e) => {
-                    setPrompt(e.target.value)
-                    setArmed(false)
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) run(e)
-                  }}
-                />
-              </div>
-              <div className="lc-prompt-foot">
-                <button
-                  type="button"
-                  className="lc-btn"
-                  onClick={() => setSuperMode((v) => !v)}
-                  style={superMode ? { borderColor: '#a78bfa', color: '#a78bfa' } : undefined}
-                  title="Quando attivo, il prompt viene inviato come 'super <domanda>' a Super-Leles (grounded)"
-                >
-                  {superMode ? '⚡ Super-Leles ON' : '⚡ Super-Leles'}
-                </button>
-                {modelSwitching && (
-                  <span className="lc-dim lc-small">Switch modello…</span>
-                )}
-                <button
-                  type="button"
-                  className="lc-btn"
-                  disabled={imageBusy || isLoading}
-                  title="Prefissa il prompt con immagina: la console genera un immagine con Z-Image-Turbo (via gateway), senza passare da Leles"
-                  onClick={() => {
-                    setPrompt((v) => (v.startsWith('immagina ') ? v : 'immagina ' + v))
-                    textareaRef.current?.focus()
-                  }}
-                >
-                  🖼️ Immagina
-                </button>
-                <span className="lc-dim lc-small">
-                  {armed
-                    ? 'Comando che cambia lo stato del sistema: premi di nuovo per confermare.'
-                    : 'Ctrl+Invio esegue il comando.'}
-                </span>
-                <div className="lc-row">
-                  <button
-                    type="button"
-                    className="lc-btn"
-                    onClick={() => {
-                      setPrompt('')
-                      setArmed(false)
-                    }}
-                  >
-                    Pulisci
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isLoading || !prompt.trim()}
-                    className={`lc-btn lc-btn--run${armed ? ' lc-btn--warn' : ''}`}
-                  >
-                    {isLoading ? (
-                      <>
-                        <span className="lc-spin" /> Leles sta pensando… Aspé...🏴‍☠️
-                      </>
-                    ) : armed ? (
-                      'Conferma ed esegui'
-                    ) : (
-                      'Esegui'
-                    )}
-                  </button>
-                </div>
-              </div>
-            </form>
+          {busy && stage && (
+            <p className="il-hint" style={{ marginTop: ".6rem" }}>{stage}</p>
+          )}
 
-            {/* COMANDI */}
-            <section className="lc-panel lc-pad" aria-label="Comandi">
-              <div className="lc-cmd-head">
-                <h2>Comandi</h2>
-                <input
-                  type="search"
-                  className="lc-search"
-                  placeholder="Cerca tra i comandi"
-                  aria-label="Cerca comandi"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </div>
-              <p className="lc-dim lc-small lc-cmd-note">
-                Git, Airflow e revisione file (improve/verifica/review) sono
-                passati alle pagine dedicate — Git Admin · DAG Admin · Improve:
-                link in fondo alla console.
-              </p>
+          {busy && imgStart != null && (
+            <p className="il-hint" style={{ marginTop: ".35rem" }}>⏱ Elaborazione immagine: {formatSeconds(imgElapsed)}</p>
+          )}
+        </form>
+      </section>
 
-              {!q && (
-                <div className="lc-tabs" role="tablist">
-                  {COMMAND_GROUPS.map((g) => (
-                    <button
-                      key={g.id}
-                      type="button"
-                      role="tab"
-                      aria-selected={g.id === activeGroup}
-                      className={`lc-tab${g.id === activeGroup ? ' is-on' : ''}`}
-                      style={{ '--g': g.color }}
-                      onClick={() => setActiveGroup(g.id)}
-                    >
-                      <span aria-hidden="true">{g.icon}</span> {g.title}
-                      <span className="lc-count">{g.commands.length}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {!q && group.id === 'modelli' && (
-                <div className="lc-model-row">
-                  <label>
-                    <span className="lc-dim lc-small">Super-Leles</span>
-                    <select
-                      className="lc-select lc-model-select"
-                      aria-label="Modello Super-Leles"
-                      value={superModel}
-                      disabled={modelSwitching || isLoading}
-                      onChange={(e) => switchSuperModel(e.target.value)}
-                      title="Invia il comando modellosl <nome> e mostra la conferma in Sessione"
-                    >
-                      {SUPER_MODELS.map((m) => (
-                        <option key={m} value={m}>{m}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    <span className="lc-dim lc-small">Modello Leles</span>
-                    <select
-                      className="lc-select lc-model-select"
-                      aria-label="Modello Leles"
-                      value={leleModel}
-                      disabled={modelSwitching || isLoading}
-                      onChange={(e) => switchModel('lele', e.target.value)}
-                      title="Invia il comando modello <nome> e mostra la conferma in Sessione"
-                    >
-                      {LELE_MODELS.map((m) => (
-                        <option key={m} value={m}>{m}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    <span className="lc-dim lc-small">Reviewer</span>
-                    <select
-                      className="lc-select lc-model-select"
-                      aria-label="Modello reviewer"
-                      value={reviewerModel}
-                      disabled={modelSwitching || isLoading}
-                      onChange={(e) => switchModel('reviewer', e.target.value)}
-                      title="Invia il comando reviewer <nome> e mostra la conferma in Sessione"
-                    >
-                      {LELE_MODELS.map((m) => (
-                        <option key={m} value={m}>{m}</option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-              )}
-
-              <div className="lc-chips">
-                {visible.length === 0 && (
-                  <p className="lc-dim">
-                    Nessun comando corrisponde a “{search}”. ⚓️
-                  </p>
-                )}
-                {visible.map((x, i) => (
-                  <button
-                    key={`${x.g.id}-${i}`}
-                    type="button"
-                    className="lc-chip"
-                    style={{ '--g': x.g.color }}
-                    title={x.danger ? 'Chiede conferma prima di partire' : undefined}
-                    onClick={() => selectCommand(x)}
-                  >
-                    <span>
-                      {x.label}
-                      {x.danger && <span className="lc-bang" aria-label="sensibile"> !</span>}
-                    </span>
-                    {x.hint && <small>{x.hint}</small>}
-                    {q && <small>{x.g.title}</small>}
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            {/* CRONOLOGIA */}
-            <section className="lc-panel lc-pad" aria-label="Risposte">
-              <div className="lc-cmd-head">
-                <h2>Sessione</h2>
-                {history.length > 0 && (
-                  <button type="button" className="lc-btn lc-btn--sm" onClick={() => setHistory([])}>
-                    Svuota
-                  </button>
-                )}
-              </div>
-
-              <div aria-live="polite" className="lc-log">
-                {history.length === 0 && (
-                  <p className="lc-dim">
-                    Nessun comando eseguito. Scegline uno qui sopra o scrivilo nel prompt.
-                  </p>
-                )}
-                {history.map((h) => (
-                  <article key={h.id} className={`lc-entry${h.err ? ' is-err' : ''}`}>
-                    <header>
-                      <code className="lc-ellipsis">{h.cmd}</code>
-                      <span className="lc-dim lc-small">
-                        {timeLabel(h.at)}, {(h.ms / 1000).toFixed(1)}s
-                      </span>
-                      <button
-                        type="button"
-                        className="lc-btn lc-btn--sm"
-                        onClick={() => {
-                          setPrompt(h.cmd)
-                          setArmed(false)
-                          textareaRef.current?.focus()
-                        }}
-                      >
-                        Riusa
-                      </button>
-                      <button
-                        type="button"
-                        className="lc-btn lc-btn--sm"
-                        onClick={() => copy(h.text || h.err)}
-                      >
-                        Copia
-                      </button>
-                    </header>
-                    {h.img && <img src={h.img} alt="Immagine generata" className="lc-gen-img" />}
-                    <pre className="lc-pre">{h.text || h.err}</pre>
-                  </article>
-                ))}
-              </div>
-            </section>
-          </main>
-
-          {/* DASHBOARD DESTRA: Sistema + OS + RAM + Gateway in un solo pannello */}
-          <aside className="lc-side" aria-label="Stato del sistema">
-            <section className="lc-panel lc-pad lc-status">
-              <div className="lc-cmd-head">
-                <h2>Stato del sistema</h2>
-                <div className="lc-row">
-                  <span
-                    className={`lc-pill ${
-                      ping.ok === null ? '' : ping.ok ? 'is-ok' : 'is-bad'
-                    }`}
-                    title="Gateway"
-                  >
-                    <span className={`lc-dot${ping.ok ? ' lc-pulse' : ''}`} />
-                    {ping.ok === null ? '…' : ping.ok ? `${ping.ms} ms` : 'offline'}
-                  </span>
-                  <button
-                    type="button"
-                    className="lc-btn lc-btn--sm"
-                    onClick={refreshStatus}
-                    disabled={statusLoading}
-                  >
-                    {statusLoading ? 'Carico…' : 'Aggiorna'}
-                  </button>
-                </div>
-              </div>
-
-              {STATUS_CMDS.map(([key, label]) => {
-                const s = status[key]
-                const tiles = key === 'sys' && !rawSys ? parseSystem(s?.text) : null
-                const osData = key === 'os' ? parseOs(s?.text) : null
-                const ramText = key === 'ram' ? cleanRam(s?.text) : null
-                const lvl = statLevel(key, status)
-                return (
-                    <div key={key} className="lc-stat">
-                    <div className="lc-stat-head">
-                        <h3 className={`lc-stat-name${lvl ? ` is-${lvl}` : ''}`}>{label}</h3>
-                        {key === 'sys' && s?.text && parseSystem(s.text) && (
-                            <button
-                                type="button"
-                                className="lc-btn lc-btn--sm"
-                                onClick={() => setRawSys((v) => !v)}
-                            >
-                                {rawSys ? 'Schema' : 'Testo'}
-                            </button>
-                        )}
-                    </div>
-                    {s?.err ? (
-                        <p className="lc-err lc-small">{s.err}</p>
-                    ) : tiles ? (
-                        <SystemTiles data={tiles} />
-                    ) : osData ? (
-                        <OsKpis data={osData} />
-                    ) : (
-                        <pre className="lc-pre lc-pre--sm">
-                            {(key === 'ram' && ramText) ||
-                                s?.text ||
-                                (statusLoading ? 'Carico…' : 'Nessun dato. Premi Aggiorna.')}
-                        </pre>
-                    )}
-                </div>
-            )
-        })}
-            </section>
-          </aside>
-        </div>
-
-        {/* PAGINE DEL SITO: link alle console esistenti */}
-        <nav className="lc-pages" aria-label="Pagine del sito">
-          <div className="lc-pages-head">
-            <h2>Pagine &amp; Console</h2>
-            <span className="lc-dim lc-small">
-              Tutte le rotte attive del sito — da qui validi e poi promuoviamo in nav
+      {current && (
+        <section className="il-panel" style={{ marginBottom: "1rem" }}>
+          <div className="il-section-heading">
+            <div>
+              <p className="il-eyebrow">RACCONTO</p>
+              <h2>{current.prompt}</h2>
+            </div>
+            <span className="il-history-meta">
+              {new Date((current.createdAt || 0) * 1000).toLocaleString("it-IT")}
             </span>
           </div>
-          <div className="lc-pages-grid">
-            {QUICK_LINKS.map((l) => (
-              <Link
-                key={l.to}
-                to={l.to}
-                className={`lc-pagecard${l.main ? ' lc-pagecard--main' : ''}`}
-              >
-                <span className="lc-pagecard-label">{l.label}</span>
-                <small>{l.desc}</small>
-              </Link>
-            ))}
-          </div>
 
-          {/* AUDIO: Story Whisper / Night Story (penultimo blocco) */}
-            {/* AUDIO: Story Whisper / Night Story */}
-            <section className="lc-panel lc-pad lc-audio" aria-label="Audio">
-              <audio
-                ref={audioPlayerRef}
-                onTimeUpdate={() =>
-                  setAudioCurrentTime(audioPlayerRef.current?.currentTime || 0)
-                }
-                onLoadedMetadata={() =>
-                  setAudioDuration(audioPlayerRef.current?.duration || 0)
-                }
-                onEnded={() => {
-                  setIsSpeaking(false)
-                  setAudioCurrentTime(0)
-                }}
-                onError={() => {
-                  setIsSpeaking(false)
-                  setAudioError("Impossibile riprodurre l'audio generato dal server.")
-                }}
-              />
+          <pre
+            className="il-ocr-pre"
+            style={{ maxHeight: "none" }}
+          >
+            {current.text}
+          </pre>
 
-              <div className="lc-cmd-head">
-                <h2>Audio</h2>
+          {current.audioUrl && (
+            <div style={{ marginTop: ".9rem" }}>
+              <label className="il-label">🎧 Audio</label>
+              <audio controls src={current.audioUrl} style={{ width: "100%" }} />
+            </div>
+          )}
+
+          {current.story_id && (
+            <form
+              onSubmit={regenerateIllustrations}
+              style={{ marginTop: "1rem", padding: ".9rem", border: "1px solid var(--border, #1f2b35)", borderRadius: "8px" }}
+            >
+              <label className="il-label">🔁 Rigenera illustrazioni (nuova versione)</label>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: ".6rem", alignItems: "center" }}>
                 <select
-                  className="lc-select"
-                  aria-label="Agente audio"
-                  value={audioAgent}
-                  onChange={(e) => setAudioAgent(e.target.value)}
-                  disabled={isRecording || audioBusy}
+                  className="il-input"
+                  value={regModel}
+                  onChange={(event) => setRegModel(event.target.value)}
+                  style={{ flex: "0 0 auto", minWidth: "9rem" }}
+                  aria-label="Modello Ollama per la nuova versione"
+                  disabled={busy}
                 >
-                  {AUDIO_AGENTS.map((a) => (
-                    <option key={a.value} value={a.value}>
-                      {a.label}
-                    </option>
+                  {["qwen2.5", "mistral", "llama3", "gemma4", "deepseek-r1"].map((m) => (
+                    <option key={m} value={m}>{m}</option>
                   ))}
                 </select>
+                <select
+                  className="il-input"
+                  value={regPreset}
+                  onChange={(event) => setRegPreset(event.target.value)}
+                  style={{ flex: "0 0 auto", minWidth: "11rem" }}
+                  aria-label="Preset di stile base per la nuova versione"
+                  disabled={busy}
+                >
+                  <option value="">Come la storia ({autoPreset})</option>
+                  <option value="sw_kids">Kids cartoon (sw_kids)</option>
+                  <option value="ns_free">Adulta (ns_free)</option>
+                </select>
+                <select
+                  className="il-input"
+                  value={regCount}
+                  onChange={(event) => setRegCount(event.target.value ? Number(event.target.value) : "")}
+                  style={{ flex: "0 0 auto", minWidth: "10rem" }}
+                  aria-label="Numero di illustrazioni per la nuova versione"
+                  disabled={busy}
+                >
+                  <option value="">Come V{shownVersion} ({sceneCount})</option>
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => (
+                    <option key={n} value={n}>{n} {n === 1 ? "immagine" : "immagini"}</option>
+                  ))}
+                </select>
+                <select
+                  className="il-input"
+                  value={regFormat}
+                  onChange={(event) => setRegFormat(event.target.value)}
+                  style={{ flex: "0 0 auto", minWidth: "9rem" }}
+                  aria-label="Formato immagini per la nuova versione"
+                  disabled={busy}
+                >
+                  {[["512x512", "1:1 · 512"], ["768x768", "1:1 · 768"], ["1024x1024", "1:1 · 1024"], ["768x576", "4:3 · 768"], ["1024x768", "4:3 · 1024"], ["1280x720", "16:9 · 1280"], ["960x640", "3:2 · 960"]].map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+                <select
+                  className="il-input"
+                  value={regSteps}
+                  onChange={(event) => setRegSteps(Number(event.target.value))}
+                  style={{ flex: "0 0 auto", minWidth: "7rem" }}
+                  aria-label="Step di generazione per la nuova versione"
+                  disabled={busy}
+                >
+                  {[1, 3, 4, 5, 6, 7, 8, 9, 12, 15].map((s) => (
+                    <option key={s} value={s}>{s} step</option>
+                  ))}
+                </select>
+                <button className="il-button" type="submit" disabled={busy || !current.text}>
+                  {busy ? "Lavoro in corso…" : "🔁 Rigenera come V" + ((versions[versions.length - 1] || 0) + 1)}
+                </button>
               </div>
 
-              <form className="lc-audio-form" onSubmit={sendAudioText}>
-                <textarea
-                  className="lc-audio-ta"
-                  rows={3}
-                  value={audioPrompt}
-                  disabled={isRecording}
-                  placeholder={`Scrivi a ${audioAgent}…`}
-                  onChange={(e) => setAudioPrompt(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) sendAudioText(e)
-                  }}
+              {/* Progress live della rigenerazione, qui dove l'hai avviata */}
+              {busy && regProgress && (
+                <div style={{ marginTop: ".7rem" }}>
+                  <div style={{ height: "6px", borderRadius: "3px", background: "var(--border, #1f2b35)", overflow: "hidden" }}>
+                    <div
+                      style={{
+                        width: (regProgress.total ? (100 * regProgress.done) / regProgress.total : 0) + "%",
+                        height: "100%",
+                        background: "var(--accent, #3fd0c9)",
+                        transition: "width .4s ease",
+                      }}
+                    />
+                  </div>
+                  <p className="il-hint" style={{ margin: ".45rem 0 0" }}>
+                    Scene pronte: {regProgress.done}/{regProgress.total}
+                  </p>
+                </div>
+              )}
+              {busy && stage && (
+                <p className="il-hint" style={{ margin: ".45rem 0 0" }}>{stage}</p>
+              )}
+              {busy && imgStart != null && (
+                <p className="il-hint" style={{ margin: ".25rem 0 0" }}>⏱ Immagine corrente: {formatSeconds(imgElapsed)}</p>
+              )}
+              {!busy && regDone && (
+                <p className="il-hint" style={{ margin: ".45rem 0 0", color: "var(--accent, #3fd0c9)" }}>{regDone}</p>
+              )}
+              <div style={{ display: "flex", flexWrap: "wrap", gap: ".4rem", marginTop: ".6rem" }}>
+                <input
+                  className="il-input"
+                  type="text"
+                  value={regStyle}
+                  onChange={(event) => setRegStyle(event.target.value)}
+                  placeholder="Es. acquerello soft, matita colorata, cartoon manga…"
+                  style={{ flex: "1 1 14rem" }}
+                  aria-label="Stile extra per la nuova versione"
+                  disabled={busy}
                 />
-                <div className="lc-audio-foot">
-                  <label className="lc-check">
+                {REG_STYLE_PRESETS.map(([label, value]) => (
+                  <button
+                    key={label}
+                    type="button"
+                    className={"il-page-btn" + (regStyle === value ? " il-page-btn-active" : "")}
+                    onClick={() => setRegStyle(regStyle === value ? "" : value)}
+                    style={{ padding: ".2rem .6rem" }}
+                    title={"Stile: " + value}
+                    disabled={busy}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <p className="il-hint" style={{ marginTop: ".5rem", marginBottom: 0 }}>
+                Stessa storia, nuova selezione scene e nuove immagini (ora vedi V{shownVersion}).
+                Stile base {regPreset || autoPreset} ({(regPreset || autoPreset) === "ns_free" ? "Night Story" : "Story Whisper"}), modificabile sopra per test.
+                Se il modello scelto non produce JSON validi, riprova in cascata con mistral → qwen2.5.
+              </p>
+            </form>
+          )}
+
+          {current.story_id && sceneCount > 0 && (
+            <form
+              onSubmit={downloadComicPdf}
+              style={{ marginTop: "1rem", padding: ".9rem", border: "1px solid var(--border, #1f2b35)", borderRadius: "8px" }}
+            >
+              <label className="il-label">📖 Crea fumetto PDF (V{shownVersion})</label>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: ".6rem", alignItems: "center" }}>
+                <select
+                  className="il-input"
+                  value={comicLayout}
+                  onChange={(event) => setComicLayout(event.target.value)}
+                  style={{ flex: "0 0 auto", minWidth: "11rem" }}
+                  aria-label="Layout del fumetto"
+                  disabled={comicBusy}
+                >
+                  <option value="pages">Pagine (1 scena per pagina)</option>
+                  <option value="collage">Collage (griglia 2×2)</option>
+                  <option value="strip">Striscia unica verticale</option>
+                </select>
+                <select
+                  className="il-input"
+                  value={comicFormat}
+                  onChange={(event) => setComicFormat(event.target.value)}
+                  style={{ flex: "0 0 auto", minWidth: "10rem" }}
+                  aria-label="Formato pagina"
+                  disabled={comicBusy}
+                >
+                  <option value="landscape">A4 orizzontale</option>
+                  <option value="portrait">A4 verticale</option>
+                </select>
+                <label style={{ display: "flex", alignItems: "center", gap: ".35rem", fontSize: ".8rem", color: "var(--ink-dim, #8fa1ac)" }}>
+                  <input
+                    type="checkbox"
+                    checked={comicCaptions}
+                    onChange={(event) => setComicCaptions(event.target.checked)}
+                    disabled={comicBusy}
+                  />
+                  Didascalie
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: ".35rem", fontSize: ".8rem", color: "var(--ink-dim, #8fa1ac)" }}>
+                  <input
+                    type="checkbox"
+                    checked={comicNarration}
+                    onChange={(event) => setComicNarration(event.target.checked)}
+                    disabled={comicBusy}
+                  />
+                  📜 Estrai narrazione
+                </label>
+                <button className="il-button il-primary" type="submit" disabled={comicBusy}>
+                  {comicBusy ? "Compongo…" : "📖 Genera e scarica PDF"}
+                </button>
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: ".4rem", marginTop: ".6rem" }}>
+                {visibleScenes.map((scene, i) => (
+                  <label
+                    key={i}
+                    className={"il-page-btn" + (comicScenes[i] !== false ? " il-page-btn-active" : "")}
+                    style={{ padding: ".2rem .6rem", display: "flex", alignItems: "center", gap: ".3rem", cursor: "pointer" }}
+                  >
                     <input
                       type="checkbox"
-                      checked={wantsTts}
-                      disabled={isRecording || audioBusy}
-                      onChange={(e) => setWantsTts(e.target.checked)}
+                      checked={comicScenes[i] !== false}
+                      onChange={(event) => setComicScenes((prev) => ({ ...prev, [i]: event.target.checked }))}
+                      disabled={comicBusy}
                     />
-                    Risposta audio (TTS)
+                    {i + 1} · {String(scene.title || "").slice(0, 24)}
                   </label>
-                  {(audioAgent === 'Story Whisper' || audioAgent === 'Night Story') && (
-                    <div className="lc-check" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }} title="Genera illustrazioni sequenziali delle scene principali dopo testo e audio">
-                      <label className="lc-check">
-                        <input
-                          type="checkbox"
-                          checked={wantsStoryImage}
-                          disabled={isRecording || audioBusy || storyImageBusy}
-                          onChange={(e) => setWantsStoryImage(e.target.checked)}
-                        />
-                        🎨 Crea illustrazioni della storia
-                      </label>
-                      <select
-                        aria-label="Numero di illustrazioni"
-                        value={storyImageCount}
-                        disabled={isRecording || audioBusy || storyImageBusy}
-                        onChange={(e) => setStoryImageCount(Number(e.target.value))}
-                        style={{ padding: '4px 8px', borderRadius: 8, background: 'var(--surface, #fff)', color: 'inherit', border: '1px solid var(--line, #ccc)' }}
-                      >
-                        {[1, 2, 3, 4, 5, 6, 7, 8].map((count) => <option key={count} value={count}>{count} {count === 1 ? 'immagine' : 'immagini'}</option>)}
-                      </select>
-                      <select
-                        aria-label="Formato illustrazioni"
-                        value={storyImageFormat}
-                        disabled={isRecording || audioBusy || storyImageBusy}
-                        onChange={(e) => setStoryImageFormat(e.target.value)}
-                        style={{ padding: '4px 8px', borderRadius: 8, background: 'var(--surface, #fff)', color: 'inherit', border: '1px solid var(--line, #ccc)' }}
-                      >
-                        {[['512x512', '1:1 · 512'], ['768x768', '1:1 · 768'], ['1024x1024', '1:1 · 1024'], ['768x576', '4:3 · 768'], ['1024x768', '4:3 · 1024'], ['1280x720', '16:9 · 1280'], ['960x640', '3:2 · 960']].map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                      </select>
-                      <select
-                        aria-label="Step illustrazioni"
-                        value={storyImageSteps}
-                        disabled={isRecording || audioBusy || storyImageBusy}
-                        onChange={(e) => setStoryImageSteps(Number(e.target.value))}
-                        style={{ padding: '4px 8px', borderRadius: 8, background: 'var(--surface, #fff)', color: 'inherit', border: '1px solid var(--line, #ccc)' }}
-                      >
-                        {[1, 3, 4, 5, 6, 7, 8, 9, 12, 15].map((s) => <option key={s} value={s}>{s} step</option>)}
-                      </select>
-                      {audioAgent === 'Story Whisper' && (
-                        <label className="lc-check" title="Stile cartoon per bambini, contenuti sicuri">
-                          <input
-                            type="checkbox"
-                            checked={storyKidsFilter}
-                            disabled={isRecording || audioBusy || storyImageBusy}
-                            onChange={(e) => setStoryKidsFilter(e.target.checked)}
-                          />
-                          🧒 Bambini
-                        </label>
-                      )}
-                      {audioAgent === 'Night Story' && (
-                        <select
-                          aria-label="Genere Night Story"
-                          value={storyGenre}
-                          disabled={isRecording || audioBusy || storyImageBusy}
-                          onChange={(e) => setStoryGenre(e.target.value)}
-                          style={{ padding: '4px 8px', borderRadius: 8, background: 'var(--surface, #fff)', color: 'inherit', border: '1px solid var(--line, #ccc)' }}
-                        >
-                          {['Random', 'Amore', 'Comico', 'Culturale', 'Drammatica', 'Horror', 'Osè', 'Ricerca'].map((g) => <option key={g} value={g}>{g}</option>)}
-                        </select>
-                      )}
-                      <input
-                        type="text"
-                        aria-label="Prompt di stile extra"
-                        placeholder="Prompt stile extra (opzionale)"
-                        value={storyStylePrompt}
-                        disabled={isRecording || audioBusy || storyImageBusy}
-                        onChange={(e) => setStoryStylePrompt(e.target.value)}
-                        style={{ minWidth: 160, padding: '4px 8px', borderRadius: 8, background: 'var(--surface, #fff)', color: 'inherit', border: '1px solid var(--line, #ccc)' }}
+                ))}
+              </div>
+              <p className="il-hint" style={{ marginTop: ".5rem", marginBottom: 0 }}>
+                Il PDF si compone sul Mac dalle illustrazioni V{shownVersion} e si scarica subito nel browser (niente Telegram).
+              </p>
+            </form>
+          )}
+
+          {versions.length > 1 && (
+            <div style={{ marginTop: ".6rem", display: "flex", gap: ".4rem", alignItems: "center", flexWrap: "wrap" }}>
+              <span className="il-label" style={{ margin: 0 }}>Versioni illustrazioni:</span>
+              {versions.map((v) => {
+                const vScene = (current?.scenes || []).find((s) => sceneVersion(s) === v);
+                const vTitle = "V" + v +
+                  (vScene?.planner ? " · planner: " + vScene.planner : "") +
+                  (vScene?.style_prompt ? " · stile: " + vScene.style_prompt : "");
+                return (
+                  <button
+                    key={v}
+                    type="button"
+                    className={"il-page-btn" + (v === shownVersion ? " il-page-btn-active" : "")}
+                    onClick={() => setActiveVersion(v)}
+                    style={{ padding: ".2rem .6rem" }}
+                    title={vTitle}
+                  >
+                    V{v}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {sceneCount > 0 && (
+            <div style={{ marginTop: "1rem" }}>
+              <label className="il-label">🖼 Illustrazioni</label>
+              <div className="il-history-grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
+                {visibleScenes.map((scene, i) => (
+                  <figure key={i} style={{ margin: 0 }}>
+                    {scene.src ? (
+                      <img
+                        src={scene.src}
+                        alt={"Illustrazione " + (i + 1) + ": " + scene.title}
+                        loading="lazy"
+                        style={{
+                          display: "block",
+                          width: "100%",
+                          height: "auto",
+                          borderRadius: "8px",
+                          border: "1px solid var(--border, #1f2b35)",
+                        }}
                       />
-                    </div>
-                  )}
-                  <div className="lc-row">
-                    <button
-                      type="button"
-                      className="lc-btn"
-                      disabled={!audioPrompt.trim() || isRecording}
-                      onClick={() => setAudioPrompt('')}
-                    >
-                      Pulisci
-                    </button>
-                    <button
-                      type="button"
-                      className={`lc-btn${isRecording ? ' lc-btn--rec' : ''}`}
-                      disabled={audioBusy}
-                      onClick={isRecording ? stopRecording : startRecording}
-                    >
-                      {isRecording ? `⏹ ${formatTime(recordingTime)}` : '🎤 Registra'}
-                    </button>
-                    <button
-                      type="submit"
-                      className="lc-btn lc-btn--run"
-                      disabled={audioBusy || isRecording || !audioPrompt.trim()}
-                    >
-                      {audioBusy ? (
-                        <>
-                          <span className="lc-spin" /> Attendi…
-                        </>
-                      ) : (
-                        'Invia'
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </form>
-
-              {recUrl && (
-                <div className="lc-rec">
-                  <div className="lc-cmd-head">
-                    <span className="lc-small">🎤 Audio registrato</span>
-                    <button
-                      type="button"
-                      className="lc-btn lc-btn--sm"
-                      disabled={audioBusy || !recBlob}
-                      onClick={() => sendRecording()}
-                    >
-                      Invia audio
-                    </button>
-                  </div>
-                  <audio controls src={recUrl} className="lc-rec-audio" />
-                </div>
-              )}
-
-              {audioError && <p className="lc-err lc-small">{audioError}</p>}
-
-              {audioReply && (
-                <div className="lc-audio-out" aria-live="polite">
-                  <header>
-                    <span>Risposta da {audioReplyAgent}</span>
-                    <button
-                      type="button"
-                      className="lc-btn lc-btn--sm"
-                      onClick={() => {
-                        copy(audioReply)
-                        setCopiedAudioReply(true)
-                        setTimeout(() => setCopiedAudioReply(false), 2000)
+                    ) : (
+                      <div
+                        style={{
+                          padding: "2.4rem 1rem",
+                          textAlign: "center",
+                          border: "1px dashed var(--border, #1f2b35)",
+                          borderRadius: "8px",
+                          color: "var(--ink-dim, #8fa1ac)",
+                          fontSize: ".8rem",
+                        }}
+                      >
+                        {scene.status || "In attesa"}
+                      </div>
+                    )}
+                    <figcaption
+                      style={{
+                        marginTop: ".45rem",
+                        color: "var(--ink-dim, #8fa1ac)",
+                        fontSize: ".75rem",
                       }}
                     >
-                      {copiedAudioReply ? 'Copiato ✓' : 'Copia'}
-                    </button>
-                  </header>
+                      {(i + 1)}/{sceneCount} · {scene.title}{scene.seconds != null ? " · ⏱ " + formatSeconds(scene.seconds) : ""}
+                    </figcaption>
+                  </figure>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
 
-                  {audioReplyFile && (
-                    <div className="lc-player">
-                      <div className="lc-player-top">
-                        <button
-                          type="button"
-                          className={`lc-btn lc-btn--sm lc-play${isSpeaking ? ' is-on' : ''}`}
-                          onClick={togglePlayAudio}
-                        >
-                          {isSpeaking ? '⏸ Pausa' : '▶ Ascolta'}
-                        </button>
-                        <span className="lc-time">
-                          {formatTime(audioCurrentTime)} / {formatTime(audioDuration)}
-                        </span>
-                        <input
-                          type="range"
-                          className="lc-seek"
-                          aria-label="Posizione audio"
-                          min="0"
-                          max={audioDuration || 0}
-                          step="0.1"
-                          value={audioCurrentTime}
-                          onChange={handleSeek}
-                        />
-                      </div>
-                      <div className="lc-speed">
-                        <span className="lc-dim lc-small">Velocità</span>
-                        {[1, 1.25, 1.5, 1.75, 2].map((rate) => (
-                          <button
-                            key={rate}
-                            type="button"
-                            className={`lc-btn lc-btn--sm${playbackRate === rate ? ' is-on' : ''}`}
-                            onClick={() => handleRateChange(rate)}
-                          >
-                            {rate}x
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <pre className="lc-pre">{audioReply}</pre>
-                  {(storyImageStatus || storyImageError || storyImages.length > 0) && (audioReplyAgent === 'Story Whisper' || audioReplyAgent === 'Night Story') && (
-                    <div className="lc-story-illustration" aria-live="polite" style={{ marginTop: 14 }}>
-                      {storyImageStatus && <p className="lc-dim lc-small">{storyImageStatus}</p>}
-                      {storyImageError && <p className="lc-err lc-small">Illustrazioni: {storyImageError}</p>}
-                      {storyImages.map((item) => (
-                        <div key={item.id} style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--line)' }}>
-                          <p className="lc-dim lc-small" style={{ marginBottom: 6 }}>
-                            <strong>{item.id}/{storyImages.length} · {item.title}</strong> — {item.status}
-                          </p>
-                          {item.src && (
-                            <img
-                              src={item.src}
-                              alt={'Illustrazione ' + item.id + ': ' + item.title}
-                              loading="lazy"
-                              style={{ display: 'block', width: '100%', maxWidth: 640, height: 'auto', borderRadius: 12, marginTop: 8 }}
-                            />
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </section>
-
-
-          <div className="lc-pages-head lc-pages-head--sub">
-            <h3>🧪 Test &amp; Laboratorio</h3>
-            <span className="lc-dim lc-small">
-              Si validano da qui, poi si promuovono tra le pagine ufficiali
-            </span>
+      <section className="il-panel il-history-panel">
+        <div className="il-section-heading">
+          <div>
+            <p className="il-eyebrow">06 / GALLERY</p>
+            <h2>Storico storie</h2>
           </div>
-          <div className="lc-pages-grid lc-pages-grid--test">
-            {TEST_LINKS.map((l) => (
-              <Link key={l.to} to={l.to} className="lc-pagecard">
-                <span className="lc-pagecard-label">{l.label}</span>
-                <small>{l.desc}</small>
-              </Link>
-            ))}
+          <button
+            className="il-button"
+            onClick={loadStories}
+            disabled={listLoading}
+          >
+            {listLoading ? "Carico…" : "↻ Aggiorna"}
+          </button>
+        </div>
+
+        {listError && (
+          <div className="il-error" role="alert">
+            {listError}
           </div>
-        </nav>
-      </div>
+        )}
+
+        {!listLoading && stories.length === 0 && !listError && (
+          <p className="il-hint">
+            Nessuna storia salvata. Le storie completate vengono conservate qui
+            (testo, audio e illustrazioni).
+          </p>
+        )}
+
+        <div className="il-history-grid">
+          {stories.map((item) => (
+            <article
+              key={item.story_id}
+              className="il-history-card"
+              style={{ cursor: "pointer" }}
+              onClick={() => openStory(item)}
+            >
+              <p className="il-history-prompt">
+                {String(item.prompt || "").length > 140
+                  ? String(item.prompt).slice(0, 140) + "…"
+                  : item.prompt}
+              </p>
+              <div className="il-history-meta">
+                <span>{new Date((item.created_at || 0) * 1000).toLocaleString("it-IT")}</span>
+                {item.has_audio && <span>🎧 audio</span>}
+                <span>{item.scene_count} illustraz.</span>
+              </div>
+              <div className="il-history-actions">
+                <button className="il-button">Apri</button>
+                <button
+                  className="il-button"
+                  onClick={(event) => deleteStory(item, event)}
+                  title="Elimina la storia"
+                >
+                  ✕
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
     </div>
-  )
+  );
 }
 
-const css = `
-.lc-page{--glass:rgba(16,23,30,.74);--line:rgba(255,255,255,.1);--ok:#4ade80;--bad:#f87171;--warn:#fbbf24;
-  --mono:ui-monospace,'JetBrains Mono','SF Mono',Menlo,Consolas,monospace;
-  position:relative;min-height:calc(100vh - 64px);overflow:hidden;color:var(--ink);font-family:var(--sans)}
-.lc-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.38}
-.lc-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,16,21,.25) 0%,rgba(11,16,21,.40) 70%)}
-.lc-wrap{position:relative;max-width:1280px;margin:0 auto;padding:28px 24px 72px}
-.lc-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.lc-gbtn{min-height:32px;flex:none}
-.lc-login-msg{margin-top:10px}
-.lc-title{font-size:clamp(22px,4vw,30px);font-weight:650;letter-spacing:-.01em;line-height:1.15}
-.lc-session{display:flex;align-items:center;gap:10px;padding:5px 5px 5px 14px;border:1px solid var(--line);
-  border-radius:999px;background:var(--glass);font-size:12px;color:var(--ink-dim);max-width:100%}
-.lc-ellipsis{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-.lc-title{background:linear-gradient(92deg,#3fd0c9 0%,#a78bfa 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
-.lc-panel{box-shadow:0 22px 55px -32px rgba(0,0,0,.75),inset 0 1px 0 rgba(255,255,255,.06)}
-.lc-btn--run{background:linear-gradient(135deg,#3fd0c9,#6fe3dd);border-color:transparent;box-shadow:0 10px 26px -12px rgba(63,208,201,.6)}
-.lc-btn--run:hover:not(:disabled){background:linear-gradient(135deg,#6fe3dd,#9ff0ec);border-color:transparent;transform:translateY(-1px)}
-.lc-chip{transition:background .15s,border-color .15s,transform .15s,box-shadow .15s}
-.lc-chip:hover{transform:translateY(-2px);box-shadow:0 10px 22px -12px rgba(63,208,201,.4)}
-.lc-pagecard{transition:background .15s,border-color .15s,transform .18s,box-shadow .18s}
-.lc-pagecard:hover{box-shadow:0 16px 36px -18px rgba(63,208,201,.5)}
-.lc-cmd-head h2{position:relative;padding-bottom:7px}
-.lc-cmd-head h2::after{content:'';position:absolute;left:0;bottom:0;width:44px;height:2px;border-radius:2px;
-  background:linear-gradient(90deg,#3fd0c9,#a78bfa)}
-.lc-model-row{background:rgba(63,208,201,.07);border:1px solid rgba(63,208,201,.22);border-radius:12px;padding:10px 12px;margin:10px 0 14px}
-.lc-links{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:28px;padding-top:16px;
-  border-top:1px solid var(--line);font-size:13px}
-.lc-pages{margin-top:28px;padding-top:16px;border-top:1px solid var(--line)}
-.lc-pages-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:12px}
-.lc-pages-head h2{font-size:15px;font-weight:650}
-.lc-pages-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
-.lc-pagecard{display:flex;flex-direction:column;gap:3px;padding:11px 14px;border-radius:12px;
-  border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--ink);
-  text-decoration:none;transition:background .15s,border-color .15s,transform .15s}
-.lc-pagecard:hover{background:rgba(255,255,255,.1);border-color:var(--accent);transform:translateY(-1px)}
-.lc-pagecard small{color:var(--ink-dim);font-size:11px;line-height:1.35}
-.lc-pagecard--main{border-color:rgba(63,208,201,.45);background:rgba(63,208,201,.09)}
-.lc-pagecard--main:hover{background:rgba(63,208,201,.16);border-color:var(--accent)}
-.lc-pagecard-label{font-size:13px;font-weight:600}
-.lc-cmd-note{margin:-2px 0 12px}
-.lc-pages-head--sub{margin-top:16px;margin-bottom:10px}
-.lc-pages-head--sub h3{font-size:12px;font-weight:650;color:var(--ink-dim)}
-.lc-pages-grid--test .lc-pagecard{opacity:.82}
-.lc-pages-grid--test .lc-pagecard:hover{opacity:1}
-.lc-link{padding:6px 13px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04);
-  color:var(--ink);transition:background .15s,border-color .15s}
-.lc-link:hover{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.25)}
-.lc-link--main{background:var(--accent);border-color:var(--accent);color:#07201f;font-weight:600}
-.lc-link--main:hover{background:#6fe3dd;border-color:#6fe3dd}
-.lc-grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;align-items:start;margin-top:18px}
-.lc-main{display:flex;flex-direction:column;gap:18px;min-width:0}
-.lc-side{display:flex;flex-direction:column;gap:18px;position:sticky;top:80px;max-height:calc(100vh - 100px);overflow:auto}
-.lc-panel{background:var(--glass);border:1px solid var(--line);border-radius:16px;backdrop-filter:blur(14px);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
-.lc-pad{padding:16px 18px}
-.lc-panel h2{font-size:15px;font-weight:650}
-.lc-panel h3{font-size:12px;font-weight:600;color:var(--ink-dim);margin-bottom:4px}
-.lc-dim{color:var(--ink-dim)}.lc-small{font-size:12px}
-.lc-model-select{max-width:170px;font-size:12px}
-.lc-model-row{display:flex;gap:14px;flex-wrap:wrap;margin:2px 0 12px}
-.lc-gen-img{display:block;width:100%;max-width:420px;margin:10px 12px 0;border:1px solid var(--line);border-radius:10px}
-.lc-model-row label{display:flex;flex-direction:column;gap:4px}
-.lc-err{color:var(--bad);font-size:14px}
-.lc-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
-.lc-row{display:flex;gap:8px;align-items:center}
-.lc-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:8px 14px;border-radius:8px;
-  border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--ink);font:inherit;font-size:13px;
-  cursor:pointer;transition:background .15s,border-color .15s}
-.lc-btn:hover:not(:disabled){background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.25)}
-.lc-btn:disabled{opacity:.45;cursor:not-allowed}
-.lc-btn--sm{padding:4px 10px;font-size:11px;border-radius:999px}
-.lc-btn--run{background:var(--accent);border-color:var(--accent);color:#07201f;font-weight:650;min-width:120px}
-.lc-btn--run:hover:not(:disabled){background:#6fe3dd;border-color:#6fe3dd}
-.lc-btn--warn{background:var(--warn);border-color:var(--warn)}
-.lc-btn--warn:hover:not(:disabled){background:#fcd34d;border-color:#fcd34d}
-.lc-prompt{border-color:rgba(63,208,201,.38);box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 18px 50px -24px rgba(63,208,201,.45);padding:14px 16px}
-.lc-prompt-row{display:flex;gap:12px;align-items:flex-start}
-.lc-anchor{font-size:20px;line-height:1.6;opacity:.9}
-.lc-prompt textarea{flex:1;min-width:0;resize:vertical;background:transparent;border:0;color:var(--ink);
-  font-family:var(--mono);font-size:14px;line-height:1.6;padding:2px 0}
-.lc-prompt textarea:focus{outline:none}
-.lc-prompt-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;
-  margin-top:10px;padding-top:12px;border-top:1px solid var(--line)}
-.lc-cmd-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}
-.lc-search{flex:1;min-width:180px;max-width:300px;padding:7px 12px;border-radius:999px;border:1px solid var(--line);
-  background:rgba(255,255,255,.05);color:var(--ink);font:inherit;font-size:13px}
-.lc-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:6px}
-.lc-tab{--g:var(--accent);flex:none;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;
-  border:1px solid var(--line);background:transparent;color:var(--ink-dim);font:inherit;font-size:13px;cursor:pointer;
-  transition:color .15s,border-color .15s,background .15s}
-.lc-tab:hover{color:var(--ink)}
-.lc-tab.is-on{color:var(--ink);border-color:var(--g);background:color-mix(in srgb,var(--g) 16%,transparent)}
-.lc-count{font-size:11px;color:var(--ink-dim)}
-.lc-chips{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-.lc-chips>p{grid-column:1/-1}
-.lc-chip{--g:var(--accent);display:flex;flex-direction:column;gap:2px;text-align:left;padding:9px 12px;border-radius:8px;
-  border:1px solid var(--line);border-left:3px solid var(--g);background:rgba(255,255,255,.04);color:var(--ink);
-  font:inherit;font-size:13px;cursor:pointer;transition:background .15s,border-color .15s}
-.lc-chip:hover{background:rgba(255,255,255,.1);border-color:var(--g)}
-.lc-chip small{color:var(--ink-dim);font-size:11px}
-.lc-bang{color:var(--warn);font-weight:700}
-.lc-log{display:flex;flex-direction:column;gap:12px}
-.lc-entry{border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.28);overflow:hidden}
-.lc-entry.is-err{border-color:rgba(248,113,113,.5)}
-.lc-entry header{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line)}
-.lc-entry code{flex:1;font-family:var(--mono);font-size:13px;color:var(--accent)}
-.lc-entry.is-err code{color:var(--bad)}
-.lc-pre{margin:0;padding:12px;font-family:var(--mono);font-size:12.5px;line-height:1.55;white-space:pre-wrap;
-  word-break:break-word;max-height:340px;overflow:auto}
-.lc-pre--sm{max-height:130px;font-size:11.5px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:rgba(0,0,0,.28)}
-.lc-status .lc-cmd-head{margin-bottom:8px}
-.lc-gw{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--line)}
-.lc-stat{margin-bottom:10px}.lc-stat:last-child{margin-bottom:0}
-.lc-stat-head{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:5px}
-.lc-stat-head h3{margin:0}
-.lc-sys-sec{margin-top:9px}.lc-sys-sec:first-child{margin-top:0}
-.lc-sys-title{display:flex;justify-content:space-between;font-size:10px;letter-spacing:.08em;text-transform:uppercase;
-  color:var(--ink-dim);margin-bottom:5px}
-.lc-tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
-.lc-ollama-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
-.lc-ollama-box{position:relative;display:flex;align-items:center;min-height:38px;
-  padding:5px 12px 5px 8px;border-radius:8px;border:1px solid rgba(74,222,128,.4);
-  background:rgba(74,222,128,.1);line-height:1.2;word-break:break-word;color:var(--ok)}
-.lc-ollama-box::after{content:'';position:absolute;top:6px;right:6px;width:5px;height:5px;
-  border-radius:50%;background:currentColor}
-.lc-ollama-box b{font-size:10.5px;font-weight:650}
-.lc-ollama-wide{grid-column:1/-1}
-.lc-ollama-box.is-bad{color:var(--bad);background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.45)}
-.lc-ollama-box.is-warn{color:var(--warn);background:rgba(251,191,36,.1);border-color:rgba(251,191,36,.45)}
-.lc-ollama-box.is-off{color:var(--ink-dim);opacity:.8}.lc-tile{position:relative;display:flex;flex-direction:column;justify-content:center;gap:1px;min-height:38px;
-  padding:5px 12px 5px 8px;border-radius:8px;border:1px solid var(--line);background:rgba(255,255,255,.04);
-  line-height:1.2;word-break:break-word;color:var(--ink-dim)}
 
-.lc-tile::after{content:'';position:absolute;top:6px;right:6px;width:5px;height:5px;border-radius:50%;background:currentColor}
-.lc-tile b{font-size:10.5px;font-weight:650;color:var(--ink)}
-.lc-tile small{font-size:9.5px;color:var(--ink-dim);overflow:hidden;text-overflow:ellipsis}
-.lc-tile.is-ok{color:var(--ok);background:rgba(74,222,128,.1);border-color:rgba(74,222,128,.4)}
-.lc-tile.is-bad{color:var(--bad);background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.45)}
-.lc-tile.is-off{color:var(--ink-dim);opacity:.8}
-.lc-tile.is-warn{color:var(--warn);background:rgba(251,191,36,.1);border-color:rgba(251,191,36,.45)}
-.lc-sys-name{display:inline-flex;align-items:center;gap:5px}
-.lc-sys-name.is-ok,.lc-sys-name.is-bad{font-weight:700}
-.lc-sys-name.is-ok::before,.lc-sys-name.is-bad::before{content:'';width:5px;height:5px;border-radius:50%;background:currentColor}
-.lc-sys-name.is-ok{color:var(--ok)}
-.lc-sys-name.is-bad{color:var(--bad)}
-.lc-tile--wide{grid-column:1/-1;gap:6px;padding:6px 12px 7px 8px}
-.lc-subs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px}
-.lc-sub{position:relative;padding:3px 5px 3px 13px;border-radius:6px;border:1px solid var(--line);background:rgba(255,255,255,.04);
-  font-size:9.5px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.lc-sub::before{content:'';position:absolute;left:5px;top:50%;width:5px;height:5px;margin-top:-2.5px;border-radius:50%;background:var(--ink-dim)}
-.lc-sub.is-ok{background:rgba(74,222,128,.1);border-color:rgba(74,222,128,.4)}
-.lc-sub.is-ok::before{background:var(--ok)}
-.lc-sub.is-bad{background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.45)}
-.lc-sub.is-bad::before{background:var(--bad)}
-.lc-sub.is-off{opacity:.7}
-.lc-sys-git{display:flex;gap:5px;flex-wrap:wrap}
-.lc-badge{padding:2px 8px;border-radius:999px;border:1px solid var(--line);font-size:10.5px;font-family:var(--mono);color:var(--ink)}
-.lc-badge.is-ok{color:var(--ok);border-color:rgba(74,222,128,.4)}
-.lc-badge.is-warn{color:var(--warn);border-color:rgba(251,191,36,.45)}
-.lc-pill{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:999px;border:1px solid var(--line);
-  font-size:11px;color:var(--ink-dim)}
-.lc-pill.is-ok{color:var(--ok);border-color:rgba(74,222,128,.4)}
-.lc-pill.is-bad{color:var(--bad);border-color:rgba(248,113,113,.45)}
-.lc-dot{width:6px;height:6px;border-radius:50%;background:currentColor}
-.lc-pulse{animation:lc-pulse 2s ease-in-out infinite}
-@keyframes lc-pulse{0%,100%{box-shadow:0 0 0 0 rgba(74,222,128,.55)}50%{box-shadow:0 0 0 5px rgba(74,222,128,0)}}
-.lc-agent{padding:2px 8px;border-radius:6px;background:rgba(255,255,255,.06);border:1px solid var(--line);font-size:10.5px;font-family:var(--mono)}
-.lc-spin{width:12px;height:12px;border-radius:50%;border:2px solid rgba(7,32,31,.3);border-top-color:#07201f;animation:lc-rot .8s linear infinite}
-@keyframes lc-rot{to{transform:rotate(360deg)}}
-.lc-page :is(button,a,input,textarea):focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-@media (max-width:980px){
-  .lc-grid{grid-template-columns:1fr}
-  .lc-side{position:static;max-height:none;overflow:visible}
+// ============================================================
+// WRAPPER PAGINA — Test2.jsx (ex Leles Admin Console, sovrascritta).
+// Il tab Stories di ImgLab diventa pagina standalone su /test2:
+// legge lo stesso token Google di ImageLab (dv_google_id_token).
+// ============================================================
+const TEST2_TOKEN_STORAGE_KEY = "dv_google_id_token";
+
+function readTest2Token() {
+  try {
+    return (
+      window.sessionStorage.getItem(TEST2_TOKEN_STORAGE_KEY) ||
+      window.localStorage.getItem(TEST2_TOKEN_STORAGE_KEY) ||
+      null
+    );
+  } catch (e) {
+    return null;
+  }
 }
-@media (max-width:560px){
-  .lc-wrap{padding:20px 14px 56px}
-  .lc-entry header{flex-wrap:wrap}
-  .lc-chips{grid-template-columns:repeat(2,minmax(0,1fr))}
+
+export default function Test2() {
+  const [idToken, setIdToken] = useState(readTest2Token);
+
+  useEffect(() => {
+    const onStorage = () => setIdToken(readTest2Token());
+    window.addEventListener("storage", onStorage);
+    const t = setInterval(() => setIdToken(readTest2Token()), 2000);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      clearInterval(t);
+    };
+  }, []);
+
+  if (!idToken) {
+    return (
+      <div style={{ padding: "2rem", color: "var(--ink-dim, #8fa1ac)" }}>
+        Sessione non trovata: accedi da ImgLab o Improve, poi riapri questa pagina.
+      </div>
+    );
+  }
+
+  return (
+    <div className="il-page">
+      <StoriesTab idToken={idToken} />
+    </div>
+  );
 }
-@media (prefers-reduced-motion:reduce){.lc-pulse,.lc-spin{animation:none}}
-.lc-select{padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--ink);font:inherit;font-size:13px}
-.lc-select option{color:#111}
-.lc-audio-form{display:flex;flex-direction:column;gap:10px}
-.lc-audio-ta{width:100%;box-sizing:border-box;resize:vertical;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-family:var(--mono);font-size:14px;line-height:1.5}
-.lc-audio-ta:focus{outline:none;border-color:rgba(63,208,201,.5)}
-.lc-audio-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
-.lc-check{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-dim);cursor:pointer}
-.lc-btn--rec{background:rgba(248,113,113,.2);border-color:var(--bad);color:#fecaca}
-.lc-rec{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.2)}
-.lc-rec .lc-cmd-head{margin-bottom:8px}
-.lc-rec-audio{width:100%}
-.lc-audio .lc-err{margin-top:10px}
-.lc-audio-hint{margin-top:8px}
-.lc-audio-out{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.28);overflow:hidden}
-.lc-audio-out header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);font-size:13px;font-weight:600}
-.lc-player{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
-.lc-player-top{display:flex;align-items:center;gap:10px}
-.lc-time{font-family:var(--mono);font-size:11.5px;color:var(--ink-dim);white-space:nowrap}
-.lc-seek{flex:1;min-width:0;cursor:pointer;accent-color:var(--accent)}
-.lc-speed{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.lc-btn--sm.is-on{background:var(--accent);border-color:var(--accent);color:#07201f}
-.lc-play.is-on{background:var(--bad);border-color:var(--bad);color:#fff}
-@media (max-width:560px){.lc-player-top{flex-wrap:wrap}.lc-seek{flex-basis:100%}}
-@media (max-width:560px){
-  .lc-bg{opacity:.55}
-  .lc-shade{background:linear-gradient(180deg,rgba(11,16,21,.10) 0%,rgba(11,16,21,.22) 70%)}
-}
-` 
-
-
-
-
