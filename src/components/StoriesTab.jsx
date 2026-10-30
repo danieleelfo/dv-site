@@ -1,7 +1,8 @@
 // src/components/StoriesTab.jsx
-// TAB STORIES — Story Whisper con testo + audio TTS + illustrazioni.
-// Autonomo: per il merge in ImageLab basta copiare questo file e
-// aggiungere il tab (nessuna dipendenza da Test4 oltre a idToken).
+// TAB STORIES — aggiornato con le funzionalita LeleAdmin: titoli di tutte
+// le scene in griglia subito dopo la pianificazione, stato per card
+// (In attesa / In coda / Generazione / Pronta / Riprovo / Errore),
+// step default 5 con massimo 15.
 //
 // Flusso:
 //   1. POST /api/chat (agent "Story Whisper", prompt "audio e testo …")
@@ -116,7 +117,7 @@ export default function StoriesTab({ idToken }) {
   // regCount = "" significa "come la versione esistente" (default).
   const [regCount, setRegCount] = useState("");
   const [regFormat, setRegFormat] = useState("1024x768");
-  const [regSteps, setRegSteps] = useState(8);
+  const [regSteps, setRegSteps] = useState(5);
   // regPreset = "" significa "come la storia" (sw_kids per Story Whisper,
   // ns_free per Night Story), altrimenti override esplicito per test.
   const [regPreset, setRegPreset] = useState("");
@@ -137,7 +138,7 @@ export default function StoriesTab({ idToken }) {
   const [regDone, setRegDone] = useState("");
   // F4-B/C: formato e step delle illustrazioni.
   const [imageFormat, setImageFormat] = useState("1024x768");
-  const [imageSteps, setImageSteps] = useState(8);
+  const [imageSteps, setImageSteps] = useState(5);
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState("");
   const [error, setError] = useState("");
@@ -410,6 +411,19 @@ export default function StoriesTab({ idToken }) {
       });
 
       // ------------------------------------------------------
+      // Tutte le scene in UI SUBITO dopo la pianificazione
+      // (come LeleAdmin): si vedono i 12 titoli in griglia, poi
+      // ogni card passa da "In attesa" a "In coda…" → "Pronta".
+      // ------------------------------------------------------
+      setCurrent((c) =>
+        c ? { ...c, scenes: scenes.map((s) => ({ ...s, src: "", status: "In attesa" })) } : c
+      );
+      setStage(
+        "✍️ Piano pronto: " + scenes.length + " scene selezionate " +
+        "(planner: " + storyModel + " · " + Math.max(1, Math.min(15, Number(imageSteps) || 5)) + " step) — inizio illustrazioni…"
+      );
+
+      // ------------------------------------------------------
       // 3. Libero la RAM di Ollama prima del loop immagini.
       // ------------------------------------------------------
       try {
@@ -432,6 +446,10 @@ export default function StoriesTab({ idToken }) {
         let imageStage = "avvio immagine " + sceneNumber + "/" + total;
 
         setStage("🎨 Immagine " + sceneNumber + "/" + total + ": " + scene.title + " — in coda…");
+        setCurrent((c) =>
+          c ? { ...c, scenes: (c.scenes || []).map((s, i) =>
+            i === index ? { ...s, status: "In coda…" } : s) } : c
+        );
 
         try {
           // F3: lo stile "storia per bambini" è applicato anche dal
@@ -440,7 +458,7 @@ export default function StoriesTab({ idToken }) {
           const [fmtWidth, fmtHeight] = String(imageFormat || "1024x768")
             .split("x")
             .map(Number);
-          const sceneSteps = Math.max(1, Math.min(100, Number(imageSteps) || 8));
+          const sceneSteps = Math.max(1, Math.min(15, Number(imageSteps) || 5));
           const jobId = await createImageJob(idToken, scene.prompt, {
             preset: kidsMode ? "sw_kids" : (genre ? "ns_free" : ""),
             width: fmtWidth,
@@ -454,11 +472,16 @@ export default function StoriesTab({ idToken }) {
           imageStage = "controllo stato immagine " + sceneNumber + "/" + total;
           const result = await waitForImageResult(idToken, jobId, {
             fetchStatus: () => fetchJobStatus(jobId),
-            onProgress: (status) =>
+            onProgress: (status) => {
               setStage(
                 "🎨 Immagine " + sceneNumber + "/" + total + " (" + scene.title + "): " +
                 (status === "running" || status === "processing" ? "generazione in corso" : "in coda") + "…"
-              ),
+              );
+              setCurrent((c) =>
+                c ? { ...c, scenes: (c.scenes || []).map((s, i) =>
+                  i === index ? { ...s, status: "Generazione…" } : s) } : c
+              );
+            },
           });
 
           imageStage = "download immagine " + sceneNumber + "/" + total;
@@ -469,7 +492,10 @@ export default function StoriesTab({ idToken }) {
           doneScenes.push({ ...scene, job_id: jobId, src, seconds: sceneSeconds, status: "Pronta" });
           setStage("✅ Immagine " + sceneNumber + "/" + scenes.length + " pronta in " + formatSeconds(sceneSeconds) + ".");
           setCurrent((c) =>
-            c ? { ...c, scenes: doneScenes.map((s) => ({ ...s })) } : c
+            c ? { ...c, scenes: (c.scenes || []).map((s, i) =>
+              i === index
+                ? { ...s, job_id: jobId, src, seconds: sceneSeconds, status: "Pronta" }
+                : s) } : c
           );
 
           if (index < scenes.length - 1) {
@@ -486,6 +512,10 @@ export default function StoriesTab({ idToken }) {
           if (!sceneRetried.has(sceneNumber)) {
             sceneRetried.add(sceneNumber);
             setStage("🔄 Errore di rete sull'immagine " + sceneNumber + "/" + scenes.length + " — attendo 60s e riprovo la scena…");
+            setCurrent((c) =>
+              c ? { ...c, scenes: (c.scenes || []).map((s, i) =>
+                i === index ? { ...s, status: "Riprovo…" } : s) } : c
+            );
             await sleep(60000);
             index -= 1;
             continue;
@@ -494,6 +524,10 @@ export default function StoriesTab({ idToken }) {
           setError(
             "Immagine " + sceneNumber + "/" + scenes.length + " (" + scene.title + "), " +
             imageStage + ": " + (err.message || "errore sconosciuto")
+          );
+          setCurrent((c) =>
+            c ? { ...c, scenes: (c.scenes || []).map((s, i) =>
+              i === index ? { ...s, status: "Errore" } : s) } : c
           );
           break;
         }
@@ -589,6 +623,23 @@ export default function StoriesTab({ idToken }) {
         },
       });
 
+      // ------------------------------------------------------
+      // Tutte le scene della nuova versione in UI SUBITO
+      // (come LeleAdmin): titoli V{nextVersion} visibili da
+      // subito, poi ogni card "In attesa" → "Pronta".
+      // ------------------------------------------------------
+      setCurrent((c) =>
+        c ? { ...c, scenes: [
+          ...(c.scenes || []).filter((s) => (Number(s?.version) || 1) !== nextVersion),
+          ...scenes.map((s, i) => ({ ...s, src: "", status: "In attesa", version: nextVersion, regIndex: i })),
+        ] } : c
+      );
+      setActiveVersion(nextVersion);
+      setStage(
+        "✍️ V" + nextVersion + " — piano pronto: " + scenes.length + " scene selezionate " +
+        "(planner: " + regModel + " · " + Math.max(1, Math.min(15, Number(regSteps) || 5)) + " step) — inizio illustrazioni…"
+      );
+
       // 2. Libero la RAM di Ollama prima delle immagini.
       try {
         setStage("🧹 Libero la RAM usata da Ollama prima delle immagini…");
@@ -607,11 +658,16 @@ export default function StoriesTab({ idToken }) {
         const total = scenes.length;
         let imageStage = "avvio immagine " + sceneNumber + "/" + total;
         setStage("🔁 V" + nextVersion + " — Immagine " + sceneNumber + "/" + total + ": " + scene.title + " — in coda…");
+        setCurrent((c) =>
+          c ? { ...c, scenes: (c.scenes || []).map((s) =>
+            (Number(s?.version) || 1) === nextVersion && s.regIndex === index
+              ? { ...s, status: "In coda…" } : s) } : c
+        );
         try {
           const [fmtWidth, fmtHeight] = String(regFormat || "1024x768")
             .split("x")
             .map(Number);
-          const sceneSteps = Math.max(1, Math.min(100, Number(regSteps) || 8));
+          const sceneSteps = Math.max(1, Math.min(15, Number(regSteps) || 5));
           const jobId = await createImageJob(idToken, scene.prompt, {
             preset,
             width: fmtWidth,
@@ -623,11 +679,17 @@ export default function StoriesTab({ idToken }) {
           imageStage = "controllo stato immagine " + sceneNumber + "/" + total;
           const result = await waitForImageResult(idToken, jobId, {
             fetchStatus: () => fetchJobStatus(jobId),
-            onProgress: (status) =>
+            onProgress: (status) => {
               setStage(
                 "🔁 V" + nextVersion + " — Immagine " + sceneNumber + "/" + total + " (" + scene.title + "): " +
-                  (status === "running" || status === "processing" ? "generazione in corso" : "in coda") + "…"
-              ),
+                (status === "running" || status === "processing" ? "generazione in corso" : "in coda") + "…"
+              );
+              setCurrent((c) =>
+                c ? { ...c, scenes: (c.scenes || []).map((s) =>
+                  (Number(s?.version) || 1) === nextVersion && s.regIndex === index
+                    ? { ...s, status: "Generazione…" } : s) } : c
+              );
+            },
           });
           imageStage = "download immagine " + sceneNumber + "/" + total;
           const src = resultToDataUrl(result);
@@ -645,7 +707,10 @@ export default function StoriesTab({ idToken }) {
           });
           setRegProgress({ done: doneScenes.length, total: scenes.length });
           setCurrent((c) =>
-            c ? { ...c, scenes: [...(c.scenes || []).filter((s) => (Number(s?.version) || 1) !== nextVersion), ...doneScenes.map((s) => ({ ...s }))] } : c
+            c ? { ...c, scenes: (c.scenes || []).map((s) =>
+              (Number(s?.version) || 1) === nextVersion && s.regIndex === index
+                ? { ...s, job_id: jobId, src, seconds: sceneSeconds, status: "Pronta" }
+                : s) } : c
           );
           if (index < scenes.length - 1) {
             setStage("⏳ Pausa 12s prima dell'immagine successiva (libero la RAM del Mac)…");
@@ -661,6 +726,11 @@ export default function StoriesTab({ idToken }) {
           if (!sceneRetried.has(sceneNumber)) {
             sceneRetried.add(sceneNumber);
             setStage("🔄 Errore di rete sull'immagine " + sceneNumber + "/" + scenes.length + " — attendo 60s e riprovo la scena…");
+            setCurrent((c) =>
+              c ? { ...c, scenes: (c.scenes || []).map((s) =>
+                (Number(s?.version) || 1) === nextVersion && s.regIndex === index
+                  ? { ...s, status: "Riprovo…" } : s) } : c
+            );
             await sleep(60000);
             index -= 1;
             continue;
@@ -668,6 +738,11 @@ export default function StoriesTab({ idToken }) {
           setError(
             "Immagine " + sceneNumber + "/" + scenes.length + " (" + scene.title + "), " +
               imageStage + ": " + (err.message || "errore sconosciuto")
+          );
+          setCurrent((c) =>
+            c ? { ...c, scenes: (c.scenes || []).map((s) =>
+              (Number(s?.version) || 1) === nextVersion && s.regIndex === index
+                ? { ...s, status: "Errore" } : s) } : c
           );
           break;
         }
@@ -1367,3 +1442,5 @@ export default function StoriesTab({ idToken }) {
     </div>
   );
 }
+
+
