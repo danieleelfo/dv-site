@@ -4387,27 +4387,53 @@ def _port_process_info(port):
         if not pids:
             return {"running": False, "pid": None, "ram_mb": None, "command": None}
 
-        ps_out = _sp.run(
-            ["ps", "-o", "pid=,rss=,command=", "-p", ",".join(str(p) for p in pids)],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        ).stdout
+        # macOS: la memoria Metal/MPS del modello su GPU NON compare
+        # nell'RSS di ps (GraDV reale ~8GB mostrava ~140MB).
+        # La phys_footprint (stesso numero di Activity Monitor) la include.
+        def _footprint_mb(pid):
+            try:
+                fp_out = _sp.run(
+                    ["/usr/bin/footprint", str(pid)],
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                ).stdout
+            except Exception:
+                return 0.0
+            for line in fp_out.splitlines():
+                if "Physical footprint:" in line:
+                    val = line.split("Physical footprint:")[1].strip()
+                    units = {
+                        "K": 1 / 1024,
+                        "M": 1.0,
+                        "G": 1024.0,
+                        "T": 1024 * 1024,
+                    }
+                    for suf, mult in units.items():
+                        if val.endswith(suf):
+                            try:
+                                return float(val[:-1]) * mult
+                            except ValueError:
+                                return 0.0
+            return 0.0
 
-        total_kb = 0
+        total_mb = 0.0
         first = None
-        for line in ps_out.splitlines():
-            parts = line.strip().split(None, 2)
-            if len(parts) == 3:
-                kb = int(parts[1])
-                total_kb += kb
-                if first is None:
-                    first = {"pid": int(parts[0]), "command": parts[2][:120]}
+        for pid in pids:
+            cmd_out = _sp.run(
+                ["ps", "-o", "command=", "-p", str(pid)],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            ).stdout.strip()
+            if first is None and cmd_out:
+                first = {"pid": pid, "command": cmd_out[:120]}
+            total_mb += _footprint_mb(pid)
 
         return {
             "running": True,
             "pid": first["pid"] if first else None,
-            "ram_mb": round(total_kb / 1024, 1),
+            "ram_mb": round(total_mb, 1),
             "command": first["command"] if first else None,
         }
     except Exception as exc:
