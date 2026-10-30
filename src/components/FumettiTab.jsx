@@ -2,6 +2,10 @@
 // pensiero / urlo) disegnati lato server con Pillow (POST /api/image/bubbles).
 // Nessuna AI: come la modalita' "solo fusione" di Multifoto, la risposta e'
 // immediata e torna come PNG.
+//
+// UX: trascinamento fumetti, coda visibile in preview (tratto / puntini per
+// il pensiero), spostamento con le frecce (Shift = passo fine), duplica,
+// selezione = porta in primo piano, "usa risultato come nuova foto".
 
 import { useEffect, useRef, useState } from "react";
 
@@ -24,6 +28,7 @@ function decodeJwt(token) {
 }
 function valid(token) { const p = token ? decodeJwt(token) : null; return !!p?.exp && p.exp * 1000 > Date.now() + 5000; }
 function readToken() { try { const t = localStorage.getItem(TOKEN_KEY); return valid(t) ? t : ""; } catch { return ""; } }
+function clamp01(v) { return Math.max(0, Math.min(1, v)); }
 
 let _nextId = 1;
 
@@ -54,6 +59,27 @@ export default function FumettiTab({ embedded = false } = {}) {
   }, []);
 
   // ------------------------------------------------------------------
+  // Frecce: spostano il fumetto selezionato (Shift = passo fine).
+  // Canc/Backspace: eliminano il fumetto selezionato.
+  // Ignora i tasti quando il focus e' su input/textarea/select.
+  // ------------------------------------------------------------------
+  useEffect(() => {
+    function onKey(e) {
+      if (!selId) return;
+      const t = e.target;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); remove(selId); return; }
+      const step = e.shiftKey ? 0.002 : 0.01;
+      if (e.key === "ArrowLeft") { e.preventDefault(); patch(selId, { x: clamp01(sel.x - step) }); }
+      else if (e.key === "ArrowRight") { e.preventDefault(); patch(selId, { x: clamp01(sel.x + step) }); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); patch(selId, { y: clamp01(sel.y - step) }); }
+      else if (e.key === "ArrowDown") { e.preventDefault(); patch(selId, { y: clamp01(sel.y + step) }); }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selId, sel && sel.x, sel && sel.y]);
+
+  // ------------------------------------------------------------------
   // Foto
   // ------------------------------------------------------------------
   function onFile(event) {
@@ -80,13 +106,21 @@ export default function FumettiTab({ embedded = false } = {}) {
     setBubbles(bs => [...bs, {
       id,
       type: "speech",
-      text: "Nuovo fumetto",
+      text: "",
       x: 0.5, y: 0.2, w: 0.34,
       fontSize: 44,
       fill: "#ffffff",
       color: "#111111",
       tailX: 0.5, tailY: 0.7,
     }]);
+    setSelId(id);
+    setTailMode(false);
+  }
+
+  function duplicateBubble() {
+    if (!sel) return;
+    const id = _nextId++;
+    setBubbles(bs => [...bs, { ...sel, id, x: clamp01(sel.x + 0.04), y: clamp01(sel.y + 0.06) }]);
     setSelId(id);
     setTailMode(false);
   }
@@ -100,11 +134,20 @@ export default function FumettiTab({ embedded = false } = {}) {
     if (selId === id) setSelId(null);
   }
 
+  // Selezionare = anche portare in primo piano (z-order).
+  function bringToFront(id) {
+    setSelId(id);
+    setBubbles(bs => {
+      const b = bs.find(x => x.id === id);
+      return b ? [...bs.filter(x => x.id !== id), b] : bs;
+    });
+  }
+
   function onCanvasClick(event) {
     if (!file) return;
     const rect = event.currentTarget.getBoundingClientRect();
-    const fx = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
-    const fy = Math.max(0, Math.min(1, (event.clientY - rect.top) / rect.height));
+    const fx = clamp01((event.clientX - rect.left) / rect.width);
+    const fy = clamp01((event.clientY - rect.top) / rect.height);
     if (!sel) return;
     if (tailMode) {
       patch(sel.id, { tailX: fx, tailY: fy });
@@ -112,6 +155,38 @@ export default function FumettiTab({ embedded = false } = {}) {
     } else {
       patch(sel.id, { x: fx, y: fy });
     }
+  }
+
+  // Trascinamento del fumetto (pointer events, funziona anche su touch).
+  function onBubblePointerDown(e, b) {
+    if (e.button !== undefined && e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    bringToFront(b.id);
+    setTailMode(false);
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const cw = rect.width || 1;
+    const ch = rect.height || 1;
+    const startFx = b.x;
+    const startFy = b.y;
+    const startCx = e.clientX;
+    const startCy = e.clientY;
+    const move = (ev) => {
+      patch(b.id, {
+        x: clamp01(startFx + (ev.clientX - startCx) / cw),
+        y: clamp01(startFy + (ev.clientY - startCy) / ch),
+      });
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
   }
 
   // Rapporto tra la larghezza del PNG finale e quella del canvas visibile:
@@ -143,9 +218,10 @@ export default function FumettiTab({ embedded = false } = {}) {
       lineHeight: 1.3,
       border: "2px solid #111",
       borderRadius: radius,
-      cursor: "pointer",
+      cursor: "grab",
       whiteSpace: "pre-wrap",
       boxShadow: b.id === selId ? "0 0 0 3px #3fd0c9" : "none",
+      touchAction: "none",
     };
   }
 
@@ -154,13 +230,17 @@ export default function FumettiTab({ embedded = false } = {}) {
   // ------------------------------------------------------------------
   async function draw(event) {
     if (event) event.preventDefault();
-    if (!file || !bubbles.length || !token) return;
+    if (!file || !token) return;
+    const withText = bubbles.filter(b => (b.text || "").trim());
+    if (!withText.length) { setError("Aggiungi almeno un fumetto con del testo."); return; }
     setStatus("drawing");
     setError("");
     try {
+      // Payload pulito: solo i campi che il server conosce (niente id).
+      const clean = withText.map(({ id, ...rest }) => rest);
       const body = new FormData();
       body.append("image", file, file.name);
-      body.append("bubbles", JSON.stringify({ bubbles }));
+      body.append("bubbles", JSON.stringify({ bubbles: clean }));
       const res = await fetch(API + "/api/image/bubbles", {
         method: "POST",
         headers: { Authorization: "Bearer " + token },
@@ -192,6 +272,26 @@ export default function FumettiTab({ embedded = false } = {}) {
     document.body.appendChild(link);
     link.click();
     link.remove();
+  }
+
+  // Continua sul risultato: la vignetta finita diventa la nuova foto base
+  // (i fumetti restano, per fare altre battute sopra).
+  async function useResultAsPhoto() {
+    if (!resultUrl) return;
+    try {
+      const blob = await (await fetch(resultUrl)).blob();
+      const f = new File([blob], "fumetti-" + Date.now() + ".png", { type: "image/png" });
+      setFile(f);
+      const url = URL.createObjectURL(f);
+      setPreview(url);
+      const img = new Image();
+      img.onload = () => setNatW(img.naturalWidth || 1000);
+      img.src = url;
+      setResultUrl("");
+      setStatus("idle");
+    } catch (err) {
+      setError(err.message || String(err));
+    }
   }
 
   // ------------------------------------------------------------------
@@ -237,21 +337,44 @@ export default function FumettiTab({ embedded = false } = {}) {
           {preview && (
             <div className="fb-canvas" ref={canvasRef} onClick={onCanvasClick}>
               <img src={preview} alt="foto" draggable={false} />
+
+              {/* Code in preview: tratto dal centro del fumetto alla punta.
+                  thought = puntini. Sotto le bolle, così si vede solo fuori. */}
+              <svg className="fb-tailsvg" aria-hidden="true">
+                {bubbles.map(b => {
+                  const len = Math.hypot(b.tailX - b.x, b.tailY - b.y) * 100;
+                  if (len < 5) return null;
+                  return (
+                    <line
+                      key={b.id}
+                      x1={(b.x * 100) + "%"} y1={(b.y * 100) + "%"}
+                      x2={(b.tailX * 100) + "%"} y2={(b.tailY * 100) + "%"}
+                      stroke={b.fill}
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeDasharray={b.type === "thought" ? "0.1 8" : undefined}
+                    />
+                  );
+                })}
+              </svg>
+
               {bubbles.map(b => (
                 <div
                   key={b.id}
                   style={bubbleStyle(b)}
-                  onClick={(e) => { e.stopPropagation(); setSelId(b.id); }}
+                  onPointerDown={(e) => onBubblePointerDown(e, b)}
+                  onClick={(e) => { e.stopPropagation(); bringToFront(b.id); }}
                 >
-                  {b.text}
+                  {b.text || <span className="fb-empty">Testo…</span>}
                 </div>
               ))}
             </div>
           )}
 
           <p className="fb-hint">
-            Clic sulla foto: sposta il fumetto selezionato. Con "Posiziona coda"
-            attivo, il clic punta la coda del fumetto (chi parla).
+            Trascina i fumetti sulla foto, oppure clic per spostare il selezionato.
+            Frecce = spostamento preciso (Shift = fine), Canc = elimina.
+            Con "Posiziona coda" attivo, il clic punta la coda (chi parla).
           </p>
 
           <div className="fb-actions">
@@ -264,6 +387,9 @@ export default function FumettiTab({ embedded = false } = {}) {
               >
                 {tailMode ? "Clic la punta della coda…" : "Posiziona coda"}
               </button>
+            )}
+            {sel && (
+              <button type="button" className="fb-btn" onClick={duplicateBubble}>Duplica</button>
             )}
             {sel && (
               <button type="button" className="fb-btn fb-btn-danger" onClick={() => remove(sel.id)}>
@@ -364,6 +490,7 @@ export default function FumettiTab({ embedded = false } = {}) {
               <img src={resultUrl} alt="risultato" />
               <div className="fb-actions">
                 <button type="button" className="fb-btn fb-primary" onClick={downloadResult}>Scarica PNG</button>
+                <button type="button" className="fb-btn" onClick={useResultAsPhoto}>Usa come nuova foto</button>
               </div>
             </div>
           )}
@@ -396,6 +523,8 @@ const FB_STYLES = `
 .fb-upload small{display:block;color:var(--ink-dim,#8fa1ac);font-size:.72rem}
 .fb-canvas{position:relative;display:inline-block;max-width:100%;border:1px solid var(--border,#33414c);border-radius:9px;overflow:hidden;cursor:crosshair;background:#080c10}
 .fb-canvas img{display:block;max-width:100%;max-height:520px;user-select:none;-webkit-user-drag:none}
+.fb-tailsvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;filter:drop-shadow(0 1px 1px rgba(0,0,0,.25))}
+.fb-empty{opacity:.45;font-style:italic}
 .fb-hint{color:var(--ink-dim,#8fa1ac);font-size:.76rem;line-height:1.55;margin:.8rem 0}
 .fb-label{display:block;margin:.85rem 0 .4rem;color:var(--ink-dim,#8fa1ac);font-size:.78rem;font-weight:600}
 .fb-input{display:block;width:100%;min-width:0;padding:.7rem .8rem;border:1px solid var(--border,#1f2b35);border-radius:7px;background:var(--bg,#0b1015);color:var(--ink,#e7edf1);font:inherit;font-size:.88rem}
