@@ -135,7 +135,7 @@ async function readResponse(response) {
   return data;
 }
 
-export default function ImageLab() {
+export default function ImageLab({ initialTab = "genera" }) {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const loginButtonRef = useRef(null);
@@ -154,7 +154,7 @@ export default function ImageLab() {
   const [randomSeed, setRandomSeed] = useState(true);
   const [seed, setSeed] = useState("12345");
 
-  const [tab, setTab] = useState("genera");
+  const [tab, setTab] = useState(initialTab);
   const [initFile, setInitFile] = useState(null);
   const [initPreview, setInitPreview] = useState("");
   const [strength, setStrength] = useState(0.65);
@@ -2276,4 +2276,5 @@ const STYLES = `
   }
 }
 `;
+
 
