@@ -1,0 +1,52 @@
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
+
+// Serve i file statici dalla cartella 'public'
+app.use(express.static('public'));
+
+let players = [];
+
+io.on('connection', (socket) => {
+  if (players.length >= 2) {
+    socket.emit('message', 'Partita piena! Ci sono già due giocatori.');
+    return;
+  }
+  
+  players.push(socket.id);
+  console.log('Giocatore connesso:', socket.id);
+
+  // Il primo a connettersi è P1, il secondo è P2
+  socket.emit('role', players.length === 1 ? 'P1' : 'P2');
+
+  socket.on('disconnect', () => {
+    players = players.filter(id => id !== socket.id);
+    io.emit('message', 'L\'avversario si è disconnesso. Ricarica la pagina.');
+    console.log('Giocatore disconnesso:', socket.id);
+  });
+
+  // Segnala che un giocatore ha finito di posizionare le navi
+  socket.on('player_ready', () => {
+    socket.broadcast.emit('enemy_ready');
+  });
+
+  // Invia le coordinate del colpo all'avversario
+  socket.on('shoot', (coords) => {
+    socket.broadcast.emit('enemy_shoot', coords);
+  });
+
+  // Restituisce l'esito del colpo a chi ha sparato
+  socket.on('shot_result', (data) => {
+    socket.broadcast.emit('shot_result', data);
+  });
+});
+
+// Ascolta su tutte le interfacce di rete (0.0.0.0) per permettere ai telefoni di collegarsi
+server.listen(3000, '0.0.0.0', () => {
+  console.log('⚓ Server di Battaglia Navale in esecuzione!');
+  console.log('Per giocare dal telefono, collegati al Wi-Fi e digita l\'IP locale del tuo Mac seguito da :3000');
+});
