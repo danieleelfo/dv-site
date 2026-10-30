@@ -1486,7 +1486,154 @@ export default function Test2() {
 
   return (
     <div className="il-page">
+      <style>{STYLES}</style>
       <StoriesTab idToken={idToken} />
     </div>
   );
 }
+
+
+// ============================================================
+// STILI il-* — copiati da ImageLab.jsx: il tab Stories usa le stesse
+// classi, ma su /test2 la pagina ImageLab (che li iniettava) non c'è.
+// ============================================================
+const STYLES = `
+.il-page {
+  min-height: 100vh;
+  padding: 2rem 1.5rem 3rem;
+  background: var(--bg, #0b1015);
+  color: var(--ink, #e7edf1);
+  font-family: var(--sans, Inter, system-ui, sans-serif);
+}
+.il-container {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+}
+.il-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border, #1f2b35);
+}
+.il-header h1 {
+  font-family: var(--serif, Georgia, serif);
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 400;
+  letter-spacing: -.035em;
+}
+.il-eyebrow {
+  color: var(--accent, #3fd0c9);
+  font-size: .7rem;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  margin-bottom: .35rem;
+}
+.il-subtitle {
+  color: var(--ink-dim, #8fa1ac);
+  font-size: .9rem;
+}
+.il-account {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: .6rem;
+}
+.il-account > span {
+  color: var(--ink-dim, #8fa1ac);
+  font-size: .8rem;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.il-notice {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  margin: 1.25rem 0;
+  padding: .8rem 1rem;
+  border: 1px solid var(--border, #1f2b35);
+  border-radius: 8px;
+  background: var(--bg-alt, #0f151c);
+  color: var(--ink-dim, #8fa1ac);
+  font-size: .82rem;
+}
+.il-status-dot {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 7px #4ade8055;
+}
+.il-layout {
+  display: grid;
+  grid-template-columns: minmax(0, .92fr) minmax(0, 1.08fr);
+  align-items: start;
+  gap: 1rem;
+}
+.il-panel {
+  min-width: 0;
+  padding: 1.25rem;
+  border: 1px solid var(--border, #1f2b35);
+  border-radius: 12px;
+  background: var(--panel, #121a22);
+}
+.il-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+.il-section-heading h2 {
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+.il-label {
+  display: block;
+  margin-bottom: .45rem;
+  color: var(--ink-dim, #8fa1ac);
+  font-size: .78rem;
+  font-weight: 600;
+}
+.il-input {
+  width: 100%;
+  min-width: 0;
+  padding: .8rem .85rem;
+  border: 1px solid var(--border, #1f2b35);
+  border-radius: 7px;
+  outline: none;
+  background: var(--bg, #0b1015);
+  color: var(--ink, #e7edf1);
+  font: inherit;
+  font-size: .9rem;
+}
+.il-input:focus {
+  border-color: var(--accent, #3fd0c9);
+  box-shadow: 0 0 0 2px #3fd0c91a;
+}
+.il-input:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
+.il-prompt {
+  resize: vertical;
+  min-height: 145px;
+  line-height: 1.6;
+}
+.il-char-count {
+  margin-top: .3rem;
+  color: var(--ink-dim, #8fa1ac);
+  text-align: right;
+  font-size: .72rem;
+}
+.il-form-grid {
+  display: grid;
