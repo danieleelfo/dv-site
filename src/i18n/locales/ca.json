@@ -394,11 +394,19 @@
     "guard3": "Autenticació de Google amb verificació de correu, revalidada pel backend.",
     "guard4": "Aquesta pàgina no executa SQL directament al navegador.",
     "g": {
-      "status": "📊 Status / Sistema",
-      "airflow": "🌬️ Airflow",
-      "logs": "📜 Logs",
+      "stories": "📖 Històries (SW/NS)",
+      "core": "🤖 Core chat",
+      "db": "🗄️ Query DB",
+      "improve": "🛠️ Improve",
+      "synth": "🧪 Verify/Export/Synth",
+      "emergence": "🧠 Emergence / QE",
+      "worlds": "🌍 Worlds",
+      "airflow": "🌬️ Airflow / DAG",
+      "remote": "📁 Remot / Fitxers",
+      "tts": "🔊 TTS",
+      "process": "⚙️ Processos / Script",
+      "health": "📊 Salut",
       "git": "🔀 Git",
-      "users": "👤 Usuaris",
       "other": "🔧 Altres"
     },
     "err": {
