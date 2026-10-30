@@ -394,11 +394,19 @@
     "guard3": "Google-authenticatie met e-mailverificatie, opnieuw gevalideerd door de backend.",
     "guard4": "Deze pagina voert geen SQL direct in de browser uit.",
     "g": {
-      "status": "📊 Status / Systeem",
-      "airflow": "🌬️ Airflow",
-      "logs": "📜 Logs",
+      "stories": "📖 Verhalen (SW/NS)",
+      "core": "🤖 Core chat",
+      "db": "🗄️ Query DB",
+      "improve": "🛠️ Improve",
+      "synth": "🧪 Verify/Export/Synth",
+      "emergence": "🧠 Emergence / QE",
+      "worlds": "🌍 Worlds",
+      "airflow": "🌬️ Airflow / DAG",
+      "remote": "📁 Extern / Bestanden",
+      "tts": "🔊 TTS",
+      "process": "⚙️ Processen / Script",
+      "health": "📊 Gezondheid",
       "git": "🔀 Git",
-      "users": "👤 Gebruikers",
       "other": "🔧 Overige"
     },
     "err": {
