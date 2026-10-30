@@ -709,6 +709,14 @@ export default function ImageLab() {
     setImageUrl("");
     setUsedSeed(null);
     setProgress(null);
+    try {
+      const userEmail = parseJwt(idToken)?.email || "";
+      if (userEmail) {
+        localStorage.removeItem(`${ACTIVE_IMAGE_JOB_KEY}:${userEmail}`);
+      }
+    } catch {
+      // Nessuna azione necessaria.
+    }
     setJobId("");
     setElapsed(0);
 
