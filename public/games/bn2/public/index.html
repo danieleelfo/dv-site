@@ -129,6 +129,41 @@
         url('/assets/bn2InitP.jpg') center center / cover no-repeat;
     backdrop-filter: none;
   }
+
+  /* Schermate finali: vittoria e sconfitta */
+  #end-overlay.win {
+    background:
+      linear-gradient(rgba(5,15,25,0.28), rgba(5,15,25,0.48)),
+      url('/assets/bn2Win1.jpg') center center / cover no-repeat;
+    backdrop-filter: none;
+  }
+  #end-overlay.lose {
+    background:
+      linear-gradient(rgba(5,15,25,0.38), rgba(5,15,25,0.58)),
+      url('/assets/bn2Lose1.jpg') center center / cover no-repeat;
+    backdrop-filter: none;
+  }
+  #end-overlay h2 {
+    font-size: clamp(2rem, 7vw, 3.8rem);
+    letter-spacing: 4px;
+    color: var(--pearl);
+    text-shadow: 0 3px 8px rgba(0,0,0,0.95), 0 0 24px rgba(0,0,0,0.8);
+    padding: 12px 20px;
+    background: rgba(0,0,0,0.30);
+    border-radius: 8px;
+  }
+  #end-overlay p {
+    font-size: clamp(1rem, 3.5vw, 1.35rem);
+    color: #fff;
+    max-width: 600px;
+    text-shadow: 0 2px 6px rgba(0,0,0,0.95);
+    background: rgba(0,0,0,0.30);
+    padding: 10px 16px;
+    border-radius: 8px;
+  }
+  #end-overlay p:last-child {
+    font-size: clamp(0.8rem, 2.5vw, 1rem) !important;
+  }
   .overlay h2{
     font-size:1.25rem; letter-spacing:3px; color:var(--pearl);
     text-shadow:0 0 20px rgba(242,238,234,0.35);
@@ -375,6 +410,8 @@
         phase='ended';
         endTitle.textContent=won?'🏆 VITTORIA!':'💀 SCONFITTA';
         endText.textContent=won ? 'Hai affondato tutte le navi nemiche!' : 'La tua flotta giace sul fondo del mare.';
+        endOv.classList.remove('win','lose');
+        endOv.classList.add(won ? 'win' : 'lose');
         drawBoard(eCtx,enemyBoard,enemyShips,enemyHits,true);
         setTimeout(()=>endOv.style.display='flex',1100);
       }
