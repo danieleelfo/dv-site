@@ -73,6 +73,15 @@ function formatSeconds(seconds) {
 export default function StoriesTab({ idToken }) {
   const [prompt, setPrompt] = useState("");
   const [imageCount, setImageCount] = useState(3);
+  // Opzioni del box Audio di LeleAdmin, portate qui: agente (anche
+  // Night Story), TTS opzionale, filtro kids, genere NS, stile extra
+  // e modello planner della CREAZIONE (prima era fisso qwen2.5).
+  const [storyAgent, setStoryAgent] = useState(STORY_AGENT);
+  const [wantsTts, setWantsTts] = useState(true);
+  const [storyKids, setStoryKids] = useState(true);
+  const [storyGenre, setStoryGenre] = useState("Random");
+  const [storyStyle, setStoryStyle] = useState("");
+  const [storyModel, setStoryModel] = useState("qwen2.5");
   // Rigenerazione illustrazioni come nuova versione della stessa storia.
   const [regModel, setRegModel] = useState("qwen2.5");
   const [regStyle, setRegStyle] = useState("");
@@ -274,7 +283,7 @@ export default function StoriesTab({ idToken }) {
       // ------------------------------------------------------
       // 1. Storia + TTS da Story Whisper (via /api/chat).
       // ------------------------------------------------------
-      setStage("🌈 Story Whisper scrive la storia (testo + audio)…");
+      setStage("🌈 " + storyAgent + " scrive la storia" + (wantsTts ? " (testo + audio)" : "") + "…");
 
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 310000);
@@ -285,8 +294,8 @@ export default function StoriesTab({ idToken }) {
           headers: { "Content-Type": "application/json" },
           signal: controller.signal,
           body: JSON.stringify({
-            agent: STORY_AGENT,
-            prompt: "audio e testo " + prompt.trim(),
+            agent: storyAgent,
+            prompt: (wantsTts ? "audio e testo " : "") + prompt.trim(),
             chat_id: chatId,
             language: "it",
           }),
@@ -305,7 +314,7 @@ export default function StoriesTab({ idToken }) {
       if (audioFilename) {
         audioUrl =
           `${API}/api/chat/tts/` +
-          encodeURIComponent(STORY_AGENT) +
+          encodeURIComponent(storyAgent) +
           "/" +
           encodeURIComponent(audioFilename);
       }
@@ -314,7 +323,7 @@ export default function StoriesTab({ idToken }) {
         story_id: null,
         prompt: prompt.trim(),
         text: storyText,
-        agent: STORY_AGENT,
+        agent: storyAgent,
         audioUrl,
         scenes: [],
         createdAt: Date.now() / 1000,
@@ -329,7 +338,7 @@ export default function StoriesTab({ idToken }) {
         body: JSON.stringify({
           prompt: prompt.trim(),
           text: storyText,
-          agent: STORY_AGENT,
+          agent: storyAgent,
           audio_filename: audioFilename,
           language: "it",
           scenes: [],
@@ -344,12 +353,25 @@ export default function StoriesTab({ idToken }) {
       // 2. Pianificazione scene STATELESS (planStoryScenes condivisa:
       //    lotti di 3, retry + repair, fallback mistral → qwen2.5).
       // ------------------------------------------------------
+      // Art direction come nel box LeleAdmin: kids filter per Story
+      // Whisper, genere per Night Story, stile extra libero.
+      const kidsMode = storyAgent === STORY_AGENT && storyKids;
+      const genre = storyAgent === NS_AGENT ? String(storyGenre || "Random").trim() : "";
+      const artDirection = kidsMode
+        ? "Every image prompt must enforce a colorful cartoon storybook illustration style suitable for young children: safe, wholesome, no violence, no scary or adult content, friendly rounded shapes, bright cheerful lighting. "
+        : genre
+          ? 'Every image prompt must follow an artistic illustration style that matches the story genre "' + genre + '" (mature audiences, never a children style). '
+          : "";
+      const styleExtra = storyStyle.trim()
+        ? "Additional art direction from the user to apply to every scene: " + storyStyle.trim().slice(0, 500) + ". "
+        : "";
       const scenes = await planStoryScenes({
         idToken,
         storyText,
         imageCount,
-        styleClause: PRESET_CLAUSES.sw_kids,
-        model: "qwen2.5",
+        artDirection,
+        styleExtra,
+        model: storyModel,
         onStatus: (s) => {
           if (s.kind === "batch") {
             setStage("🧠 Ollama seleziona le scene " + s.from + "-" + s.to + " di " + s.total + "… (" + s.model + ")");
@@ -392,7 +414,7 @@ export default function StoriesTab({ idToken }) {
             .map(Number);
           const sceneSteps = Math.max(1, Math.min(100, Number(imageSteps) || 8));
           const jobId = await createImageJob(idToken, scene.prompt, {
-            preset: "sw_kids",
+            preset: kidsMode ? "sw_kids" : (genre ? "ns_free" : ""),
             width: fmtWidth,
             height: fmtHeight,
             steps: sceneSteps,
@@ -461,7 +483,7 @@ export default function StoriesTab({ idToken }) {
             body: JSON.stringify({
               prompt: prompt.trim(),
               text: storyText,
-              agent: STORY_AGENT,
+              agent: storyAgent,
               audio_filename: audioFilename,
               language: "it",
               scenes: doneScenes.map((s) => ({
@@ -470,7 +492,7 @@ export default function StoriesTab({ idToken }) {
                 job_id: s.job_id,
                 seconds: s.seconds,
                 version: 1,
-                planner: "qwen2.5",
+                planner: storyModel,
                 style_prompt: "",
               })),
             }),
@@ -763,6 +785,77 @@ export default function StoriesTab({ idToken }) {
           <div className="il-char-count">
             {prompt.length.toLocaleString()} / {MAX_PROMPT_CHARS.toLocaleString()}
           </div>
+
+          <div style={{ display: "flex", flexWrap: "wrap", gap: ".6rem", alignItems: "center", marginBottom: ".6rem" }}>
+            <select
+              className="il-input"
+              value={storyAgent}
+              onChange={(event) => setStoryAgent(event.target.value)}
+              style={{ flex: "0 0 auto", minWidth: "11rem" }}
+              aria-label="Agente della storia"
+              disabled={busy}
+            >
+              <option value="Story Whisper">🌈 Story Whisper</option>
+              <option value="Night Story">🌙 Night Story</option>
+            </select>
+            <label style={{ display: "flex", alignItems: "center", gap: ".35rem", fontSize: ".8rem", color: "var(--ink-dim, #8fa1ac)" }}>
+              <input
+                type="checkbox"
+                checked={wantsTts}
+                onChange={(event) => setWantsTts(event.target.checked)}
+                disabled={busy}
+              />
+              🎧 TTS
+            </label>
+            {storyAgent === STORY_AGENT && (
+              <label title="Stile cartoon storybook per bambini (preset sw_kids)">
+                <input
+                  type="checkbox"
+                  checked={storyKids}
+                  onChange={(event) => setStoryKids(event.target.checked)}
+                  disabled={busy}
+                  style={{ verticalAlign: "middle" }}
+                />{" "}
+                <span style={{ fontSize: ".8rem", color: "var(--ink-dim, #8fa1ac)" }}>🧒 Filtro kids</span>
+              </label>
+            )}
+            {storyAgent === NS_AGENT && (
+              <select
+                className="il-input"
+                value={storyGenre}
+                onChange={(event) => setStoryGenre(event.target.value)}
+                style={{ flex: "0 0 auto", minWidth: "9rem" }}
+                aria-label="Genere (Night Story)"
+                disabled={busy}
+              >
+                {["Random", "Amore", "Comico", "Culturale", "Drammatica", "Horror", "Osè", "Ricerca"].map((g) => (
+                  <option key={g} value={g}>{g}</option>
+                ))}
+              </select>
+            )}
+            <select
+              className="il-input"
+              value={storyModel}
+              onChange={(event) => setStoryModel(event.target.value)}
+              style={{ flex: "0 0 auto", minWidth: "9rem" }}
+              aria-label="Modello Ollama per la pianificazione scene"
+              disabled={busy}
+            >
+              {["qwen2.5", "mistral", "llama3", "gemma4", "deepseek-r1"].map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </div>
+          <input
+            className="il-input"
+            type="text"
+            value={storyStyle}
+            onChange={(event) => setStoryStyle(event.target.value)}
+            placeholder="Stile extra (opzionale): es. acquerello soft, matita colorata, cartoon manga…"
+            aria-label="Stile extra per la creazione"
+            style={{ marginBottom: ".6rem" }}
+            disabled={busy}
+          />
 
           <div className="il-form-grid">
             <div>
