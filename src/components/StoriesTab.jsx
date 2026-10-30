@@ -91,6 +91,10 @@ export default function StoriesTab({ idToken }) {
   // Mappa indice-scena -> incluso; assente = incluso (default tutte).
   const [comicScenes, setComicScenes] = useState({});
   const [comicBusy, setComicBusy] = useState(false);
+  // Progress della rigenerazione: {done, total} per la barra, e messaggio
+  // di fine che resta visibile anche dopo il busy.
+  const [regProgress, setRegProgress] = useState(null);
+  const [regDone, setRegDone] = useState("");
   // F4-B/C: formato e step delle illustrazioni.
   const [imageFormat, setImageFormat] = useState("1024x768");
   const [imageSteps, setImageSteps] = useState(8);
@@ -497,6 +501,8 @@ export default function StoriesTab({ idToken }) {
     setBusy(true);
     setError("");
     setImgStart(null);
+    setRegProgress(null);
+    setRegDone("");
     try {
       const storyText = current.text;
       const oldScenes = current.scenes || [];
@@ -584,6 +590,7 @@ export default function StoriesTab({ idToken }) {
             planner: regModel,
             style_prompt: regStyle.trim(),
           });
+          setRegProgress({ done: doneScenes.length, total: scenes.length });
           setCurrent((c) =>
             c ? { ...c, scenes: [...(c.scenes || []).filter((s) => (Number(s?.version) || 1) !== nextVersion), ...doneScenes.map((s) => ({ ...s }))] } : c
           );
@@ -644,11 +651,14 @@ export default function StoriesTab({ idToken }) {
         );
         setActiveVersion(nextVersion);
         await loadStories();
-        setStage("✅ Versione V" + nextVersion + " pronta (" + doneScenes.length + " illustrazioni con " + regModel + ", preset " + preset + ").");
+        const doneMsg = "✅ Versione V" + nextVersion + " pronta (" + doneScenes.length + " illustrazioni con " + regModel + ", preset " + preset + ").";
+        setStage(doneMsg);
+        setRegDone(doneMsg);
       } else {
         setStage("⏹ Nessuna illustrazione generata per V" + nextVersion + ".");
       }
     } catch (err) {
+      setRegDone("");
       setError(err.message || String(err));
     } finally {
       setBusy(false);
@@ -937,6 +947,34 @@ export default function StoriesTab({ idToken }) {
                   {busy ? "Lavoro in corso…" : "🔁 Rigenera come V" + ((versions[versions.length - 1] || 0) + 1)}
                 </button>
               </div>
+
+              {/* Progress live della rigenerazione, qui dove l'hai avviata */}
+              {busy && regProgress && (
+                <div style={{ marginTop: ".7rem" }}>
+                  <div style={{ height: "6px", borderRadius: "3px", background: "var(--border, #1f2b35)", overflow: "hidden" }}>
+                    <div
+                      style={{
+                        width: (regProgress.total ? (100 * regProgress.done) / regProgress.total : 0) + "%",
+                        height: "100%",
+                        background: "var(--accent, #3fd0c9)",
+                        transition: "width .4s ease",
+                      }}
+                    />
+                  </div>
+                  <p className="il-hint" style={{ margin: ".45rem 0 0" }}>
+                    Scene pronte: {regProgress.done}/{regProgress.total}
+                  </p>
+                </div>
+              )}
+              {busy && stage && (
+                <p className="il-hint" style={{ margin: ".45rem 0 0" }}>{stage}</p>
+              )}
+              {busy && imgStart != null && (
+                <p className="il-hint" style={{ margin: ".25rem 0 0" }}>⏱ Immagine corrente: {formatSeconds(imgElapsed)}</p>
+              )}
+              {!busy && regDone && (
+                <p className="il-hint" style={{ margin: ".45rem 0 0", color: "var(--accent, #3fd0c9)" }}>{regDone}</p>
+              )}
               <div style={{ display: "flex", flexWrap: "wrap", gap: ".4rem", marginTop: ".6rem" }}>
                 <input
                   className="il-input"
