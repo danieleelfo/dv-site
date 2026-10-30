@@ -423,6 +423,7 @@
     "footerSrc": "Bron: gateway.py + git_admin.py + query_db.py · bijgewerkt 24 oktober 2026",
     "footerStatic": "Statische pagina: geen afhankelijkheid van de backend",
     "note": {
+    "stories": "Strip-PDF's van verhalen, zonder Airflow/Telegram.",
       "chat": "Dialoog met de publieke agents. Geen authenticatie.",
       "barai": "Horeca-assistent + admin-proxy.",
       "admin": "Privékanaal met Lele Admin.",
@@ -434,6 +435,9 @@
       "querydb": "Read-only browse van de PostgreSQL-databases (query_db.py)."
     },
     "ep": {
+    "imgCompose": "Multifoto-compositie: voegt tot 12 foto's samen tot één PNG (Pillow).",
+    "comicPdf": "Strip-PDF van het verhaal op aanvraag.",
+    "imgHealth": "process = Gradio UI (poort 7860), model_server = lite/full-motor die het model in RAM houdt (poort 7999, valt uit bij inactiviteit).",
       "chat": "Tekstchat met een publieke agent.",
       "chatAudio": "Spraakchat (multipart): audio + agent.",
       "chatTts": "Download een TTS-audio gegenereerd door een agent.",
@@ -468,6 +472,8 @@
       "ollamaUnload": "Laadt de Ollama-modellen uit het RAM (keep_alive=0)."
     },
     "nt": {
+    "imgCompose": "Layouts grid/side/stack/bg, crossfade 0-0,45. Het composit kan daarna naar img2img.",
+    "comicPdf": "Composeert de illustraties met Pillow via leles/core/story_pdf_report. Vereist een actuele leles-repo op de Mac.",
       "chat": "De gateway stuurt door naar 127.0.0.1:{poort}/ask van de betreffende agent.",
       "chatAudio": "Alleen Story Whisper (8088) en Night Story (8666) hebben audio-invoer.",
       "barAsk": "Proxy naar Bar AI op poort 8081.",

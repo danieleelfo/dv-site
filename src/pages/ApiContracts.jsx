@@ -2,7 +2,7 @@
 // API CONTRACTS (contratti API del gateway)
 // Pagina statica di documentazione: nessuna chiamata al backend
 // oltre alla verifica del login Google. Nessuna modifica backend.
-// Dati allineati a gateway.py / git_admin.py / query_db.py / admin_routes.py (27 ottobre 2026).
+// Dati allineati a gateway.py / git_admin.py / query_db.py / admin_routes.py (30 ottobre 2026).
 // ============================================================
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -208,7 +208,15 @@ const GROUPS = [
       {
         method: "GET", path: "/api/image/health", auth: true,
         summary: "api.ep.imgHealth",
-        request: "—", response: '{ ...stato... }',
+        request: "—",
+        response: '{
+  "gateway": "ok", "generator": "ok",
+  "url": "http://127.0.0.1:7860",
+  "api": true,
+  "process":      { "running", "pid", "ram_mb", "command" },  // UI Gradio (7860)
+  "model_server": { "running", "pid", "ram_mb", "backend", "model_loaded" }  // motore lite/full (7999)
+}',
+        notes: "api.nt.imgHealth",
       },
       {
         method: "POST", path: "/api/image/jobs", auth: true,
@@ -237,6 +245,19 @@ const GROUPS = [
         notes: "api.nt.img2img",
       },
       {
+        method: "POST", path: "/api/image/compose", auth: true,
+        summary: "api.ep.imgCompose",
+        request: 'Content-Type: multipart/form-data
+
+images:  <1-12 file immagine, max 15 MB ciascuna>
+layout:  "grid" | "side" | "stack" | "bg"
+blend:   0.0    // dissolvenza cross-fade, 0-0.45
+width:   1024
+height:  1024',
+        response: "image/png — il composito (da mandare poi a /api/image/img2img)",
+        notes: "api.nt.imgCompose",
+      },
+      {
         method: "GET", path: "/api/image/history", auth: true,
         summary: "api.ep.imgHistory",
         request: "—",
@@ -247,6 +268,24 @@ const GROUPS = [
         summary: "api.ep.imgHistoryImg",
         request: "—",
         response: "image/png (FileResponse)",
+      },
+    ],
+  },
+  {
+    id: "stories", label: "Stories", icon: "📖",
+    note: "api.note.stories",
+    endpoints: [
+      {
+        method: "POST", path: "/api/admin/stories/{story_id}/comic_pdf", auth: true,
+        summary: "api.ep.comicPdf",
+        request: '{
+  "captions": true,
+  "layout": "pages",          // pages | collage | strip
+  "page_format": "landscape", // landscape | portrait (A4 @ 96 dpi)
+  "version": 2                // opzionale: assente = versione attiva
+}',
+        response: "application/pdf — fumetto_{story_id}_V{n}.pdf (download diretto)",
+        notes: "api.nt.comicPdf",
       },
     ],
   },

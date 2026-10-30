@@ -423,6 +423,7 @@
     "footerSrc": "Font: gateway.py + git_admin.py + query_db.py · actualitzat 24 d’octubre de 2026",
     "footerStatic": "Pàgina estàtica: sense dependència del backend",
     "note": {
+    "stories": "PDF còmic de les històries, sense passar per Airflow/Telegram.",
       "chat": "Diàleg amb els agents públics. Sense autenticació.",
       "barai": "Assistent de restauració + proxy admin.",
       "admin": "Canal privat amb Lele Admin.",
@@ -434,6 +435,9 @@
       "querydb": "Navegació read-only de les bases PostgreSQL (query_db.py)."
     },
     "ep": {
+    "imgCompose": "Composició multifoto: fusiona fins a 12 fotos en un PNG (Pillow).",
+    "comicPdf": "PDF còmic de la història sota demanda.",
+    "imgHealth": "process = UI Gradio (port 7860), model_server = motor lite/full que manté el model a RAM (port 7999, s'apaga quan està inactiu).",
       "chat": "Chat de text amb un agent públic.",
       "chatAudio": "Chat de veu (multipart): àudio + agent.",
       "chatTts": "Descarrega un àudio TTS generat per un agent.",
@@ -468,6 +472,8 @@
       "ollamaUnload": "Descarrega de la RAM els models Ollama carregats (keep_alive=0)."
     },
     "nt": {
+    "imgCompose": "Disposició grid/side/stack/bg, esvaït 0-0,45. El compost pot passar després a img2img.",
+    "comicPdf": "Compon les il·lustracions amb Pillow via leles/core/story_pdf_report. Requereix el repo leles actualitzat al Mac.",
       "chat": "El gateway reenvia a 127.0.0.1:{port}/ask de l’agent corresponent.",
       "chatAudio": "Només Story Whisper (8088) i Night Story (8666) tenen entrada d’àudio.",
       "barAsk": "Proxy cap a Bar AI al port 8081.",
