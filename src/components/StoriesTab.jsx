@@ -70,6 +70,10 @@ const PRESET_CLAUSES = {
   ns_free: "a consistent artistic illustration style for mature audiences. ",
 };
 
+function newChatId() {
+  return Math.floor(Math.random() * 9_000_000_000) + 1_000_000_000;
+}
+
 function getChatId() {
   try {
     const stored = window.localStorage.getItem(CHAT_ID_KEY);
@@ -102,6 +106,10 @@ export default function StoriesTab({ idToken }) {
   // Fumettatura deliberata: 2 pannelli affiancati, 3 in colonna,
   // 4 in griglia 2x2 (nata dal "bug figo" di mistral).
   const [storyStrip, setStoryStrip] = useState("");
+  // Nuovo contesto: se attivo, ogni storia parte con un chat_id nuovo
+  // (l'agente non vede le storie precedenti e non ricicla i personaggi).
+  // Se spento, usa il chat_id fisso salvato: l'agente ricorda tutto.
+  const [freshStory, setFreshStory] = useState(true);
   // Rigenerazione illustrazioni come nuova versione della stessa storia.
   const [regModel, setRegModel] = useState("qwen2.5");
   const [regStyle, setRegStyle] = useState("");
@@ -294,7 +302,7 @@ export default function StoriesTab({ idToken }) {
     setStage("");
     setCurrent(null);
 
-    const chatId = getChatId();
+    const chatId = freshStory ? newChatId() : getChatId();
     let storyText = "";
     let audioFilename = "";
     let savedStoryId = "";
@@ -826,6 +834,16 @@ export default function StoriesTab({ idToken }) {
                 disabled={busy}
               />
               🎧 TTS
+            </label>
+            <label title="Con un nuovo chat_id l'agente parte senza memoria: niente personaggi riciclati dalle storie precedenti">
+              <input
+                type="checkbox"
+                checked={freshStory}
+                onChange={(event) => setFreshStory(event.target.checked)}
+                disabled={busy}
+                style={{ verticalAlign: "middle" }}
+              />{" "}
+              <span style={{ fontSize: ".8rem", color: "var(--ink-dim, #8fa1ac)" }}>🔄 Nuovo contesto</span>
             </label>
             {storyAgent === STORY_AGENT && (
               <label title="Stile cartoon storybook per bambini (preset sw_kids)">
