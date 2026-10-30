@@ -88,6 +88,9 @@ export default function StoriesTab({ idToken }) {
   const [comicLayout, setComicLayout] = useState("pages");
   const [comicFormat, setComicFormat] = useState("landscape");
   const [comicCaptions, setComicCaptions] = useState(true);
+  // Estrai narrazione: estratto del testo della storia accanto a ogni
+  // immagine nel PDF (deterministico, lato server).
+  const [comicNarration, setComicNarration] = useState(false);
   // Mappa indice-scena -> incluso; assente = incluso (default tutte).
   const [comicScenes, setComicScenes] = useState({});
   const [comicBusy, setComicBusy] = useState(false);
@@ -691,6 +694,7 @@ export default function StoriesTab({ idToken }) {
           body: JSON.stringify({
             scene_indexes: selected,
             captions: comicCaptions,
+            narration: comicNarration,
             layout: comicLayout,
             page_format: comicFormat,
             version: shownVersion,
@@ -1046,6 +1050,15 @@ export default function StoriesTab({ idToken }) {
                     disabled={comicBusy}
                   />
                   Didascalie
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: ".35rem", fontSize: ".8rem", color: "var(--ink-dim, #8fa1ac)" }}>
+                  <input
+                    type="checkbox"
+                    checked={comicNarration}
+                    onChange={(event) => setComicNarration(event.target.checked)}
+                    disabled={comicBusy}
+                  />
+                  📜 Estrai narrazione
                 </label>
                 <button className="il-button il-primary" type="submit" disabled={comicBusy}>
                   {comicBusy ? "Compongo…" : "📖 Genera e scarica PDF"}

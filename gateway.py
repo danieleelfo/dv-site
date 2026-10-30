@@ -3643,6 +3643,9 @@ class ComicPdfRequest(BaseModel):
     # (lista vuota = tutte le scene).
     scene_indexes: list[int] = []
     captions: bool = True
+    # Estratto del testo della storia accanto a ogni immagine
+    # (solo layout pages/strip; in collage ignorato).
+    narration: bool = False
     # pages = 1 scena per pagina, collage = griglia 2x2, strip = unica
     # pagina verticale lunga.
     layout: str = "pages"
@@ -3708,6 +3711,7 @@ async def story_comic_pdf(
         {
             "scene_indexes": req.scene_indexes,
             "captions": req.captions,
+            "narration": req.narration,
             "layout": layout,
             "page_format": page_format,
             "version": req.version,
