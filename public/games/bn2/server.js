@@ -10,7 +10,8 @@ const io = new Server(server, {
   pingInterval: 10000
 });
 
-app.use(express.static('public'));
+const path = require('path');
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Gestiamo i ruoli in modo dinamico
 let p1Id = null;

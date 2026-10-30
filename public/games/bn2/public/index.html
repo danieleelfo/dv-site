@@ -19,10 +19,14 @@
   *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; margin:0; padding:0; }
   html,body{
     min-height:100%;
-    background: radial-gradient(ellipse at 30% 20%, #1a5a8a 0%, var(--ocean-deep) 65%);
+    background:
+      linear-gradient(rgba(5,15,25,0.65), rgba(5,15,25,0.75)),
+      url('/assets/bn2Init.jpg') center center / cover fixed no-repeat;
+    background-color:var(--ocean-deep);
     color:var(--text-light);
     font-family:'Courier New','Lucida Console',monospace;
-    overflow-x:hidden; user-select:none;
+    overflow-x:hidden;
+    user-select:none;
   }
   body::before{
     content:''; position:fixed; inset:0; pointer-events:none;
