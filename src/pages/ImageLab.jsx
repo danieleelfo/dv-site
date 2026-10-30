@@ -29,6 +29,7 @@ import FumettiTab from "../components/FumettiTab.jsx";
 const API = "https://api.danielevillanova.com";
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const TOKEN_STORAGE_KEY = "dv_google_id_token";
+const ACTIVE_IMAGE_JOB_KEY = "dv_image_lab_active_job";
 
 const POLL_INTERVAL = 5000;
 
@@ -218,7 +219,35 @@ export default function ImageLab() {
       return;
     }
 
-    setEmail(parseJwt(idToken)?.email || "");
+    const userEmail = parseJwt(idToken)?.email || "";
+    setEmail(userEmail);
+
+    if (!userEmail) return;
+
+    try {
+      const raw = localStorage.getItem(`${ACTIVE_IMAGE_JOB_KEY}:${userEmail}`);
+      if (!raw) return;
+
+      const saved = JSON.parse(raw);
+      if (!saved?.jobId) {
+        localStorage.removeItem(`${ACTIVE_IMAGE_JOB_KEY}:${userEmail}`);
+        return;
+      }
+
+      setJobId(String(saved.jobId));
+      setStatus("queued");
+      setProgress(Number.isFinite(saved.progress) ? saved.progress : null);
+      setStartedAt(Number.isFinite(saved.startedAt) ? saved.startedAt : Date.now());
+      setElapsed(
+        Number.isFinite(saved.startedAt)
+          ? Math.max(0, Math.floor((Date.now() - saved.startedAt) / 1000))
+          : 0
+      );
+      if (saved.prompt) setPrompt(saved.prompt);
+      setError("");
+    } catch {
+      // Un record locale non valido non deve bloccare Image Lab.
+    }
   }, [idToken]);
 
   useEffect(() => {
@@ -486,9 +515,11 @@ export default function ImageLab() {
 
     let cancelled = false;
     let timer = null;
+    let polling = false;
 
     async function poll() {
-      if (cancelled || controller.signal.aborted) return;
+      if (cancelled || controller.signal.aborted || polling) return;
+      polling = true;
 
       try {
         const response = await fetch(
@@ -561,6 +592,14 @@ export default function ImageLab() {
           setUsedSeed(result.seed ?? null);
           setProgress(100);
           setStatus("completed");
+          try {
+            const userEmail = parseJwt(idToken)?.email || "";
+            if (userEmail) {
+              localStorage.removeItem(`${ACTIVE_IMAGE_JOB_KEY}:${userEmail}`);
+            }
+          } catch {
+            // Il risultato resta comunque disponibile nella history del gateway.
+          }
           return;
         } else if (
           ["failed", "error", "cancelled", "canceled"].includes(nextStatus)
@@ -569,6 +608,14 @@ export default function ImageLab() {
 
           if (!data.error) {
             setError(t("img.genFailed"));
+          }
+          try {
+            const userEmail = parseJwt(idToken)?.email || "";
+            if (userEmail) {
+              localStorage.removeItem(`${ACTIVE_IMAGE_JOB_KEY}:${userEmail}`);
+            }
+          } catch {
+            // Nessuna azione necessaria.
           }
 
           return;
@@ -584,6 +631,8 @@ export default function ImageLab() {
         setError(
           t("img.connRetry", { message: err.message || String(err) })
         );
+      } finally {
+        polling = false;
       }
 
       if (!cancelled && !controller.signal.aborted) {
@@ -591,9 +640,20 @@ export default function ImageLab() {
       }
     }
 
+    function onVisibilityChange() {
+      if (document.visibilityState !== "visible") return;
+      if (timer) window.clearTimeout(timer);
+      timer = null;
+      poll();
+    }
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("focus", onVisibilityChange);
     poll();
 
     return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("focus", onVisibilityChange);
       cancelled = true;
 
       if (timer) window.clearTimeout(timer);
@@ -729,8 +789,26 @@ export default function ImageLab() {
         Number.isFinite(data.progress) ? data.progress : 0
       );
 
+      const newJobId = String(data.job_id);
+      try {
+        const userEmail = parseJwt(idToken)?.email || "";
+        if (userEmail) {
+          localStorage.setItem(
+            `${ACTIVE_IMAGE_JOB_KEY}:${userEmail}`,
+            JSON.stringify({
+              jobId: newJobId,
+              startedAt: now,
+              prompt: prompt.trim(),
+              progress: Number.isFinite(data.progress) ? data.progress : 0,
+            })
+          );
+        }
+      } catch {
+        // La generazione continua anche se lo storage del browser non è disponibile.
+      }
+
       setStatus("queued");
-      setJobId(String(data.job_id));
+      setJobId(newJobId);
     } catch (err) {
       setStatus("error");
       setError(err.message || String(err));
@@ -751,6 +829,14 @@ export default function ImageLab() {
   }
 
   function startAnotherVersion() {
+    try {
+      const userEmail = parseJwt(idToken)?.email || "";
+      if (userEmail) {
+        localStorage.removeItem(`${ACTIVE_IMAGE_JOB_KEY}:${userEmail}`);
+      }
+    } catch {
+      // Nessuna azione necessaria.
+    }
     setImageUrl("");
     setUsedSeed(null);
     setError("");
@@ -1253,6 +1339,14 @@ export default function ImageLab() {
                     onClick={() => {
                       setError("");
                       setStatus("idle");
+                      try {
+                        const userEmail = parseJwt(idToken)?.email || "";
+                        if (userEmail) {
+                          localStorage.removeItem(`${ACTIVE_IMAGE_JOB_KEY}:${userEmail}`);
+                        }
+                      } catch {
+                        // Nessuna azione necessaria.
+                      }
                       setJobId("");
                     }}
                   >
