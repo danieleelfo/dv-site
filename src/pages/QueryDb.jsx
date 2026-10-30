@@ -25,21 +25,65 @@ const AREAS = [
 
 const PAGE_SIZE = 50;
 
-// Gruppi del pannello UTENTI: ogni nome finisce nel primo gruppo i cui token
-// matchano (parole intere, non sottostringhe), altrimenti in "Altri".
+// ============================================================
+// GRUPPI UTENTI — mappa esplicita ruolo → gruppo.
+// I nomi dei ruoli sono noti e stabili (li scrive lele_api.py via
+// save_memory; routing in timoniere.py). Suffissi: ES = Lelé v2,
+// SW = lele_story_whisper, NS = lele_night_story.
+// Prima match esatto, poi pattern di serie (SW/NS, GIT_*, IMP_*),
+// altrimenti "Altri".
+// ============================================================
 const USER_GROUPS = [
-  { id: "status", label: "qdb.g.status", keys: ["status", "sistema", "os", "ram", "sys", "cpu", "disk", "mem"] },
-  { id: "airflow", label: "qdb.g.airflow", keys: ["airflow", "dag", "dags"] },
-  { id: "logs", label: "qdb.g.logs", keys: ["log", "logs"] },
-  { id: "git", label: "qdb.g.git", keys: ["git", "github"] },
-  { id: "users", label: "qdb.g.users", keys: ["user", "utente"] },
-  { id: "other", label: "qdb.g.other", keys: [] },
+  { id: "stories", label: "qdb.g.stories",
+    patterns: [/_SW$/, /_NS$/] },
+  { id: "core", label: "qdb.g.core",
+    roles: ["GEMMA_ES", "USER_ES", "LELE_ES", "GEMMA", "LELE", "LLAMA",
+            "Commander", "SUPER_LELES_ES"] },
+  { id: "db", label: "qdb.g.db",
+    roles: ["LELE_DB_ES", "LELE_DB"] },
+  { id: "improve", label: "qdb.g.improve",
+    roles: ["LELE_IMPROVE_ES"],
+    patterns: [/^IMP/, /^IMPROVER/] },
+  { id: "synth", label: "qdb.g.synth",
+    roles: ["LELE_VERIFY_ES", "LELE_EXPORT_ES", "LELE_PROCESS_ES", "LELE_SYNTH_ES"] },
+  { id: "emergence", label: "qdb.g.emergence",
+    roles: ["LELE_P_QPROMPTS_ES", "LELE_P_UPPROMPT_ES", "LELE_P_QMSG_ES",
+            "LELE_P_QSTATUS_ES", "LELE_P_B2B_ES", "LELE_P_DECISION_ES",
+            "LELE_P_DECISION_RUN_ES", "LELE_IMAGE_ES"] },
+  { id: "worlds", label: "qdb.g.worlds",
+    roles: ["LELE_P_SAVEWORLD_ES", "LELE_P_QWORLDS_ES", "LELE_P_QWORLD_ES"] },
+  { id: "airflow", label: "qdb.g.airflow",
+    roles: ["LELE_AIRFLOW_ES", "LELE_P_AFSTATUS_ES", "LELE_P_DAGPAUSE_ES",
+            "LELE_P_DAGUNPAUSE_ES", "LELE_P_ADDDAG_ES", "LELE_P_TASKRUN_ES",
+            "LELE_P_TASKLOG_ES", "LELE_P_EXPDAG_ES", "LELE_P_CREA_DAG"] },
+  { id: "remote", label: "qdb.g.remote",
+    roles: ["LELE_P_SENDFILE_ES", "LELE_P_REMOTETEST_ES", "LELE_P_REMOTELS_ES",
+            "LELE_P_REMOTEDL_ES", "LELE_P_REMOTEUL_ES"] },
+  { id: "tts", label: "qdb.g.tts",
+    roles: ["LELE_P_TTS_S_ES", "LELE_P_TTSCOPY_ES", "LELE_P_TTSINST_ES"] },
+  { id: "process", label: "qdb.g.process",
+    roles: ["LELE_P_START_ES", "LELE_P_STOP_ES", "LELE_P_RESTART_EXT_ES",
+            "LELE_P_UV_S_ES", "LELE_P_TEL_S_ES", "LELE_P_SYS_S_ES",
+            "LELE_P_LOGS_ES", "LELE_P_DIR_ES", "LELE_SCRIPT_ES",
+            "LELE_NEWS_ES", "LELE_DELIVERY_ES"] },
+  { id: "health", label: "qdb.g.health",
+    roles: ["LELE_P_IP_S_ES", "LELE_P_OS_S_ES", "LELE_P_RAM_S_ES"] },
+  { id: "git", label: "qdb.g.git",
+    patterns: [/^LELE_GIT/] },
+  { id: "other", label: "qdb.g.other", roles: [] },
 ];
+
 function userGroupOf(name) {
-  const tokens = String(name).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  const n = String(name);
+  // 1) match esatto (i ruoli sono un elenco chiuso)
   for (const g of USER_GROUPS) {
-    if (g.id === "other") continue;
-    if (tokens.some((t) => g.keys.includes(t))) return g;
+    if (g.id === "other" || !g.roles) continue;
+    if (g.roles.includes(n)) return g;
+  }
+  // 2) pattern di serie (SW/NS, GIT_*, IMP_*)
+  for (const g of USER_GROUPS) {
+    if (g.id === "other" || !g.patterns) continue;
+    if (g.patterns.some((p) => p.test(n))) return g;
   }
   return USER_GROUPS[USER_GROUPS.length - 1];
 }
