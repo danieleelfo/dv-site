@@ -1,10 +1,8 @@
 // ============================================================
-// TEST7 — OCR Lab avanzato
-// Test di estrazione testo con prompt personalizzato:
-// immagine + prompt -> gateway /api/vision/ocr (qwen2.5vl via Ollama).
-// Se il testo e' un timesheet, il gateway attiva l'agente JCS e la
-// pagina mostra anche il pannello di interpretazione.
-// Sovrascrive la Leles Admin Console (recuperabile in git history).
+// TEST7 — GraDV Archive (read-only)
+// Catalogo delle immagini presenti nel database principale GraDV.
+// Usa il login Google condiviso e gli endpoint protetti del gateway.
+// Nessuna funzione di modifica o cancellazione.
 // ============================================================
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -13,44 +11,13 @@ import { Link } from 'react-router-dom'
 const API = 'https://api.danielevillanova.com'
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
 const TOKEN_STORAGE_KEY = 'dv_google_id_token'
-
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024
-
-// Prompt preconfezionati: clic ne inserisce uno nell'area di testo,
-// dove resta modificabile prima dell'invio.
-const PROMPT_PRESETS = [
-  {
-    label: 'Leggi tutto',
-    prompt:
-      "Estrai tutto il testo presente in questa immagine. Riportalo fedelmente, mantenendo l'ordine di lettura. Se è una tabella, usa una riga per persona con i valori separati da |.",
-  },
-  {
-    label: 'Timesheet 🧾',
-    prompt:
-      'Estrai il testo di questo foglio di presenza. Per ogni persona riporta il nome seguito dalle lettere di stato di ogni giorno, separate da spazi. Una riga per persona, formato: NOME | lettere.',
-  },
-  {
-    label: 'Solo cifre',
-    prompt:
-      "Estrai da questa immagine solo numeri, prezzi e date. Riportali come elenco, uno per riga, nel formato che vedi nell'immagine.",
-  },
-  {
-    label: 'Fattura',
-    prompt:
-      "Estrai da questo documento i dati principali: mittente, destinatario, numero documento, data, totali e voci (descrizione, quantità, importo). Formatta come elenco.",
-  },
-]
-
-const DEFAULT_PROMPT = PROMPT_PRESETS[0].prompt
+const PAGE_SIZE = 24
 
 function parseJwt(token) {
   try {
     const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
     const json = decodeURIComponent(
-      atob(base64)
-        .split('')
-        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
-         .join('')
+      atob(base64).split('').map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')
     )
     return JSON.parse(json)
   } catch {
@@ -58,43 +25,82 @@ function parseJwt(token) {
   }
 }
 
-function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => {
-      const result = String(reader.result || '')
-      const comma = result.indexOf(';base64,')
-      resolve(comma >= 0 ? result.slice(comma + 8) : result)
-    }
-    reader.onerror = () => reject(new Error('Lettura del file non riuscita.'))
-    reader.readAsDataURL(file)
-  })
+function readToken() {
+  try {
+    const token = window.localStorage.getItem(TOKEN_STORAGE_KEY)
+      || window.sessionStorage.getItem(TOKEN_STORAGE_KEY)
+    const payload = token ? parseJwt(token) : null
+    return payload?.exp && payload.exp * 1000 > Date.now() + 5000 ? token : null
+  } catch {
+    return null
+  }
+}
+
+async function readJson(response) {
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    const detail = typeof data.detail === 'string' ? data.detail : `HTTP ${response.status}`
+    throw new Error(detail)
+  }
+  return data
+}
+
+function formatDate(value) {
+  if (!value) return 'Data non disponibile'
+  const date = new Date(value.includes?.('T') ? value : value.replace(' ', 'T') + 'Z')
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
 }
 
 export default function Test7() {
-  const [idToken, setIdToken] = useState(() => {
-    try {
-      return window.sessionStorage.getItem(TOKEN_STORAGE_KEY) || null
-    } catch {
-      return null
-    }
+  const [idToken, setIdToken] = useState(readToken)
+  const [profile, setProfile] = useState(() => {
+    const token = readToken()
+    return token ? parseJwt(token) : null
   })
-  const [profile, setProfile] = useState(() => (idToken ? parseJwt(idToken) : null))
   const [authError, setAuthError] = useState('')
   const [gsiReady, setGsiReady] = useState(false)
   const buttonRef = useRef(null)
 
-  const [image, setImage] = useState(null)
-  const [imagePreview, setImagePreview] = useState('')
-  const [prompt, setPrompt] = useState(DEFAULT_PROMPT)
-  const [busy, setBusy] = useState(false)
+  const [items, setItems] = useState([])
+  const [total, setTotal] = useState(0)
+  const [pages, setPages] = useState(1)
+  const [page, setPage] = useState(1)
+  const [query, setQuery] = useState('')
+  const [searchInput, setSearchInput] = useState('')
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [result, setResult] = useState(null)
-  const [copied, setCopied] = useState(false)
+  const [thumbs, setThumbs] = useState({})
+  const [selected, setSelected] = useState(null)
+  const [fullImage, setFullImage] = useState('')
+  const [detailLoading, setDetailLoading] = useState(false)
 
-  // ------------------------------------------------------------
-  // Login Google
-  // ------------------------------------------------------------
+  const revokeThumbs = useCallback((map) => {
+    Object.values(map || {}).forEach((url) => URL.revokeObjectURL(url))
+  }, [])
+
+  const logout = useCallback((message = '') => {
+    setIdToken(null)
+    setProfile(null)
+    setItems([])
+    setThumbs((old) => {
+      revokeThumbs(old)
+      return {}
+    })
+    setSelected(null)
+    setFullImage((old) => {
+      if (old) URL.revokeObjectURL(old)
+      return ''
+    })
+    setAuthError(message)
+    try {
+      window.localStorage.removeItem(TOKEN_STORAGE_KEY)
+      window.sessionStorage.removeItem(TOKEN_STORAGE_KEY)
+      window.google?.accounts?.id?.disableAutoSelect()
+    } catch {
+      /* no-op */
+    }
+  }, [revokeThumbs])
+
   useEffect(() => {
     if (idToken) return
     let cancelled = false
@@ -104,7 +110,7 @@ export default function Test7() {
       if (cancelled) return
       if (!window.google?.accounts?.id) {
         if (++attempts > 80) {
-          setAuthError('Impossibile caricare il login Google. Controlla adblock e rete.')
+          setAuthError('Impossibile caricare il login Google. Controlla rete e blocchi del browser.')
           return
         }
         setTimeout(tryInit, 150)
@@ -116,411 +122,289 @@ export default function Test7() {
       }
       window.google.accounts.id.initialize({
         client_id: GOOGLE_CLIENT_ID,
-        callback: handleCredentialResponse,
+        callback: (response) => {
+          const token = response?.credential
+          if (!token) {
+            setAuthError('Login Google fallito: token mancante.')
+            return
+          }
+          setProfile(parseJwt(token))
+          setIdToken(token)
+          setAuthError('')
+          try { window.localStorage.setItem(TOKEN_STORAGE_KEY, token) } catch { /* no-op */ }
+        },
       })
       if (buttonRef.current) {
         window.google.accounts.id.renderButton(buttonRef.current, {
-          type: 'standard',
-          theme: 'filled_black',
-          size: 'medium',
-          shape: 'pill',
+          type: 'standard', theme: 'filled_black', size: 'large', shape: 'pill',
         })
       }
       setGsiReady(true)
     }
 
     tryInit()
-    return () => {
-      cancelled = true
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { cancelled = true }
   }, [idToken])
 
-  function handleCredentialResponse(credentialResponse) {
-    const token = credentialResponse?.credential
-    if (!token) {
-      setAuthError('Login Google fallito: nessun token ricevuto.')
-      return
-    }
-    setAuthError('')
-    setProfile(parseJwt(token))
-    setIdToken(token)
-    try {
-      window.sessionStorage.setItem(TOKEN_STORAGE_KEY, token)
-    } catch {
-      /* no-op */
-    }
-  }
-
-  const logout = useCallback((message = '') => {
-    setIdToken(null)
-    setProfile(null)
-    setAuthError(message)
-    try {
-      window.sessionStorage.removeItem(TOKEN_STORAGE_KEY)
-      window.google?.accounts?.id?.disableAutoSelect()
-    } catch {
-      /* no-op */
-    }
-  }, [])
-
-  // ------------------------------------------------------------
-  // Immagine
-  // ------------------------------------------------------------
-  async function pickImage(file) {
+  const loadArchive = useCallback(async (targetPage = 1, targetQuery = query) => {
+    if (!idToken) return
+    setLoading(true)
     setError('')
-    setResult(null)
-
-    if (imagePreview) URL.revokeObjectURL(imagePreview)
-    setImagePreview('')
-    setImage(null)
-
-    if (!file) return
-
-    if (!file.type.startsWith('image/')) {
-      setError('Seleziona un file immagine.')
-      return
-    }
-    if (file.size > MAX_IMAGE_BYTES) {
-      setError('Immagine troppo grande (massimo 10 MB).')
-      return
-    }
-
-    setImage(file)
-    setImagePreview(URL.createObjectURL(file))
-  }
-
-  useEffect(() => {
-    return () => {
-      if (imagePreview) URL.revokeObjectURL(imagePreview)
-    }
-  }, [imagePreview])
-
-  // ------------------------------------------------------------
-  // OCR
-  // ------------------------------------------------------------
-  async function runOcr(event) {
-    event.preventDefault()
-    if (!image || busy) return
-
-    const cleanPrompt = prompt.trim()
-    if (!cleanPrompt) {
-      setError("Scrivi un'istruzione per il modello (o scegli un preset).")
-      return
-    }
-
-    setBusy(true)
-    setError('')
-    setResult(null)
-    setCopied(false)
-
+    setSelected(null)
+    setFullImage((old) => {
+      if (old) URL.revokeObjectURL(old)
+      return ''
+    })
     try {
-      const imageBase64 = await fileToBase64(image)
-      const controller = new AbortController()
-      const timer = setTimeout(() => controller.abort(), 320000)
+      const params = new URLSearchParams({
+        page: String(targetPage),
+        page_size: String(PAGE_SIZE),
+      })
+      if (targetQuery.trim()) params.set('q', targetQuery.trim())
 
-      let res
-      try {
-        res = await fetch(`${API}/api/vision/ocr`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${idToken}`,
-          },
-          signal: controller.signal,
-          body: JSON.stringify({ image_base64: imageBase64, prompt: cleanPrompt }),
-        })
-      } finally {
-        clearTimeout(timer)
-      }
-
-      if (res.status === 401 || res.status === 403) {
-        logout(res.status === 401 ? 'Sessione scaduta, rilogga.' : 'Accesso non autorizzato.')
+      const response = await fetch(`${API}/api/gradv/archive?${params}`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      })
+      if (response.status === 401 || response.status === 403) {
+        logout(response.status === 401 ? 'Sessione scaduta, accedi di nuovo.' : 'Accesso non autorizzato.')
         return
       }
-      if (!res.ok) {
-        let detail = `HTTP ${res.status}`
+      const data = await readJson(response)
+      setItems(data.items || [])
+      setTotal(Number(data.total || 0))
+      setPages(Math.max(1, Number(data.pages || 1)))
+      setPage(Number(data.page || targetPage))
+
+      const nextThumbs = {}
+      await Promise.all((data.items || []).map(async (item) => {
         try {
-          const data = await res.json()
-          detail = typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail)
+          const imageResponse = await fetch(
+            `${API}/api/gradv/archive/${item.id}/image?thumbnail=true`,
+            { headers: { Authorization: `Bearer ${idToken}` } }
+          )
+          if (!imageResponse.ok) throw new Error(`Anteprima HTTP ${imageResponse.status}`)
+          nextThumbs[item.id] = URL.createObjectURL(await imageResponse.blob())
         } catch {
-          /* no-op */
+          /* Una miniatura fallita non blocca l'intera galleria. */
         }
-        setError(detail)
-        return
-      }
-
-      const data = await res.json()
-      setResult({
-        text: data.text || '',
-        model: data.model || '',
-        isJcs: Boolean(data.is_jcs),
-        jcs: data.jcs || '',
+      }))
+      setThumbs((old) => {
+        revokeThumbs(old)
+        return nextThumbs
       })
     } catch (err) {
-      setError(err.name === 'AbortError' ? 'Timeout: il modello non ha risposto in 5 minuti.' : err.message)
+      setError(err.message || String(err))
+      setItems([])
+      setTotal(0)
+      setPages(1)
     } finally {
-      setBusy(false)
+      setLoading(false)
     }
-  }
+  }, [idToken, query, logout, revokeThumbs])
 
-  function copyText() {
+  useEffect(() => {
+    if (idToken) loadArchive(1, '')
+  }, [idToken, loadArchive])
+
+  useEffect(() => () => revokeThumbs(thumbs), [thumbs, revokeThumbs])
+
+  async function openImage(item) {
+    setSelected(item)
+    setDetailLoading(true)
+    setFullImage((old) => {
+      if (old) URL.revokeObjectURL(old)
+      return ''
+    })
     try {
-      navigator.clipboard?.writeText(result?.text || '')
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch {
-      /* no-op */
+      const response = await fetch(`${API}/api/gradv/archive/${item.id}/image`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      })
+      if (response.status === 401 || response.status === 403) {
+        logout('Sessione scaduta, accedi di nuovo.')
+        return
+      }
+      if (!response.ok) throw new Error(`Immagine non disponibile (HTTP ${response.status})`)
+      setFullImage(URL.createObjectURL(await response.blob()))
+    } catch (err) {
+      setError(err.message || String(err))
+    } finally {
+      setDetailLoading(false)
     }
   }
 
-  // ------------------------------------------------------------
-  // Render
-  // ------------------------------------------------------------
+  function closeImage() {
+    setSelected(null)
+    setFullImage((old) => {
+      if (old) URL.revokeObjectURL(old)
+      return ''
+    })
+  }
+
+  function submitSearch(event) {
+    event.preventDefault()
+    setQuery(searchInput)
+    loadArchive(1, searchInput)
+  }
+
   if (!idToken) {
     return (
-      <div className="oc-page">
+      <main className="ga-page">
         <style>{CSS}</style>
-        <div className="oc-container oc-center">
-          <p className="oc-eyebrow">D. VILLANOVA AI SISTEMAS</p>
-          <h1>OCR Lab</h1>
-          <p className="oc-sub">Accesso riservato — login Google</p>
-          {authError && <p className="oc-error">{authError}</p>}
-          <div ref={buttonRef} className="oc-gbtn" />
-          {!gsiReady && !authError && <p className="oc-hint">Caricamento login…</p>}
+        <div className="ga-login">
+          <p className="ga-eyebrow">D. VILLANOVA · AI SYSTEMS</p>
+          <h1>GraDV Archive</h1>
+          <p>Archivio immagini — accesso riservato</p>
+          {authError && <p className="ga-error">{authError}</p>}
+          <div ref={buttonRef} />
+          {!gsiReady && !authError && <p className="ga-muted">Caricamento login…</p>}
+          <Link className="ga-button" to="/image-lab">← Image Lab</Link>
         </div>
-      </div>
+      </main>
     )
   }
 
   return (
-    <div className="oc-page">
+    <main className="ga-page">
       <style>{CSS}</style>
-      <div className="oc-container">
-        <header className="oc-header">
+      <div className="ga-container">
+        <header className="ga-header">
           <div>
-            <p className="oc-eyebrow">D. VILLANOVA AI SISTEMAS</p>
-            <h1>OCR Lab</h1>
-            <p className="oc-sub">
-              Estrazione testo con prompt personalizzato — {result?.model || 'qwen2.5-vl'}
-            </p>
+            <p className="ga-eyebrow">D. VILLANOVA · AI SYSTEMS / TEST 07</p>
+            <h1>GraDV Archive</h1>
+            <p className="ga-subtitle">Archivio completo delle immagini — database principale GraDV</p>
           </div>
-          <div className="oc-account">
+          <div className="ga-account">
             <span title={profile?.email}>{profile?.email || 'account'}</span>
-            <Link className="oc-button" to="/image-lab">Image Lab ↗</Link>
-            <button className="oc-button" onClick={() => logout()}>Logout</button>
+            <Link className="ga-button" to="/image-lab">Image Lab ↗</Link>
+            <button className="ga-button" onClick={() => logout()}>Logout</button>
           </div>
         </header>
 
-        <div className="oc-layout">
-          {/* ---------------------------- INPUT ---------------------------- */}
-          <section className="oc-panel">
-            <p className="oc-eyebrow">01 / INPUT</p>
-            <h2>Immagine &amp; istruzioni</h2>
+        <section className="ga-toolbar">
+          <div>
+            <strong>{total.toLocaleString()} immagini</strong>
+            <span className="ga-muted"> · sola lettura · 24 per pagina</span>
+          </div>
+          <form className="ga-search" onSubmit={submitSearch}>
+            <input value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Cerca nel prompt…" aria-label="Cerca nel prompt" />
+            <button className="ga-button ga-primary" type="submit" disabled={loading}>Cerca</button>
+            {query && <button className="ga-button" type="button" onClick={() => {
+              setSearchInput(''); setQuery(''); loadArchive(1, '')
+            }}>Reset</button>}
+          </form>
+        </section>
 
-            <form onSubmit={runOcr}>
-              <label className="oc-label" htmlFor="oc-file">Immagine (max 10 MB)</label>
-              <div className="oc-file-row">
-                <input
-                  id="oc-file"
-                  type="file"
-                  accept="image/*"
-                  disabled={busy}
-                  onChange={(e) => pickImage(e.target.files?.[0] || null)}
-                />
-                {imagePreview && (
-                  <>
-                    <img className="oc-preview" src={imagePreview} alt="Anteprima" />
-                    <button
-                      type="button"
-                      className="oc-button"
-                      disabled={busy}
-                      onClick={() => pickImage(null)}
-                    >
-                      ✕ Rimuovi
-                    </button>
-                  </>
-                )}
+        {error && <div className="ga-error" role="alert">{error}</div>}
+        {loading && <div className="ga-loading"><span className="ga-spinner" /> Caricamento archivio GraDV…</div>}
+
+        {!loading && !error && items.length === 0 && (
+          <div className="ga-empty">Nessuna immagine trovata.</div>
+        )}
+
+        <section className="ga-grid" aria-label="Archivio immagini">
+          {items.map((item) => (
+            <button className="ga-card" key={item.id} onClick={() => openImage(item)}
+              type="button" title={item.prompt || `Immagine #${item.id}`}>
+              <div className="ga-thumb">
+                {thumbs[item.id]
+                  ? <img src={thumbs[item.id]} alt={item.prompt || `GraDV #${item.id}`} loading="lazy" />
+                  : <span>Anteprima…</span>}
               </div>
-
-              {image && (
-                <p className="oc-hint">
-                  {image.name} — {Math.round(image.size / 1024)} KB
-                </p>
-              )}
-
-              <label className="oc-label" htmlFor="oc-prompt">Istruzione per il modello</label>
-              <textarea
-                id="oc-prompt"
-                className="oc-textarea"
-                rows={5}
-                maxLength={2000}
-                value={prompt}
-                disabled={busy}
-                placeholder="Es. Estrai solo i totali di questa fattura…"
-                onChange={(e) => setPrompt(e.target.value)}
-              />
-
-              <div className="oc-presets">
-                <span className="oc-hint">Preset:</span>
-                {PROMPT_PRESETS.map((p) => (
-                  <button
-                    key={p.label}
-                    type="button"
-                    className="oc-button oc-preset"
-                    disabled={busy}
-                    onClick={() => setPrompt(p.prompt)}
-                    title={p.prompt}
-                  >
-                    {p.label}
-                  </button>
-                ))}
+              <div className="ga-card-meta">
+                <strong>#{item.id}</strong>
+                <span>{item.width && item.height ? `${item.width} × ${item.height}` : '—'}</span>
               </div>
+              <p>{item.prompt || 'Prompt non disponibile'}</p>
+              <small>{formatDate(item.created_at)}</small>
+            </button>
+          ))}
+        </section>
 
-              {error && (
-                <div className="oc-error" role="alert">{error}</div>
-              )}
+        {!loading && pages > 1 && (
+          <nav className="ga-pagination" aria-label="Paginazione">
+            <button className="ga-button" disabled={page <= 1} onClick={() => loadArchive(page - 1)}>← Precedente</button>
+            <span>Pagina <strong>{page}</strong> di <strong>{pages}</strong></span>
+            <button className="ga-button" disabled={page >= pages} onClick={() => loadArchive(page + 1)}>Successiva →</button>
+          </nav>
+        )}
 
-              <div className="oc-actions">
-                <button
-                  type="submit"
-                  className="oc-button oc-primary"
-                  disabled={busy || !image}
-                >
-                  {busy ? 'Analizzo…' : 'Estrai testo ▶'}
-                </button>
-                {result && (
-                  <button
-                    type="button"
-                    className="oc-button"
-                    onClick={() => {
-                      setResult(null)
-                      setError('')
-                    }}
-                  >
-                    Reset
-                  </button>
-                )}
-              </div>
-            </form>
-          </section>
-
-          {/* ---------------------------- OUTPUT ---------------------------- */}
-          <section className="oc-panel oc-result">
-            <div className="oc-result-head">
-              <div>
-                <p className="oc-eyebrow">02 / OUTPUT</p>
-                <h2>Risultato</h2>
-              </div>
-              {busy && <span className="oc-live">● LIVE</span>}
-            </div>
-
-            {busy && (
-              <div className="oc-progress">
-                <div className="oc-spinner" />
-                <p>Il modello vision sta leggendo l'immagine…</p>
-              </div>
-            )}
-
-            {!busy && !result && !error && (
-              <p className="oc-hint">
-                Carica un'immagine, scegli o scrivi l'istruzione ed estrai il testo.
-              </p>
-            )}
-
-            {result && (
-              <>
-                <div className="oc-result-block">
-                  <div className="oc-block-head">
-                    <span>Testo estratto</span>
-                    <button className="oc-button" onClick={copyText}>
-                      {copied ? 'Copiato ✓' : 'Copia'}
-                    </button>
-                  </div>
-                  <pre className="oc-pre">{result.text}</pre>
-                </div>
-
-                {result.isJcs && (
-                  <div className="oc-result-block oc-jcs">
-                    <div className="oc-block-head">
-                      <span>🧾 Interpretazione JCS</span>
-                    </div>
-                    <pre className="oc-pre">{result.jcs}</pre>
-                  </div>
-                )}
-              </>
-            )}
-          </section>
-        </div>
-
-        <footer className="oc-footer">
-          <span>Test7 · OCR Lab</span>
-          <span>qwen2.5-vl locale via Ollama</span>
-          <Link to="/image-lab">Image Lab ↗</Link>
+        <footer className="ga-footer">
+          <span>Test7 · GraDV Archive</span>
+          <span>SQLite read-only · nessuna modifica alle immagini originali</span>
         </footer>
       </div>
-    </div>
+
+      {selected && (
+        <div className="ga-modal-backdrop" role="presentation" onClick={closeImage}>
+          <section className="ga-modal" role="dialog" aria-modal="true"
+            aria-label={`Dettaglio immagine ${selected.id}`} onClick={(e) => e.stopPropagation()}>
+            <div className="ga-modal-head">
+              <div><strong>GraDV image #{selected.id}</strong><small>{formatDate(selected.created_at)}</small></div>
+              <button className="ga-button" onClick={closeImage}>Chiudi ✕</button>
+            </div>
+            <div className="ga-full-image">
+              {detailLoading && <span className="ga-muted">Caricamento immagine originale…</span>}
+              {fullImage && <img src={fullImage} alt={selected.prompt || `GraDV #${selected.id}`} />}
+            </div>
+            <div className="ga-details">
+              <p><b>Prompt</b><br />{selected.prompt || '—'}</p>
+              <div className="ga-detail-grid">
+                <span><b>Seed</b><br />{selected.seed ?? '—'}</span>
+                <span><b>Dimensioni</b><br />{selected.width || '—'} × {selected.height || '—'}</span>
+                <span><b>Steps</b><br />{selected.steps ?? '—'}</span>
+              </div>
+              {fullImage && <a className="ga-button" href={fullImage} download={`gradv-${selected.id}.png`}>Scarica originale ↓</a>}
+            </div>
+          </section>
+        </div>
+      )}
+    </main>
   )
 }
 
 const CSS = `
-.oc-page{min-height:100vh;padding:2rem 1.25rem 3rem;color:#e7edf1;
-  background:radial-gradient(1200px 600px at 70% -10%,rgba(63,208,201,.08),transparent),#0b1015;
-  font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif}
-.oc-container{max-width:1180px;margin:0 auto}
-.oc-center{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.8rem;min-height:70vh;text-align:center}
-.oc-header{display:flex;justify-content:space-between;align-items:flex-end;gap:1rem;flex-wrap:wrap;margin-bottom:1.4rem}
-.oc-header h1{margin:.2rem 0 .1rem;font-size:1.9rem;letter-spacing:-.02em}
-.oc-sub{margin:0;color:#8fa1ac;font-size:.9rem}
-.oc-eyebrow{margin:0;color:#3fd0c9;font-size:.7rem;font-weight:700;letter-spacing:.14em}
-.oc-account{display:flex;align-items:center;gap:.6rem;font-size:.85rem;color:#8fa1ac;flex-wrap:wrap}
-.oc-account span{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.oc-gbtn{min-height:36px}
-.oc-layout{display:grid;grid-template-columns:1fr 1fr;gap:1.1rem;align-items:start}
-.oc-panel{background:rgba(16,23,30,.72);border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:1.2rem;backdrop-filter:blur(10px)}
-.oc-panel h2{margin:.15rem 0 .9rem;font-size:1.15rem}
-.oc-label{display:block;margin:.9rem 0 .35rem;font-size:.78rem;font-weight:600;color:#c9d6de}
-.oc-file-row{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;
-  padding:.7rem;border:1px dashed rgba(255,255,255,.16);border-radius:9px;background:rgba(0,0,0,.22)}
-.oc-file-row input[type=file]{max-width:260px;font-size:.8rem;color:#8fa1ac}
-.oc-preview{width:76px;height:76px;object-fit:cover;border-radius:7px;border:1px solid rgba(255,255,255,.14)}
-.oc-textarea{width:100%;box-sizing:border-box;resize:vertical;padding:.7rem .8rem;border-radius:9px;
-  border:1px solid rgba(255,255,255,.14);background:rgba(0,0,0,.28);color:#e7edf1;font:inherit;font-size:.88rem;line-height:1.55}
-.oc-textarea:focus{outline:none;border-color:#3fd0c9}
-.oc-presets{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-top:.5rem}
-.oc-preset{font-size:.72rem;padding:.3rem .6rem}
-.oc-button{display:inline-flex;align-items:center;gap:.35rem;padding:.45rem .85rem;border-radius:8px;
-  border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.06);color:#e7edf1;
-  font:inherit;font-size:.8rem;cursor:pointer;text-decoration:none;transition:background .15s,border-color .15s}
-.oc-button:hover:not(:disabled){background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.3)}
-.oc-button:disabled{opacity:.45;cursor:not-allowed}
-.oc-primary{background:#3fd0c9;border-color:#3fd0c9;color:#071212;font-weight:700}
-.oc-primary:hover:not(:disabled){background:#6fe3dd;border-color:#6fe3dd}
-.oc-actions{display:flex;gap:.6rem;margin-top:1rem;flex-wrap:wrap}
-.oc-error{margin-top:.8rem;padding:.6rem .8rem;border-radius:8px;border:1px solid rgba(248,113,113,.5);
-  background:rgba(248,113,113,.12);color:#fca5a5;font-size:.85rem}
-.oc-hint{margin:.45rem 0 0;color:#8fa1ac;font-size:.78rem}
-.oc-result-head{display:flex;justify-content:space-between;align-items:center;gap:.8rem}
-.oc-live{color:#3fd0c9;font-size:.75rem;font-weight:700;letter-spacing:.12em;animation:oc-pulse 1.6s infinite}
-@keyframes oc-pulse{0%,100%{opacity:.5}50%{opacity:1}}
-.oc-progress{display:flex;flex-direction:column;align-items:center;gap:.8rem;padding:2rem 0;color:#8fa1ac;font-size:.9rem}
-.oc-spinner{width:34px;height:34px;border-radius:50%;border:3px solid rgba(63,208,201,.25);border-top-color:#3fd0c9;animation:oc-rot .9s linear infinite}
-@keyframes oc-rot{to{transform:rotate(360deg)}}
-.oc-result-block{margin-top:1rem;border:1px solid rgba(255,255,255,.1);border-radius:10px;background:rgba(0,0,0,.26);overflow:hidden}
-.oc-block-head{display:flex;justify-content:space-between;align-items:center;gap:.6rem;
-  padding:.55rem .8rem;border-bottom:1px solid rgba(255,255,255,.08);font-size:.78rem;font-weight:700;color:#c9d6de}
-.oc-pre{margin:0;padding:.8rem;font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
-  font-size:.82rem;line-height:1.6;white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto}
-.oc-jcs{border-color:rgba(63,208,201,.4)}
-.oc-jcs .oc-block-head{color:#3fd0c9}
-.oc-footer{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;
-  margin-top:1.6rem;padding-top:1rem;border-top:1px solid rgba(255,255,255,.08);color:#8fa1ac;font-size:.78rem}
-.oc-footer a{color:#3fd0c9;text-decoration:none}
-.oc-footer a:hover{text-decoration:underline}
-@media (max-width:880px){.oc-layout{grid-template-columns:1fr}}
-@media (max-width:560px){
-  .oc-page{padding:1.1rem .75rem 2rem}
-  .oc-panel{padding:.9rem}
-  .oc-account span{max-width:140px}
-}
+.ga-page{min-height:100vh;padding:2rem 1.2rem 3rem;color:#e7edf1;background:radial-gradient(1100px 560px at 75% -10%,rgba(63,208,201,.09),transparent),#0b1015;font-family:ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif}
+.ga-container{max-width:1320px;margin:0 auto}
+.ga-header{display:flex;justify-content:space-between;align-items:flex-end;gap:1rem;flex-wrap:wrap;margin-bottom:1.4rem}
+.ga-header h1,.ga-login h1{margin:.25rem 0;font-size:2rem;letter-spacing:-.03em}
+.ga-eyebrow{margin:0;color:#3fd0c9;font-size:.7rem;font-weight:700;letter-spacing:.14em}
+.ga-subtitle,.ga-muted{color:#8fa1ac;font-size:.84rem}
+.ga-account{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;color:#8fa1ac;font-size:.82rem}
+.ga-account span{max-width:220px;overflow:hidden;text-overflow:ellipsis}
+.ga-toolbar{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;padding:1rem;margin-bottom:1rem;border:1px solid rgba(255,255,255,.1);border-radius:12px;background:rgba(16,23,30,.7)}
+.ga-search{display:flex;gap:.5rem;flex-wrap:wrap}
+.ga-search input{min-width:220px;padding:.55rem .75rem;border:1px solid rgba(255,255,255,.16);border-radius:8px;background:#101820;color:#e7edf1;font:inherit}
+.ga-button{display:inline-flex;align-items:center;justify-content:center;gap:.3rem;padding:.48rem .8rem;border:1px solid rgba(255,255,255,.17);border-radius:8px;background:rgba(255,255,255,.06);color:#e7edf1;font:inherit;font-size:.8rem;text-decoration:none;cursor:pointer}
+.ga-button:hover:not(:disabled){background:rgba(255,255,255,.13)}
+.ga-button:disabled{opacity:.4;cursor:not-allowed}
+.ga-primary{background:#3fd0c9;color:#071212;border-color:#3fd0c9;font-weight:700}
+.ga-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:.85rem}
+.ga-card{min-width:0;padding:0;overflow:hidden;text-align:left;border:1px solid rgba(255,255,255,.1);border-radius:12px;background:rgba(16,23,30,.78);color:inherit;cursor:pointer}
+.ga-card:hover{border-color:rgba(63,208,201,.65);transform:translateY(-2px)}
+.ga-thumb{aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;background:#080c10;color:#71818b;overflow:hidden}
+.ga-thumb img{width:100%;height:100%;object-fit:contain}
+.ga-card-meta{display:flex;justify-content:space-between;gap:.5rem;padding:.65rem .7rem .15rem;font-size:.75rem;color:#aebdc5}
+.ga-card-meta strong{color:#3fd0c9}
+.ga-card p{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.5em;margin:.25rem .7rem;color:#d5dfe4;font-size:.78rem;line-height:1.35}
+.ga-card small{display:block;padding:0 .7rem .7rem;color:#82939d;font-size:.68rem}
+.ga-pagination{display:flex;justify-content:center;align-items:center;gap:1rem;margin:1.5rem 0}
+.ga-pagination span{font-size:.82rem;color:#aebdc5}
+.ga-loading,.ga-empty{display:flex;justify-content:center;align-items:center;gap:.7rem;padding:3rem;color:#9aabb4}
+.ga-spinner{width:20px;height:20px;border:2px solid rgba(63,208,201,.2);border-top-color:#3fd0c9;border-radius:50%;animation:ga-spin .8s linear infinite}
+@keyframes ga-spin{to{transform:rotate(360deg)}}
+.ga-error{margin:1rem 0;padding:.8rem 1rem;border:1px solid rgba(248,113,113,.4);border-radius:9px;background:rgba(248,113,113,.1);color:#fca5a5;font-size:.85rem}
+.ga-footer{display:flex;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-top:2rem;padding-top:1rem;border-top:1px solid rgba(255,255,255,.08);color:#82939d;font-size:.75rem}
+.ga-login{min-height:70vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.8rem;text-align:center}
+.ga-modal-backdrop{position:fixed;z-index:1000;inset:0;display:flex;align-items:center;justify-content:center;padding:1rem;background:rgba(0,0,0,.82);backdrop-filter:blur(8px)}
+.ga-modal{width:min(1050px,100%);max-height:94vh;overflow:auto;border:1px solid rgba(255,255,255,.14);border-radius:14px;background:#10171e;box-shadow:0 20px 80px rgba(0,0,0,.6)}
+.ga-modal-head{position:sticky;top:0;z-index:1;display:flex;justify-content:space-between;align-items:center;gap:1rem;padding:.8rem 1rem;background:#10171e;border-bottom:1px solid rgba(255,255,255,.1)}
+.ga-modal-head small{display:block;margin-top:.2rem;color:#82939d;font-size:.72rem}
+.ga-full-image{display:flex;justify-content:center;align-items:center;min-height:120px;max-height:65vh;padding:.6rem;background:#080c10}
+.ga-full-image img{max-width:100%;max-height:62vh;object-fit:contain}
+.ga-details{padding:1rem;color:#cbd6dc;font-size:.84rem;line-height:1.5}
+.ga-details p{white-space:pre-wrap;overflow-wrap:anywhere}
+.ga-detail-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem;margin:1rem 0;color:#aebdc5}
+.ga-login .ga-button{margin-top:.8rem}
+@media(max-width:600px){.ga-page{padding:1rem .65rem 2rem}.ga-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:.55rem}.ga-card-meta{font-size:.68rem}.ga-card p{font-size:.72rem}.ga-search{width:100%}.ga-search input{flex:1;min-width:0}.ga-detail-grid{grid-template-columns:1fr 1fr}.ga-pagination{gap:.5rem}.ga-pagination .ga-button{padding:.45rem .55rem;font-size:.72rem}}
 `
