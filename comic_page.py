@@ -96,34 +96,25 @@ def build_comic_page_router(verify_admin_token):
             py = (panel_h - fitted.height) // 2
             panel.paste(fitted, (px, py))
 
-            # Le coordinate dei balloon sono normalizzate rispetto alla foto:
-            # disegniamo direttamente sull'immagine ridimensionata, prima di inserirla.
-            if fitted.size != source.size:
-                pass
+            # Le coordinate sono relative alla foto, non ai margini bianchi.
             draw = ImageDraw.Draw(panel)
-            if fitted.size == source.size:
-                for spec in specs:
-                    if isinstance(spec, dict):
-                        _draw_bubble(draw, panel.size, spec)
-            else:
-                # Mappa coordinate/font sulla dimensione effettiva della foto.
-                mapped = []
-                sx = fitted.width / source.width
-                sy = fitted.height / source.height
-                scale = min(sx, sy)
-                for spec in specs:
-                    if not isinstance(spec, dict):
-                        continue
-                    item = dict(spec)
-                    item["x"] = (px + float(item.get("x", 0.5)) * fitted.width) / panel_w
-                    item["y"] = (py + float(item.get("y", 0.5)) * fitted.height) / panel_h
-                    item["tail_x"] = (px + float(item.get("tail_x", 0.5)) * fitted.width) / panel_w
-                    item["tail_y"] = (py + float(item.get("tail_y", 0.5)) * fitted.height) / panel_h
-                    item["w"] = float(item.get("w", 0.34)) * fitted.width / panel_w
-                    item["font_size"] = max(10, round(float(item.get("font_size", 44)) * scale))
-                    mapped.append(item)
-                for item in mapped:
-                    _draw_bubble(draw, panel.size, item)
+            mapped = []
+            sx = fitted.width / source.width
+            sy = fitted.height / source.height
+            scale = min(sx, sy)
+            for spec in specs:
+                if not isinstance(spec, dict):
+                    continue
+                item = dict(spec)
+                item["x"] = (px + float(item.get("x", 0.5)) * fitted.width) / panel_w
+                item["y"] = (py + float(item.get("y", 0.5)) * fitted.height) / panel_h
+                item["tail_x"] = (px + float(item.get("tail_x", 0.5)) * fitted.width) / panel_w
+                item["tail_y"] = (py + float(item.get("tail_y", 0.5)) * fitted.height) / panel_h
+                item["w"] = float(item.get("w", 0.34)) * fitted.width / panel_w
+                item["font_size"] = max(10, round(float(item.get("font_size", 44)) * scale))
+                mapped.append(item)
+            for item in mapped:
+                _draw_bubble(draw, panel.size, item)
 
             page.paste(panel, (x, y))
             page_draw.rectangle((x, y, x + panel_w - 1, y + panel_h - 1), outline="#080b0e", width=5)
