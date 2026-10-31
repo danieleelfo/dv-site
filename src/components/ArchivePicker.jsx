@@ -41,7 +41,7 @@ export default function ArchivePicker({ idToken, onSelect, onClose, multiSelect 
   const [searchInput, setSearchInput] = useState("");
   const [thumbs, setThumbs] = useState({});
   const [loading, setLoading] = useState(false);
-  const [selectingId, setSelectingId] = useState(null);\n  const [selectedIds, setSelectedIds] = useState([]);
+  const [selectingId, setSelectingId] = useState(null);\n  const [selectedIds, setSelectedIds] = useState([]);\n  const [selectedRows, setSelectedRows] = useState({});
   const [error, setError] = useState("");
 
   const revokeThumbs = useCallback((map) => {
@@ -106,7 +106,7 @@ export default function ArchivePicker({ idToken, onSelect, onClose, multiSelect 
 
   useEffect(() => () => revokeThumbs(thumbs), [thumbs, revokeThumbs]);
 
-  function toggleSelected(id) {\n    setSelectedIds(old => old.includes(id) ? old.filter(x => x !== id) : [...old, id]);\n  }\n\n  async function addSelected() {\n    if (!selectedIds.length || selectingId !== null) return;\n    setSelectingId(-1);\n    setError(\"\");\n    try {\n      const selectedItems = selectedIds.map(id => items.find(item => item.id === id)).filter(Boolean);\n      const files = await Promise.all(selectedItems.map(async item => {\n        const response = await fetch(\`${API}/api/gradv/archive/${item.id}/image\`, { headers: { Authorization: \"Bearer \" + idToken } });\n        if (!response.ok) throw new Error(\"Impossibile scaricare l'immagine #\" + item.id);\n        const blob = await response.blob();\n        const mime = blob.type || \"image/png\";\n        const extension = mime.includes(\"jpeg\") || mime.includes(\"jpg\") ? \"jpg\" : \"png\";\n        return new File([blob], \`gradv-${item.id}.${extension}\`, { type: mime });\n      }));\n      onSelect(files, selectedItems);\n    } catch (err) {\n      setError(err.message || String(err));\n      setSelectingId(null);\n    }\n  }\n\n  async function selectImage(item) {
+  function toggleSelected(id) {\n    const item = items.find(row => row.id === id);\n    setSelectedIds(old => old.includes(id) ? old.filter(x => x !== id) : [...old, id]);\n    setSelectedRows(old => { const next = { ...old }; if (next[id]) delete next[id]; else if (item) next[id] = item; return next; });\n  }\n\n  async function addSelected() {\n    if (!selectedIds.length || selectingId !== null) return;\n    setSelectingId(-1);\n    setError(\"\");\n    try {\n      const selectedItems = selectedIds.map(id => selectedRows[id]).filter(Boolean);\n      const files = await Promise.all(selectedItems.map(async item => {\n        const response = await fetch(\`${API}/api/gradv/archive/${item.id}/image\`, { headers: { Authorization: \"Bearer \" + idToken } });\n        if (!response.ok) throw new Error(\"Impossibile scaricare l'immagine #\" + item.id);\n        const blob = await response.blob();\n        const mime = blob.type || \"image/png\";\n        const extension = mime.includes(\"jpeg\") || mime.includes(\"jpg\") ? \"jpg\" : \"png\";\n        return new File([blob], \`gradv-${item.id}.${extension}\`, { type: mime });\n      }));\n      onSelect(files, selectedItems);\n    } catch (err) {\n      setError(err.message || String(err));\n      setSelectingId(null);\n    }\n  }\n\n  async function selectImage(item) {
     if (selectingId !== null) return;
     setSelectingId(item.id);
     setError("");
