@@ -352,7 +352,9 @@ export default function LeleAdmin() {
   })
   const [superTemperature, setSuperTemperature] = useState(() => {
     try {
-      const stored = Number(window.localStorage.getItem(SUPER_TEMPERATURE_KEY))
+      const raw = window.localStorage.getItem(SUPER_TEMPERATURE_KEY)
+      if (raw === null || raw === '') return 0.2
+      const stored = Number(raw)
       return Number.isFinite(stored) && stored >= 0 && stored <= 2 ? stored : 0.2
     } catch (e) {
       return 0.2
