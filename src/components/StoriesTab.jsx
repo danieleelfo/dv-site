@@ -64,6 +64,30 @@ const LANG_NAMES = {
   nl: "Dutch", ca: "Catalan", uk: "Ukrainian", ru: "Russian",
   pt: "Portuguese", fi: "Finnish",
 };
+// Il gateway tronca le risposte oltre il limite di lunghezza e aggiunge
+// un avviso: se lo vediamo, la traduzione va annullata prima del PUT.
+const TRUNCATED_RE = /risposta troncata|scrivi\s+["']continua["']/i;
+
+// Divide la storia in blocchi ~1200 caratteri sui confini di paragrafo,
+// cosi' la traduzione a pezzetti non sfora il limite di lunghezza.
+function splitStoryChunks(text, maxLen) {
+  const parts = String(text).split(/\n{2,}/);
+  const chunks = [];
+  let cur = "";
+  for (const p of parts) {
+    const piece = p.trim();
+    if (!piece) continue;
+    if (cur && cur.length + piece.length + 2 > maxLen) {
+      chunks.push(cur);
+      cur = piece;
+    } else {
+      cur = cur ? cur + "\n\n" + piece : piece;
+    }
+  }
+  if (cur) chunks.push(cur);
+  return chunks;
+}
+
 const CHAT_ID_KEY = "dv_story_chat_id";
 const MAX_PROMPT_CHARS = 4000;
 
@@ -944,44 +968,71 @@ export default function StoriesTab({ idToken }) {
   }
 
   // 🌍 Traduzione della storia aperta: l'agente riscrive il testo
-  // nella lingua scelta e genera il nuovo TTS (stesso flusso /api/chat
-  // della creazione, chat_id fresco per non inquinare la memoria).
+  // nella lingua scelta, A BLOCCHI di ~1200 caratteri (ogni blocco con
+  // chat_id fresco, cosi' la memoria non inquina e il gateway non tronca),
+  // poi un colpo "audio e testo" fa l'eco esatta del testo tradotto per
+  // generare il nuovo ogg. Se una qualunque risposta e' troncata, si
+  // interrompe PRIMA del PUT: la storia originale resta intatta.
   // Le illustrazioni restano invariate; il PUT aggiorna testo, audio
-  // e language. Se l'agente non produce il nuovo audio, si interrompe
-  // PRIMA del PUT: la storia originale resta intatta.
+  // e language.
   async function translateStory(lang) {
     if (!current?.story_id || !current?.text || busy) return;
     if ((current.language || "it") === lang) return;
     setBusy(true);
     setError("");
-    try {
-      setStage("🌍 Traduco la storia in " + (LANG_NAMES[lang] || lang) + " e rigenero l'audio…");
+    const agent = current.agent || STORY_AGENT;
+    const langName = LANG_NAMES[lang] || lang;
+    const callChat = async (prompt) => {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 310000);
-      let storyData;
       try {
         const res = await fetch(`${API}/api/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           signal: controller.signal,
           body: JSON.stringify({
-            agent: current.agent || STORY_AGENT,
-            prompt:
-              "audio e testo Translate the story below into " + (LANG_NAMES[lang] || lang) +
-              ", keeping the title and the full structure, no comments. Story: " +
-              String(current.text).slice(0, 6000),
+            agent,
+            prompt,
             chat_id: newChatId(),
             language: lang,
           }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-        storyData = await res.json();
+        return await res.json();
       } finally {
         clearTimeout(timer);
       }
-      const newText = String(storyData.answer || "").trim();
-      if (!newText) throw new Error("L'agente non ha risposto alla traduzione.");
-      const audioFilename = String(storyData.audio_path || storyData.audio || "")
+    };
+    try {
+      // 1. Traduzione a blocchi: nessun limite di lunghezza.
+      const chunks = splitStoryChunks(current.text, 1200);
+      const out = [];
+      for (let i = 0; i < chunks.length; i++) {
+        setStage("🌍 Traduco la storia in " + langName + " (parte " + (i + 1) + "/" + chunks.length + ")…");
+        const data = await callChat(
+          "Translate the story part below into " + langName +
+          ". Output ONLY the translation, no comments, no quotes around it. Story part:\n\n" + chunks[i]
+        );
+        const piece = String(data.answer || "").trim().replace(/^["“”']+|["“”']+$/g, "");
+        if (!piece) throw new Error("L'agente non ha risposto alla parte " + (i + 1) + ".");
+        if (TRUNCATED_RE.test(piece)) {
+          throw new Error("Traduzione troncata dal gateway (parte " + (i + 1) + "): annullata, la storia originale resta intatta.");
+        }
+        out.push(piece);
+      }
+      const newText = out.join("\n\n");
+      // 2. Nuovo TTS: eco esatta del testo tradotto (un colpo solo).
+      setStage("🎧 Genero il nuovo audio in " + langName + "…");
+      const ttsData = await callChat(
+        "audio e testo Repeat the following text exactly as it is, word by word, without any comment or change:\n\n" +
+        newText.slice(0, 6000)
+      );
+      const echo = String(ttsData.answer || "").trim();
+      if (!echo) throw new Error("L'agente non ha risposto per il nuovo audio.");
+      if (TRUNCATED_RE.test(echo) || echo.length < newText.length * 0.5) {
+        throw new Error("Testo troppo lungo per il nuovo audio in un colpo solo: traduzione annullata, la storia originale resta intatta.");
+      }
+      const audioFilename = String(ttsData.audio_path || ttsData.audio || "")
         .trim()
         .split(/[\\/]/)
         .pop() || "";
@@ -990,7 +1041,7 @@ export default function StoriesTab({ idToken }) {
       }
       const audioUrl =
         `${API}/api/chat/tts/` +
-        encodeURIComponent(current.agent || STORY_AGENT) +
+        encodeURIComponent(agent) +
         "/" +
         encodeURIComponent(audioFilename);
       setStage("💾 Salvo la traduzione nello storico…");
@@ -1000,7 +1051,7 @@ export default function StoriesTab({ idToken }) {
         body: JSON.stringify({
           prompt: current.prompt || "",
           text: newText,
-          agent: current.agent || STORY_AGENT,
+          agent,
           audio_filename: audioFilename,
           language: lang,
           scenes: (current.scenes || []).map((s) => ({
@@ -1016,7 +1067,7 @@ export default function StoriesTab({ idToken }) {
       });
       setCurrent((c) => (c ? { ...c, text: newText, audioUrl, language: lang } : c));
       await loadStories();
-      setStage("✅ Storia tradotta in " + (LANG_NAMES[lang] || lang) + " con nuovo audio.");
+      setStage("✅ Storia tradotta in " + langName + " con nuovo audio.");
     } catch (err) {
       setError(err.message || String(err));
     } finally {
