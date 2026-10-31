@@ -8,6 +8,7 @@
 // selezione = porta in primo piano, "usa risultato come nuova foto".
 
 import { useEffect, useRef, useState } from "react";
+import ArchivePicker from "./ArchivePicker.jsx";
 
 const API = "https://api.danielevillanova.com";
 const TOKEN_KEY = "dv_google_id_token";
@@ -44,6 +45,7 @@ export default function FumettiTab({ embedded = false } = {}) {
   const [status, setStatus] = useState("idle");
   const [resultUrl, setResultUrl] = useState("");
   const [error, setError] = useState("");
+  const [showArchive, setShowArchive] = useState(false);
 
   const sel = bubbles.find(b => b.id === selId) || null;
 
@@ -96,6 +98,28 @@ export default function FumettiTab({ embedded = false } = {}) {
     const img = new Image();
     img.onload = () => setNatW(img.naturalWidth || 1000);
     img.src = url;
+  }
+
+  // Selezione dall'archivio: entra nello stesso identico stato di un upload.
+  function onArchiveSelect(f) {
+    if (!f || !f.type.startsWith("image/")) {
+      setError("Il file selezionato non è un'immagine.");
+      return;
+    }
+    if (f.size > 15 * 1024 * 1024) {
+      setError("Immagine oltre 15 MB.");
+      return;
+    }
+    setError("");
+    setResultUrl("");
+    setStatus("idle");
+    const url = URL.createObjectURL(f);
+    setFile(f);
+    setPreview(url);
+    const img = new Image();
+    img.onload = () => setNatW(img.naturalWidth || 1000);
+    img.src = url;
+    setShowArchive(false);
   }
 
   // ------------------------------------------------------------------
@@ -332,6 +356,9 @@ export default function FumettiTab({ embedded = false } = {}) {
               <b>{file ? file.name : "Scegli una foto"}</b>
               <small>PNG/JPG fino a 15 MB</small>
             </label>
+            <button type="button" className="fb-btn" onClick={() => setShowArchive(true)}>
+              Dall'archivio
+            </button>
           </div>
 
           {preview && (
@@ -500,6 +527,14 @@ export default function FumettiTab({ embedded = false } = {}) {
           </footer>
         </section>
       </div>
+
+      {showArchive && (
+        <ArchivePicker
+          idToken={token}
+          onSelect={onArchiveSelect}
+          onClose={() => setShowArchive(false)}
+        />
+      )}
 
       <style>{FB_STYLES}</style>
     </div>
