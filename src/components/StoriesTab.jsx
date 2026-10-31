@@ -51,7 +51,7 @@ const STRIP_MODES = [
 // Lingue della storia + TTS (voci Piper installate sul Mac). SW e NS
 // condividono la base; SW ha anche il russo, NS anche portoghese e finlandese.
 const STORY_LANGS = [
-  ["it", "🇮🇩 Italiano"],
+  ["it", "🇮🇹 Italiano"],
   ["es", "🇪🇸 Español"],
   ["en", "🇬🇧 English"],
   ["fr", "🇫🇷 Français"],
@@ -359,6 +359,7 @@ export default function StoriesTab({ idToken }) {
         audioUrl,
         scenes,
         createdAt: data.created_at,
+        language: data.language || "it",
       });
 
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -942,6 +943,87 @@ export default function StoriesTab({ idToken }) {
     }
   }
 
+  // 🌍 Traduzione della storia aperta: l'agente riscrive il testo
+  // nella lingua scelta e genera il nuovo TTS (stesso flusso /api/chat
+  // della creazione, chat_id fresco per non inquinare la memoria).
+  // Le illustrazioni restano invariate; il PUT aggiorna testo, audio
+  // e language. Se l'agente non produce il nuovo audio, si interrompe
+  // PRIMA del PUT: la storia originale resta intatta.
+  async function translateStory(lang) {
+    if (!current?.story_id || !current?.text || busy) return;
+    if ((current.language || "it") === lang) return;
+    setBusy(true);
+    setError("");
+    try {
+      setStage("🌍 Traduco la storia in " + (LANG_NAMES[lang] || lang) + " e rigenero l'audio…");
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 310000);
+      let storyData;
+      try {
+        const res = await fetch(`${API}/api/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: controller.signal,
+          body: JSON.stringify({
+            agent: current.agent || STORY_AGENT,
+            prompt:
+              "audio e testo Translate the story below into " + (LANG_NAMES[lang] || lang) +
+              ", keeping the title and the full structure, no comments. Story: " +
+              String(current.text).slice(0, 6000),
+            chat_id: newChatId(),
+            language: lang,
+          }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        storyData = await res.json();
+      } finally {
+        clearTimeout(timer);
+      }
+      const newText = String(storyData.answer || "").trim();
+      if (!newText) throw new Error("L'agente non ha risposto alla traduzione.");
+      const audioFilename = String(storyData.audio_path || storyData.audio || "")
+        .trim()
+        .split(/[\\/]/)
+        .pop() || "";
+      if (!audioFilename) {
+        throw new Error("L'agente non ha generato il nuovo audio: traduzione annullata, la storia originale resta intatta.");
+      }
+      const audioUrl =
+        `${API}/api/chat/tts/` +
+        encodeURIComponent(current.agent || STORY_AGENT) +
+        "/" +
+        encodeURIComponent(audioFilename);
+      setStage("💾 Salvo la traduzione nello storico…");
+      await apiJson(idToken, "/api/admin/stories/" + encodeURIComponent(current.story_id), {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: current.prompt || "",
+          text: newText,
+          agent: current.agent || STORY_AGENT,
+          audio_filename: audioFilename,
+          language: lang,
+          scenes: (current.scenes || []).map((s) => ({
+            title: s.title,
+            prompt: s.prompt,
+            job_id: s.job_id,
+            seconds: s.seconds,
+            version: Number(s?.version) || 1,
+            planner: s.planner || "",
+            style_prompt: s.style_prompt || "",
+          })),
+        }),
+      });
+      setCurrent((c) => (c ? { ...c, text: newText, audioUrl, language: lang } : c));
+      await loadStories();
+      setStage("✅ Storia tradotta in " + (LANG_NAMES[lang] || lang) + " con nuovo audio.");
+    } catch (err) {
+      setError(err.message || String(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   // 📖 Composizione fumetto on-demand: il gateway genera il PDF con
   // Pillow (leles/core/story_pdf_report) e il browser lo scarica subito.
   async function downloadComicPdf(event) {
@@ -1282,6 +1364,30 @@ export default function StoriesTab({ idToken }) {
           >
             {current.text}
           </pre>
+
+          {current.story_id && (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: ".6rem", alignItems: "center", marginTop: ".9rem" }}>
+              <span className="il-label" style={{ margin: 0 }}>🌍 Lingua racconto</span>
+              <select
+                className="il-input"
+                value={current.language || "it"}
+                onChange={(event) => translateStory(event.target.value)}
+                style={{ flex: "0 0 auto", minWidth: "8.5rem" }}
+                aria-label="Traduci la storia in un'altra lingua (nuovo TTS)"
+                disabled={busy || !current.text}
+              >
+                {STORY_LANGS.map(([code, label]) => (
+                  <option key={code} value={code}>{label}</option>
+                ))}
+                {current.agent === NS_AGENT && <option value="pt">🇧🇷 Português</option>}
+                {current.agent === NS_AGENT && <option value="fi">🇫🇮 Suomi</option>}
+                {current.agent === STORY_AGENT && <option value="ru">🇷🇺 Русский</option>}
+              </select>
+              <span style={{ fontSize: ".8rem", color: "var(--ink-dim, #8fa1ac)" }}>
+                {busy ? "Traduzione in corso…" : "Traduce il testo e rigenera l'audio (nuovo ogg); le illustrazioni restano quelle di prima."}
+              </span>
+            </div>
+          )}
 
           {current.audioUrl && (
             <div style={{ marginTop: ".9rem" }}>
