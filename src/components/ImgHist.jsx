@@ -48,6 +48,7 @@ export default function ImgHist({ idToken, onReuse }) {
   const [thumbs, setThumbs] = useState({});
   const [selected, setSelected] = useState(null);
   const [fullImage, setFullImage] = useState("");
+  const [view, setView] = useState("thumbs");
 
   const revokeThumbs = useCallback((map) => {
     Object.values(map || {}).forEach((url) => URL.revokeObjectURL(url));
@@ -195,6 +196,22 @@ export default function ImgHist({ idToken, onReuse }) {
             Reset
           </button>
         )}
+        <span className="ilh-toggle">
+          <button
+            type="button"
+            className={"ilh-toggle-btn" + (view === "thumbs" ? " ilh-on" : "")}
+            onClick={() => setView("thumbs")}
+          >
+            Anteprime
+          </button>
+          <button
+            type="button"
+            className={"ilh-toggle-btn" + (view === "text" ? " ilh-on" : "")}
+            onClick={() => setView("text")}
+          >
+            Solo testo
+          </button>
+        </span>
         <span className="il-page-info">
           {total.toLocaleString()} immagini · {PAGE_SIZE} per pagina
         </span>
@@ -210,6 +227,7 @@ export default function ImgHist({ idToken, onReuse }) {
         <p className="il-hint">Nessuna immagine trovata.</p>
       )}
 
+      {view === "thumbs" ? (
       <div className="ilh-grid">
         {items.map((item) => (
           <button
@@ -243,6 +261,29 @@ export default function ImgHist({ idToken, onReuse }) {
           </button>
         ))}
       </div>
+
+      ) : (
+        <ul className="ilh-list">
+          {items.map((item) => (
+            <li key={item.id}>
+              <button
+                type="button"
+                className="ilh-list-row"
+                onClick={() => openImage(item)}
+              >
+                <span className="ilh-list-id">#{item.id}</span>
+                <span className="ilh-list-prompt">
+                  {item.prompt || "Prompt non disponibile"}
+                </span>
+                <span className="ilh-list-meta">
+                  {item.width} × {item.height} · seed {item.seed ?? "—"} ·{" "}
+                  {formatDate(item.created_at)}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {pages > 1 && (
         <div className="il-pagination">
@@ -324,4 +365,14 @@ const IMGHIST_STYLES = `
 .ilh-card-meta strong{color:var(--accent,#3fd0c9)}
 .ilh-card-prompt{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:2.4em;margin:.3rem .7rem 0;font-size:.76rem;line-height:1.35;color:var(--ink,#e7edf1);overflow-wrap:anywhere}
 .ilh-card small{padding:.35rem .7rem .7rem;color:var(--ink-dim,#8fa1ac);font-size:.66rem}
+.ilh-toggle{display:inline-flex;gap:.35rem;margin-left:auto}
+.ilh-toggle-btn{padding:.35rem .8rem;border:1px solid var(--border,#1f2b35);border-radius:7px;background:transparent;color:var(--ink-dim,#8fa1ac);cursor:pointer;font-size:.75rem}
+.ilh-toggle-btn.ilh-on{background:var(--accent,#3fd0c9);color:#06232a;border-color:transparent;font-weight:600}
+.ilh-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.35rem}
+.ilh-list-row{display:grid;grid-template-columns:70px 1fr auto;gap:.8rem;align-items:baseline;width:100%;padding:.55rem .7rem;border:1px solid var(--border,#1f2b35);border-radius:8px;background:var(--bg-alt,#0f151c);color:inherit;text-align:left;cursor:pointer;font-size:.8rem}
+.ilh-list-row:hover{border-color:var(--accent,#3fd0c9)}
+.ilh-list-id{color:var(--accent,#3fd0c9);font-weight:600}
+.ilh-list-prompt{color:var(--ink,#e7edf1);overflow-wrap:anywhere}
+.ilh-list-meta{color:var(--ink-dim,#8fa1ac);font-size:.7rem;white-space:nowrap}
+@media (max-width:640px){.ilh-list-row{grid-template-columns:56px 1fr}.ilh-list-meta{grid-column:1/-1;text-align:right;white-space:normal}}
 `;
