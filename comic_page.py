@@ -108,10 +108,15 @@ def build_comic_page_router(verify_admin_token):
                 item = dict(spec)
                 item["x"] = (px + float(item.get("x", 0.5)) * fitted.width) / panel_w
                 item["y"] = (py + float(item.get("y", 0.5)) * fitted.height) / panel_h
-                item["tail_x"] = (px + float(item.get("tail_x", 0.5)) * fitted.width) / panel_w
-                item["tail_y"] = (py + float(item.get("tail_y", 0.5)) * fitted.height) / panel_h
+                # Il frontend React usa camelCase; _draw_bubble usa snake_case.
+                # Accettiamo entrambi per mantenere compatibilità con eventuali client esistenti.
+                tail_x = item.get("tail_x", item.get("tailX", 0.5))
+                tail_y = item.get("tail_y", item.get("tailY", 0.5))
+                font_size = item.get("font_size", item.get("fontSize", 44))
+                item["tail_x"] = (px + float(tail_x) * fitted.width) / panel_w
+                item["tail_y"] = (py + float(tail_y) * fitted.height) / panel_h
                 item["w"] = float(item.get("w", 0.34)) * fitted.width / panel_w
-                item["font_size"] = max(10, round(float(item.get("font_size", 44)) * scale))
+                item["font_size"] = max(10, round(float(font_size) * scale))
                 mapped.append(item)
             for item in mapped:
                 _draw_bubble(draw, panel.size, item)
