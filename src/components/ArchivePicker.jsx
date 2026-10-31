@@ -32,7 +32,7 @@ function formatDate(value) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }
 
-export default function ArchivePicker({ idToken, onSelect, onClose }) {
+export default function ArchivePicker({ idToken, onSelect, onClose, multiSelect = false }) {
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [pages, setPages] = useState(1);
@@ -41,7 +41,7 @@ export default function ArchivePicker({ idToken, onSelect, onClose }) {
   const [searchInput, setSearchInput] = useState("");
   const [thumbs, setThumbs] = useState({});
   const [loading, setLoading] = useState(false);
-  const [selectingId, setSelectingId] = useState(null);
+  const [selectingId, setSelectingId] = useState(null);\n  const [selectedIds, setSelectedIds] = useState([]);
   const [error, setError] = useState("");
 
   const revokeThumbs = useCallback((map) => {
@@ -106,7 +106,7 @@ export default function ArchivePicker({ idToken, onSelect, onClose }) {
 
   useEffect(() => () => revokeThumbs(thumbs), [thumbs, revokeThumbs]);
 
-  async function selectImage(item) {
+  function toggleSelected(id) {\n    setSelectedIds(old => old.includes(id) ? old.filter(x => x !== id) : [...old, id]);\n  }\n\n  async function addSelected() {\n    if (!selectedIds.length || selectingId !== null) return;\n    setSelectingId(-1);\n    setError(\"\");\n    try {\n      const selectedItems = selectedIds.map(id => items.find(item => item.id === id)).filter(Boolean);\n      const files = await Promise.all(selectedItems.map(async item => {\n        const response = await fetch(\`${API}/api/gradv/archive/${item.id}/image\`, { headers: { Authorization: \"Bearer \" + idToken } });\n        if (!response.ok) throw new Error(\"Impossibile scaricare l'immagine #\" + item.id);\n        const blob = await response.blob();\n        const mime = blob.type || \"image/png\";\n        const extension = mime.includes(\"jpeg\") || mime.includes(\"jpg\") ? \"jpg\" : \"png\";\n        return new File([blob], \`gradv-${item.id}.${extension}\`, { type: mime });\n      }));\n      onSelect(files, selectedItems);\n    } catch (err) {\n      setError(err.message || String(err));\n      setSelectingId(null);\n    }\n  }\n\n  async function selectImage(item) {
     if (selectingId !== null) return;
     setSelectingId(item.id);
     setError("");
@@ -184,7 +184,7 @@ export default function ArchivePicker({ idToken, onSelect, onClose }) {
           ))}
         </div>
 
-        {pages > 1 && (
+        {multiSelect && <div className=\"ap-footer-actions\"><span>{selectedIds.length} selezionate</span><button type=\"button\" className=\"ap-btn ap-primary\" disabled={!selectedIds.length || selectingId !== null} onClick={addSelected}>{selectingId === -1 ? \"Scarico…\" : \"Aggiungi selezionate\"}</button></div>}\n\n        {pages > 1 && (
           <nav className="ap-pagination" aria-label="Paginazione archivio">
             <button type="button" className="ap-btn" disabled={page <= 1 || loading || selectingId !== null}
               onClick={() => loadArchive(page - 1, query)}>← Precedente</button>
@@ -211,7 +211,7 @@ const ARCHIVE_PICKER_STYLES = `
 .ap-search{display:flex;align-items:center;flex-wrap:wrap;gap:.55rem}
 .ap-search input{flex:1;min-width:180px;padding:.65rem .75rem;border:1px solid var(--border,#1f2b35);border-radius:7px;background:var(--bg,#0b1015);color:inherit;font:inherit;font-size:.84rem}
 .ap-btn{padding:.55rem .8rem;border:1px solid var(--border,#1f2b35);border-radius:7px;background:transparent;color:inherit;font:inherit;font-size:.78rem;cursor:pointer}
-.ap-btn:hover:not(:disabled),.ap-card:hover:not(:disabled){border-color:var(--accent,#3fd0c9)}
+.ap-btn:hover:not(:disabled),.ap-card:hover:not(:disabled){border-color:var(--accent,#3fd0c9)}.ap-card-selected{border-color:var(--accent,#3fd0c9);box-shadow:0 0 0 2px #3fd0c944}.ap-footer-actions{display:flex;align-items:center;justify-content:space-between;gap:.7rem;padding:.6rem 0;color:var(--ink-dim,#8fa1ac);font-size:.78rem}
 .ap-btn:disabled,.ap-card:disabled{opacity:.45;cursor:wait}
 .ap-primary{background:var(--accent,#3fd0c9);border-color:var(--accent,#3fd0c9);color:#071212;font-weight:700}
 .ap-count{margin-left:auto;color:var(--ink-dim,#8fa1ac);font-size:.72rem}
