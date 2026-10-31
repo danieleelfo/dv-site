@@ -51,7 +51,7 @@ const STRIP_MODES = [
 // Lingue della storia + TTS (voci Piper installate sul Mac). SW e NS
 // condividono la base; SW ha anche il russo, NS anche portoghese e finlandese.
 const STORY_LANGS = [
-  ["it", "🇮🇹 Italiano"],
+  ["it", "🇮🇩 Italiano"],
   ["es", "🇪🇸 Español"],
   ["en", "🇬🇧 English"],
   ["fr", "🇫🇷 Français"],
@@ -118,7 +118,7 @@ export default function StoriesTab({ idToken }) {
   const [storyAgent, setStoryAgent] = useState(STORY_AGENT);
   const [wantsTts, setWantsTts] = useState(true);
   // Lingua della storia e dell'audio (selettore bandierina accanto al TTS).
-  const [storyLang, setStoryLang] = useState("it");
+  const [storyLang, setStoryLang] = useState("es");
   const [storyKids, setStoryKids] = useState(true);
   const [storyGenre, setStoryGenre] = useState("Random");
   const [storyStyle, setStoryStyle] = useState("");
