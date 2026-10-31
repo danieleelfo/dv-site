@@ -1,10 +1,11 @@
 // Persistenza locale delle bozze Comics tramite IndexedDB.
-// Le immagini locali sono salvate come Blob; quelle GraDV vengono
-// ricostruite dall'ID archivio quando la bozza viene riaperta.
+// Le foto locali sono salvate una sola volta come Blob; quelle GraDV
+// vengono ricostruite dall'ID archivio quando si riapre la bozza.
 
 const DB_NAME = "dv-image-lab";
-const DB_VERSION = 1;
-const STORE_NAME = "comics-drafts";
+const DB_VERSION = 2;
+const DRAFTS = "comics-drafts";
+const FILES = "comics-files";
 
 let dbPromise;
 
@@ -18,8 +19,11 @@ function openDb() {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: "key" });
+      if (!db.objectStoreNames.contains(DRAFTS)) {
+        db.createObjectStore(DRAFTS, { keyPath: "key" });
+      }
+      if (!db.objectStoreNames.contains(FILES)) {
+        db.createObjectStore(FILES, { keyPath: "key" });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -33,11 +37,47 @@ function openDb() {
   return dbPromise;
 }
 
+function fileSignature(panel) {
+  return [panel.name || "", panel.type || "", panel.lastModified || 0, panel.blob?.size || 0].join("|");
+}
+
 export async function saveComicsDraft(key, draft) {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    tx.objectStore(STORE_NAME).put({ key, ...draft, savedAt: Date.now() });
+    const tx = db.transaction([DRAFTS, FILES], "readwrite");
+    const drafts = tx.objectStore(DRAFTS);
+    const files = tx.objectStore(FILES);
+    const getOld = drafts.get(key);
+
+    getOld.onsuccess = () => {
+      const old = getOld.result;
+      const oldPanels = new Map((old?.panels || []).map(panel => [panel.id, panel]));
+      const nextPanels = draft.panels.map(panel => {
+        const signature = fileSignature(panel);
+        const fileKey = panel.archiveId ? null : key + ":file:" + panel.id;
+        const previous = oldPanels.get(panel.id);
+
+        if (fileKey && panel.blob && previous?.signature !== signature) {
+          files.put({ key: fileKey, blob: panel.blob, signature });
+        }
+        if (previous?.fileKey && previous.fileKey !== fileKey) {
+          files.delete(previous.fileKey);
+        }
+
+        const { blob, ...metadata } = panel;
+        return { ...metadata, signature, fileKey };
+      });
+
+      const nextIds = new Set(nextPanels.map(panel => panel.id));
+      for (const oldPanel of oldPanels.values()) {
+        if (oldPanel.fileKey && !nextIds.has(oldPanel.id)) {
+          files.delete(oldPanel.fileKey);
+        }
+      }
+
+      drafts.put({ key, ...draft, panels: nextPanels, savedAt: Date.now() });
+    };
+
     tx.oncomplete = () => resolve(true);
     tx.onerror = () => reject(tx.error || new Error("Salvataggio bozza Comics fallito."));
     tx.onabort = () => reject(tx.error || new Error("Salvataggio bozza Comics annullato."));
@@ -47,17 +87,43 @@ export async function saveComicsDraft(key, draft) {
 export async function loadComicsDraft(key) {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const request = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).get(key);
-    request.onsuccess = () => resolve(request.result || null);
-    request.onerror = () => reject(request.error || new Error("Lettura bozza Comics fallita."));
+    const tx = db.transaction([DRAFTS, FILES], "readonly");
+    const drafts = tx.objectStore(DRAFTS);
+    const files = tx.objectStore(FILES);
+    let result = null;
+
+    const request = drafts.get(key);
+    request.onsuccess = () => {
+      const saved = request.result;
+      if (!saved) return;
+      result = { ...saved, panels: saved.panels.map(panel => ({ ...panel })) };
+      for (const panel of result.panels) {
+        if (!panel.fileKey) continue;
+        const fileRequest = files.get(panel.fileKey);
+        fileRequest.onsuccess = () => {
+          panel.blob = fileRequest.result?.blob || null;
+        };
+      }
+    };
+
+    tx.oncomplete = () => resolve(result);
+    tx.onerror = () => reject(tx.error || new Error("Lettura bozza Comics fallita."));
   });
 }
 
 export async function clearComicsDraft(key) {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    tx.objectStore(STORE_NAME).delete(key);
+    const tx = db.transaction([DRAFTS, FILES], "readwrite");
+    const drafts = tx.objectStore(DRAFTS);
+    const files = tx.objectStore(FILES);
+    const request = drafts.get(key);
+    request.onsuccess = () => {
+      for (const panel of request.result?.panels || []) {
+        if (panel.fileKey) files.delete(panel.fileKey);
+      }
+      drafts.delete(key);
+    };
     tx.oncomplete = () => resolve(true);
     tx.onerror = () => reject(tx.error || new Error("Eliminazione bozza Comics fallita."));
   });
