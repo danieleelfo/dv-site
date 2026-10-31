@@ -597,10 +597,7 @@ export default function LeleAdmin() {
     const t0 = Date.now()
     let outcome
     try {
-      const superOptions = isSuperRequest
-        ? { use_memory: useSuperMemory, temperature: Number(superTemperature) }
-        : null
-      outcome = { text: await callAdmin(idToken, cmd, 310000, superOptions) }
+      outcome = { text: await callAdmin(idToken, cmd) }
     } catch (err) {
       if (err.status === 401 || err.status === 403) {
         logout(err.message)
@@ -780,7 +777,10 @@ export default function LeleAdmin() {
     const t0 = Date.now()
     let outcome
     try {
-      outcome = { text: await callAdmin(idToken, cmd) }
+      const superOptions = isSuperRequest
+        ? { use_memory: useSuperMemory, temperature: Number(superTemperature) }
+        : null
+      outcome = { text: await callAdmin(idToken, cmd, 310000, superOptions) }
     } catch (err) {
       if (err.status === 401 || err.status === 403) {
         logout(err.message)
