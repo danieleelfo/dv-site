@@ -92,6 +92,8 @@ const SUPER_MODELS = [
   'gpt-oss:20b',
 ]
 const SUPER_MODEL_KEY = 'lc_super_model'
+const SUPER_MEMORY_KEY = 'lc_super_use_memory'
+const SUPER_TEMPERATURE_KEY = 'lc_super_temperature'
 
 // Modelli permessi per gli agenti normali (ALLOWED_MODELS in gateway.py).
 // Usati sia dal selettore "modello" (Leles) sia dal "reviewer".
@@ -264,7 +266,7 @@ function decodeJwtPayload(token) {
   }
 }
 
-async function callAdmin(idToken, prompt, timeoutMs = 310000) {
+async function callAdmin(idToken, prompt, timeoutMs = 310000, superOptions = null) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
@@ -279,6 +281,7 @@ async function callAdmin(idToken, prompt, timeoutMs = 310000) {
         prompt,
         language: 'en',
         chat_id: FORCED_ADMIN_CHAT_ID,
+        ...(superOptions || {}),
       }),
     })
 
@@ -339,6 +342,22 @@ export default function LeleAdmin() {
 
   const [prompt, setPrompt] = useState('')
   const [superMode, setSuperMode] = useState(false)
+  const [useSuperMemory, setUseSuperMemory] = useState(() => {
+    try {
+      const stored = window.localStorage.getItem(SUPER_MEMORY_KEY)
+      return stored === null ? true : stored === 'true'
+    } catch (e) {
+      return true
+    }
+  })
+  const [superTemperature, setSuperTemperature] = useState(() => {
+    try {
+      const stored = Number(window.localStorage.getItem(SUPER_TEMPERATURE_KEY))
+      return Number.isFinite(stored) && stored >= 0 && stored <= 2 ? stored : 0.2
+    } catch (e) {
+      return 0.2
+    }
+  })
   const [superModel, setSuperModel] = useState(() => {
     try {
       const stored = window.localStorage.getItem(SUPER_MODEL_KEY)
@@ -576,7 +595,10 @@ export default function LeleAdmin() {
     const t0 = Date.now()
     let outcome
     try {
-      outcome = { text: await callAdmin(idToken, cmd) }
+      const superOptions = isSuperRequest
+        ? { use_memory: useSuperMemory, temperature: Number(superTemperature) }
+        : null
+      outcome = { text: await callAdmin(idToken, cmd, 310000, superOptions) }
     } catch (err) {
       if (err.status === 401 || err.status === 403) {
         logout(err.message)
@@ -741,6 +763,7 @@ export default function LeleAdmin() {
       await runImage(imgMatch[1].trim())
       return
     }
+    const isSuperRequest = superMode || /^(super|super-leles|sl)\b/i.test(raw)
     const cmd = superMode && !/^(super|super-leles|sl|modellosl)\b/i.test(raw) ? 'super ' + raw : raw
     if (!cmd || !idToken || isLoading) return
 
@@ -1393,6 +1416,43 @@ export default function LeleAdmin() {
                 >
                   {superMode ? '⚡ ' + t('lele.superOn') : '⚡ ' + t('lele.super')}
                 </button>
+                {superMode && (
+                  <div className="lc-row" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
+                    <label className="lc-check" title={t('lele.superMemoryTitle')}>
+                      <input
+                        type="checkbox"
+                        checked={useSuperMemory}
+                        disabled={isLoading}
+                        onChange={(e) => {
+                          const value = e.target.checked
+                          setUseSuperMemory(value)
+                          try { window.localStorage.setItem(SUPER_MEMORY_KEY, String(value)) } catch (err) { /* no-op */ }
+                        }}
+                      />
+                      {t('lele.superMemory')}
+                    </label>
+                    <label className="lc-check" title={t('lele.superTemperatureTitle')}>
+                      <span>{t('lele.superTemperature')}</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="2"
+                        step="0.1"
+                        value={superTemperature}
+                        disabled={isLoading}
+                        onChange={(e) => {
+                          const value = Number(e.target.value)
+                          if (!Number.isFinite(value)) return
+                          const safe = Math.max(0, Math.min(2, value))
+                          setSuperTemperature(safe)
+                          try { window.localStorage.setItem(SUPER_TEMPERATURE_KEY, String(safe)) } catch (err) { /* no-op */ }
+                        }}
+                        aria-label={t('lele.superTemperature')}
+                        style={{ width: 66, padding: '5px 7px', borderRadius: 7, background: 'var(--surface, #fff)', color: 'inherit', border: '1px solid var(--line, #ccc)' }}
+                      />
+                    </label>
+                  </div>
+                )}
                 {modelSwitching && (
                   <span className="lc-dim lc-small">{t('lele.switching')}</span>
                 )}
