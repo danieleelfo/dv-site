@@ -77,6 +77,7 @@ export default function FumettiTab({ embedded = false } = {}) {
   // scaricati nuovamente tramite ID; le foto locali arrivano da IndexedDB.
   useEffect(() => {
     let cancelled = false;
+    let preserveDraft = false;
     setDraftReady(false);
     setDraftMessage("");
 
@@ -86,6 +87,11 @@ export default function FumettiTab({ embedded = false } = {}) {
         if (cancelled) return;
         if (!saved || !Array.isArray(saved.panels)) {
           setDraftReady(true);
+          return;
+        }
+        if (saved.panels.some(item => item.archiveId) && !token) {
+          preserveDraft = true;
+          setDraftMessage("Accedi con Google per recuperare le immagini GraDV della bozza.");
           return;
         }
 
@@ -107,8 +113,10 @@ export default function FumettiTab({ embedded = false } = {}) {
           }
 
           if (!blob) {
-            setDraftMessage("Una foto della bozza non è recuperabile: potrebbe essere stata rimossa dall'archivio.");
-            continue;
+            restored.forEach(panel => URL.revokeObjectURL(panel.preview));
+            preserveDraft = true;
+            setDraftMessage("Una foto della bozza non è recuperabile. La bozza originale è stata conservata senza sovrascriverla.");
+            return;
           }
 
           const type = blob.type || item.type || "image/png";
@@ -134,7 +142,7 @@ export default function FumettiTab({ embedded = false } = {}) {
       } catch (err) {
         setDraftMessage("Ripristino bozza non riuscito: " + (err.message || String(err)));
       } finally {
-        if (!cancelled) setDraftReady(true);
+        if (!cancelled && !preserveDraft) setDraftReady(true);
       }
     }
 
