@@ -188,6 +188,7 @@ async def forward_to_agent(
     language: str,
     agent_label: str,
     user_email: str | None = None,
+    extra_payload: dict | None = None,
 ):
     """
     Logica di forward condivisa tra /api/chat e /api/admin/chat.
@@ -208,6 +209,9 @@ async def forward_to_agent(
         # L'agente può usarlo per registrare CHI ha parlato
         # (log su PostgreSQL).
         payload["user_email"] = user_email
+
+    if extra_payload:
+        payload.update(extra_payload)
 
     async with httpx.AsyncClient(timeout=300.0) as client:
         try:
@@ -560,6 +564,9 @@ class AdminChatRequest(BaseModel):
     prompt: str
     chat_id: int = 1010101011
     language: str = "en"
+    # Opzioni facoltative: i client legacy continuano a funzionare.
+    use_memory: bool | None = None
+    temperature: float | None = None
 
 
 @app.post("/api/admin/chat")
@@ -587,6 +594,14 @@ async def admin_chat_router(
         req.language,
         "Lele Admin",
         user_email=email,
+        extra_payload={
+            key: value
+            for key, value in (
+                ("use_memory", req.use_memory),
+                ("temperature", req.temperature),
+            )
+            if value is not None
+        },
     )
 
 
