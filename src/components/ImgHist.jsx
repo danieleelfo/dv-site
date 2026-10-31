@@ -81,7 +81,7 @@ export default function ImgHist({ idToken, onReuse }) {
         });
         if (targetQuery.trim()) params.set("q", targetQuery.trim());
 
-        const response = await fetch("`${{API}/api/gradv/archive?${{params}`", {
+        const response = await fetch(`${API}/api/gradv/archive?${params}`, {
           headers: { Authorization: "Bearer " + idToken },
         });
 
@@ -96,7 +96,7 @@ export default function ImgHist({ idToken, onReuse }) {
           (data.items || []).map(async (item) => {
             try {
               const imageResponse = await fetch(
-                "`${{API}/api/gradv/archive/${{item.id}/image?thumbnail=true`",
+                `${API}/api/gradv/archive/${item.id}/image?thumbnail=true`,
                 { headers: { Authorization: "Bearer " + idToken } }
               );
               if (!imageResponse.ok) throw new Error("HTTP " + imageResponse.status);
@@ -137,7 +137,7 @@ export default function ImgHist({ idToken, onReuse }) {
 
     try {
       const response = await fetch(
-        "`${{API}/api/gradv/archive/${{item.id}/image`",
+        `${API}/api/gradv/archive/${item.id}/image`,
         { headers: { Authorization: "Bearer " + idToken } }
       );
       if (!response.ok) throw new Error("HTTP " + response.status);
