@@ -133,7 +133,7 @@
     "superOn": "Super-Leles ON",
     "superTitle": "Quan està actiu, el prompt s'envia com a 'super <pregunta>' a Super-Leles (grounded)",
     "superMemory": "Fes servir la memòria",
-    "superMemoryTitle": "Inclou les converses recents de Super-Leles com a context",
+    "superMemoryTitle": "Inclou les converses recents al context. Els torns nous continuen desant-se encara que estigui desactivat.",
     "superTemperature": "Temperatura",
     "superTemperatureTitle": "Creativitat de la resposta (0 = més determinista, 2 = més aleatòria)",
     "imagina": "Imagina",
