@@ -155,7 +155,24 @@ export default function ImageLab({ initialTab = "genera" }) {
   const [randomSeed, setRandomSeed] = useState(true);
   const [seed, setSeed] = useState("12345");
 
-  const [tab, setTab] = useState(initialTab);
+  const [tab, setTab] = useState(() => {
+    const allowed = ["genera", "storico", "ocr", "storie", "multifoto", "fumetti"];
+    try {
+      const saved = sessionStorage.getItem("dv_image_lab_active_tab");
+      if (saved && allowed.includes(saved)) return saved;
+    } catch {
+      // sessionStorage può essere disabilitato: usa il tab iniziale.
+    }
+    return allowed.includes(initialTab) ? initialTab : "genera";
+  });
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("dv_image_lab_active_tab", tab);
+    } catch {
+      // Il cambio tab continua a funzionare anche senza sessionStorage.
+    }
+  }, [tab]);
   const [initFile, setInitFile] = useState(null);
   const [initPreview, setInitPreview] = useState("");
   const [strength, setStrength] = useState(0.65);
