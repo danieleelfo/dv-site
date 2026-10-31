@@ -337,7 +337,8 @@ export default function StoriesTab({ idToken }) {
 
       storyText = String(storyData.answer || "").trim();
       if (!storyText) throw new Error("Story Whisper non ha risposto.");
-      audioFilename = String(storyData.audio_path || storyData.audio || "").trim();
+      const audioPath = String(storyData.audio_path || storyData.audio || "").trim();
+      audioFilename = audioPath.split(/[\\/]/).pop() || "";
 
       let audioUrl = "";
       if (audioFilename) {
