@@ -10,13 +10,17 @@ const API = "https://api.danielevillanova.com";
 const PAGE_SIZE = 24;
 
 async function readJson(response) {
+  const text = await response.text().catch(() => "");
   let data = null;
   try {
-    data = await response.json();
+    data = JSON.parse(text);
   } catch {
-    // Il tunnel offline risponde 200 con HTML: non e' un archivio vuoto.
+    // Mostra status + corpo: cosi' si vede se e' HTML del tunnel o altro.
     throw new Error(
-      "Risposta non valida dal gateway (offline o in fase di avvio?)."
+      "Risposta non JSON dal gateway (HTTP " +
+        response.status +
+        "): " +
+        (text.slice(0, 120) || "corpo vuoto")
     );
   }
   if (!response.ok) {
