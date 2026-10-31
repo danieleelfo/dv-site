@@ -64,15 +64,18 @@ def build_comic_page_router(verify_admin_token):
             decoded.append(image)
 
         count = len(decoded)
+        panel_w, panel_h = PANEL_W, PANEL_H
         if layout == "vertical":
             cols = 1
+            panel_h = max(240, min(PANEL_H, (4096 - MARGIN * 2 - GUTTER * (count - 1)) // count))
         elif layout == "horizontal":
             cols = count
+            panel_w = max(240, min(PANEL_W, (4096 - MARGIN * 2 - GUTTER * (count - 1)) // count))
         else:
             cols = min(2, count)
         rows = math.ceil(count / cols)
-        page_w = MARGIN * 2 + cols * PANEL_W + (cols - 1) * GUTTER
-        page_h = MARGIN * 2 + rows * PANEL_H + (rows - 1) * GUTTER
+        page_w = MARGIN * 2 + cols * panel_w + (cols - 1) * GUTTER
+        page_h = MARGIN * 2 + rows * panel_h + (rows - 1) * GUTTER
         page = Image.new("RGB", (page_w, page_h), "#171b20")
         page_draw = ImageDraw.Draw(page)
 
@@ -82,15 +85,15 @@ def build_comic_page_router(verify_admin_token):
             if len(specs) > 20:
                 raise HTTPException(status_code=400, detail="Massimo 20 balloon per vignetta.")
             row, col = divmod(index, cols)
-            x = MARGIN + col * (PANEL_W + GUTTER)
-            y = MARGIN + row * (PANEL_H + GUTTER)
+            x = MARGIN + col * (panel_w + GUTTER)
+            y = MARGIN + row * (panel_h + GUTTER)
 
             # Vignetta con proporzioni originali: contain, senza tagliare la foto.
-            panel = Image.new("RGB", (PANEL_W, PANEL_H), "#ffffff")
+            panel = Image.new("RGB", (panel_w, panel_h), "#ffffff")
             fitted = source.copy()
-            fitted.thumbnail((PANEL_W, PANEL_H), Image.Resampling.LANCZOS)
-            px = (PANEL_W - fitted.width) // 2
-            py = (PANEL_H - fitted.height) // 2
+            fitted.thumbnail((panel_w, panel_h), Image.Resampling.LANCZOS)
+            px = (panel_w - fitted.width) // 2
+            py = (panel_h - fitted.height) // 2
             panel.paste(fitted, (px, py))
 
             # Le coordinate dei balloon sono normalizzate rispetto alla foto:
@@ -112,18 +115,18 @@ def build_comic_page_router(verify_admin_token):
                     if not isinstance(spec, dict):
                         continue
                     item = dict(spec)
-                    item["x"] = (px + float(item.get("x", 0.5)) * fitted.width) / PANEL_W
-                    item["y"] = (py + float(item.get("y", 0.5)) * fitted.height) / PANEL_H
-                    item["tail_x"] = (px + float(item.get("tail_x", 0.5)) * fitted.width) / PANEL_W
-                    item["tail_y"] = (py + float(item.get("tail_y", 0.5)) * fitted.height) / PANEL_H
-                    item["w"] = float(item.get("w", 0.34)) * fitted.width / PANEL_W
+                    item["x"] = (px + float(item.get("x", 0.5)) * fitted.width) / panel_w
+                    item["y"] = (py + float(item.get("y", 0.5)) * fitted.height) / panel_h
+                    item["tail_x"] = (px + float(item.get("tail_x", 0.5)) * fitted.width) / panel_w
+                    item["tail_y"] = (py + float(item.get("tail_y", 0.5)) * fitted.height) / panel_h
+                    item["w"] = float(item.get("w", 0.34)) * fitted.width / panel_w
                     item["font_size"] = max(10, round(float(item.get("font_size", 44)) * scale))
                     mapped.append(item)
                 for item in mapped:
                     _draw_bubble(draw, panel.size, item)
 
             page.paste(panel, (x, y))
-            page_draw.rectangle((x, y, x + PANEL_W - 1, y + PANEL_H - 1), outline="#080b0e", width=5)
+            page_draw.rectangle((x, y, x + panel_w - 1, y + panel_h - 1), outline="#080b0e", width=5)
 
         output = io.BytesIO()
         page.save(output, "PNG", optimize=True)
