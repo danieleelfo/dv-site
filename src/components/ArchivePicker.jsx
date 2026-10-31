@@ -171,13 +171,13 @@ export default function ArchivePicker({ idToken, onSelect, onClose, multiSelect 
 
         <div className="ap-grid">
           {items.map((item) => (
-            <button type="button" key={item.id} className="ap-card"
-              onClick={() => selectImage(item)} disabled={selectingId !== null}
+            <button type="button" key={item.id} className={"ap-card" + (selectedIds.includes(item.id) ? " ap-card-selected" : "")}
+              onClick={() => multiSelect ? toggleSelected(item.id) : selectImage(item)} disabled={selectingId !== null}
               title={item.prompt || "Immagine #" + item.id}>
               <span className="ap-thumb">
                 {thumbs[item.id] ? <img src={thumbs[item.id]} alt={item.prompt || "GraDV #" + item.id} /> : "…"}
               </span>
-              <span className="ap-meta"><b>#{item.id}</b><span>{item.width} × {item.height}</span></span>
+              <span className="ap-meta"><b>#{item.id}</b><span>{item.width} × {item.height}</span>{multiSelect && <input type="checkbox" checked={selectedIds.includes(item.id)} readOnly />}</span>
               <span className="ap-prompt">{item.prompt || "Prompt non disponibile"}</span>
               <small>{formatDate(item.created_at)}</small>
             </button>
