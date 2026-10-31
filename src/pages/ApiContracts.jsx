@@ -246,6 +246,19 @@ const GROUPS = [
         notes: "api.nt.imgCompose",
       },
       {
+        method: "POST", path: "/api/image/bubbles", auth: true,
+        summary: "Aggiunge balloon a una singola immagine",
+        request: "multipart/form-data: image (file, max 15 MB) + bubbles (JSON array)",
+        response: "image/png — immagine con balloon applicati",
+      },
+      {
+        method: "POST", path: "/api/image/comic-page", auth: true,
+        summary: "Compone una pagina Comics multi-vignetta",
+        request: 'multipart/form-data: images (1-12 file ripetuti, max 15 MB ciascuno), bubbles (JSON: array per immagine), layout ("grid" | "vertical" | "horizontal")',
+        response: "image/png — pagina completa con pannelli e balloon",
+        notes: "Massimo 12 vignette, 20 balloon per vignetta e 120 MB complessivi.",
+      },
+      {
         method: "GET", path: "/api/image/history", auth: true,
         summary: "api.ep.imgHistory",
         request: "—",
