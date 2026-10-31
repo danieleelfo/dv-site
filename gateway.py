@@ -14,6 +14,7 @@ import re
 from git_admin import build_git_admin_router
 from query_db import build_query_db_router
 from image_bubbles import build_bubbles_router
+from comic_page import build_comic_page_router
 from gradv_archive import build_gradv_archive_router
 
 import httpx
@@ -149,6 +150,9 @@ app.include_router(
 # FUMETTI — tab Fumetti di ImageLab: 1 foto + fumetti disegnati con Pillow
 app.include_router(
     build_bubbles_router(verify_admin_token)
+)
+app.include_router(
+    build_comic_page_router(verify_admin_token)
 )
 
 # GraDV Archive — catalogo read-only delle immagini in history.db
