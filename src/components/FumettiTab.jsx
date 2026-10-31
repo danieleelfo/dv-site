@@ -153,12 +153,14 @@ export default function FumettiTab({ embedded = false } = {}) {
   // Autosalvataggio: Blob delle foto locali + ID delle immagini GraDV,
   // ordine, balloon e layout. Non vengono salvati URL temporanei o PNG finali.
   useEffect(() => {
-    if (!draftReady) return undefined;
-    const timer = window.setTimeout(async () => {
+    if (!draftReady) return;
+    let cancelled = false;
+
+    async function persistDraft() {
       try {
         if (!panels.length) {
           await clearComicsDraft(draftKey);
-          setDraftMessage("");
+          if (!cancelled) setDraftMessage("");
           return;
         }
         await saveComicsDraft(draftKey, {
@@ -174,12 +176,14 @@ export default function FumettiTab({ embedded = false } = {}) {
             bubbles: panel.bubbles,
           })),
         });
-        setDraftMessage("Bozza salvata automaticamente su questo dispositivo.");
+        if (!cancelled) setDraftMessage("Bozza salvata automaticamente su questo dispositivo.");
       } catch (err) {
-        setDraftMessage("Salvataggio locale non disponibile: " + (err.message || String(err)));
+        if (!cancelled) setDraftMessage("Salvataggio locale non disponibile: " + (err.message || String(err)));
       }
-    }, 450);
-    return () => window.clearTimeout(timer);
+    }
+
+    persistDraft();
+    return () => { cancelled = true; };
   }, [draftReady, draftKey, panels, activeId, layout]);
 
   useEffect(() => () => {
