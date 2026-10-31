@@ -329,7 +329,7 @@ const GROUPS = [
       {
         method: "POST", path: "/api/admin/stories/{story_id}/comic_pdf", auth: true,
         summary: "api.ep.comicPdf",
-        request: "{\n  \"captions\": true,\n  \"layout\": \"pages\",          // pages | collage | strip\n  \"page_format\": \"landscape\", // landscape | portrait (A4 @ 96 dpi)\n  \"version\": 2                // opzionale: assente = versione attiva\n}",
+        request: "{\n  \"scene_indexes\": [],\n  \"captions\": true,\n  \"narration\": false,\n  \"layout\": \"pages\",          // pages | collage | strip\n  \"page_format\": \"landscape\", // landscape | portrait\n  \"version\": 2                // opzionale: assente = versione attiva\n}",
         response: "application/pdf — fumetto_{story_id}_V{n}.pdf (download diretto)",
         notes: "api.nt.comicPdf",
       },
