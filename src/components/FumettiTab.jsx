@@ -1,6 +1,7 @@
 // Comics Editor: pagina multi-vignetta, balloon per foto, riordino mobile.
 import { useEffect, useRef, useState } from "react";
 import ArchivePicker from "./ArchivePicker.jsx";
+import { clearComicsDraft, loadComicsDraft, saveComicsDraft } from "../utils/comicsDraft.js";
 
 const API = "https://api.danielevillanova.com";
 const TOKEN_KEY = "dv_google_id_token";
@@ -24,9 +25,15 @@ function valid(token) { const p = token ? decodeJwt(token) : null; return !!p?.e
 function readToken() { try { const t = localStorage.getItem(TOKEN_KEY); return valid(t) ? t : ""; } catch { return ""; } }
 function clamp(v) { return Math.max(0, Math.min(1, v)); }
 
-function makePanel(file) {
+function makePanel(file, source = null, saved = null) {
   const preview = URL.createObjectURL(file);
-  return { id: nextPanelId++, file, preview, bubbles: [] };
+  return {
+    id: saved?.id ?? nextPanelId++,
+    file,
+    preview,
+    bubbles: saved?.bubbles || [],
+    archiveId: source?.id ?? saved?.archiveId ?? null,
+  };
 }
 function makeBubble() {
   return {
@@ -41,6 +48,12 @@ export default function FumettiTab({ embedded = false } = {}) {
   const [panels, setPanels] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [layout, setLayout] = useState("grid");
+  const [draftReady, setDraftReady] = useState(false);
+  const [draftMessage, setDraftMessage] = useState("");
+  const draftKey = (() => {
+    const email = decodeJwt(token)?.email || "local";
+    return "comics:" + email.toLowerCase();
+  })();
   const [selectedBubbleId, setSelectedBubbleId] = useState(null);
   const [tailMode, setTailMode] = useState(false);
   const [showArchive, setShowArchive] = useState(false);
@@ -60,12 +73,113 @@ export default function FumettiTab({ embedded = false } = {}) {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
+  // Ripristina la bozza dopo refresh: gli originali GraDV vengono
+  // scaricati nuovamente tramite ID; le foto locali arrivano da IndexedDB.
+  useEffect(() => {
+    let cancelled = false;
+    setDraftReady(false);
+    setDraftMessage("");
+
+    async function restoreDraft() {
+      try {
+        const saved = await loadComicsDraft(draftKey);
+        if (cancelled) return;
+        if (!saved || !Array.isArray(saved.panels)) {
+          setDraftReady(true);
+          return;
+        }
+
+        const restored = [];
+        for (const item of saved.panels) {
+          if (cancelled) return;
+          let blob = item.blob || null;
+
+          if (item.archiveId && token) {
+            try {
+              const response = await fetch(
+                API + "/api/gradv/archive/" + encodeURIComponent(item.archiveId) + "/image",
+                { headers: { Authorization: "Bearer " + token } }
+              );
+              if (response.ok) blob = await response.blob();
+            } catch {
+              // Se l'archivio non risponde, prova la copia locale se presente.
+            }
+          }
+
+          if (!blob) {
+            setDraftMessage("Una foto della bozza non è recuperabile: potrebbe essere stata rimossa dall'archivio.");
+            continue;
+          }
+
+          const type = blob.type || item.type || "image/png";
+          const file = new File([blob], item.name || ("vignetta-" + (restored.length + 1) + ".png"), {
+            type,
+            lastModified: item.lastModified || Date.now(),
+          });
+          restored.push(makePanel(file, { id: item.archiveId }, item));
+        }
+
+        if (cancelled) {
+          restored.forEach(panel => URL.revokeObjectURL(panel.preview));
+          return;
+        }
+        panels.forEach(panel => { if (panel.preview) URL.revokeObjectURL(panel.preview); });
+        setPanels(restored);
+        setActiveId(restored.some(p => p.id === saved.activeId) ? saved.activeId : (restored[0]?.id ?? null));
+        setLayout(saved.layout || "grid");
+        const panelIds = restored.map(p => Number(p.id) || 0);
+        const bubbleIds = restored.flatMap(p => p.bubbles || []).map(b => Number(b.id) || 0);
+        nextPanelId = Math.max(nextPanelId, ...panelIds, 0) + 1;
+        nextBubbleId = Math.max(nextBubbleId, ...bubbleIds, 0) + 1;
+      } catch (err) {
+        setDraftMessage("Ripristino bozza non riuscito: " + (err.message || String(err)));
+      } finally {
+        if (!cancelled) setDraftReady(true);
+      }
+    }
+
+    restoreDraft();
+    return () => { cancelled = true; };
+  }, [draftKey, token]);
+
+  // Autosalvataggio: Blob delle foto locali + ID delle immagini GraDV,
+  // ordine, balloon e layout. Non vengono salvati URL temporanei o PNG finali.
+  useEffect(() => {
+    if (!draftReady) return undefined;
+    const timer = window.setTimeout(async () => {
+      try {
+        if (!panels.length) {
+          await clearComicsDraft(draftKey);
+          setDraftMessage("");
+          return;
+        }
+        await saveComicsDraft(draftKey, {
+          layout,
+          activeId,
+          panels: panels.map(panel => ({
+            id: panel.id,
+            name: panel.file.name,
+            type: panel.file.type,
+            lastModified: panel.file.lastModified,
+            blob: panel.archiveId ? null : panel.file,
+            archiveId: panel.archiveId || null,
+            bubbles: panel.bubbles,
+          })),
+        });
+        setDraftMessage("Bozza salvata automaticamente su questo dispositivo.");
+      } catch (err) {
+        setDraftMessage("Salvataggio locale non disponibile: " + (err.message || String(err)));
+      }
+    }, 450);
+    return () => window.clearTimeout(timer);
+  }, [draftReady, draftKey, panels, activeId, layout]);
+
   useEffect(() => () => {
     panels.forEach(p => { if (p.preview) URL.revokeObjectURL(p.preview); });
     if (resultUrl) URL.revokeObjectURL(resultUrl);
   }, []);
 
-  function addFiles(fileList) {
+  function addFiles(fileList, archiveItems = []) {
     const incoming = Array.from(fileList || []);
     if (!incoming.length) return;
     const validFiles = incoming.filter(f => f.type.startsWith("image/") && f.size <= 15 * 1024 * 1024);
@@ -76,7 +190,7 @@ export default function FumettiTab({ embedded = false } = {}) {
     else if (validFiles.length > room) setError("Massimo " + MAX_PANELS + " vignette.");
     else setError("");
     if (!accepted.length) return;
-    const created = accepted.map(makePanel);
+    const created = accepted.map((file, index) => makePanel(file, archiveItems[index] || null));
     setPanels(old => [...old, ...created]);
     setActiveId(created[0].id);
     setSelectedBubbleId(null);
@@ -85,8 +199,8 @@ export default function FumettiTab({ embedded = false } = {}) {
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
-  function onArchiveSelect(files) {
-    addFiles(files);
+  function onArchiveSelect(files, selectedItems = []) {
+    addFiles(files, selectedItems);
     setShowArchive(false);
   }
 
@@ -241,6 +355,7 @@ export default function FumettiTab({ embedded = false } = {}) {
       {!embedded && <header className="fb-header"><div><p className="fb-kicker">D. VILLANOVA · IMAGE LAB</p><h1>Comics Editor</h1><p className="fb-muted">Componi una pagina a fumetti con più foto, balloon e ordine personalizzato.</p></div></header>}
       <section className="fb-panel">
         <h2>1 · Le tue vignette <small>({panels.length}/{MAX_PANELS})</small></h2>
+        {draftMessage && <p className="fb-hint" role="status">{draftMessage}</p>}
         <div className="fb-upload">
           <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={e => addFiles(e.target.files)} />
           <button type="button" className="fb-btn" disabled={panels.length >= MAX_PANELS} onClick={() => fileInputRef.current?.click()}>+ Aggiungi foto</button>
