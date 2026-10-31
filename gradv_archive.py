@@ -31,7 +31,7 @@ def build_gradv_archive_router(verify_admin_token):
                 detail=f"Database GraDV non trovato: {path}",
             )
         # mode=ro garantisce che questa API non possa modificare il DB.
-        return sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+        return sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)
 
     @router.get("")
     async def list_images(
