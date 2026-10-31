@@ -177,7 +177,7 @@ export default function ArchivePicker({ idToken, onSelect, onClose, multiSelect 
               <span className="ap-thumb">
                 {thumbs[item.id] ? <img src={thumbs[item.id]} alt={item.prompt || "GraDV #" + item.id} /> : "…"}
               </span>
-              <span className="ap-meta"><b>#{item.id}</b><span>{item.width} × {item.height}</span>{multiSelect && <input type="checkbox" checked={selectedIds.includes(item.id)} readOnly />}</span>
+              <span className="ap-meta"><b>#{item.id}</b><span>{item.width} × {item.height}</span>{multiSelect && <span className="ap-check">{selectedIds.includes(item.id) ? "✓" : "＋"}</span>}</span>
               <span className="ap-prompt">{item.prompt || "Prompt non disponibile"}</span>
               <small>{formatDate(item.created_at)}</small>
             </button>
@@ -211,7 +211,7 @@ const ARCHIVE_PICKER_STYLES = `
 .ap-search{display:flex;align-items:center;flex-wrap:wrap;gap:.55rem}
 .ap-search input{flex:1;min-width:180px;padding:.65rem .75rem;border:1px solid var(--border,#1f2b35);border-radius:7px;background:var(--bg,#0b1015);color:inherit;font:inherit;font-size:.84rem}
 .ap-btn{padding:.55rem .8rem;border:1px solid var(--border,#1f2b35);border-radius:7px;background:transparent;color:inherit;font:inherit;font-size:.78rem;cursor:pointer}
-.ap-btn:hover:not(:disabled),.ap-card:hover:not(:disabled){border-color:var(--accent,#3fd0c9)}.ap-card-selected{border-color:var(--accent,#3fd0c9);box-shadow:0 0 0 2px #3fd0c944}.ap-footer-actions{display:flex;align-items:center;justify-content:space-between;gap:.7rem;padding:.6rem 0;color:var(--ink-dim,#8fa1ac);font-size:.78rem}
+.ap-btn:hover:not(:disabled),.ap-card:hover:not(:disabled){border-color:var(--accent,#3fd0c9)}.ap-card-selected{border-color:var(--accent,#3fd0c9);box-shadow:0 0 0 2px #3fd0c944}.ap-check{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border:1px solid var(--accent,#3fd0c9);border-radius:50%;color:var(--accent,#3fd0c9);font-weight:700}.ap-footer-actions{display:flex;align-items:center;justify-content:space-between;gap:.7rem;padding:.6rem 0;color:var(--ink-dim,#8fa1ac);font-size:.78rem}
 .ap-btn:disabled,.ap-card:disabled{opacity:.45;cursor:wait}
 .ap-primary{background:var(--accent,#3fd0c9);border-color:var(--accent,#3fd0c9);color:#071212;font-weight:700}
 .ap-count{margin-left:auto;color:var(--ink-dim,#8fa1ac);font-size:.72rem}
