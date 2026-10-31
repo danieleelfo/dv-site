@@ -48,6 +48,22 @@ const STRIP_MODES = [
         : mode === "4"
           ? "Each image must be rendered as a 2x2 comic grid of exactly 4 panels with clear panel borders, read in horizontal order (top-left, top-right, bottom-left, bottom-right), showing four consecutive micro-moments of this scene. "
           : "";
+// Lingue della storia + TTS (voci Piper installate sul Mac). SW e NS
+// condividono la base; SW ha anche il russo, NS anche portoghese e finlandese.
+const STORY_LANGS = [
+  ["it", "🇮🇩 Italiano"],
+  ["es", "🇪🇸 Español"],
+  ["en", "🇬🇧 English"],
+  ["fr", "🇫🇷 Français"],
+  ["nl", "🇳🇱 Nederlands"],
+  ["ca", "🗣️ Català"],
+  ["uk", "🇺🇦 Українська"],
+];
+const LANG_NAMES = {
+  it: "Italian", es: "Spanish", en: "English", fr: "French",
+  nl: "Dutch", ca: "Catalan", uk: "Ukrainian", ru: "Russian",
+  pt: "Portuguese", fi: "Finnish",
+};
 const CHAT_ID_KEY = "dv_story_chat_id";
 const MAX_PROMPT_CHARS = 4000;
 
@@ -101,6 +117,8 @@ export default function StoriesTab({ idToken }) {
   // e modello planner della CREAZIONE (prima era fisso qwen2.5).
   const [storyAgent, setStoryAgent] = useState(STORY_AGENT);
   const [wantsTts, setWantsTts] = useState(true);
+  // Lingua della storia e dell'audio (selettore bandierina accanto al TTS).
+  const [storyLang, setStoryLang] = useState("it");
   const [storyKids, setStoryKids] = useState(true);
   const [storyGenre, setStoryGenre] = useState("Random");
   const [storyStyle, setStoryStyle] = useState("");
@@ -402,6 +420,9 @@ export default function StoriesTab({ idToken }) {
         (storyPers.descrizione ? ": " + String(storyPers.descrizione).slice(0, 400) : "") +
         ". Rappresentalo fedelmente in ogni scena. "
       : "";
+    const langClause = storyLang !== "it"
+      ? "Write the story in " + (LANG_NAMES[storyLang] || storyLang) + ". "
+      : "";
     let storyText = "";
     let audioFilename = "";
     let savedStoryId = "";
@@ -422,9 +443,9 @@ export default function StoriesTab({ idToken }) {
           signal: controller.signal,
           body: JSON.stringify({
             agent: storyAgent,
-            prompt: (wantsTts ? "audio e testo " : "") + persClause + prompt.trim(),
+            prompt: (wantsTts ? "audio e testo " : "") + langClause + persClause + prompt.trim(),
             chat_id: chatId,
-            language: "it",
+            language: storyLang,
           }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
@@ -468,7 +489,7 @@ export default function StoriesTab({ idToken }) {
           text: storyText,
           agent: storyAgent,
           audio_filename: audioFilename,
-          language: "it",
+          language: storyLang,
           scenes: [],
         }),
       });
@@ -674,7 +695,7 @@ export default function StoriesTab({ idToken }) {
               text: storyText,
               agent: storyAgent,
               audio_filename: audioFilename,
-              language: "it",
+              language: storyLang,
               scenes: doneScenes.map((s) => ({
                 title: s.title,
                 prompt: s.prompt,
@@ -1037,6 +1058,21 @@ export default function StoriesTab({ idToken }) {
               />
               🎧 TTS
             </label>
+            <select
+              className="il-input"
+              value={storyLang}
+              onChange={(event) => setStoryLang(event.target.value)}
+              style={{ flex: "0 0 auto", minWidth: "8.5rem" }}
+              aria-label="Lingua della storia e del TTS"
+              disabled={busy}
+            >
+              {STORY_LANGS.map(([code, label]) => (
+                <option key={code} value={code}>{label}</option>
+              ))}
+              {storyAgent === NS_AGENT && <option value="pt">🇧🇷 Português</option>}
+              {storyAgent === NS_AGENT && <option value="fi">🇫🇮 Suomi</option>}
+              {storyAgent === STORY_AGENT && <option value="ru">🇷🇺 Русский</option>}
+            </select>
             <label title="Con un nuovo chat_id l'agente parte senza memoria: niente personaggi riciclati dalle storie precedenti">
               <input
                 type="checkbox"
