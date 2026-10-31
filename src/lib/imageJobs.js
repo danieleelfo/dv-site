@@ -231,6 +231,40 @@ export function normalizeScenes(parsedPlan, imageCount) {
 // ------------------------------------------------------------
 // Job immagine sul gateway.
 // ------------------------------------------------------------
+// Crea un job img2img: stessa coda IMAGE_JOBS del txt2img, ma parte da
+// un'immagine di riferimento (es. la foto di un personaggio). Il polling
+// e' identico a createImageJob (waitForImageResult).
+export async function createImg2ImgJob(idToken, imageBlob, prompt, { width, height, steps, seed, strength }) {
+  const body = new FormData();
+  body.append("image", imageBlob, "reference.png");
+  body.append("prompt", prompt);
+  body.append("strength", String(strength));
+  body.append("width", String(width));
+  body.append("height", String(height));
+  body.append("steps", String(steps));
+  if (seed != null) body.append("seed", String(seed));
+  const res = await fetch(`${API}/api/image/img2img`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${idToken}` },
+    body,
+  });
+  if (res.status === 401 || res.status === 403) {
+    throw Object.assign(new Error(res.status === 401 ? "Sessione scaduta: rientra e riprova." : "Accesso non autorizzato (admin)."), { status: res.status });
+  }
+  if (!res.ok) {
+    let detail = `HTTP ${res.status}`;
+    try {
+      const data = await res.json();
+      if (data && data.detail) detail = typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail);
+    } catch (e) { /* corpo non JSON */ }
+    throw new Error(detail);
+  }
+  const data = await res.json();
+  const jobId = data.job_id || data.id;
+  if (!jobId) throw new Error("Il gateway non ha restituito job_id per img2img.");
+  return jobId;
+}
+
 export async function createImageJob(idToken, prompt, opts = {}) {
   const { width = 512, height = 512, steps = 8, seed = -1, preset = "" } = opts;
   const body = { prompt, width, height, steps, seed };

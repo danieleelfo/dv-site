@@ -22,6 +22,7 @@ import {
   apiJson,
   authBlobUrl,
   createImageJob,
+  createImg2ImgJob,
   fetchJobStatusWithRetry,
   planStoryScenes,
   resultToDataUrl,
@@ -111,6 +112,10 @@ export default function StoriesTab({ idToken }) {
   // (l'agente non vede le storie precedenti e non ricicla i personaggi).
   // Se spento, usa il chat_id fisso salvato: l'agente ricorda tutto.
   const [freshStory, setFreshStory] = useState(true);
+  // Personaggio fisso della creazione (fase 2/3): nome+descrizione entrano
+  // nel prompt dell'agente e del planner, la foto guida le scene via img2img.
+  const [storyPersId, setStoryPersId] = useState("");
+  const [persStrength, setPersStrength] = useState(0.55);
   // Rigenerazione illustrazioni come nuova versione della stessa storia.
   const [regModel, setRegModel] = useState("qwen2.5");
   const [regStyle, setRegStyle] = useState("");
@@ -389,6 +394,14 @@ export default function StoriesTab({ idToken }) {
     setCurrent(null);
 
     const chatId = freshStory ? newChatId() : getChatId();
+    const storyPers = storyPersId
+      ? personaggi.find((p) => String(p.id) === String(storyPersId)) || null
+      : null;
+    const persClause = storyPers
+      ? 'Il protagonista assoluto della storia e’ "' + String(storyPers.nome || "").trim() + '"' +
+        (storyPers.descrizione ? ": " + String(storyPers.descrizione).slice(0, 400) : "") +
+        ". Rappresentalo fedelmente in ogni scena. "
+      : "";
     let storyText = "";
     let audioFilename = "";
     let savedStoryId = "";
@@ -409,7 +422,7 @@ export default function StoriesTab({ idToken }) {
           signal: controller.signal,
           body: JSON.stringify({
             agent: storyAgent,
-            prompt: (wantsTts ? "audio e testo " : "") + prompt.trim(),
+            prompt: (wantsTts ? "audio e testo " : "") + persClause + prompt.trim(),
             chat_id: chatId,
             language: "it",
           }),
@@ -484,7 +497,14 @@ export default function StoriesTab({ idToken }) {
         idToken,
         storyText,
         imageCount,
-        artDirection: artDirection + stripClause(storyStrip),
+        artDirection:
+          artDirection +
+          stripClause(storyStrip) +
+          (storyPers
+            ? 'The recurring character "' + String(storyPers.nome || "").trim() + '"' +
+              (storyPers.descrizione ? " (" + String(storyPers.descrizione).slice(0, 300) + ")" : "") +
+              " must appear consistently and recognizably in every scene, keeping the same look. "
+            : ""),
         styleExtra,
         model: storyModel,
         onStatus: (s) => {
@@ -522,6 +542,20 @@ export default function StoriesTab({ idToken }) {
       // ------------------------------------------------------
       // 4. Loop immagini: un job per volta, pausa 12s, 1 retry.
       // ------------------------------------------------------
+      // Personaggio selezionato: scarica la foto UNA sola volta e usala
+      // come guida img2img per ogni scena (stessa coda e stesso polling).
+      let persBlob = null;
+      if (storyPers && storyPers.has_image) {
+        setStage("🎭 Scarico la foto del personaggio " + storyPers.nome + "…");
+        const persRes = await fetch(`${API}/api/admin/personaggi/${encodeURIComponent(storyPers.id)}/image`, {
+          headers: { Authorization: "Bearer " + idToken },
+        });
+        if (persRes.ok) {
+          persBlob = await persRes.blob();
+        } else {
+          setStage("⚠️ Foto del personaggio non disponibile: scene in modalita testo-immagine normale…");
+        }
+      }
       const sceneRetried = new Set();
       const doneScenes = [];
 
@@ -545,12 +579,19 @@ export default function StoriesTab({ idToken }) {
             .split("x")
             .map(Number);
           const sceneSteps = Math.max(1, Math.min(15, Number(imageSteps) || 5));
-          const jobId = await createImageJob(idToken, scene.prompt, {
-            preset: kidsMode ? "sw_kids" : (genre ? "ns_free" : ""),
-            width: fmtWidth,
-            height: fmtHeight,
-            steps: sceneSteps,
-          });
+          const jobId = persBlob
+            ? await createImg2ImgJob(idToken, persBlob, scene.prompt, {
+                width: fmtWidth,
+                height: fmtHeight,
+                steps: sceneSteps,
+                strength: persStrength,
+              })
+            : await createImageJob(idToken, scene.prompt, {
+                preset: kidsMode ? "sw_kids" : (genre ? "ns_free" : ""),
+                width: fmtWidth,
+                height: fmtHeight,
+                steps: sceneSteps,
+              });
 
           const sceneStart = Date.now();
           setImgStart(sceneStart);
@@ -1056,6 +1097,36 @@ export default function StoriesTab({ idToken }) {
                 <option key={value} value={value}>📚 {label}</option>
               ))}
             </select>
+            <select
+              className="il-input"
+              value={storyPersId}
+              onChange={(event) => setStoryPersId(event.target.value)}
+              style={{ flex: "0 0 auto", minWidth: "11rem" }}
+              aria-label="Personaggio della storia"
+              disabled={busy}
+            >
+              <option value="">🎭 Nessun personaggio</option>
+              {personaggi.map((p) => (
+                <option key={p.id} value={p.id}>{p.nome}</option>
+              ))}
+            </select>
+            {storyPersId && (
+              <label title="Quanto ogni scena deve assomigliare alla foto del personaggio (img2img)">
+                <input
+                  type="range"
+                  min="0.2"
+                  max="0.9"
+                  step="0.05"
+                  value={persStrength}
+                  onChange={(event) => setPersStrength(Number(event.target.value))}
+                  disabled={busy}
+                  style={{ verticalAlign: "middle" }}
+                />{" "}
+                <span style={{ fontSize: ".8rem", color: "var(--ink-dim, #8fa1ac)" }}>
+                  🎭 Somiglianza {Math.round(persStrength * 100)}%
+                </span>
+              </label>
+            )}
           </div>
           <input
             className="il-input"
@@ -1477,8 +1548,9 @@ export default function StoriesTab({ idToken }) {
         </div>
 
         <p className="il-hint">
-          Carica una foto con nome e descrizione: il personaggio resta pronto
-          per le storie (fase 2 lo aggancera' alla generazione).
+          Carica una foto con nome e descrizione. Nella creazione storia seleziona
+          il personaggio nel selettore: nome e descrizione entrano nella storia e
+          la foto guida ogni illustrazione (img2img).
         </p>
 
         {persError && (
