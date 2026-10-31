@@ -157,6 +157,17 @@ export default function StoriesTab({ idToken }) {
   const [imgStart, setImgStart] = useState(null);
   const [imgElapsed, setImgElapsed] = useState(0);
 
+  // PERSONAGGI (fase 1): foto + nome + descrizione caricati dall'utente.
+  const [personaggi, setPersonaggi] = useState([]);
+  const [persLoading, setPersLoading] = useState(false);
+  const [persError, setPersError] = useState("");
+  const [persThumbs, setPersThumbs] = useState({});
+  const [persName, setPersName] = useState("");
+  const [persDesc, setPersDesc] = useState("");
+  const [persFile, setPersFile] = useState(null);
+  const [persBusy, setPersBusy] = useState(false);
+  const persFileRef = useRef(null);
+
   // Rilascio degli objectURL quando il tab si smonta.
   useEffect(() => {
     const urls = objectUrlsRef.current;
@@ -197,6 +208,80 @@ export default function StoriesTab({ idToken }) {
   useEffect(() => {
     loadStories();
   }, [loadStories]);
+
+  // PERSONAGGI: lista con miniature (blob privati con Bearer).
+  const loadPersonaggi = useCallback(async () => {
+    if (!idToken) return;
+    setPersLoading(true);
+    setPersError("");
+    try {
+      const data = await apiJson(idToken, "/api/admin/personaggi", {}, 60000);
+      const items = Array.isArray(data.items) ? data.items : [];
+      setPersonaggi(items);
+      const nextThumbs = {};
+      await Promise.all(items.map(async (p) => {
+        if (!p.has_image) return;
+        try {
+          nextThumbs[p.id] = trackUrl(
+            await authBlobUrl(idToken, "/api/admin/personaggi/" + p.id + "/image")
+          );
+        } catch (e) {
+          /* thumb fallita: la card resta senza anteprima */
+        }
+      }));
+      setPersThumbs(nextThumbs);
+    } catch (err) {
+      setPersError(err.message || String(err));
+    } finally {
+      setPersLoading(false);
+    }
+  }, [idToken]);
+
+  useEffect(() => {
+    loadPersonaggi();
+  }, [loadPersonaggi]);
+
+  async function createPersonaggio(event) {
+    event.preventDefault();
+    if (!idToken || persBusy) return;
+    if (!persName.trim()) {
+      setPersError("Dai un nome al personaggio.");
+      return;
+    }
+    if (!persFile) {
+      setPersError("Scegli una foto per il personaggio.");
+      return;
+    }
+    setPersBusy(true);
+    setPersError("");
+    try {
+      const body = new FormData();
+      body.append("nome", persName.trim());
+      body.append("descrizione", persDesc.trim());
+      body.append("image", persFile);
+      await apiJson(idToken, "/api/admin/personaggi", { method: "POST", body }, 120000);
+      setPersName("");
+      setPersDesc("");
+      setPersFile(null);
+      if (persFileRef.current) persFileRef.current.value = "";
+      await loadPersonaggi();
+    } catch (err) {
+      setPersError(err.message || String(err));
+    } finally {
+      setPersBusy(false);
+    }
+  }
+
+  async function deletePersonaggio(item, event) {
+    event.preventDefault();
+    event.stopPropagation();
+    try {
+      await apiJson(idToken, "/api/admin/personaggi/" + item.id, { method: "DELETE" }, 60000);
+      await loadPersonaggi();
+    } catch (err) {
+      setPersError(err.message || String(err));
+    }
+  }
 
   const openStory = useCallback(async (item) => {
     setError("");
@@ -1379,6 +1464,110 @@ export default function StoriesTab({ idToken }) {
           )}
         </section>
       )}
+
+      <section className="il-panel il-history-panel">
+        <div className="il-section-heading">
+          <div>
+            <p className="il-eyebrow">07 / PERSONAGGI</p>
+            <h2>Personaggi</h2>
+          </div>
+          <button className="il-button" onClick={loadPersonaggi} disabled={persLoading}>
+            {persLoading ? "Carico…" : "↻ Aggiorna"}
+          </button>
+        </div>
+
+        <p className="il-hint">
+          Carica una foto con nome e descrizione: il personaggio resta pronto
+          per le storie (fase 2 lo aggancera' alla generazione).
+        </p>
+
+        {persError && (
+          <div className="il-error" role="alert">{persError}</div>
+        )}
+
+        <form
+          onSubmit={createPersonaggio}
+          style={{ marginBottom: "1rem", display: "flex", flexWrap: "wrap", gap: ".6rem", alignItems: "flex-end" }}
+        >
+          <div style={{ flex: "1 1 10rem" }}>
+            <label className="il-label" htmlFor="pers-name">Nome</label>
+            <input
+              id="pers-name"
+              className="il-input"
+              type="text"
+              value={persName}
+              onChange={(event) => setPersName(event.target.value)}
+              placeholder="Es. Elfa"
+              maxLength={200}
+              disabled={persBusy}
+            />
+          </div>
+          <div style={{ flex: "2 1 14rem" }}>
+            <label className="il-label" htmlFor="pers-desc">Descrizione</label>
+            <input
+              id="pers-desc"
+              className="il-input"
+              type="text"
+              value={persDesc}
+              onChange={(event) => setPersDesc(event.target.value)}
+              placeholder="Es. cagnolina pazza che ama le noci di cocco"
+              maxLength={4000}
+              disabled={persBusy}
+            />
+          </div>
+          <div style={{ flex: "1 1 12rem" }}>
+            <label className="il-label" htmlFor="pers-file">Foto</label>
+            <input
+              id="pers-file"
+              ref={persFileRef}
+              className="il-input"
+              type="file"
+              accept="image/*"
+              onChange={(event) => setPersFile(event.target.files && event.target.files[0] ? event.target.files[0] : null)}
+              disabled={persBusy}
+            />
+          </div>
+          <button className="il-button il-primary" type="submit" disabled={persBusy || !persName.trim() || !persFile}>
+            {persBusy ? "Carico…" : "＋ Crea personaggio"}
+          </button>
+        </form>
+
+        <div className="il-history-grid">
+          {personaggi.map((p) => (
+            <article key={p.id} className="il-history-card">
+              {persThumbs[p.id] ? (
+                <img
+                  src={persThumbs[p.id]}
+                  alt={p.nome}
+                  loading="lazy"
+                  style={{ width: "100%", height: "auto", borderRadius: "8px", border: "1px solid var(--border, #1f2b35)" }}
+                />
+              ) : (
+                <p className="il-history-prompt">👤 {p.nome}</p>
+              )}
+              <p className="il-history-prompt" style={{ marginTop: ".5rem" }}>
+                <strong>{p.nome}</strong>
+              </p>
+              <div className="il-history-meta">
+                <span>{String(p.descrizione || "").slice(0, 120)}</span>
+              </div>
+              <div className="il-history-actions">
+                <button
+                  className="il-button"
+                  onClick={(event) => deletePersonaggio(p, event)}
+                  title="Elimina il personaggio"
+                >
+                  ✕
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        {!persLoading && personaggi.length === 0 && !persError && (
+          <p className="il-hint">Nessun personaggio. Creane uno con la foto dal telefono.</p>
+        )}
+      </section>
 
       <section className="il-panel il-history-panel">
         <div className="il-section-heading">

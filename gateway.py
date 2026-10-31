@@ -16,6 +16,7 @@ from query_db import build_query_db_router
 from image_bubbles import build_bubbles_router
 from comic_page import build_comic_page_router
 from gradv_archive import build_gradv_archive_router
+from personaggi import build_personaggi_router
 
 import httpx
 from fastapi import FastAPI, Header, HTTPException, Request, UploadFile, File, Form
@@ -158,6 +159,11 @@ app.include_router(
 # GraDV Archive — catalogo read-only delle immagini in history.db
 app.include_router(
     build_gradv_archive_router(verify_admin_token)
+)
+
+# PERSONAGGI — CRUD personaggi (nome, descrizione, foto) per le storie
+app.include_router(
+    build_personaggi_router(verify_admin_token, get_connection)
 )
 
 # --------------------------------------------------------------------------
