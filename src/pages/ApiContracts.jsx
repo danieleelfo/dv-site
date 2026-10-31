@@ -2,7 +2,7 @@
 // API CONTRACTS (contratti API del gateway)
 // Pagina statica di documentazione: nessuna chiamata al backend
 // oltre alla verifica del login Google. Nessuna modifica backend.
-// Dati allineati a gateway.py / git_admin.py / query_db.py / admin_routes.py (30 ottobre 2026).
+// Dati allineati a gateway.py / git_admin.py / query_db.py / admin_routes.py (31 ottobre 2026).
 // ============================================================
 
 import { useEffect, useMemo, useRef, useState } from "react";
