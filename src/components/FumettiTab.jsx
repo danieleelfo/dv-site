@@ -1,25 +1,18 @@
-// Tab Fumetti di ImageLab — 1 foto + fumetti (balloon / rettangolo /
-// pensiero / urlo) disegnati lato server con Pillow (POST /api/image/bubbles).
-// Nessuna AI: come la modalita' "solo fusione" di Multifoto, la risposta e'
-// immediata e torna come PNG.
-//
-// UX: trascinamento fumetti, coda visibile in preview (tratto / puntini per
-// il pensiero), spostamento con le frecce (Shift = passo fine), duplica,
-// selezione = porta in primo piano, "usa risultato come nuova foto".
-
+// Comics Editor: pagina multi-vignetta, balloon per foto, riordino mobile.
 import { useEffect, useRef, useState } from "react";
 import ArchivePicker from "./ArchivePicker.jsx";
 
 const API = "https://api.danielevillanova.com";
 const TOKEN_KEY = "dv_google_id_token";
-
-// Tipi di fumetto (stessi nomi lato gateway, image_bubbles.py).
-const BUBBLE_TYPES = [
-  ["speech", "Balloon (ovale)"],
+const MAX_PANELS = 12;
+const TYPES = [
+  ["speech", "Balloon"],
   ["rect", "Rettangolo"],
-  ["thought", "Pensiero (nuvola)"],
-  ["shout", "Urlo (spigoloso)"],
+  ["thought", "Pensiero"],
+  ["shout", "Urlo"],
 ];
+let nextPanelId = 1;
+let nextBubbleId = 1;
 
 function decodeJwt(token) {
   try {
@@ -29,180 +22,171 @@ function decodeJwt(token) {
 }
 function valid(token) { const p = token ? decodeJwt(token) : null; return !!p?.exp && p.exp * 1000 > Date.now() + 5000; }
 function readToken() { try { const t = localStorage.getItem(TOKEN_KEY); return valid(t) ? t : ""; } catch { return ""; } }
-function clamp01(v) { return Math.max(0, Math.min(1, v)); }
+function clamp(v) { return Math.max(0, Math.min(1, v)); }
 
-let _nextId = 1;
+function makePanel(file) {
+  const preview = URL.createObjectURL(file);
+  return { id: nextPanelId++, file, preview, bubbles: [] };
+}
+function makeBubble() {
+  return {
+    id: nextBubbleId++, type: "speech", text: "",
+    x: 0.5, y: 0.2, w: 0.34, fontSize: 44,
+    fill: "#ffffff", color: "#111111", tailX: 0.5, tailY: 0.7,
+  };
+}
 
 export default function FumettiTab({ embedded = false } = {}) {
   const [token, setToken] = useState(readToken);
-  const canvasRef = useRef(null);
-  const [file, setFile] = useState(null);
-  const [preview, setPreview] = useState("");
-  const [natW, setNatW] = useState(1000);
-  const [bubbles, setBubbles] = useState([]);
-  const [selId, setSelId] = useState(null);
+  const [panels, setPanels] = useState([]);
+  const [activeId, setActiveId] = useState(null);
+  const [layout, setLayout] = useState("grid");
+  const [selectedBubbleId, setSelectedBubbleId] = useState(null);
   const [tailMode, setTailMode] = useState(false);
-  const [status, setStatus] = useState("idle");
-  const [resultUrl, setResultUrl] = useState("");
-  const [error, setError] = useState("");
   const [showArchive, setShowArchive] = useState(false);
+  const [status, setStatus] = useState("idle");
+  const [error, setError] = useState("");
+  const [resultUrl, setResultUrl] = useState("");
+  const canvasRef = useRef(null);
+  const fileInputRef = useRef(null);
 
-  const sel = bubbles.find(b => b.id === selId) || null;
+  const active = panels.find(p => p.id === activeId) || panels[0] || null;
+  const bubbles = active?.bubbles || [];
+  const selectedBubble = bubbles.find(b => b.id === selectedBubbleId) || null;
 
-  // ------------------------------------------------------------------
-  // Auth condivisa con ImageLab (stesso token in localStorage).
-  // ------------------------------------------------------------------
   useEffect(() => {
-    function onStorage(event) {
-      if (event.key === TOKEN_KEY) setToken(readToken());
-    }
+    function onStorage(e) { if (e.key === TOKEN_KEY) setToken(readToken()); }
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  // ------------------------------------------------------------------
-  // Frecce: spostano il fumetto selezionato (Shift = passo fine).
-  // Canc/Backspace: eliminano il fumetto selezionato.
-  // Ignora i tasti quando il focus e' su input/textarea/select.
-  // ------------------------------------------------------------------
-  useEffect(() => {
-    function onKey(e) {
-      if (!selId) return;
-      const t = e.target;
-      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
-      if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); remove(selId); return; }
-      const step = e.shiftKey ? 0.002 : 0.01;
-      if (e.key === "ArrowLeft") { e.preventDefault(); patch(selId, { x: clamp01(sel.x - step) }); }
-      else if (e.key === "ArrowRight") { e.preventDefault(); patch(selId, { x: clamp01(sel.x + step) }); }
-      else if (e.key === "ArrowUp") { e.preventDefault(); patch(selId, { y: clamp01(sel.y - step) }); }
-      else if (e.key === "ArrowDown") { e.preventDefault(); patch(selId, { y: clamp01(sel.y + step) }); }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [selId, sel && sel.x, sel && sel.y]);
+  useEffect(() => () => {
+    panels.forEach(p => { if (p.preview) URL.revokeObjectURL(p.preview); });
+    if (resultUrl) URL.revokeObjectURL(resultUrl);
+  }, []);
 
-  // ------------------------------------------------------------------
-  // Foto
-  // ------------------------------------------------------------------
-  function onFile(event) {
-    const f = event.target.files && event.target.files[0];
-    if (!f) return;
-    if (!f.type.startsWith("image/")) { setError("Il file non è un'immagine."); return; }
-    if (f.size > 15 * 1024 * 1024) { setError("Immagine oltre 15 MB."); return; }
-    setError("");
+  function addFiles(fileList) {
+    const incoming = Array.from(fileList || []);
+    if (!incoming.length) return;
+    const validFiles = incoming.filter(f => f.type.startsWith("image/") && f.size <= 15 * 1024 * 1024);
+    const rejected = incoming.length - validFiles.length;
+    const room = MAX_PANELS - panels.length;
+    const accepted = validFiles.slice(0, Math.max(0, room));
+    if (rejected) setError("Alcuni file non sono immagini o superano 15 MB.");
+    else if (validFiles.length > room) setError("Massimo " + MAX_PANELS + " vignette.");
+    else setError("");
+    if (!accepted.length) return;
+    const created = accepted.map(makePanel);
+    setPanels(old => [...old, ...created]);
+    setActiveId(created[0].id);
+    setSelectedBubbleId(null);
     setResultUrl("");
     setStatus("idle");
-    const url = URL.createObjectURL(f);
-    setFile(f);
-    setPreview(url);
-    const img = new Image();
-    img.onload = () => setNatW(img.naturalWidth || 1000);
-    img.src = url;
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
-  // Selezione dall'archivio: entra nello stesso identico stato di un upload.
-  function onArchiveSelect(f) {
-    if (!f || !f.type.startsWith("image/")) {
-      setError("Il file selezionato non è un'immagine.");
-      return;
-    }
-    if (f.size > 15 * 1024 * 1024) {
-      setError("Immagine oltre 15 MB.");
-      return;
-    }
-    setError("");
-    setResultUrl("");
-    setStatus("idle");
-    const url = URL.createObjectURL(f);
-    setFile(f);
-    setPreview(url);
-    const img = new Image();
-    img.onload = () => setNatW(img.naturalWidth || 1000);
-    img.src = url;
+  function onArchiveSelect(files) {
+    addFiles(files);
     setShowArchive(false);
   }
 
-  // ------------------------------------------------------------------
-  // Fumetti
-  // ------------------------------------------------------------------
+  function updateActive(updater) {
+    if (!active) return;
+    setPanels(old => old.map(p => p.id === active.id
+      ? { ...p, bubbles: typeof updater === "function" ? updater(p.bubbles) : updater }
+      : p));
+    setResultUrl("");
+    setStatus("idle");
+  }
+
   function addBubble() {
-    const id = _nextId++;
-    setBubbles(bs => [...bs, {
-      id,
-      type: "speech",
-      text: "",
-      x: 0.5, y: 0.2, w: 0.34,
-      fontSize: 44,
-      fill: "#ffffff",
-      color: "#111111",
-      tailX: 0.5, tailY: 0.7,
-    }]);
-    setSelId(id);
+    const b = makeBubble();
+    updateActive(old => [...old, b]);
+    setSelectedBubbleId(b.id);
     setTailMode(false);
   }
-
-  function duplicateBubble() {
-    if (!sel) return;
-    const id = _nextId++;
-    setBubbles(bs => [...bs, { ...sel, id, x: clamp01(sel.x + 0.04), y: clamp01(sel.y + 0.06) }]);
-    setSelId(id);
-    setTailMode(false);
+  function patchBubble(id, patch) {
+    updateActive(old => old.map(b => b.id === id ? { ...b, ...patch } : b));
   }
-
-  function patch(id, p) {
-    setBubbles(bs => bs.map(b => (b.id === id ? { ...b, ...p } : b)));
+  function removeBubble(id) {
+    updateActive(old => old.filter(b => b.id !== id));
+    if (selectedBubbleId === id) setSelectedBubbleId(null);
   }
-
-  function remove(id) {
-    setBubbles(bs => bs.filter(b => b.id !== id));
-    if (selId === id) setSelId(null);
+  function removePanel(id) {
+    const removed = panels.find(p => p.id === id);
+    if (removed?.preview) URL.revokeObjectURL(removed.preview);
+    const next = panels.filter(p => p.id !== id);
+    setPanels(next);
+    if (activeId === id) setActiveId(next[0]?.id ?? null);
+    setSelectedBubbleId(null);
+    setResultUrl("");
+    setStatus("idle");
   }
-
-  // Selezionare = anche portare in primo piano (z-order).
-  function bringToFront(id) {
-    setSelId(id);
-    setBubbles(bs => {
-      const b = bs.find(x => x.id === id);
-      return b ? [...bs.filter(x => x.id !== id), b] : bs;
-    });
+  function movePanel(index, delta) {
+    const target = index + delta;
+    if (target < 0 || target >= panels.length) return;
+    const next = [...panels];
+    [next[index], next[target]] = [next[target], next[index]];
+    setPanels(next);
+    setResultUrl("");
+    setStatus("idle");
   }
-
-  function onCanvasClick(event) {
-    if (!file) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    const fx = clamp01((event.clientX - rect.left) / rect.width);
-    const fy = clamp01((event.clientY - rect.top) / rect.height);
-    if (!sel) return;
-    if (tailMode) {
-      patch(sel.id, { tailX: fx, tailY: fy });
-      setTailMode(false);
-    } else {
-      patch(sel.id, { x: fx, y: fy });
+  function replacePanel(id, file) {
+    if (!file || !file.type.startsWith("image/") || file.size > 15 * 1024 * 1024) {
+      setError("Scegli un'immagine valida fino a 15 MB.");
+      return;
     }
+    const preview = URL.createObjectURL(file);
+    setPanels(old => old.map(p => {
+      if (p.id !== id) return p;
+      URL.revokeObjectURL(p.preview);
+      return { ...p, file, preview, bubbles: [] };
+    }));
+    setActiveId(id);
+    setSelectedBubbleId(null);
+    setResultUrl("");
+    setStatus("idle");
+    setError("");
   }
 
-  // Trascinamento del fumetto (pointer events, funziona anche su touch).
-  function onBubblePointerDown(e, b) {
-    if (e.button !== undefined && e.button !== 0) return;
-    e.stopPropagation();
-    e.preventDefault();
-    bringToFront(b.id);
-    setTailMode(false);
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const cw = rect.width || 1;
-    const ch = rect.height || 1;
-    const startFx = b.x;
-    const startFy = b.y;
-    const startCx = e.clientX;
-    const startCy = e.clientY;
-    const move = (ev) => {
-      patch(b.id, {
-        x: clamp01(startFx + (ev.clientX - startCx) / cw),
-        y: clamp01(startFy + (ev.clientY - startCy) / ch),
-      });
+  function onCanvasClick(e) {
+    if (!active || !selectedBubble) return;
+    const r = e.currentTarget.getBoundingClientRect();
+    const x = clamp((e.clientX - r.left) / r.width);
+    const y = clamp((e.clientY - r.top) / r.height);
+    if (tailMode) {
+      patchBubble(selectedBubble.id, { tailX: x, tailY: y });
+      setTailMode(false);
+    } else patchBubble(selectedBubble.id, { x, y });
+  }
+
+  function bubbleStyle(b) {
+    const canvasWidth = canvasRef.current?.clientWidth || 360;
+    const scale = Math.max(1, (active?.file ? 760 / canvasWidth : 2));
+    const fs = Math.max(9, b.fontSize / scale);
+    return {
+      position: "absolute", left: (b.x * 100) + "%", top: (b.y * 100) + "%",
+      transform: "translate(-50%,-50%)", width: (b.w * 100) + "%",
+      minHeight: (fs * 1.6) + "px", display: "flex", alignItems: "center",
+      justifyContent: "center", textAlign: "center", padding: (fs * .35) + "px",
+      background: b.fill, color: b.color, fontSize: fs + "px", lineHeight: 1.25,
+      border: "2px solid #111", borderRadius: b.type === "rect" ? "10px" : "50%",
+      whiteSpace: "pre-wrap", cursor: "grab", touchAction: "none",
+      boxShadow: b.id === selectedBubbleId ? "0 0 0 3px #3fd0c9" : "none",
     };
+  }
+  function startBubbleDrag(e, bubble) {
+    if (e.button !== undefined && e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedBubbleId(bubble.id);
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const sx = e.clientX, sy = e.clientY, ox = bubble.x, oy = bubble.y;
+    const move = ev => patchBubble(bubble.id, {
+      x: clamp(ox + (ev.clientX - sx) / rect.width),
+      y: clamp(oy + (ev.clientY - sy) / rect.height),
+    });
     const up = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
@@ -213,73 +197,27 @@ export default function FumettiTab({ embedded = false } = {}) {
     window.addEventListener("pointercancel", up);
   }
 
-  // Rapporto tra la larghezza del PNG finale e quella del canvas visibile:
-  // serve per mostrare in preview la stessa dimensione relativa del testo.
-  function previewScale() {
-    const cw = canvasRef.current ? canvasRef.current.clientWidth : 0;
-    return cw > 0 ? natW / cw : 4;
-  }
-
-  function bubbleStyle(b) {
-    const scale = previewScale();
-    const fs = Math.max(9, b.fontSize / scale);
-    const radius = b.type === "rect" ? "12px" : "50%";
-    return {
-      position: "absolute",
-      left: (b.x * 100) + "%",
-      top: (b.y * 100) + "%",
-      transform: "translate(-50%, -50%)",
-      width: (b.w * 100) + "%",
-      minHeight: (fs * 1.6) + "px",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      textAlign: "center",
-      padding: (fs * 0.35) + "px " + (fs * 0.45) + "px",
-      background: b.fill,
-      color: b.color,
-      fontSize: fs + "px",
-      lineHeight: 1.3,
-      border: "2px solid #111",
-      borderRadius: radius,
-      cursor: "grab",
-      whiteSpace: "pre-wrap",
-      boxShadow: b.id === selId ? "0 0 0 3px #3fd0c9" : "none",
-      touchAction: "none",
-    };
-  }
-
-  // ------------------------------------------------------------------
-  // Disegno: POST /api/image/bubbles (Pillow sul Mac, no AI)
-  // ------------------------------------------------------------------
-  async function draw(event) {
-    if (event) event.preventDefault();
-    if (!file || !token) return;
-    const withText = bubbles.filter(b => (b.text || "").trim());
-    if (!withText.length) { setError("Aggiungi almeno un fumetto con del testo."); return; }
+  async function generate(e) {
+    e?.preventDefault();
+    if (!panels.length || !token || status === "drawing") return;
     setStatus("drawing");
     setError("");
     try {
-      // Payload pulito: solo i campi che il server conosce (niente id).
-      const clean = withText.map(({ id, ...rest }) => rest);
       const body = new FormData();
-      body.append("image", file, file.name);
-      body.append("bubbles", JSON.stringify({ bubbles: clean }));
-      const res = await fetch(API + "/api/image/bubbles", {
-        method: "POST",
-        headers: { Authorization: "Bearer " + token },
-        body,
+      panels.forEach(p => body.append("images", p.file, p.file.name));
+      body.append("layout", layout);
+      body.append("bubbles", JSON.stringify(panels.map(p =>
+        p.bubbles.filter(b => (b.text || "").trim()).map(({ id, ...b }) => b)
+      )));
+      const response = await fetch(API + "/api/image/comic-page", {
+        method: "POST", headers: { Authorization: "Bearer " + token }, body,
       });
-      if (!res.ok) {
-        let detail = "HTTP " + res.status;
-        try {
-          const j = await res.json();
-          detail = (j && (j.detail || j.error)) || detail;
-          if (typeof detail !== "string") detail = JSON.stringify(detail);
-        } catch (e) { /* corpo non JSON */ }
-        throw new Error(detail);
+      if (!response.ok) {
+        let message = "HTTP " + response.status;
+        try { const data = await response.json(); message = data.detail || message; } catch {}
+        throw new Error(typeof message === "string" ? message : JSON.stringify(message));
       }
-      const blob = await res.blob();
+      const blob = await response.blob();
       setResultUrl(URL.createObjectURL(blob));
       setStatus("done");
     } catch (err) {
@@ -288,298 +226,125 @@ export default function FumettiTab({ embedded = false } = {}) {
     }
   }
 
-  function downloadResult() {
+  function download() {
     if (!resultUrl) return;
-    const link = document.createElement("a");
-    link.href = resultUrl;
-    link.download = "fumetti-" + (file ? file.name.replace(/\.[^.]+$/, "") : "foto") + ".png";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
+    const a = document.createElement("a");
+    a.href = resultUrl;
+    a.download = "fumetto-completo.png";
+    document.body.appendChild(a); a.click(); a.remove();
   }
 
-  // Continua sul risultato: la vignetta finita diventa la nuova foto base
-  // (i fumetti restano, per fare altre battute sopra).
-  async function useResultAsPhoto() {
-    if (!resultUrl) return;
-    try {
-      const blob = await (await fetch(resultUrl)).blob();
-      const f = new File([blob], "fumetti-" + Date.now() + ".png", { type: "image/png" });
-      setFile(f);
-      const url = URL.createObjectURL(f);
-      setPreview(url);
-      const img = new Image();
-      img.onload = () => setNatW(img.naturalWidth || 1000);
-      img.src = url;
-      setResultUrl("");
-      setStatus("idle");
-    } catch (err) {
-      setError(err.message || String(err));
-    }
-  }
-
-  // ------------------------------------------------------------------
-  // Login richiesto (gestito dal tab Genera di ImageLab)
-  // ------------------------------------------------------------------
-  if (!token) {
-    return (
-      <section className="fb-panel fb-login">
-        <h2>Fumetti</h2>
-        <p>Accedi con Google dal tab Genera, poi torna qui.</p>
-        <style>{FB_STYLES}</style>
-      </section>
-    );
-  }
+  if (!token) return <section className="fb-panel"><h2>Comics Editor</h2><p>Accedi con Google dal tab Genera, poi torna qui.</p><style>{STYLES}</style></section>;
 
   return (
     <div className="fb-wrap">
-      {!embedded && (
-        <header className="fb-header">
-          <div>
-            <p className="fb-kicker">D. VILLANOVA · IMAGE LAB</p>
-            <h1>Fumetti</h1>
-            <p className="fb-muted">Carica una foto, aggiungi i fumetti con il testo e Pillow li disegna sul Mac.</p>
-          </div>
-        </header>
-      )}
-
-      <div className="fb-grid">
-        {/* ------------------------------------------------------ */}
-        {/* FOTO + CANVAS                                           */}
-        {/* ------------------------------------------------------ */}
-        <section className="fb-panel">
-          <h2>1 · Foto</h2>
-
-          <div className="fb-upload">
-            <input id="fb-file" type="file" accept="image/*" onChange={onFile} />
-            <label htmlFor="fb-file">
-              <b>{file ? file.name : "Scegli una foto"}</b>
-              <small>PNG/JPG fino a 15 MB</small>
-            </label>
-            <button type="button" className="fb-btn" onClick={() => setShowArchive(true)}>
-              Dall'archivio
+      {!embedded && <header className="fb-header"><div><p className="fb-kicker">D. VILLANOVA · IMAGE LAB</p><h1>Comics Editor</h1><p className="fb-muted">Componi una pagina a fumetti con più foto, balloon e ordine personalizzato.</p></div></header>}
+      <section className="fb-panel">
+        <h2>1 · Le tue vignette <small>({panels.length}/{MAX_PANELS})</small></h2>
+        <div className="fb-upload">
+          <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={e => addFiles(e.target.files)} />
+          <button type="button" className="fb-btn" disabled={panels.length >= MAX_PANELS} onClick={() => fileInputRef.current?.click()}>+ Aggiungi foto</button>
+          <button type="button" className="fb-btn" disabled={panels.length >= MAX_PANELS} onClick={() => setShowArchive(true)}>Dall'archivio</button>
+        </div>
+        <p className="fb-hint">Puoi aggiungere foto in momenti diversi. Ordine di lettura da sinistra a destra e dall'alto in basso.</p>
+        {panels.length > 0 && <div className="fb-panel-list">
+          {panels.map((p, i) => <article key={p.id} className={"fb-panel-card" + (p.id === active?.id ? " is-active" : "")}>
+            <button type="button" className="fb-panel-select" onClick={() => { setActiveId(p.id); setSelectedBubbleId(null); setTailMode(false); }}>
+              <img src={p.preview} alt={"Vignetta " + (i + 1)} />
+              <span><b>Vignetta {i + 1}</b><small>{p.file.name}</small><small>{p.bubbles.filter(b => b.text.trim()).length} balloon</small></span>
             </button>
-          </div>
-
-          {preview && (
-            <div className="fb-canvas" ref={canvasRef} onClick={onCanvasClick}>
-              <img src={preview} alt="foto" draggable={false} />
-
-              {/* Code in preview: tratto dal centro del fumetto alla punta.
-                  thought = puntini. Sotto le bolle, così si vede solo fuori. */}
-              <svg className="fb-tailsvg" aria-hidden="true">
-                {bubbles.map(b => {
-                  const len = Math.hypot(b.tailX - b.x, b.tailY - b.y) * 100;
-                  if (len < 5) return null;
-                  return (
-                    <line
-                      key={b.id}
-                      x1={(b.x * 100) + "%"} y1={(b.y * 100) + "%"}
-                      x2={(b.tailX * 100) + "%"} y2={(b.tailY * 100) + "%"}
-                      stroke={b.fill}
-                      strokeWidth="2.5"
-                      strokeLinecap="round"
-                      strokeDasharray={b.type === "thought" ? "0.1 8" : undefined}
-                    />
-                  );
-                })}
-              </svg>
-
-              {bubbles.map(b => (
-                <div
-                  key={b.id}
-                  style={bubbleStyle(b)}
-                  onPointerDown={(e) => onBubblePointerDown(e, b)}
-                  onClick={(e) => { e.stopPropagation(); bringToFront(b.id); }}
-                >
-                  {b.text || <span className="fb-empty">Testo…</span>}
-                </div>
-              ))}
+            <div className="fb-order">
+              <button type="button" onClick={() => movePanel(i, -1)} disabled={i === 0} aria-label="Sposta su">↑</button>
+              <button type="button" onClick={() => movePanel(i, 1)} disabled={i === panels.length - 1} aria-label="Sposta giù">↓</button>
+              <label className="fb-btn fb-mini">Sostituisci<input type="file" accept="image/*" onChange={e => { replacePanel(p.id, e.target.files?.[0]); e.target.value = ""; }} /></label>
+              <button type="button" className="fb-btn fb-danger" onClick={() => removePanel(p.id)}>Elimina</button>
             </div>
-          )}
+          </article>)}
+        </div>}
+      </section>
 
-          <p className="fb-hint">
-            Trascina i fumetti sulla foto, oppure clic per spostare il selezionato.
-            Frecce = spostamento preciso (Shift = fine), Canc = elimina.
-            Con "Posiziona coda" attivo, il clic punta la coda (chi parla).
-          </p>
-
-          <div className="fb-actions">
-            <button type="button" className="fb-btn" onClick={addBubble}>+ Aggiungi fumetto</button>
-            {sel && (
-              <button
-                type="button"
-                className={"fb-btn" + (tailMode ? " fb-btn-active" : "")}
-                onClick={() => setTailMode(m => !m)}
-              >
-                {tailMode ? "Clic la punta della coda…" : "Posiziona coda"}
-              </button>
-            )}
-            {sel && (
-              <button type="button" className="fb-btn" onClick={duplicateBubble}>Duplica</button>
-            )}
-            {sel && (
-              <button type="button" className="fb-btn fb-btn-danger" onClick={() => remove(sel.id)}>
-                Elimina fumetto
-              </button>
-            )}
-          </div>
-        </section>
-
-        {/* ------------------------------------------------------ */}
-        {/* CONFIGURAZIONE FUMETTO SELEZIONATO                      */}
-        {/* ------------------------------------------------------ */}
+      {active && <div className="fb-grid">
         <section className="fb-panel">
-          <h2>2 · Fumetto selezionato</h2>
-
-          {!sel && (
-            <p className="fb-hint">Nessun fumetto selezionato: aggiungine uno o cliccane uno sulla foto.</p>
-          )}
-
-          {sel && (
-            <form onSubmit={draw} className="fb-form">
-              <label className="fb-label" htmlFor={"fb-type-" + sel.id}>Tipo</label>
-              <select
-                id={"fb-type-" + sel.id}
-                className="fb-input"
-                value={sel.type}
-                onChange={(e) => patch(sel.id, { type: e.target.value })}
-              >
-                {BUBBLE_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-              </select>
-
-              <label className="fb-label" htmlFor={"fb-text-" + sel.id}>Testo</label>
-              <textarea
-                id={"fb-text-" + sel.id}
-                className="fb-input fb-text"
-                rows={3}
-                maxLength={500}
-                value={sel.text}
-                placeholder="Testo del fumetto…"
-                onChange={(e) => patch(sel.id, { text: e.target.value })}
-              />
-
-              <label className="fb-label" htmlFor={"fb-w-" + sel.id}>
-                Larghezza: {Math.round(sel.w * 100)}%
-              </label>
-              <input
-                id={"fb-w-" + sel.id}
-                type="range"
-                min="0.08" max="0.9" step="0.01"
-                value={sel.w}
-                onChange={(e) => patch(sel.id, { w: Number(e.target.value) })}
-              />
-
-              <div className="fb-fields">
-                <div className="fb-field">
-                  <label className="fb-label" htmlFor={"fb-fs-" + sel.id}>Dimensione testo (px)</label>
-                  <input
-                    id={"fb-fs-" + sel.id}
-                    className="fb-input"
-                    type="number" min="12" max="200" step="1"
-                    value={sel.fontSize}
-                    onChange={(e) => patch(sel.id, { fontSize: Number(e.target.value) || 44 })}
-                  />
-                </div>
-                <div className="fb-field">
-                  <label className="fb-label" htmlFor={"fb-fill-" + sel.id}>Colore bolla</label>
-                  <input
-                    id={"fb-fill-" + sel.id}
-                    className="fb-input fb-color"
-                    type="color"
-                    value={sel.fill}
-                    onChange={(e) => patch(sel.id, { fill: e.target.value })}
-                  />
-                </div>
-                <div className="fb-field">
-                  <label className="fb-label" htmlFor={"fb-color-" + sel.id}>Colore testo</label>
-                  <input
-                    id={"fb-color-" + sel.id}
-                    className="fb-input fb-color"
-                    type="color"
-                    value={sel.color}
-                    onChange={(e) => patch(sel.id, { color: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <button className="fb-btn fb-primary" type="submit" disabled={!file || status === "drawing"}>
-                {status === "drawing" ? "Disegno…" : "Disegna fumetti"}
-              </button>
-            </form>
-          )}
-
-          {error && <div className="fb-error" role="alert">{error}</div>}
-
-          {resultUrl && status === "done" && (
-            <div className="fb-result">
-              <h3>Risultato</h3>
-              <img src={resultUrl} alt="risultato" />
-              <div className="fb-actions">
-                <button type="button" className="fb-btn fb-primary" onClick={downloadResult}>Scarica PNG</button>
-                <button type="button" className="fb-btn" onClick={useResultAsPhoto}>Usa come nuova foto</button>
-              </div>
-            </div>
-          )}
-
-          <footer className="fb-footer">
-            Fumetti · disegno: <code>/api/image/bubbles</code> · Pillow sul Mac, no AI
-          </footer>
+          <h2>2 · Modifica vignetta {panels.findIndex(p => p.id === active.id) + 1}</h2>
+          <div className="fb-canvas" ref={canvasRef} onClick={onCanvasClick}>
+            <img src={active.preview} alt="Vignetta selezionata" draggable={false} />
+            <svg className="fb-tailsvg" aria-hidden="true">{bubbles.map(b => <line key={b.id}
+              x1={(b.x * 100) + "%"} y1={(b.y * 100) + "%"} x2={(b.tailX * 100) + "%"} y2={(b.tailY * 100) + "%"}
+              stroke={b.fill} strokeWidth="2.5" strokeLinecap="round" strokeDasharray={b.type === "thought" ? "0.1 8" : undefined} />)}</svg>
+            {bubbles.map(b => <div key={b.id} style={bubbleStyle(b)} onPointerDown={e => startBubbleDrag(e, b)}
+              onClick={e => { e.stopPropagation(); setSelectedBubbleId(b.id); }}>{b.text || <span className="fb-empty">Testo…</span>}</div>)}
+          </div>
+          <p className="fb-hint">Seleziona un balloon e trascinalo sulla foto. Tocca "Posiziona coda" e poi la foto per indicare chi parla.</p>
+          <div className="fb-actions">
+            <button type="button" className="fb-btn" onClick={addBubble}>+ Balloon</button>
+            {selectedBubble && <button type="button" className={"fb-btn" + (tailMode ? " fb-btn-active" : "")} onClick={() => setTailMode(v => !v)}>{tailMode ? "Tocca la punta…" : "Posiziona coda"}</button>}
+            {selectedBubble && <button type="button" className="fb-btn fb-danger" onClick={() => removeBubble(selectedBubble.id)}>Elimina balloon</button>}
+          </div>
         </section>
-      </div>
+        <section className="fb-panel">
+          <h2>3 · Balloon selezionato</h2>
+          {!selectedBubble && <p className="fb-hint">Aggiungi un balloon o selezionane uno sulla foto.</p>}
+          {selectedBubble && <div className="fb-form">
+            <label className="fb-label">Tipo</label>
+            <select className="fb-input" value={selectedBubble.type} onChange={e => patchBubble(selectedBubble.id, { type: e.target.value })}>{TYPES.map(([v, label]) => <option key={v} value={v}>{label}</option>)}</select>
+            <label className="fb-label">Testo</label>
+            <textarea className="fb-input fb-text" rows={3} maxLength={500} value={selectedBubble.text} placeholder="Scrivi il testo…" onChange={e => patchBubble(selectedBubble.id, { text: e.target.value })} />
+            <label className="fb-label">Larghezza: {Math.round(selectedBubble.w * 100)}%</label>
+            <input type="range" min=".08" max=".9" step=".01" value={selectedBubble.w} onChange={e => patchBubble(selectedBubble.id, { w: Number(e.target.value) })} />
+            <div className="fb-fields">
+              <div className="fb-field"><label className="fb-label">Dimensione testo</label><input className="fb-input" type="number" min="12" max="200" value={selectedBubble.fontSize} onChange={e => patchBubble(selectedBubble.id, { fontSize: Number(e.target.value) || 44 })} /></div>
+              <div className="fb-field"><label className="fb-label">Sfondo</label><input className="fb-input fb-color" type="color" value={selectedBubble.fill} onChange={e => patchBubble(selectedBubble.id, { fill: e.target.value })} /></div>
+              <div className="fb-field"><label className="fb-label">Testo</label><input className="fb-input fb-color" type="color" value={selectedBubble.color} onChange={e => patchBubble(selectedBubble.id, { color: e.target.value })} /></div>
+            </div>
+          </div>}
+        </section>
+      </div>}
 
-      {showArchive && (
-        <ArchivePicker
-          idToken={token}
-          onSelect={onArchiveSelect}
-          onClose={() => setShowArchive(false)}
-        />
-      )}
+      <section className="fb-panel">
+        <h2>4 · Pagina finale</h2>
+        <div className="fb-layouts"><label>Impaginazione <select className="fb-input" value={layout} onChange={e => setLayout(e.target.value)}><option value="grid">Griglia (2 colonne)</option><option value="vertical">Verticale (una colonna)</option><option value="horizontal">Orizzontale (una riga)</option></select></label></div>
+        <button type="button" className="fb-btn fb-primary" disabled={!panels.length || status === "drawing"} onClick={generate}>{status === "drawing" ? "Composizione…" : "Genera fumetto completo"}</button>
+        {error && <div className="fb-error" role="alert">{error}</div>}
+        {resultUrl && status === "done" && <div className="fb-result"><h3>Anteprima fumetto completo</h3><img src={resultUrl} alt="Pagina a fumetti completa" /><button type="button" className="fb-btn fb-primary" onClick={download}>Scarica PNG</button></div>}
+        <footer className="fb-footer">Comics Editor · Pillow sul Mac · fino a {MAX_PANELS} vignette</footer>
+      </section>
 
-      <style>{FB_STYLES}</style>
+      {showArchive && <ArchivePicker idToken={token} multiSelect onSelect={onArchiveSelect} onClose={() => setShowArchive(false)} />}
+      <style>{STYLES}</style>
     </div>
   );
 }
 
-const FB_STYLES = `
-.fb-wrap{max-width:1180px;margin:auto}
-.fb-header{display:flex;align-items:center;justify-content:space-between;gap:1.2rem;flex-wrap:wrap;padding-bottom:1.2rem;border-bottom:1px solid var(--border,#1f2b35);margin-bottom:1.2rem}
+const STYLES = `
+.fb-wrap{max-width:1180px;margin:auto;display:grid;gap:1rem}
+.fb-header{padding-bottom:1rem;border-bottom:1px solid var(--border,#1f2b35)}
 .fb-header h1{font:400 clamp(2rem,4vw,3rem)/1.15 var(--serif,Georgia,serif);margin:.25rem 0}
 .fb-kicker{color:var(--accent,#3fd0c9);font-size:.68rem;font-weight:700;letter-spacing:.14em;margin:0 0 .4rem}
-.fb-muted{color:var(--ink-dim,#8fa1ac);font-size:.78rem;line-height:1.55}
-.fb-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.85fr);gap:1rem;align-items:start}
-.fb-panel{min-width:0;padding:1.25rem;border:1px solid var(--border,#1f2b35);border-radius:12px;background:var(--panel,#121a22)}
-.fb-panel h2{font-size:1.15rem;margin:0 0 1rem}
-.fb-panel h3{font-size:1rem;margin:1rem 0 .6rem}
-.fb-upload{display:flex;align-items:center;gap:.8rem;margin-bottom:1rem}
-.fb-upload input{max-width:280px;color:var(--ink-dim,#8fa1ac);font-size:.8rem}
-.fb-upload label{cursor:pointer}
-.fb-upload b{display:block;color:var(--accent,#3fd0c9);font-size:.85rem}
-.fb-upload small{display:block;color:var(--ink-dim,#8fa1ac);font-size:.72rem}
-.fb-canvas{position:relative;display:inline-block;max-width:100%;border:1px solid var(--border,#33414c);border-radius:9px;overflow:hidden;cursor:crosshair;background:#080c10}
-.fb-canvas img{display:block;max-width:100%;max-height:520px;user-select:none;-webkit-user-drag:none}
-.fb-tailsvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;filter:drop-shadow(0 1px 1px rgba(0,0,0,.25))}
-.fb-empty{opacity:.45;font-style:italic}
-.fb-hint{color:var(--ink-dim,#8fa1ac);font-size:.76rem;line-height:1.55;margin:.8rem 0}
-.fb-label{display:block;margin:.85rem 0 .4rem;color:var(--ink-dim,#8fa1ac);font-size:.78rem;font-weight:600}
-.fb-input{display:block;width:100%;min-width:0;padding:.7rem .8rem;border:1px solid var(--border,#1f2b35);border-radius:7px;background:var(--bg,#0b1015);color:var(--ink,#e7edf1);font:inherit;font-size:.88rem}
-.fb-text{min-height:90px;resize:vertical;line-height:1.5}
-.fb-fields{display:grid;grid-template-columns:1fr 1fr 1fr;gap:.8rem}
-.fb-field input[type=range]{width:100%;accent-color:var(--accent,#3fd0c9)}
-.fb-color{padding:.25rem;height:2.6rem}
-.fb-btn{display:inline-flex;align-items:center;justify-content:center;padding:.6rem .9rem;border:1px solid var(--border,#1f2b35);border-radius:6px;background:transparent;color:var(--ink,#e7edf1);font:inherit;font-size:.8rem;font-weight:600;cursor:pointer}
-.fb-btn:disabled{opacity:.45;cursor:not-allowed}
-.fb-btn-active{border-color:var(--accent,#3fd0c9);color:var(--accent,#3fd0c9)}
-.fb-btn-danger{border-color:#7f1d1d;color:#fca5a5}
-.fb-primary{border-color:var(--accent,#3fd0c9);background:var(--accent,#3fd0c9);color:#071212}
-.fb-actions{display:flex;align-items:center;flex-wrap:wrap;gap:.6rem;margin-top:1rem}
-.fb-form .fb-primary{margin-top:1.1rem;width:100%}
-.fb-error{margin-top:1rem;padding:.9rem;border:1px solid #7f1d1d;border-radius:8px;background:#7f1d1d20;color:#fca5a5;font-size:.82rem;overflow-wrap:anywhere}
-.fb-result img{display:block;width:100%;max-height:520px;object-fit:contain;border-radius:8px;background:#080c10}
-.fb-footer{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1.3rem;padding-top:.9rem;border-top:1px solid var(--border,#1f2b35);font-size:.72rem;color:var(--ink-dim,#8fa1ac)}
-.fb-footer code{color:var(--ink,#e7edf1)}
-.fb-login{max-width:550px;margin:1.5rem auto;text-align:center}
-.fb-login p{color:var(--ink-dim,#8fa1ac);font-size:.82rem}
-@media(max-width:850px){.fb-grid{grid-template-columns:1fr}.fb-fields{grid-template-columns:1fr 1fr}}
-@media(max-width:560px){.fb-fields{grid-template-columns:1fr}.fb-panel{padding:.9rem}}
+.fb-muted,.fb-hint{color:var(--ink-dim,#8fa1ac);font-size:.78rem;line-height:1.55}
+.fb-panel{min-width:0;padding:1.1rem;border:1px solid var(--border,#1f2b35);border-radius:12px;background:var(--panel,#121a22);color:var(--ink,#e7edf1)}
+.fb-panel h2{font-size:1.08rem;margin:0 0 .9rem}.fb-panel h2 small{color:var(--ink-dim,#8fa1ac);font-weight:400}
+.fb-upload,.fb-actions,.fb-order{display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;margin:.6rem 0}
+.fb-upload input[type=file]{max-width:220px;font-size:.75rem}
+.fb-btn{padding:.58rem .8rem;border:1px solid var(--border,#33414c);border-radius:7px;background:transparent;color:inherit;font:inherit;font-size:.78rem;cursor:pointer}
+.fb-btn:disabled{opacity:.4;cursor:not-allowed}.fb-primary{background:var(--accent,#3fd0c9);border-color:var(--accent,#3fd0c9);color:#071212;font-weight:700}
+.fb-danger{color:#fca5a5}.fb-mini{position:relative;overflow:hidden}.fb-mini input{position:absolute;inset:0;opacity:0;width:100%;cursor:pointer}
+.fb-panel-list{display:grid;gap:.55rem;margin-top:.8rem}
+.fb-panel-card{display:flex;align-items:center;justify-content:space-between;gap:.6rem;padding:.5rem;border:1px solid var(--border,#26333e);border-radius:9px}
+.fb-panel-card.is-active{border-color:var(--accent,#3fd0c9)}
+.fb-panel-select{display:flex;align-items:center;gap:.7rem;min-width:0;border:0;background:none;color:inherit;text-align:left;cursor:pointer}
+.fb-panel-select img{width:76px;height:64px;object-fit:cover;border-radius:6px;background:#080c10}
+.fb-panel-select span{display:grid;gap:.15rem;min-width:0}.fb-panel-select b{font-size:.82rem}.fb-panel-select small{font-size:.68rem;color:var(--ink-dim,#8fa1ac);overflow-wrap:anywhere}
+.fb-order{justify-content:flex-end;margin:0}.fb-order>button:not(.fb-btn){width:34px;height:34px;border:1px solid var(--border,#33414c);border-radius:7px;background:transparent;color:inherit;font-size:1rem}.fb-order button:disabled{opacity:.3}
+.fb-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(260px,.8fr);gap:1rem;align-items:start}
+.fb-canvas{position:relative;display:block;width:100%;overflow:hidden;border:1px solid var(--border,#33414c);border-radius:9px;background:#080c10;cursor:crosshair}
+.fb-canvas>img{display:block;width:100%;max-height:650px;object-fit:contain;user-select:none;-webkit-user-drag:none}
+.fb-tailsvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.fb-empty{opacity:.65;font-size:.8em}.fb-form{display:grid;gap:.55rem}
+.fb-label{display:block;margin-top:.4rem;color:var(--ink-dim,#9aabb5);font-size:.74rem}
+.fb-input{width:100%;padding:.65rem .7rem;border:1px solid var(--border,#33414c);border-radius:7px;background:var(--bg,#0b1015);color:inherit;font:inherit;font-size:.82rem}
+.fb-text{resize:vertical}.fb-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.55rem}.fb-field{min-width:0}.fb-color{height:40px;padding:.2rem}
+.fb-result{display:grid;gap:.7rem;margin-top:1rem}.fb-result img{display:block;max-width:100%;max-height:75vh;object-fit:contain;border:1px solid var(--border,#33414c);border-radius:8px}
+.fb-error{margin:.8rem 0;padding:.7rem;border:1px solid #7f1d1d;border-radius:8px;background:#7f1d1d20;color:#fca5a5;font-size:.8rem;overflow-wrap:anywhere}
+.fb-footer{margin-top:1rem;color:var(--ink-dim,#8fa1ac);font-size:.68rem}.fb-layouts{max-width:320px;margin-bottom:.8rem}
+@media(max-width:700px){.fb-grid{grid-template-columns:1fr}.fb-panel{padding:.8rem}.fb-panel-card{align-items:flex-start}.fb-order{gap:.3rem}.fb-order .fb-btn{padding:.48rem .55rem}.fb-fields{grid-template-columns:repeat(3,minmax(0,1fr))}}
 `;
