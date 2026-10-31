@@ -301,6 +301,32 @@ export default function ImgHist({ idToken, onReuse }) {
           <span className="il-page-info">
             Pagina {page} di {pages}
           </span>
+          <select
+            value={Math.floor((page - 1) / 10)}
+            onChange={(event) =>
+              loadArchive(Number(event.target.value) * 10 + 1, query)
+            }
+            disabled={loading || pages <= 10}
+            title="Vai a un blocco di pagine"
+            style={{
+              padding: ".35rem .5rem",
+              border: "1px solid var(--border, #1f2b35)",
+              borderRadius: "6px",
+              background: "var(--bg, #0b1015)",
+              color: "var(--ink, #e7edf1)",
+              fontSize: ".78rem",
+            }}
+          >
+            {Array.from({ length: Math.ceil(pages / 10) }, (_, g) => {
+              const start = g * 10 + 1;
+              const end = Math.min((g + 1) * 10, pages);
+              return (
+                <option key={g} value={g}>
+                  Pagine {start}–{end}
+                </option>
+              );
+            })}
+          </select>
           <button
             className="il-page-btn"
             onClick={() => loadArchive(page + 1, query)}
