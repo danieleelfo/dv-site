@@ -25,6 +25,7 @@ import { useTranslation } from "react-i18next";
 import StoriesTab from "../components/StoriesTab.jsx";
 import MultifotoTab from "../components/MultifotoTab.jsx";
 import FumettiTab from "../components/FumettiTab.jsx";
+import ImgHist from "../components/ImgHist.jsx";
 
 const API = "https://api.danielevillanova.com";
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -158,8 +159,6 @@ export default function ImageLab({ initialTab = "genera" }) {
   const [initFile, setInitFile] = useState(null);
   const [initPreview, setInitPreview] = useState("");
   const [strength, setStrength] = useState(0.65);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
 
   const [jobId, setJobId] = useState("");
   const [status, setStatus] = useState("idle");
@@ -172,18 +171,6 @@ export default function ImageLab({ initialTab = "genera" }) {
 
   const busy = ["submitting", "queued", "running"].includes(status);
 
-
-  const [history, setHistory] = useState([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyError, setHistoryError] = useState("");
-  const [historyPreview, setHistoryPreview] = useState(null);
-
-  const totalPages = Math.max(1, Math.ceil(history.length / pageSize));
-  const safePage = Math.min(page, totalPages);
-  const pageItems = history.slice(
-    (safePage - 1) * pageSize,
-    safePage * pageSize
-  );
 
   const [ocrImage, setOcrImage] = useState(null);
   const [ocrStatus, setOcrStatus] = useState("idle");
@@ -316,64 +303,6 @@ export default function ImageLab({ initialTab = "genera" }) {
   }, []);
 
   // ----------------------------------------------------------
-  // History delle generazioni (persistente sul gateway)
-  // ----------------------------------------------------------
-
-  const loadHistory = useCallback(async () => {
-    if (!idToken) return;
-
-    setHistoryLoading(true);
-    setHistoryError("");
-
-    try {
-      const response = await fetch(`${API}/api/image/history`, {
-        headers: { Authorization: `Bearer ${idToken}` },
-      });
-
-      const data = await readResponse(response);
-      setHistory(Array.isArray(data.items) ? data.items : []);
-    } catch (err) {
-      setHistoryError(err.message || String(err));
-    } finally {
-      setHistoryLoading(false);
-    }
-  }, [idToken]);
-
-  useEffect(() => {
-    if (idToken) loadHistory();
-  }, [idToken, loadHistory]);
-
-  // Ricarica la history dopo una generazione completata.
-  useEffect(() => {
-    if (status === "completed") loadHistory();
-  }, [status, loadHistory]);
-
-  const openHistoryItem = useCallback(async (item) => {
-    setHistoryError("");
-
-    try {
-      const response = await fetch(
-        `${API}/api/image/history/${encodeURIComponent(item.job_id)}/image`,
-        { headers: { Authorization: `Bearer ${idToken}` } }
-      );
-
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-      const blob = await response.blob();
-      setHistoryPreview({ item, url: URL.createObjectURL(blob) });
-    } catch (err) {
-      setHistoryError(err.message || String(err));
-    }
-  }, [idToken]);
-
-  const closeHistoryPreview = useCallback(() => {
-    setHistoryPreview((current) => {
-      if (current?.url) URL.revokeObjectURL(current.url);
-      return null;
-    });
-  }, []);
-
-  // ----------------------------------------------------------
   // OCR — estrazione testo da foto (Qwen-VL via gateway)
   // ----------------------------------------------------------
 
@@ -470,10 +399,9 @@ export default function ImageLab({ initialTab = "genera" }) {
       }
     }
 
-    closeHistoryPreview();
     setTab("genera");
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [closeHistoryPreview]);
+  }, []);
 
   // ----------------------------------------------------------
   // Pulizia del polling se la pagina viene chiusa o smontata
@@ -947,10 +875,7 @@ export default function ImageLab({ initialTab = "genera" }) {
           <button
             type="button"
             className={"il-tab" + (tab === "storico" ? " il-tab-active" : "")}
-            onClick={() => {
-              setTab("storico");
-              loadHistory();
-            }}
+            onClick={() => setTab("storico")}
           >
             {t("img.tabStorico")}
           </button>
@@ -1373,173 +1298,7 @@ export default function ImageLab({ initialTab = "genera" }) {
         )}
 
         {tab === "storico" && (
-          <section className="il-panel il-history-panel">
-            <div className="il-section-heading">
-              <div>
-                <p className="il-eyebrow">03 / GALLERY</p>
-                <h2>{t("img.historyTitle")}</h2>
-              </div>
-              <button
-                className="il-button"
-                onClick={loadHistory}
-                disabled={historyLoading}
-              >
-                {historyLoading ? t("img.loading") : t("img.refresh")}
-              </button>
-            </div>
-
-            {historyError && (
-              <div className="il-error" role="alert">
-                {historyError}
-              </div>
-            )}
-
-            {!historyLoading && history.length === 0 && !historyError && (
-              <p className="il-hint">
-                {t("img.historyEmpty")}
-              </p>
-            )}
-
-            {history.length > 0 && (
-              <div className="il-page-size">
-                <span>{t("img.perPage")}</span>
-                <select
-                  value={pageSize}
-                  onChange={(event) => {
-                    setPageSize(Number(event.target.value));
-                    setPage(1);
-                  }}
-                >
-                  <option value={10}>10</option>
-                  <option value={25}>25</option>
-                  <option value={50}>50</option>
-                </select>
-                <span className="il-page-info">
-                  {t("img.totalGenerations", { count: history.length })}
-                </span>
-              </div>
-            )}
-
-            <div className="il-history-grid">
-              {pageItems.map((item) => (
-                <article key={item.job_id} className="il-history-card">
-                  <p className="il-history-prompt">
-                    {String(item.prompt || "").length > 160
-                      ? String(item.prompt).slice(0, 160) + "…"
-                      : item.prompt}
-                  </p>
-                  <div className="il-history-meta">
-                    <span>
-                      {item.width} × {item.height}
-                    </span>
-                    <span>{item.steps} step</span>
-                    <span>Seed: {item.seed}</span>
-                  </div>
-                  <div className="il-history-actions">
-                    <button
-                      className="il-button"
-                      onClick={() => openHistoryItem(item)}
-                    >
-                      {t("img.view")}
-                    </button>
-                    <button
-                      className="il-button"
-                      onClick={() => reuseHistoryParams(item)}
-                    >
-                      {t("img.params")}
-                    </button>
-                  </div>
-                </article>
-              ))}
-            </div>
-
-            {history.length > 0 && (
-              <div className="il-pagination">
-                <button
-                  className="il-page-btn"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={safePage <= 1}
-                >
-                  {t("img.prev")}
-                </button>
-
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                  (n) => (
-                    <button
-                      key={n}
-                      className={
-                        "il-page-btn" +
-                        (n === safePage ? " il-page-btn-active" : "")
-                      }
-                      onClick={() => setPage(n)}
-                    >
-                      {n}
-                    </button>
-                  )
-                )}
-
-                <button
-                  className="il-page-btn"
-                  onClick={() =>
-                    setPage((p) => Math.min(totalPages, p + 1))
-                  }
-                  disabled={safePage >= totalPages}
-                >
-                  {t("img.next")}
-                </button>
-
-                <span className="il-page-info">
-                  {t("img.pageOf", { page: safePage, total: totalPages })}
-                </span>
-              </div>
-            )}
-
-            {historyPreview && (
-              <div
-                className="il-history-overlay"
-                onClick={closeHistoryPreview}
-              >
-                <div
-                  className="il-history-modal"
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  <img
-                    className="il-generated-image"
-                    src={historyPreview.url}
-                    alt={historyPreview.item.prompt}
-                  />
-                  <div className="il-history-modal-meta">
-                    <span>
-                      {historyPreview.item.width} × {historyPreview.item.height}
-                    </span>
-                    <span>Seed: {historyPreview.item.seed}</span>
-                    <span>{historyPreview.item.steps} step</span>
-                  </div>
-                  <div className="il-actions">
-                    <a
-                      className="il-button il-primary"
-                      href={historyPreview.url}
-                      download={"z-image-" + historyPreview.item.seed + ".png"}
-                    >
-                      {t("img.downloadPng")}
-                    </a>
-                    <button
-                      className="il-button"
-                      onClick={() => reuseHistoryParams(historyPreview.item)}
-                    >
-                      {t("img.reuseParams")}
-                    </button>
-                    <button
-                      className="il-button"
-                      onClick={closeHistoryPreview}
-                    >
-                      {t("img.close")}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </section>
+          <ImgHist idToken={idToken} onReuse={reuseHistoryParams} />
         )}
 
         {tab === "ocr" && (
