@@ -133,7 +133,7 @@
     "superOn": "Super-Leles ON",
     "superTitle": "Wanneer actief wordt de prompt als 'super <vraag>' naar Super-Leles gestuurd (grounded)",
     "superMemory": "Geheugen gebruiken",
-    "superMemoryTitle": "Recente Super-Leles-gesprekken als context opnemen",
+    "superMemoryTitle": "Neem recente gesprekken op als context. Nieuwe beurten worden ook opgeslagen als dit uitstaat.",
     "superTemperature": "Temperatuur",
     "superTemperatureTitle": "Creativiteit van het antwoord (0 = deterministischer, 2 = willekeuriger)",
     "imagina": "Verbeeld je",
