@@ -41,7 +41,9 @@ export default function ArchivePicker({ idToken, onSelect, onClose, multiSelect 
   const [searchInput, setSearchInput] = useState("");
   const [thumbs, setThumbs] = useState({});
   const [loading, setLoading] = useState(false);
-  const [selectingId, setSelectingId] = useState(null);\n  const [selectedIds, setSelectedIds] = useState([]);\n  const [selectedRows, setSelectedRows] = useState({});
+  const [selectingId, setSelectingId] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [selectedRows, setSelectedRows] = useState({}); 
   const [error, setError] = useState("");
 
   const revokeThumbs = useCallback((map) => {
