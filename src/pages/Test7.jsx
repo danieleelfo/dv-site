@@ -146,7 +146,7 @@ export default function Test7() {
     return () => { cancelled = true }
   }, [idToken])
 
-  const loadArchive = useCallback(async (targetPage = 1, targetQuery = query) => {
+  const loadArchive = useCallback(async (targetPage = 1, targetQuery = '') => {
     if (!idToken) return
     setLoading(true)
     setError('')
@@ -200,7 +200,7 @@ export default function Test7() {
     } finally {
       setLoading(false)
     }
-  }, [idToken, query, logout, revokeThumbs])
+  }, [idToken, logout, revokeThumbs])
 
   useEffect(() => {
     if (idToken) loadArchive(1, '')
