@@ -134,7 +134,7 @@
     "superOn": "Super-Leles ON",
     "superTitle": "When active, the prompt is sent as 'super <question>' to Super-Leles (grounded)",
     "superMemory": "Use memory",
-    "superMemoryTitle": "Include recent Super-Leles conversations as context",
+    "superMemoryTitle": "Include recent conversations as context. New turns are still saved when this is off.",
     "superTemperature": "Temperature",
     "superTemperatureTitle": "Response randomness (0 = more deterministic, 2 = more random)",
     "imagina": "Imagine",
