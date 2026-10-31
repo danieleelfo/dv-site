@@ -134,7 +134,7 @@
     "superOn": "Super-Leles ON",
     "superTitle": "Quando attivo, il prompt viene inviato come 'super <domanda>' a Super-Leles (grounded)",
     "superMemory": "Usa memoria",
-    "superMemoryTitle": "Includi le conversazioni recenti di Super-Leles nel contesto",
+    "superMemoryTitle": "Include le conversazioni recenti nel contesto. I nuovi turni continuano comunque a essere salvati.",
     "superTemperature": "Temperatura",
     "superTemperatureTitle": "Creatività della risposta (0 = più deterministica, 2 = più casuale)",
     "imagina": "Immagina",
