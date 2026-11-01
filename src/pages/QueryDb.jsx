@@ -315,7 +315,7 @@ export default function QueryDb() {
     };
     const csv = [
       tableData.columns.map(esc).join(","),
-      ...tableData.rows.map((r) => (Array.isArray(r) ? r : Object.values(r))).map(esc).join(",")),
+      ...tableData.rows.map((r) => (Array.isArray(r) ? r : Object.values(r)).map(esc).join(",")),
     ].join("\n");
     let ok = false;
     try {
