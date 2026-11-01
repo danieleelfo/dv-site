@@ -2067,8 +2067,8 @@ const css = `
 .lc-page{--glass:rgba(16,23,30,.74);--line:rgba(255,255,255,.1);--ok:#4ade80;--bad:#f87171;--warn:#fbbf24;
   --mono:ui-monospace,'JetBrains Mono','SF Mono',Menlo,Consolas,monospace;
   position:relative;min-height:calc(100vh - 64px);overflow:hidden;color:var(--ink);font-family:var(--sans)}
-.lc-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.38}
-.lc-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,16,21,.25) 0%,rgba(11,16,21,.40) 70%)}
+.lc-bg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.6}
+.lc-shade{position:absolute;inset:0;background:linear-gradient(180deg,rgba(11,16,21,.25) 0%,rgba(11,16,21,.85) 100%)}
 .lc-wrap{position:relative;max-width:1280px;margin:0 auto;padding:28px 24px 72px}
 .lc-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .lc-gbtn{min-height:32px;flex:none}
