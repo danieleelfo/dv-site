@@ -154,6 +154,7 @@ export default function QueryDb() {
   const [fAgent, setFAgent] = useState("");
   const [fModel, setFModel] = useState("");
   const [facets, setFacets] = useState({});
+  const [copyMsg, setCopyMsg] = useState(null);
   const [usersInfo, setUsersInfo] = useState(null);
   const [usersOff, setUsersOff] = useState(null);
   const [uSearch, setUSearch] = useState("");
@@ -306,7 +307,7 @@ export default function QueryDb() {
     loadTable(area, table, 0, next);
   }
 
-  function copyCsv() {
+  async function copyCsv() {
     if (!tableData?.columns || !tableData?.rows) return;
     const esc = (v) => {
       const s = asText(v);
@@ -314,9 +315,32 @@ export default function QueryDb() {
     };
     const csv = [
       tableData.columns.map(esc).join(","),
-      ...tableData.rows.map((r) => (Array.isArray(r) ? r : Object.values(r)).map(esc).join(",")),
+      ...tableData.rows.map((r) => (Array.isArray(r) ? r : Object.values(r))).map(esc).join(",")),
     ].join("\n");
-    try { navigator.clipboard?.writeText(csv); } catch {}
+    let ok = false;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(csv);
+        ok = true;
+      }
+    } catch {}
+    if (!ok) {
+      // Fallback vecchio stile (Safari/iframe senza Clipboard API):
+      // textarea nascosta + execCommand, cosi' il copy funziona comunque.
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = csv;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+      } catch {}
+    }
+    setCopyMsg(ok ? "ok" : "err");
+    window.setTimeout(() => setCopyMsg(null), 2500);
   }
 
   if (!auth.token || !auth.allowed) {
@@ -452,7 +476,7 @@ export default function QueryDb() {
               </div>
             )}
             <div className="btn-row">
-              <button className="btn" onClick={copyCsv} disabled={!tableData}>{t("qdb.copyCsv")}</button>
+              <button className="btn" onClick={() => copyCsv()} disabled={!tableData} title={copyMsg === "err" ? t("qdb.copyFailed") : undefined}>{t("qdb.copyCsv")}{copyMsg === "ok" ? " ✓" : copyMsg === "err" ? " ✗" : ""}</button>
               <button className="btn" disabled={page === 0 || busy === "table"} onClick={() => { const p = page - 1; setPage(p); loadTable(area, table, p); }}>{t("qdb.prev")}</button>
               <button className="btn" disabled={!tableData || (tableData.rows || []).length < PAGE_SIZE || busy === "table"} onClick={() => { const p = page + 1; setPage(p); loadTable(area, table, p); }}>{t("qdb.next")}</button>
             </div>

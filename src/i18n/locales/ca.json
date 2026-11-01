@@ -381,6 +381,7 @@
     "apply": "Aplicar",
     "reset": "Restablir",
     "copyCsv": "Copiar CSV",
+    "copyFailed": "Còpia CSV fallida",
     "prev": "← Anterior",
     "next": "Següent →",
     "usersTitle": "USUARIS · {{col}} ({{n}})",

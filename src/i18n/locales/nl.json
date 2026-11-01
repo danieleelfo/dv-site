@@ -381,6 +381,7 @@
     "apply": "Toepassen",
     "reset": "Wissen",
     "copyCsv": "Kopieer CSV",
+    "copyFailed": "CSV-kopiëren mislukt",
     "prev": "← Vorige",
     "next": "Volgende →",
     "usersTitle": "GEBRUIKERS · {{col}} ({{n}})",
