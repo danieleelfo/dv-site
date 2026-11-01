@@ -25,21 +25,33 @@ const AREAS = [
 
 const PAGE_SIZE = 50;
 
-// Gruppi del pannello UTENTI: ogni nome finisce nel primo gruppo i cui token
-// matchano (parole intere, non sottostringhe), altrimenti in "Altri".
+// Gruppi del pannello UTENTI. Nelle tabelle leles la colonna "utente" e
+// "role" (valori generati dagli agenti: USER_ES, LELE_P_*_ES, IMP_*, ...):
+// prima valgono le regole role (regex, in ordine), poi il fallback storico
+// a parole chiave per le colonne utente di altre tabelle/aree.
 const USER_GROUPS = [
-  { id: "status", label: "qdb.g.status", keys: ["status", "sistema", "os", "ram", "sys", "cpu", "disk", "mem"] },
-  { id: "airflow", label: "qdb.g.airflow", keys: ["airflow", "dag", "dags"] },
+  { id: "chat", label: "qdb.g.chat", re: /^(USER|USER_ES|GEMMA_ES|LELE_ES|SUPER_USER_ES|SUPER_LELES_ES|LELE_P_CREA_DAG)$/ },
+  { id: "improve", label: "qdb.g.improve", re: /^(IMP_|LELE_IMPROVE_ES|LELE_VERIFY_ES)/ },
+  { id: "git", label: "qdb.g.git", re: /^LELE_GIT_/, keys: ["git", "github"] },
+  { id: "airflow", label: "qdb.g.airflow", re: /^LELE_(AIRFLOW|P_(DAGPAUSE|DAGUNPAUSE|ADDDAG|TASKRUN|TASKLOG|EXPDAG))/, keys: ["airflow", "dag", "dags"] },
+  { id: "emergence", label: "qdb.g.emergence", re: /^LELE_P_(DECISION|QPROMPTS|UPPROMPT|QMSG|B2B|SAVEWORLD|QWORLD)/ },
+  { id: "remote", label: "qdb.g.remote", re: /^LELE_P_(SENDFILE|REMOTETEST|REMOTELS|REMOTEDL|REMOTEUL|DIR)/ },
+  { id: "tts", label: "qdb.g.tts", re: /^LELE_P_(TTSCOPY|TTSINST)/ },
+  { id: "process", label: "qdb.g.process", re: /^LELE_P_(START|STOP|RESTART)/ },
+  { id: "status", label: "qdb.g.status", re: /^LELE_P_(UV_S|TEL_S|SYS_S|LOGS|IP_S|OS_S|RAM_S|TTS_S|QSTATUS|AFSTATUS)_ES$/, keys: ["status", "sistema", "os", "ram", "sys", "cpu", "disk", "mem"] },
   { id: "logs", label: "qdb.g.logs", keys: ["log", "logs"] },
-  { id: "git", label: "qdb.g.git", keys: ["git", "github"] },
   { id: "users", label: "qdb.g.users", keys: ["user", "utente"] },
   { id: "other", label: "qdb.g.other", keys: [] },
 ];
 function userGroupOf(name) {
-  const tokens = String(name).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  const s = String(name).trim();
+  for (const g of USER_GROUPS) {
+    if (g.re && g.re.test(s)) return g;
+  }
+  const tokens = s.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
   for (const g of USER_GROUPS) {
     if (g.id === "other") continue;
-    if (tokens.some((t) => g.keys.includes(t))) return g;
+    if (g.keys && tokens.some((t) => g.keys.includes(t))) return g;
   }
   return USER_GROUPS[USER_GROUPS.length - 1];
 }

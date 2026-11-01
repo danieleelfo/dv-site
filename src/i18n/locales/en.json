@@ -399,10 +399,16 @@
     "guard3": "Google authentication with email verification, revalidated by the backend.",
     "guard4": "This page does not run SQL directly in the browser.",
     "g": {
+      "chat": "💬 Base chat",
       "status": "📊 Status / System",
-      "airflow": "🌬️ Airflow",
-      "logs": "📜 Logs",
+      "process": "▶️ Processes",
       "git": "🔀 Git",
+      "airflow": "🌬️ Airflow",
+      "emergence": "🧪 Emergence / QE",
+      "remote": "📦 Remote files",
+      "tts": "🔊 TTS utility",
+      "improve": "🛠️ Improve / Verify",
+      "logs": "📜 Logs",
       "users": "👤 Users",
       "other": "🔧 Other"
     },

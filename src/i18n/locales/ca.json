@@ -398,10 +398,16 @@
     "guard3": "Autenticació de Google amb verificació de correu, revalidada pel backend.",
     "guard4": "Aquesta pàgina no executa SQL directament al navegador.",
     "g": {
+      "chat": "💬 Chat base",
       "status": "📊 Status / Sistema",
-      "airflow": "🌬️ Airflow",
-      "logs": "📜 Logs",
+      "process": "▶️ Processos",
       "git": "🔀 Git",
+      "airflow": "🌬️ Airflow",
+      "emergence": "🧪 Emergència / QE",
+      "remote": "📦 Fitxers remots",
+      "tts": "🔊 Utilitats TTS",
+      "improve": "🛠️ Improve / Verify",
+      "logs": "📜 Logs",
       "users": "👤 Usuaris",
       "other": "🔧 Altres"
     },

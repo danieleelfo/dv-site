@@ -398,10 +398,16 @@
     "guard3": "Google-authenticatie met e-mailverificatie, opnieuw gevalideerd door de backend.",
     "guard4": "Deze pagina voert geen SQL direct in de browser uit.",
     "g": {
+      "chat": "💬 Basischat",
       "status": "📊 Status / Systeem",
-      "airflow": "🌬️ Airflow",
-      "logs": "📜 Logs",
+      "process": "▶️ Processen",
       "git": "🔀 Git",
+      "airflow": "🌬️ Airflow",
+      "emergence": "🧪 Emergence / QE",
+      "remote": "📦 Externe bestanden",
+      "tts": "🔊 TTS-tools",
+      "improve": "🛠️ Improve / Verify",
+      "logs": "📜 Logs",
       "users": "👤 Gebruikers",
       "other": "🔧 Overige"
     },
