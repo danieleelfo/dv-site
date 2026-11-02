@@ -2873,7 +2873,8 @@ async def image_create_job(
     req: ImageGenerationRequest,
     authorization: str | None = Header(None),
 ):
-    email = verify_admin_token(authorization)
+    # Demo: gli utenti demo attivi (users.json) possono generare.
+    email = verify_user_token(authorization)
     prompt = req.prompt.strip()
 
     if not prompt:
@@ -2995,7 +2996,7 @@ async def image_img2img(
     height, steps, seed. Il risultato segue la stessa coda e lo stesso
     polling di /api/image/jobs (GET jobs/{id} + jobs/{id}/result).
     """
-    email = verify_admin_token(authorization)
+    email = verify_user_token(authorization)
 
     prompt = prompt.strip()
 
@@ -3118,7 +3119,7 @@ async def image_get_job(
     job_id: str,
     authorization: str | None = Header(None),
 ):
-    email = verify_admin_token(authorization)
+    email = verify_user_token(authorization)
     job = IMAGE_JOBS.get(job_id)
 
     if not job or job.get("owner") != email:
@@ -3141,7 +3142,7 @@ async def image_get_result(
     job_id: str,
     authorization: str | None = Header(None),
 ):
-    email = verify_admin_token(authorization)
+    email = verify_user_token(authorization)
     job = IMAGE_JOBS.get(job_id)
 
     if not job or job.get("owner") != email:
@@ -4563,7 +4564,7 @@ def _model_server_info():
 async def image_health(
     authorization: str | None = Header(None),
 ):
-    verify_admin_token(authorization)
+    verify_user_token(authorization)
 
     # Stato locale del processo GraDV: attivo + RAM (lsof/ps sul Mac).
     proc = _gradv_process_info()
@@ -4698,6 +4699,15 @@ async def delete_demo_user(user_id: str, authorization: str | None = Header(None
         raise HTTPException(status_code=404, detail="Utente non trovato.")
     _save_demo_users(kept)
     return {"deleted": user_id}
+
+
+@app.get("/api/users/me")
+async def who_am_i(authorization: str | None = Header(None)):
+    """Chi sono: admin (env) o utente demo. Per il gating della UI."""
+    email = verify_user_token(authorization)
+    role = "admin" if email in ADMIN_ALLOWED_EMAILS else "demo"
+    return {"email": email, "role": role}
+
 
 # AVVIO DIRETTO
 # --------------------------------------------------------------------------

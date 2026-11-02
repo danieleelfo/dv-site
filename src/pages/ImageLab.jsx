@@ -145,6 +145,9 @@ export default function ImageLab({ initialTab = "genera" }) {
 
   const [idToken, setIdToken] = useState(readStoredToken);
   const [email, setEmail] = useState("");
+  // Ruolo dal gateway (admin | demo | none): i demo vedono solo GENERA.
+  const [role, setRole] = useState("loading");
+  const isAdmin = role === "admin";
 
   const [prompt, setPrompt] = useState("");
   const [size, setSize] = useState(512);
@@ -173,6 +176,13 @@ export default function ImageLab({ initialTab = "genera" }) {
       // Il cambio tab continua a funzionare anche senza sessionStorage.
     }
   }, [tab]);
+
+  // Utenti demo: solo il tab GENERA. Gli altri usano API admin-only.
+  useEffect(() => {
+    if (role !== "loading" && role !== "admin" && tab !== "genera") {
+      setTab("genera");
+    }
+  }, [role, tab]);
   const [initFile, setInitFile] = useState(null);
   const [initPreview, setInitPreview] = useState("");
   const [strength, setStrength] = useState(0.65);
@@ -225,6 +235,12 @@ export default function ImageLab({ initialTab = "genera" }) {
 
     const userEmail = parseJwt(idToken)?.email || "";
     setEmail(userEmail);
+
+    // Ruolo: admin (env) o demo (users.json). Fallito -> nessun accesso ai tab admin.
+    fetch(API + "/api/users/me", { headers: { Authorization: "Bearer " + idToken } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setRole(d?.role || "none"))
+      .catch(() => setRole("none"));
 
     if (!userEmail) return;
 
@@ -863,12 +879,14 @@ export default function ImageLab({ initialTab = "genera" }) {
           <div className="il-account">
             <span title={email}>{email}</span>
 
+            {isAdmin && (
             <button
               className="il-button"
               onClick={() => navigate("/improve")}
             >
               Improve ↗
             </button>
+            )}
 
             <button className="il-button" onClick={logout}>
               {t("img.logout")}
@@ -889,6 +907,8 @@ export default function ImageLab({ initialTab = "genera" }) {
           >
             {t("img.tabGenera")}
           </button>
+          {isAdmin && (
+          <>
           <button
             type="button"
             className={"il-tab" + (tab === "storico" ? " il-tab-active" : "")}
@@ -924,6 +944,8 @@ export default function ImageLab({ initialTab = "genera" }) {
           >
             {t("img.tabFumetti")}
           </button>
+          </>
+          )}
         </div>
 
         {tab === "storie" && <StoriesTab idToken={idToken} />}
