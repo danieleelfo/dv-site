@@ -4421,6 +4421,21 @@ def _port_process_info(port):
         # macOS: la memoria Metal/MPS del modello su GPU NON compare
         # nell'RSS di ps (GraDV reale ~8GB mostrava ~140MB).
         # La phys_footprint (stesso numero di Activity Monitor) la include.
+        def _rss_mb(pid):
+            # Fallback: RSS da ps. NON include la memoria Metal/MPS del
+            # modello (su Mac sottostima parecchio), ma e' meglio di 0
+            # quando footprint non e' utilizzabile (richiede root).
+            try:
+                out = _sp.run(
+                    ["ps", "-o", "rss=", "-p", str(pid)],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                ).stdout.strip()
+                return round(int(out) / 1024, 1)
+            except Exception:
+                return 0.0
+
         def _footprint_mb(pid):
             try:
                 fp_out = _sp.run(
@@ -4430,7 +4445,8 @@ def _port_process_info(port):
                     timeout=15,
                 ).stdout
             except Exception:
-                return 0.0
+                # footprint richiede root: se fallisce, usa RSS di ps.
+                return _rss_mb(pid)
             for line in fp_out.splitlines():
                 if "Physical footprint:" in line:
                     val = line.split("Physical footprint:")[1].strip()
@@ -4445,8 +4461,8 @@ def _port_process_info(port):
                             try:
                                 return float(val[:-1]) * mult
                             except ValueError:
-                                return 0.0
-            return 0.0
+                                return _rss_mb(pid)
+            return _rss_mb(pid)
 
         total_mb = 0.0
         first = None
