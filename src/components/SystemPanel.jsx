@@ -212,7 +212,7 @@ function SystemTiles({ data, gradvHealth }) {
           )
 
           ollamaItems.push({
-            label: 'GPT-OSS:20b',
+            label: 'Gpt-oss:20B',
             state: gpt?.state || 'off',
             sub: '(SL only)',
           })
@@ -273,7 +273,7 @@ function SystemTiles({ data, gradvHealth }) {
                     key={it.label}
                     className={`lc-ollama-box is-${it.state}${
                       it.wide ? ' lc-ollama-wide' : ''
-                    }${it.label === 'GraDV' ? ' lc-ollama-gradv' : ''}`}
+                    }${it.label === 'GraDV' ? ' lc-ollama-gradv' : ''}${/^Gpt-oss/i.test(it.label) ? ' lc-ollama-sl' : ''}`}
                     title={it.title || it.label}
                   >
                     <b>{it.label}</b>

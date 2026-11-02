@@ -2178,6 +2178,8 @@ const css = `
 
 .lc-ollama-box small{font-size:9px;line-height:1.15;color:currentColor;opacity:.9}
 .lc-ollama-box.lc-ollama-gradv small{font-size:8px;line-height:1.2;white-space:pre-line;letter-spacing:-.1px;margin-top:4px;color:#fff}
+.lc-ollama-sl b{font-size:9px;white-space:nowrap;word-break:normal}
+.lc-ollama-sl small{font-size:7px;line-height:1.2}
 .lc-ollama-wide{grid-column:1/-1}
 .lc-ollama-box.is-bad{color:var(--bad);background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.45)}
 .lc-ollama-box.is-warn{color:var(--warn);background:rgba(251,191,36,.1);border-color:rgba(251,191,36,.45)}
