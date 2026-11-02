@@ -217,13 +217,12 @@ function SystemTiles({ data, gradvHealth }) {
           // Il servizio è online anche quando il motore immagini è spento.
           const gradvData = gradvHealth?.data
           const gradvModel = gradvData?.model_server
+          const gpuGb = Math.floor((Number(gradvModel?.mps_driver_mb) || 0) / 100) / 10
+          const gpuText = `${gpuGb.toFixed(1).replace('.', ',')}GB`
           const gradvSub = gradvData
             ? (gradvModel?.running
-              ? `${Math.round(gradvModel.ram_mb || 0)} MB` +
-                (gradvModel.mps_driver_mb
-                  ? ` · GPU ${Math.round(gradvModel.mps_driver_mb)} MB`
-                  : '')
-              : 'motore spento')
+              ? `${Math.round(gradvModel.ram_mb || 0)} MB · GPU ${gpuText}`
+              : `GPU ${gpuText} · motore spento`)
             : gradvHealth?.err
               ? 'offline'
               : '…'
