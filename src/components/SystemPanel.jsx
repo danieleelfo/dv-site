@@ -222,11 +222,13 @@ function SystemTiles({ data, gradvHealth }) {
           const gradvData = gradvHealth?.data
           const gradvModel = gradvData?.model_server
           const gradvRunning = gradvModel?.running === true
-          const gpuGb = Math.floor((Number(gradvModel?.mps_driver_mb) || 0) / 100) / 10
-          const gpuText = `${gpuGb.toFixed(1).replace('.', ',')}GB`
+          const totGb =
+            ((Number(gradvModel?.ram_mb) || 0) +
+              (Number(gradvModel?.mps_driver_mb) || 0)) /
+            1024
           const gradvSub = gradvData
             ? (gradvRunning
-              ? `RAM ${Math.round(gradvModel.ram_mb || 0)}MB\nGPU ${gpuText}`
+              ? `${totGb.toFixed(1).replace('.', ',')}GB`
               : 'sleep')
             : gradvHealth?.err
               ? 'offline'
