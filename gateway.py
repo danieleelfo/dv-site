@@ -185,7 +185,7 @@ app.include_router(
     build_bubbles_router(verify_admin_token)
 )
 app.include_router(
-    build_comic_page_router(verify_admin_token)
+    build_comic_page_router(verify_user_token)
 )
 
 # GraDV Archive — catalogo read-only delle immagini in history.db
@@ -3865,7 +3865,7 @@ async def vision_ocr(
 
     Il body è JSON: { image_base64, prompt? }.
     """
-    verify_admin_token(authorization)
+    verify_user_token(authorization)
 
     # Il base64 può avere il prefisso data:image/...;base64,
     image_b64 = req.image_base64

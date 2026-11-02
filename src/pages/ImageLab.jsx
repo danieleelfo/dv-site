@@ -177,9 +177,10 @@ export default function ImageLab({ initialTab = "genera" }) {
     }
   }, [tab]);
 
-  // Utenti demo: solo il tab GENERA. Gli altri usano API admin-only.
+  // Utenti demo: GENERA + OCR + Fumetti. Storico/Storie/Multifoto restano admin.
   useEffect(() => {
-    if (role !== "loading" && role !== "admin" && tab !== "genera") {
+    const ADMIN_ONLY_TABS = ["storico", "storie", "multifoto"];
+    if (role !== "loading" && role !== "admin" && ADMIN_ONLY_TABS.includes(tab)) {
       setTab("genera");
     }
   }, [role, tab]);
@@ -908,7 +909,6 @@ export default function ImageLab({ initialTab = "genera" }) {
             {t("img.tabGenera")}
           </button>
           {isAdmin && (
-          <>
           <button
             type="button"
             className={"il-tab" + (tab === "storico" ? " il-tab-active" : "")}
@@ -916,6 +916,7 @@ export default function ImageLab({ initialTab = "genera" }) {
           >
             {t("img.tabStorico")}
           </button>
+          )}
           <button
             type="button"
             className={"il-tab" + (tab === "ocr" ? " il-tab-active" : "")}
@@ -923,6 +924,8 @@ export default function ImageLab({ initialTab = "genera" }) {
           >
             📄 OCR
           </button>
+          {isAdmin && (
+          <>
           <button
             type="button"
             className={"il-tab" + (tab === "storie" ? " il-tab-active" : "")}
@@ -937,6 +940,8 @@ export default function ImageLab({ initialTab = "genera" }) {
           >
             {t("img.tabMultiFoto")}
           </button>
+          </>
+          )}
           <button
             type="button"
             className={"il-tab" + (tab === "fumetti" ? " il-tab-active" : "")}
@@ -944,8 +949,7 @@ export default function ImageLab({ initialTab = "genera" }) {
           >
             {t("img.tabFumetti")}
           </button>
-          </>
-          )}
+
         </div>
 
         {tab === "storie" && <StoriesTab idToken={idToken} />}
