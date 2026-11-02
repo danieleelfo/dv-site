@@ -1715,7 +1715,7 @@ export default function LeleAdmin() {
                     {s?.err ? (
                         <p className="lc-err lc-small">{s.err}</p>
                     ) : tiles ? (
-                        <SystemTiles data={tiles} />
+                        <SystemTiles data={tiles} gradvHealth={gradv} />
                     ) : osData ? (
                         <OsKpis data={osData} />
                     ) : (
@@ -1728,26 +1728,6 @@ export default function LeleAdmin() {
                 </div>
             )
         })}
-              {/* GraDV + PILLOW: stato generatore immagini e composizione foto */}
-              <div className="lc-stat">
-                <div className="lc-stat-head">
-                  <h3 className={`lc-stat-name${gradv.data ? ' is-ok' : gradv.err ? ' is-bad' : ''}`}>GraDV · Pillow</h3>
-                </div>
-                <div className="lc-tiles">
-                  <div className={`lc-tile${gradv.data ? ' is-ok' : gradv.err ? ' is-bad' : ''}`}>
-                    <b>GraDV</b>
-                    <small>{gradv.data
-                      ? (gradv.data.model_server?.running
-                        ? `online · ${Math.round(gradv.data.model_server.ram_mb)} MB` +
-                          (gradv.data.model_server.mps_driver_mb
-                            ? ` · GPU ${Math.round(gradv.data.model_server.mps_driver_mb)} MB`
-                            : '')
-                        : 'online · motore spento')
-                      : gradv.err ? 'offline' : '…'}</small>
-                  </div>
-                </div>
-                {gradv.err && <p className="lc-err lc-small">{gradv.err}</p>}
-              </div>
             </section>
           </aside>
         </div>
@@ -2193,6 +2173,7 @@ const css = `
 .lc-ollama-box::after{content:'';position:absolute;top:6px;right:6px;width:5px;height:5px;
   border-radius:50%;background:currentColor}
 .lc-ollama-box b{font-size:10.5px;font-weight:650}
+.lc-ollama-box small{font-size:9px;line-height:1.15;color:currentColor;opacity:.9}
 .lc-ollama-wide{grid-column:1/-1}
 .lc-ollama-box.is-bad{color:var(--bad);background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.45)}
 .lc-ollama-box.is-warn{color:var(--warn);background:rgba(251,191,36,.1);border-color:rgba(251,191,36,.45)}
