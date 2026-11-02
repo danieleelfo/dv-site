@@ -4510,6 +4510,8 @@ def _model_server_info():
         "ram_mb": proc.get("ram_mb"),
         "backend": None,
         "model_loaded": None,
+        "mps_allocated_mb": None,
+        "mps_driver_mb": None,
     }
     if info["running"]:
         try:
@@ -4518,6 +4520,8 @@ def _model_server_info():
                 data = r.json()
                 info["backend"] = data.get("backend")
                 info["model_loaded"] = data.get("model_loaded")
+                info["mps_allocated_mb"] = data.get("mps_allocated_mb")
+                info["mps_driver_mb"] = data.get("mps_driver_mb")
         except Exception:
             pass
     return info

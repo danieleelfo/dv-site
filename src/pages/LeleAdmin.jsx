@@ -1738,7 +1738,10 @@ export default function LeleAdmin() {
                     <b>GraDV</b>
                     <small>{gradv.data
                       ? (gradv.data.model_server?.running
-                        ? `online · ${Math.round(gradv.data.model_server.ram_mb)} MB`
+                        ? `online · ${Math.round(gradv.data.model_server.ram_mb)} MB` +
+                          (gradv.data.model_server.mps_driver_mb
+                            ? ` · GPU ${Math.round(gradv.data.model_server.mps_driver_mb)} MB`
+                            : '')
                         : 'online · motore spento')
                       : gradv.err ? 'offline' : '…'}</small>
                   </div>
