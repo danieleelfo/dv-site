@@ -424,6 +424,12 @@ export default function Improve() {
   const [gitCopied, setGitCopied] = useState(false);
   const [diffRootSel, setDiffRootSel] = useState("leles");
   const [diffFileFilter, setDiffFileFilter] = useState("");
+  // Tab Utenti: registro demo users.json (via gateway, admin only)
+  const [users, setUsers] = useState([]);
+  const [usersLoaded, setUsersLoaded] = useState(false);
+  const [usersBusy, setUsersBusy] = useState(false);
+  const [usersError, setUsersError] = useState("");
+  const [userForm, setUserForm] = useState({ name: "", email: "", chat_id: "", note: "" });
   const leftUploadRef = useRef(null);
   const rightUploadRef = useRef(null);
 
@@ -827,6 +833,90 @@ export default function Improve() {
         f.path.toLowerCase().includes(diffFileFilter.toLowerCase())
     );
 
+  async function loadUsers() {
+    setUsersBusy(true);
+    setUsersError("");
+    try {
+      const r = await fetch(API + "/api/users", {
+        headers: { Authorization: "Bearer " + idToken },
+      });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const d = await r.json();
+      setUsers(d.users || []);
+      setUsersLoaded(true);
+    } catch (e) {
+      setUsersError(e.message || String(e));
+    } finally {
+      setUsersBusy(false);
+    }
+  }
+
+  async function addUser() {
+    setUsersBusy(true);
+    setUsersError("");
+    try {
+      const r = await fetch(API + "/api/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + idToken },
+        body: JSON.stringify({
+          name: userForm.name.trim(),
+          email: userForm.email.trim(),
+          chat_id: userForm.chat_id ? parseInt(userForm.chat_id, 10) : null,
+          note: userForm.note.trim(),
+        }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(typeof d.detail === "string" ? d.detail : "HTTP " + r.status);
+      setUserForm({ name: "", email: "", chat_id: "", note: "" });
+      await loadUsers();
+    } catch (e) {
+      setUsersError(e.message || String(e));
+    } finally {
+      setUsersBusy(false);
+    }
+  }
+
+  async function toggleUser(u) {
+    setUsersBusy(true);
+    setUsersError("");
+    try {
+      const r = await fetch(API + "/api/users/" + u.id, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + idToken },
+        body: JSON.stringify({ active: !u.active }),
+      });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      await loadUsers();
+    } catch (e) {
+      setUsersError(e.message || String(e));
+    } finally {
+      setUsersBusy(false);
+    }
+  }
+
+  async function removeUser(u) {
+    if (!window.confirm("Eliminare " + u.name + "?")) return;
+    setUsersBusy(true);
+    setUsersError("");
+    try {
+      const r = await fetch(API + "/api/users/" + u.id, {
+        method: "DELETE",
+        headers: { Authorization: "Bearer " + idToken },
+      });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      await loadUsers();
+    } catch (e) {
+      setUsersError(e.message || String(e));
+    } finally {
+      setUsersBusy(false);
+    }
+  }
+
+  // Carica gli utenti quando si apre il tab Utenti.
+  useEffect(() => {
+    if (mode === "users" && idToken && !usersLoaded && !usersBusy) loadUsers();
+  }, [mode, idToken]);
+
   if (!idToken) {
     return (
       <div className="imp-page">
@@ -863,6 +953,14 @@ export default function Improve() {
           aria-selected={mode === "diff"}
         >
           Diff file
+        </button>
+        <button
+          className={"imp-btn " + (mode === "users" ? "imp-tab-active" : "")}
+          onClick={() => setMode("users")}
+          role="tab"
+          aria-selected={mode === "users"}
+        >
+          Utenti demo
         </button>
         <button
           className="imp-btn"
@@ -1091,6 +1189,46 @@ export default function Improve() {
                 ))}
               </div>
               )}
+            </section>
+          )}
+        </div>
+      ) : mode === "users" ? (
+        <div className="imp-diff-workspace">
+          <div className="imp-diff-intro">
+            <h2>Utenti demo</h2>
+            <p>Registro users.json sul Mac: utenti Google autorizzati fuori dagli admin (che restano in env). Editabile da qui, a distanza.</p>
+          </div>
+
+          <section className="imp-col">
+            <label className="imp-label">Nuovo utente demo</label>
+            <input className="imp-input" placeholder="Nome" value={userForm.name} onChange={(e) => setUserForm((f) => ({ ...f, name: e.target.value }))} />
+            <input className="imp-input" placeholder="email@gmail.com" value={userForm.email} onChange={(e) => setUserForm((f) => ({ ...f, email: e.target.value }))} />
+            <input className="imp-input" placeholder="chat_id Telegram (opzionale)" value={userForm.chat_id} onChange={(e) => setUserForm((f) => ({ ...f, chat_id: e.target.value }))} />
+            <input className="imp-input" placeholder="Nota (opzionale)" value={userForm.note} onChange={(e) => setUserForm((f) => ({ ...f, note: e.target.value }))} />
+            <div className="imp-actions">
+              <button className="imp-btn imp-primary" disabled={usersBusy || !userForm.name.trim() || !userForm.email.trim()} onClick={addUser}>Aggiungi</button>
+            </div>
+          </section>
+
+          {usersError && <div className="imp-error">! {usersError}</div>}
+          {usersBusy && <p className="imp-empty">Attendi…</p>}
+          {usersLoaded && !users.length && <p className="imp-empty">Nessun utente demo in users.json.</p>}
+
+          {users.length > 0 && (
+            <section className="imp-col">
+              {users.map((u) => (
+                <div key={u.id} className="imp-user-row">
+                  <div className="imp-user-info">
+                    <b>{u.name}</b> <span className="imp-dim">{u.email}</span>
+                    {u.chat_id && <span className="imp-dim"> · chat {u.chat_id}</span>}
+                    {u.note && <span className="imp-dim"> · {u.note}</span>}
+                  </div>
+                  <div className="imp-user-actions">
+                    <button className={"imp-btn " + (u.active ? "imp-tab-active" : "")} disabled={usersBusy} onClick={() => toggleUser(u)}>{u.active ? "Attivo" : "Disattivo"}</button>
+                    <button className="imp-btn imp-danger" disabled={usersBusy} onClick={() => removeUser(u)}>Elimina</button>
+                  </div>
+                </div>
+              ))}
             </section>
           )}
         </div>
@@ -1371,6 +1509,10 @@ export default function Improve() {
         .imp-page code { color: #34d399; }
         .imp-git-projects { display: flex; flex-wrap: wrap; gap: 6px; }
         .imp-git-out { max-height: 65vh; overflow: auto; white-space: pre-wrap; }
+        .imp-user-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,.06); flex-wrap: wrap; }
+        .imp-user-row:last-child { border-bottom: 0; }
+        .imp-user-info { font-size: 13px; overflow-wrap: anywhere; }
+        .imp-user-actions { display: flex; gap: 6px; }
         .imp-diff-result-head h3 { margin: 0; }
       `}</style>
     </div>

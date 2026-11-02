@@ -73,12 +73,14 @@ for pair in os.environ.get("ADMIN_USER_CHAT_IDS", "").split(","):
             ADMIN_USER_CHAT_IDS[_mail] = int(_cid)
 
 
-def verify_admin_token(authorization: str | None) -> str:
+def _verified_email_or_raise(authorization: str | None) -> str:
     """
     Verifica l'ID token Google passato come:
         Authorization: Bearer <token>
 
-    Ritorna l'email verificata, oppure solleva HTTPException 401/403.
+    Ritorna l'email verificata, oppure solleva HTTPException 401/500.
+    NON controlla i permessi: chi decide se l'email puo entrare e' il
+    chiamante (verify_admin_token / verify_user_token).
     """
     if not GOOGLE_CLIENT_ID or not ADMIN_ALLOWED_EMAILS:
         raise HTTPException(
@@ -117,6 +119,15 @@ def verify_admin_token(authorization: str | None) -> str:
 
     email = (idinfo.get("email") or "").strip().lower()
 
+    return email
+
+
+def verify_admin_token(authorization: str | None) -> str:
+    """
+    Admin: email verificata E in ADMIN_ALLOWED_EMAILS (gateway.env).
+    """
+    email = _verified_email_or_raise(authorization)
+
     if email not in ADMIN_ALLOWED_EMAILS:
         raise HTTPException(
             status_code=403,
@@ -124,6 +135,27 @@ def verify_admin_token(authorization: str | None) -> str:
         )
 
     return email
+
+
+def verify_user_token(authorization: str | None) -> str:
+    """
+    Utente: admin (env) OPPURE utente demo attivo in users.json.
+    Stessa auth Google, permessi dal registro e non dall'env.
+    Pronto per le pagine demo (es. ImageLab limitata).
+    """
+    email = _verified_email_or_raise(authorization)
+
+    if email in ADMIN_ALLOWED_EMAILS:
+        return email
+
+    for u in _load_demo_users():
+        if (u.get("email") or "").strip().lower() == email and u.get("active"):
+            return email
+
+    raise HTTPException(
+        status_code=403,
+        detail="Accesso non autorizzato.",
+    )
 
 
 def get_connection():
@@ -4573,6 +4605,99 @@ async def image_health(
             status_code=503,
             detail=f"GraDV non è raggiungibile su {IMAGE_MODEL_URL}: {exc} · processo: {stato}",
         )
+
+# ==========================================================================
+# UTENTI DEMO - registro users.json (nessun DB per ora)
+# ==========================================================================
+# Gli ADMIN restano in gateway.env (ADMIN_ALLOWED_EMAILS). Qui si gestiscono
+# gli utenti demo: un JSON sul Mac, editabile a distanza via API admin
+# (tab "Utenti demo" di Improve). Schema per utente:
+#   { id, name, email, chat_id, note, active, created_at }
+# ==========================================================================
+
+USERS_FILE = os.environ.get("USERS_FILE", "users.json")
+
+
+def _load_demo_users():
+    try:
+        with open(USERS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data.get("users", []) if isinstance(data, dict) else data
+    except FileNotFoundError:
+        return []
+    except Exception:
+        return []
+
+
+def _save_demo_users(users):
+    tmp = USERS_FILE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump({"users": users}, f, indent=2, ensure_ascii=False)
+    os.replace(tmp, USERS_FILE)
+
+
+class DemoUserRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=80)
+    email: str = Field(..., min_length=3, max_length=200)
+    chat_id: int | None = None
+    note: str = Field(default="", max_length=500)
+
+
+class DemoUserPatch(BaseModel):
+    active: bool
+
+
+@app.get("/api/users")
+async def list_demo_users(authorization: str | None = Header(None)):
+    verify_admin_token(authorization)
+    return {"users": _load_demo_users()}
+
+
+@app.post("/api/users", status_code=201)
+async def add_demo_user(req: DemoUserRequest, authorization: str | None = Header(None)):
+    verify_admin_token(authorization)
+    email = req.email.strip().lower()
+    users = _load_demo_users()
+    if any((u.get("email") or "").strip().lower() == email for u in users):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Esiste gia un utente {email}.",
+        )
+    user = {
+        "id": str(uuid.uuid4()),
+        "name": req.name.strip(),
+        "email": email,
+        "chat_id": req.chat_id,
+        "note": req.note.strip(),
+        "active": True,
+        "created_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+    }
+    users.append(user)
+    _save_demo_users(users)
+    return {"user": user}
+
+
+@app.patch("/api/users/{user_id}")
+async def patch_demo_user(user_id: str, req: DemoUserPatch, authorization: str | None = Header(None)):
+    verify_admin_token(authorization)
+    users = _load_demo_users()
+    for u in users:
+        if u.get("id") == user_id:
+            u["active"] = req.active
+            _save_demo_users(users)
+            return {"user": u}
+    raise HTTPException(status_code=404, detail="Utente non trovato.")
+
+
+@app.delete("/api/users/{user_id}")
+async def delete_demo_user(user_id: str, authorization: str | None = Header(None)):
+    verify_admin_token(authorization)
+    users = _load_demo_users()
+    kept = [u for u in users if u.get("id") != user_id]
+    if len(kept) == len(users):
+        raise HTTPException(status_code=404, detail="Utente non trovato.")
+    _save_demo_users(kept)
+    return {"deleted": user_id}
 
 # AVVIO DIRETTO
 # --------------------------------------------------------------------------
