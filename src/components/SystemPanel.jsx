@@ -221,26 +221,29 @@ function SystemTiles({ data, gradvHealth }) {
           // Il servizio è online anche quando il motore immagini è spento.
           const gradvData = gradvHealth?.data
           const gradvModel = gradvData?.model_server
+          const gradvRunning = gradvModel?.running === true
           const gpuGb = Math.floor((Number(gradvModel?.mps_driver_mb) || 0) / 100) / 10
           const gpuText = `${gpuGb.toFixed(1).replace('.', ',')}GB`
           const gradvSub = gradvData
-            ? (gradvModel?.running
+            ? (gradvRunning
               ? `${Math.round(gradvModel.ram_mb || 0)} MB · GPU ${gpuText}`
-              : `GPU ${gpuText} · motore spento`)
+              : 'sleep')
             : gradvHealth?.err
               ? 'offline'
               : '…'
 
           ollamaItems.push({
             label: 'GraDV',
-            state: gradvData ? 'ok' : gradvHealth?.err ? 'bad' : 'off',
+            state: !gradvData
+              ? gradvHealth?.err ? 'bad' : 'off'
+              : gradvRunning ? 'ok' : 'warn',
             sub: gradvSub,
             title: gradvHealth?.err || 'GraDV · Pillow',
           })
         }
 
         const displayItems = isOllama ? ollamaItems : sec.items
-        const up = displayItems.filter((i) => i.state === 'ok').length
+        const up = displayItems.filter((i) => i.state === 'ok' || (isOllama && i.state === 'warn')).length
 
         // verde se tutto su, arancione altrimenti (vale per Progetti, Servizi, Ollama)
         const secState = up === displayItems.length ? 'ok' : 'warn'
