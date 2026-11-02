@@ -222,7 +222,8 @@ def _log_login(email: str, role: str):
                     cur.execute(
                         "SELECT 1 FROM login_log "
                         "WHERE email = %s "
-                        "AND logged_at > now() - interval '30 minutes'"
+                        "AND logged_at > now() - interval '30 minutes'",
+                        (email,),
                     )
                     if cur.fetchone():
                         return
