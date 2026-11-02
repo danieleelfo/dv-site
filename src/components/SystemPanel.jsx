@@ -65,9 +65,13 @@ function parseSystem(text) {
 
       const nm = m[2].match(/^(.*?)\s*\((.+)\)$/)
 
+      const itemLabel = (nm ? nm[1] : m[2]).replace(/_/g, ' ')
+      const hideDescription = /^DV\s*(?:Gateway|Site)$/i.test(itemLabel)
+
       cur.items.push({
-        label: (nm ? nm[1] : m[2]).replace(/_/g, ' '),
-        sub: nm ? nm[2] : '',
+        label: itemLabel,
+        // Sul sito principale il dominio è già evidente: niente sottotitolo grigio.
+        sub: nm && !hideDescription ? nm[2] : '',
         state,
       })
     }
