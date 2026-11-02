@@ -226,7 +226,7 @@ function SystemTiles({ data, gradvHealth }) {
           const gpuText = `${gpuGb.toFixed(1).replace('.', ',')}GB`
           const gradvSub = gradvData
             ? (gradvRunning
-              ? `${Math.round(gradvModel.ram_mb || 0)} MB · GPU ${gpuText}`
+              ? `RAM ${Math.round(gradvModel.ram_mb || 0)}MB\nGPU ${gpuText}`
               : 'sleep')
             : gradvHealth?.err
               ? 'offline'
