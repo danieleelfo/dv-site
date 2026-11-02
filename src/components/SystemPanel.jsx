@@ -115,7 +115,7 @@ function parseSystem(text) {
 }
 
 // Schemino a quadratini: verde = su, rosso = giù, grigio = non caricato.
-function SystemTiles({ data }) {
+function SystemTiles({ data, gradvHealth }) {
   const { t } = useTranslation()
 
   // Titoli mostrati: le chiavi interne (projects/services/...) diventano
@@ -125,7 +125,7 @@ function SystemTiles({ data }) {
     services: t('sys.sec.services'),
     models: t('sys.sec.models'),
     b2b: t('sys.sec.b2b'),
-    ollama: 'Ollama',
+    ollama: 'Ollama - GraDV - OCR',
   }
 
   const label = {
@@ -212,6 +212,28 @@ function SystemTiles({ data }) {
             state: gpt?.state || 'off',
             sub: '',
           })
+
+          // GraDV: health del generatore immagini, già recuperato da LeleAdmin.
+          // Il servizio è online anche quando il motore immagini è spento.
+          const gradvData = gradvHealth?.data
+          const gradvModel = gradvData?.model_server
+          const gradvSub = gradvData
+            ? (gradvModel?.running
+              ? `online · ${Math.round(gradvModel.ram_mb || 0)} MB` +
+                (gradvModel.mps_driver_mb
+                  ? ` · GPU ${Math.round(gradvModel.mps_driver_mb)} MB`
+                  : '')
+              : 'online · motore spento')
+            : gradvHealth?.err
+              ? 'offline'
+              : '…'
+
+          ollamaItems.push({
+            label: 'GraDV',
+            state: gradvData ? 'ok' : gradvHealth?.err ? 'bad' : 'off',
+            sub: gradvSub,
+            title: gradvHealth?.err || 'GraDV · Pillow',
+          })
         }
 
         const displayItems = isOllama ? ollamaItems : sec.items
@@ -246,9 +268,10 @@ function SystemTiles({ data }) {
                     className={`lc-ollama-box is-${it.state}${
                       it.wide ? ' lc-ollama-wide' : ''
                     }`}
-                    title={it.label}
+                    title={it.title || it.label}
                   >
                     <b>{it.label}</b>
+                    {it.sub && <small>{it.sub}</small>}
                   </div>
                 ))}
               </div>
