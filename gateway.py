@@ -2328,3 +2328,2468 @@ class ImageGenerationRequest(BaseModel):
 
     # F3 — preset di stile applicato dal gateway (filtro client-agnostic).
     # sw_kids: illustrazione cartoon/storybook sicura per bambini.
+    # ns_free: illustrazione per pubblico adulto, nessun filtro bambini.
+    # Vuoto/assente: comportamento precedente (nessuna direzione di stile).
+    preset: str = Field(default="", max_length=32)
+
+
+# Direzione di stile che il gateway appende al prompt quando il client
+# chiede un preset. Il filtro vive così lato server: vale per qualunque
+# client (web, Telegram, script), non solo per il frontend React.
+IMAGE_PRESETS = {
+    "sw_kids": (
+        "Style: colorful cartoon storybook illustration for young children, "
+        "safe and wholesome, friendly rounded shapes, bright cheerful "
+        "lighting, no violence, no scary or adult content."
+    ),
+    "ns_free": (
+        "Style: artistic illustration for mature audiences, cinematic "
+        "lighting, evocative atmosphere, never a children's book style."
+    ),
+}
+
+
+def _image_cleanup_jobs() -> None:
+    now = time.time()
+
+    for job_id, job in list(IMAGE_JOBS.items()):
+        if job.get("status") not in ("COMPLETED", "ERROR"):
+            continue
+
+        finished_at = job.get("finished_at")
+        if finished_at and now - finished_at > 3600:
+            IMAGE_JOBS.pop(job_id, None)
+
+    if len(IMAGE_JOBS) <= IMAGE_MAX_JOBS:
+        return
+
+    finished = sorted(
+        (
+            (job_id, job)
+            for job_id, job in IMAGE_JOBS.items()
+            if job.get("status") in ("COMPLETED", "ERROR")
+        ),
+        key=lambda item: item[1].get("finished_at") or 0,
+    )
+
+    while len(IMAGE_JOBS) > IMAGE_MAX_JOBS and finished:
+        job_id, _ = finished.pop(0)
+        IMAGE_JOBS.pop(job_id, None)
+
+
+def _image_resolution(width: int, height: int) -> tuple[str, str]:
+    """
+    Traduce le dimensioni richieste nei due dropdown di GraDV.
+
+    Il primo dropdown seleziona la categoria 512/768/1024/1280.
+    Il secondo seleziona il rapporto d'aspetto.
+    """
+
+    category = min(
+        (512, 768, 1024, 1280),
+        key=lambda value: abs(value - max(width, height)),
+    )
+
+    requested_ratio = width / height
+
+    # Rapporti disponibili nella UI GraDV, osservati in /config.
+    ratios = [
+        ("1:1", 1.0, lambda c: (c, c)),
+        ("5:3", 5 / 3, lambda c: (int(c * 1.25), int(c * 0.75))),
+        ("3:5", 3 / 5, lambda c: (int(c * 0.75), int(c * 1.25))),
+        ("4:3", 4 / 3, lambda c: (c, int(c * 0.75))),
+        ("3:4", 3 / 4, lambda c: (int(c * 0.75), c)),
+        ("16:9", 16 / 9, lambda c: (int(c * 1.25), int(c * 368 / 512))),
+        ("9:16", 9 / 16, lambda c: (int(c * 368 / 512), int(c * 1.25))),
+    ]
+
+    ratio_name, _, dimensions_fn = min(
+        ratios,
+        key=lambda item: abs(math.log(requested_ratio / item[1])),
+    )
+
+    out_width, out_height = dimensions_fn(category)
+    resolution = f"{out_width}x{out_height} ({ratio_name})"
+
+    return str(category), resolution
+
+
+async def _image_gradio_generate(
+    prompt: str,
+    width: int,
+    height: int,
+    steps: int,
+    seed: int,
+) -> dict:
+    """
+    Invoca direct_generate tramite l'API GraDV.
+
+    GraDV restituisce un event_id; il risultato arriva successivamente
+    tramite lo stream /gradio_api/call/direct_generate/{event_id}.
+    """
+
+    category, resolution = _image_resolution(width, height)
+
+    timeout = httpx.Timeout(
+        timeout=IMAGE_GENERATION_TIMEOUT,
+        connect=10.0,
+    )
+
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        # Avvia il lavoro GraDV.
+        response = await client.post(
+            f"{IMAGE_MODEL_URL}/gradio_api/call/direct_generate",
+            json={
+                "data": [
+                    prompt,
+                    category,
+                    resolution,
+                    seed,
+                    False,  # Seed esplicito: non richiedere un altro seed casuale.
+                    steps,
+                ]
+            },
+        )
+
+        if response.status_code >= 400:
+            raise RuntimeError(
+                f"GraDV HTTP {response.status_code}: {response.text[:1500]}"
+            )
+
+        try:
+            event_id = response.json().get("event_id")
+        except Exception as exc:
+            raise RuntimeError(
+                f"Risposta GraDV di avvio non valida: {response.text[:1000]}"
+            ) from exc
+
+        if not event_id:
+            raise RuntimeError(
+                f"GraDV non ha restituito event_id: {response.text[:1000]}"
+            )
+
+        # Attende il risultato senza mantenere aperta la richiesta del browser.
+        event_url = (
+            f"{IMAGE_MODEL_URL}/gradio_api/call/direct_generate/"
+            f"{quote(str(event_id), safe='')}"
+        )
+
+        result_payload = None
+        current_event = None
+
+        async with client.stream("GET", event_url) as stream:
+            if stream.status_code >= 400:
+                body = await stream.aread()
+                raise RuntimeError(
+                    f"GraDV stream HTTP {stream.status_code}: "
+                    f"{body.decode('utf-8', errors='replace')[:1500]}"
+                )
+
+            async for line in stream.aiter_lines():
+                if line.startswith("event:"):
+                    current_event = line[len("event:"):].strip()
+                    continue
+
+                if not line.startswith("data:"):
+                    continue
+
+                raw_data = line[len("data:"):].strip()
+
+                if current_event == "error":
+                    raise RuntimeError(f"Errore generazione GraDV: {raw_data}")
+
+                if current_event != "complete":
+                    continue
+
+                try:
+                    result_payload = json.loads(raw_data)
+                except json.JSONDecodeError as exc:
+                    raise RuntimeError(
+                        f"Risultato GraDV non JSON: {raw_data[:1000]}"
+                    ) from exc
+
+                break
+
+        if result_payload is None:
+            raise RuntimeError(
+                "Lo stream GraDV è terminato senza un evento complete."
+            )
+
+        # Normalizza i diversi formati di risposta GraDV.
+        if isinstance(result_payload, dict):
+            outputs = result_payload.get("data", [])
+        else:
+            outputs = result_payload
+
+        if not isinstance(outputs, list) or len(outputs) < 1:
+            raise RuntimeError(
+                f"Formato output GraDV inatteso: {str(result_payload)[:1500]}"
+            )
+
+        image_output = outputs[0]
+        seed_output = outputs[1] if len(outputs) > 1 else seed
+
+        # Alcune applicazioni restituiscono direttamente una data URI/base64.
+        if isinstance(image_output, str) and image_output.startswith(
+            "data:image/"
+        ):
+            encoded = image_output.split(",", 1)[1]
+            return {
+                "image_base64": encoded,
+                "seed": seed_output,
+                "width": width,
+                "height": height,
+            }
+
+        if isinstance(image_output, str) and re.fullmatch(
+            r"[A-Za-z0-9+/=\r\n]+", image_output
+        ):
+            return {
+                "image_base64": image_output,
+                "seed": seed_output,
+                "width": width,
+                "height": height,
+            }
+
+        if not isinstance(image_output, dict):
+            raise RuntimeError(
+                "GraDV non ha restituito un oggetto immagine riconoscibile: "
+                f"{str(image_output)[:1000]}"
+            )
+
+        # GraDV normalmente restituisce un oggetto FileData con "url"
+        # e/o "path". Scarichiamo il file dal server locale.
+        image_url = image_output.get("url")
+        image_path = image_output.get("path")
+
+        if image_url:
+            if image_url.startswith(("http://", "https://")):
+                # Non permettere che un risultato inatteso faccia scaricare
+                # risorse da host esterni.
+                from urllib.parse import urlparse
+
+                parsed = urlparse(image_url)
+                base = urlparse(IMAGE_MODEL_URL)
+
+                if (parsed.hostname, parsed.port) != (base.hostname, base.port):
+                    raise RuntimeError(
+                        "GraDV ha restituito un URL immagine su un host diverso."
+                    )
+
+                download_url = image_url
+            elif image_url.startswith("/"):
+                download_url = IMAGE_MODEL_URL + image_url
+            else:
+                download_url = IMAGE_MODEL_URL + "/" + image_url
+        elif image_path:
+            download_url = (
+                f"{IMAGE_MODEL_URL}/gradio_api/file="
+                f"{quote(str(image_path), safe='/')}"
+            )
+        else:
+            raise RuntimeError(
+                "Output GraDV senza URL o percorso dell'immagine."
+            )
+
+        image_response = await client.get(download_url)
+
+        if image_response.status_code >= 400:
+            raise RuntimeError(
+                "Impossibile scaricare l'immagine da GraDV: "
+                f"HTTP {image_response.status_code} "
+                f"{image_response.text[:500]}"
+            )
+
+        image_bytes = image_response.content
+        if not image_bytes:
+            raise RuntimeError("GraDV ha restituito un'immagine vuota.")
+
+        return {
+            "image_base64": base64.b64encode(image_bytes).decode("ascii"),
+            "seed": seed_output,
+            "width": width,
+            "height": height,
+        }
+
+
+async def _image_gradio_upload(
+    client: httpx.AsyncClient,
+    image_bytes: bytes,
+) -> str:
+    """
+    Carica l'immagine di partenza su GraDV (/gradio_api/upload)
+    e ritorna il percorso del file sul server (handle per l'API).
+    """
+    files = {
+        "files": (
+            "init_image",
+            image_bytes,
+            "image/png",
+        )
+    }
+
+    response = await client.post(
+        f"{IMAGE_MODEL_URL}/gradio_api/upload",
+        files=files,
+    )
+
+    if response.status_code >= 400:
+        raise RuntimeError(
+            f"Upload GraDV HTTP {response.status_code}: {response.text[:500]}"
+        )
+
+    try:
+        paths = response.json()
+    except Exception as exc:
+        raise RuntimeError(
+            f"Risposta upload GraDV non valida: {response.text[:500]}"
+        ) from exc
+
+    if not isinstance(paths, list) or not paths:
+        raise RuntimeError("Upload GraDV senza percorso file.")
+
+    return str(paths[0])
+
+
+async def _image_gradio_img2img(
+    prompt: str,
+    width: int,
+    height: int,
+    steps: int,
+    seed: int,
+    image_b64: str,
+    strength: float,
+) -> dict:
+    """
+    Come _image_gradio_generate, ma verso l'endpoint direct_img2img:
+    prima carica l'immagine di partenza su GraDV, poi invoca
+    [prompt, category, resolution, seed, False, steps, handle, strength].
+    """
+    category, resolution = _image_resolution(width, height)
+
+    raw = base64.b64decode(image_b64, validate=False)
+    if not raw:
+        raise RuntimeError("Immagine di partenza vuota.")
+
+    timeout = httpx.Timeout(
+        timeout=IMAGE_GENERATION_TIMEOUT,
+        connect=10.0,
+    )
+
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        handle = await _image_gradio_upload(client, raw)
+
+        # Avvia il lavoro GraDV.
+        response = await client.post(
+            f"{IMAGE_MODEL_URL}/gradio_api/call/direct_img2img",
+            json={
+                "data": [
+                    prompt,
+                    category,
+                    resolution,
+                    seed,
+                    False,  # Seed esplicito: non richiedere un altro seed casuale.
+                    steps,
+                    handle,
+                    strength,
+                ]
+            },
+        )
+
+        if response.status_code >= 400:
+            raise RuntimeError(
+                f"GraDV HTTP {response.status_code}: {response.text[:1500]}"
+            )
+
+        try:
+            event_id = response.json().get("event_id")
+        except Exception as exc:
+            raise RuntimeError(
+                f"Risposta GraDV di avvio non valida: {response.text[:1000]}"
+            ) from exc
+
+        if not event_id:
+            raise RuntimeError(
+                f"GraDV non ha restituito event_id: {response.text[:1000]}"
+            )
+
+        event_url = (
+            f"{IMAGE_MODEL_URL}/gradio_api/call/direct_img2img/"
+            f"{quote(str(event_id), safe='')}"
+        )
+
+        result_payload = None
+        current_event = None
+
+        async with client.stream("GET", event_url) as stream:
+            if stream.status_code >= 400:
+                body = await stream.aread()
+                raise RuntimeError(
+                    f"GraDV stream HTTP {stream.status_code}: "
+                    f"{body.decode('utf-8', errors='replace')[:1500]}"
+                )
+
+            async for line in stream.aiter_lines():
+                if line.startswith("event:"):
+                    current_event = line[len("event:"):].strip()
+                    continue
+
+                if not line.startswith("data:"):
+                    continue
+
+                raw_data = line[len("data:"):].strip()
+
+                if current_event == "error":
+                    raise RuntimeError(f"Errore generazione GraDV: {raw_data}")
+
+                if current_event != "complete":
+                    continue
+
+                try:
+                    result_payload = json.loads(raw_data)
+                except json.JSONDecodeError as exc:
+                    raise RuntimeError(
+                        f"Risultato GraDV non JSON: {raw_data[:1000]}"
+                    ) from exc
+
+                break
+
+        if result_payload is None:
+            raise RuntimeError(
+                "Lo stream GraDV è terminato senza un evento complete."
+            )
+
+        # Normalizza i diversi formati di risposta GraDV.
+        if isinstance(result_payload, dict):
+            outputs = result_payload.get("data", [])
+        else:
+            outputs = result_payload
+
+        if not isinstance(outputs, list) or len(outputs) < 1:
+            raise RuntimeError(
+                f"Formato output GraDV inatteso: {str(result_payload)[:1500]}"
+            )
+
+        image_output = outputs[0]
+        seed_output = outputs[1] if len(outputs) > 1 else seed
+
+        if isinstance(image_output, str) and image_output.startswith(
+            "data:image/"
+        ):
+            encoded = image_output.split(",", 1)[1]
+            return {
+                "image_base64": encoded,
+                "seed": seed_output,
+                "width": width,
+                "height": height,
+            }
+
+        if isinstance(image_output, str) and re.fullmatch(
+            r"[A-Za-z0-9+/=\r\n]+", image_output
+        ):
+            return {
+                "image_base64": image_output,
+                "seed": seed_output,
+                "width": width,
+                "height": height,
+            }
+
+        if not isinstance(image_output, dict):
+            raise RuntimeError(
+                "GraDV non ha restituito un oggetto immagine riconoscibile: "
+                f"{str(image_output)[:1000]}"
+            )
+
+        image_url = image_output.get("url")
+        image_path = image_output.get("path")
+
+        if image_url:
+            if image_url.startswith(("http://", "https://")):
+                from urllib.parse import urlparse
+
+                parsed = urlparse(image_url)
+                base = urlparse(IMAGE_MODEL_URL)
+
+                if (parsed.hostname, parsed.port) != (base.hostname, base.port):
+                    raise RuntimeError(
+                        "GraDV ha restituito un URL immagine su un host diverso."
+                    )
+
+                download_url = image_url
+            elif image_url.startswith("/"):
+                download_url = IMAGE_MODEL_URL + image_url
+            else:
+                download_url = IMAGE_MODEL_URL + "/" + image_url
+        elif image_path:
+            download_url = (
+                f"{IMAGE_MODEL_URL}/gradio_api/file="
+                f"{quote(str(image_path), safe='/')}"
+            )
+        else:
+            raise RuntimeError(
+                "Output GraDV senza URL o percorso dell'immagine."
+            )
+
+        image_response = await client.get(download_url)
+
+        if image_response.status_code >= 400:
+            raise RuntimeError(
+                "Impossibile scaricare l'immagine da GraDV: "
+                f"HTTP {image_response.status_code} "
+                f"{image_response.text[:500]}"
+            )
+
+        image_bytes = image_response.content
+        if not image_bytes:
+            raise RuntimeError("GraDV ha restituito un'immagine vuota.")
+
+        return {
+            "image_base64": base64.b64encode(image_bytes).decode("ascii"),
+            "seed": seed_output,
+            "width": width,
+            "height": height,
+        }
+
+
+async def _image_run_job(
+    job_id: str,
+    prompt: str,
+    width: int,
+    height: int,
+    steps: int,
+    seed: int,
+    image_base64: str = "",
+    strength: float = 0.5,
+) -> None:
+    job = IMAGE_JOBS.get(job_id)
+    if job is None:
+        return
+
+    try:
+        job["status"] = "QUEUED"
+        job["message"] = "In attesa del generatore locale."
+
+        async with _IMAGE_GENERATION_LOCK:
+            job = IMAGE_JOBS.get(job_id)
+            if job is None:
+                return
+
+            job["status"] = "RUNNING"
+            job["message"] = "Generazione in corso sul Mac."
+            job["started_at"] = time.time()
+
+            actual_seed = (
+                random.SystemRandom().randint(0, 2**31 - 1)
+                if seed == -1
+                else seed
+            )
+
+            if image_base64:
+                result = await _image_gradio_img2img(
+                    prompt=prompt,
+                    width=width,
+                    height=height,
+                    steps=steps,
+                    seed=actual_seed,
+                    image_b64=image_base64,
+                    strength=strength,
+                )
+            else:
+                result = await _image_gradio_generate(
+                    prompt=prompt,
+                    width=width,
+                    height=height,
+                    steps=steps,
+                    seed=actual_seed,
+                )
+
+            job["result"] = result
+            job["status"] = "COMPLETED"
+            job["message"] = "Immagine generata."
+            job["finished_at"] = time.time()
+
+            _image_save_history(
+                job_id=job_id,
+                prompt=prompt,
+                width=width,
+                height=height,
+                steps=steps,
+                seed=result["seed"],
+                image_base64=result["image_base64"],
+                strength=strength if image_base64 else None,
+            )
+
+    except asyncio.CancelledError:
+        job = IMAGE_JOBS.get(job_id)
+        if job is not None:
+            job["status"] = "ERROR"
+            job["error"] = "Generazione interrotta."
+            job["finished_at"] = time.time()
+        raise
+
+    except Exception as exc:
+        job = IMAGE_JOBS.get(job_id)
+        if job is not None:
+            job["status"] = "ERROR"
+            job["error"] = str(exc)
+            job["finished_at"] = time.time()
+
+        print(f"[image-lab] Errore job {job_id}: {exc}", flush=True)
+
+
+@app.post("/api/image/jobs", status_code=202)
+async def image_create_job(
+    req: ImageGenerationRequest,
+    authorization: str | None = Header(None),
+):
+    # Demo: gli utenti demo attivi (users.json) possono generare.
+    email = verify_user_token(authorization)
+    prompt = req.prompt.strip()
+
+    if not prompt:
+        raise HTTPException(
+            status_code=400,
+            detail="Inserisci una descrizione dell'immagine.",
+        )
+
+    # F3 — preset di stile (opzionale, applicato prima del check lunghezza).
+    preset = (req.preset or "").strip().lower()
+    if preset and preset not in IMAGE_PRESETS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Preset sconosciuto: '{preset}'. Validi: {sorted(IMAGE_PRESETS)}",
+        )
+    if preset:
+        prompt = prompt.rstrip(" .,;") + ". " + IMAGE_PRESETS[preset]
+
+    if len(prompt) > IMAGE_MAX_PROMPT_CHARS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Prompt troppo lungo: massimo {IMAGE_MAX_PROMPT_CHARS} caratteri.",
+        )
+
+    if req.width not in IMAGE_ALLOWED_WIDTHS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Larghezza non consentita: {sorted(IMAGE_ALLOWED_WIDTHS)}",
+        )
+
+    if req.height not in IMAGE_ALLOWED_HEIGHTS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Altezza non consentita: {sorted(IMAGE_ALLOWED_HEIGHTS)}",
+        )
+
+    if not IMAGE_MIN_STEPS <= req.steps <= IMAGE_MAX_STEPS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"steps deve essere compreso tra {IMAGE_MIN_STEPS} e {IMAGE_MAX_STEPS}.",
+        )
+
+    if req.seed < -1 or req.seed > 2**32 - 1:
+        raise HTTPException(status_code=400, detail="Seed non valido.")
+
+    _image_cleanup_jobs()
+
+    existing_job = next(
+        (
+            job for job in IMAGE_JOBS.values()
+            if job.get("owner") == email
+            and job.get("status") in ("QUEUED", "RUNNING")
+        ),
+        None,
+    )
+
+    if existing_job:
+        return {
+            "job_id": existing_job["job_id"],
+            "status": existing_job["status"],
+            "message": "Hai già una generazione in corso.",
+        }
+
+    if len(IMAGE_JOBS) >= IMAGE_MAX_JOBS:
+        raise HTTPException(
+            status_code=429,
+            detail="Troppi job conservati. Attendi e riprova.",
+        )
+
+    job_id = str(uuid.uuid4())
+
+    IMAGE_JOBS[job_id] = {
+        "job_id": job_id,
+        "owner": email,
+        "status": "QUEUED",
+        "message": "Generazione accodata.",
+        "error": None,
+        "result": None,
+        "preset": preset or None,
+        "created_at": time.time(),
+        "started_at": None,
+        "finished_at": None,
+    }
+
+    asyncio.create_task(
+        _image_run_job(
+            job_id=job_id,
+            prompt=prompt,
+            width=req.width,
+            height=req.height,
+            steps=req.steps,
+            seed=req.seed,
+        )
+    )
+
+    return {
+        "job_id": job_id,
+        "status": "QUEUED",
+        "message": "Generazione avviata.",
+    }
+
+
+@app.post("/api/image/img2img", status_code=202)
+async def image_img2img(
+    image: UploadFile = File(...),
+    prompt: str = Form(...),
+    strength: float = Form(0.65),
+    width: int = Form(512),
+    height: int = Form(512),
+    steps: int = Form(8),
+    seed: int = Form(-1),
+    authorization: str | None = Header(None),
+):
+    """
+    Image-to-image: parte da una foto caricata (multipart) e la modifica
+    secondo il prompt, con la strength richiesta.
+
+    Contratto ImgLab: FormData con image, prompt, strength, width,
+    height, steps, seed. Il risultato segue la stessa coda e lo stesso
+    polling di /api/image/jobs (GET jobs/{id} + jobs/{id}/result).
+    """
+    email = verify_user_token(authorization)
+
+    prompt = prompt.strip()
+
+    if not prompt:
+        raise HTTPException(
+            status_code=400,
+            detail="Inserisci una descrizione della modifica.",
+        )
+
+    if len(prompt) > IMAGE_MAX_PROMPT_CHARS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Prompt troppo lungo: massimo {IMAGE_MAX_PROMPT_CHARS} caratteri.",
+        )
+
+    if not 0.0 < strength <= 1.0:
+        raise HTTPException(
+            status_code=400,
+            detail="strength deve essere compresa tra 0 e 1.",
+        )
+
+    if width not in IMAGE_ALLOWED_WIDTHS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Larghezza non consentita: {sorted(IMAGE_ALLOWED_WIDTHS)}",
+        )
+
+    if height not in IMAGE_ALLOWED_HEIGHTS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Altezza non consentita: {sorted(IMAGE_ALLOWED_HEIGHTS)}",
+        )
+
+    if not IMAGE_MIN_STEPS <= steps <= IMAGE_MAX_STEPS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"steps deve essere compreso tra {IMAGE_MIN_STEPS} e {IMAGE_MAX_STEPS}.",
+        )
+
+    if seed < -1 or seed > 2**32 - 1:
+        raise HTTPException(status_code=400, detail="Seed non valido.")
+
+    raw = await image.read()
+
+    if not raw:
+        raise HTTPException(
+            status_code=400,
+            detail="Immagine di partenza vuota.",
+        )
+
+    # Allineato con il limite lato frontend (15 MB).
+    if len(raw) > 15 * 1024 * 1024:
+        raise HTTPException(
+            status_code=413,
+            detail="Immagine troppo grande (massimo 15 MB).",
+        )
+
+    init_b64 = base64.b64encode(raw).decode("ascii")
+
+    _image_cleanup_jobs()
+
+    existing_job = next(
+        (
+            job for job in IMAGE_JOBS.values()
+            if job.get("owner") == email
+            and job.get("status") in ("QUEUED", "RUNNING")
+        ),
+        None,
+    )
+
+    if existing_job:
+        return {
+            "job_id": existing_job["job_id"],
+            "status": existing_job["status"],
+            "message": "Hai già una generazione in corso.",
+        }
+
+    if len(IMAGE_JOBS) >= IMAGE_MAX_JOBS:
+        raise HTTPException(
+            status_code=429,
+            detail="Troppi job conservati. Attendi e riprova.",
+        )
+
+    job_id = str(uuid.uuid4())
+
+    IMAGE_JOBS[job_id] = {
+        "job_id": job_id,
+        "owner": email,
+        "status": "QUEUED",
+        "message": "Modifica immagine accodata.",
+        "error": None,
+        "result": None,
+        "created_at": time.time(),
+        "started_at": None,
+        "finished_at": None,
+    }
+
+    asyncio.create_task(
+        _image_run_job(
+            job_id=job_id,
+            prompt=prompt,
+            width=width,
+            height=height,
+            steps=steps,
+            seed=seed,
+            image_base64=init_b64,
+            strength=strength,
+        )
+    )
+
+    return {
+        "job_id": job_id,
+        "status": "QUEUED",
+        "message": "Modifica immagine avviata.",
+    }
+
+
+@app.get("/api/image/jobs/{job_id}")
+async def image_get_job(
+    job_id: str,
+    authorization: str | None = Header(None),
+):
+    email = verify_user_token(authorization)
+    job = IMAGE_JOBS.get(job_id)
+
+    if not job or job.get("owner") != email:
+        raise HTTPException(status_code=404, detail="Job non trovato.")
+
+    return {
+        "job_id": job_id,
+        "status": job["status"],
+        "message": job.get("message"),
+        "error": job.get("error"),
+        "progress": 100 if job["status"] == "COMPLETED" else None,
+        "created_at": job.get("created_at"),
+        "started_at": job.get("started_at"),
+        "finished_at": job.get("finished_at"),
+    }
+
+
+@app.get("/api/image/jobs/{job_id}/result")
+async def image_get_result(
+    job_id: str,
+    authorization: str | None = Header(None),
+):
+    email = verify_user_token(authorization)
+    job = IMAGE_JOBS.get(job_id)
+
+    if not job or job.get("owner") != email:
+        raise HTTPException(status_code=404, detail="Job non trovato.")
+
+    if job.get("status") != "COMPLETED":
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "status": job.get("status"),
+                "message": "L'immagine non è ancora disponibile.",
+            },
+        )
+
+    result = job.get("result")
+    if not result:
+        raise HTTPException(
+            status_code=500,
+            detail="Risultato immagine non disponibile.",
+        )
+
+    return result
+
+
+
+
+# --------------------------------------------------------------------------
+# IMAGE HISTORY — persistenza su disco delle generazioni
+# --------------------------------------------------------------------------
+
+# Directory dove vengono salvati i PNG e i metadati JSON.
+IMAGE_HISTORY_DIR = os.environ.get(
+    "IMAGE_HISTORY_DIR",
+    os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "image_history",
+    ),
+)
+
+# Numero massimo di generazioni conservate su disco.
+IMAGE_HISTORY_MAX = int(os.environ.get("IMAGE_HISTORY_MAX", "1000"))
+
+
+def _image_save_history(
+    job_id: str,
+    prompt: str,
+    width: int,
+    height: int,
+    steps: int,
+    seed: int,
+    image_base64: str,
+    strength: float | None = None,
+) -> None:
+    """
+    Salva su disco il risultato di una generazione (PNG + JSON).
+
+    Gli errori vengono solo loggati: la history non deve mai
+    compromettere la generazione appena completata.
+    """
+    try:
+        os.makedirs(IMAGE_HISTORY_DIR, exist_ok=True)
+
+        image_path = os.path.join(IMAGE_HISTORY_DIR, f"{job_id}.png")
+
+        with open(image_path, "wb") as f:
+            f.write(base64.b64decode(image_base64))
+
+        meta = {
+            "job_id": job_id,
+            "prompt": prompt,
+            "width": width,
+            "height": height,
+            "steps": steps,
+            "seed": seed,
+            "created_at": time.time(),
+        }
+
+        if strength is not None:
+            meta["mode"] = "img2img"
+            meta["strength"] = strength
+
+        with open(
+            os.path.join(IMAGE_HISTORY_DIR, f"{job_id}.json"),
+            "w",
+            encoding="utf-8",
+        ) as f:
+            json.dump(meta, f, ensure_ascii=False, indent=2)
+
+        _image_cleanup_history()
+
+    except Exception as e:
+        print(
+            f"[image-lab] Errore salvataggio history {job_id}: {e}",
+            flush=True,
+        )
+
+
+def _image_cleanup_history() -> None:
+    """
+    Mantiene al massimo IMAGE_HISTORY_MAX generazioni,
+    eliminando le più vecchie.
+    """
+    try:
+        json_files = [
+            filename
+            for filename in os.listdir(IMAGE_HISTORY_DIR)
+            if filename.endswith(".json")
+        ]
+
+        if len(json_files) <= IMAGE_HISTORY_MAX:
+            return
+
+        entries = sorted(
+            (
+                (
+                    filename,
+                    os.path.getmtime(
+                        os.path.join(IMAGE_HISTORY_DIR, filename)
+                    ),
+                )
+                for filename in json_files
+            ),
+            key=lambda item: item[1],
+        )
+
+        excess = len(entries) - IMAGE_HISTORY_MAX
+
+        for filename, _ in entries[:excess]:
+            job_id = filename[:-5]
+            try:
+                os.remove(
+                    os.path.join(IMAGE_HISTORY_DIR, filename)
+                )
+                os.remove(
+                    os.path.join(IMAGE_HISTORY_DIR, f"{job_id}.png")
+                )
+            except FileNotFoundError:
+                pass
+
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        print(f"[image-lab] Errore cleanup history: {e}", flush=True)
+
+
+@app.get("/api/image/history")
+async def image_history_list(
+    authorization: str | None = Header(None),
+):
+    """
+    Restituisce i metadati delle generazioni salvate,
+    dalla più recente alla più vecchia.
+    """
+    verify_admin_token(authorization)
+
+    items = []
+
+    try:
+        json_files = [
+            filename
+            for filename in os.listdir(IMAGE_HISTORY_DIR)
+            if filename.endswith(".json")
+        ]
+
+        entries = sorted(
+            (
+                (
+                    filename,
+                    os.path.getmtime(
+                        os.path.join(IMAGE_HISTORY_DIR, filename)
+                    ),
+                )
+                for filename in json_files
+            ),
+            key=lambda item: item[1],
+            reverse=True,
+        )
+
+        for filename, _ in entries:
+            try:
+                with open(
+                    os.path.join(IMAGE_HISTORY_DIR, filename),
+                    encoding="utf-8",
+                ) as f:
+                    items.append(json.load(f))
+            except Exception:
+                continue
+
+    except FileNotFoundError:
+        pass
+
+    return {"items": items, "max": IMAGE_HISTORY_MAX}
+
+
+@app.get("/api/image/history/{job_id}/image")
+async def image_history_image(
+    job_id: str,
+    authorization: str | None = Header(None),
+):
+    """
+    Restituisce il PNG di una generazione salvata.
+    """
+    verify_admin_token(authorization)
+
+    if not re.fullmatch(r"[0-9a-f-]{36}", job_id):
+        raise HTTPException(
+            status_code=400,
+            detail="job_id non valido.",
+        )
+
+    image_path = os.path.join(IMAGE_HISTORY_DIR, f"{job_id}.png")
+
+    if not os.path.isfile(image_path):
+        raise HTTPException(
+            status_code=404,
+            detail="Immagine non trovata.",
+        )
+
+    return FileResponse(image_path, media_type="image/png")
+
+# ==========================================================================
+# STORY HISTORY — storie (testo + audio TTS + illustrazioni)
+# ==========================================================================
+# Persistenza su disco, stessa filosofia di IMAGE HISTORY:
+#   {story_id}.json -> metadati (prompt, testo, scene con job_id)
+#   {story_id}.ogg  -> audio TTS scaricato dall'agente (se presente)
+# Le immagini delle scene NON vengono duplicate: restano in
+# IMAGE HISTORY e si servono con /api/image/history/{job_id}/image.
+# ==========================================================================
+
+STORY_HISTORY_DIR = os.environ.get(
+    "STORY_HISTORY_DIR",
+    os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "story_history",
+    ),
+)
+
+STORY_HISTORY_MAX = int(os.environ.get("STORY_HISTORY_MAX", "50"))
+
+STORY_AUDIO_FILENAME_RE = re.compile(r"^[A-Za-z0-9._-]{1,200}$")
+
+
+class StoryScene(BaseModel):
+    title: str = ""
+    prompt: str = ""
+    job_id: str = ""
+    seconds: int | None = None
+    # Versionamento illustrazioni: la stessa storia può avere più "versioni"
+    # di scene (rigenerazioni con modello/stile diversi). Il planner registra
+    # quale modello Ollama ha selezionato le scene e lo style_prompt extra.
+    version: int = 1
+    planner: str = ""
+    style_prompt: str = ""
+
+
+class StorySaveRequest(BaseModel):
+    prompt: str = ""
+    text: str = ""
+    agent: str = "Story Whisper"
+    audio_filename: str = ""
+    language: str = "it"
+    scenes: list[StoryScene] = []
+
+
+def _story_cleanup() -> None:
+    """Mantiene al massimo STORY_HISTORY_MAX storie su disco."""
+    try:
+        json_files = [
+            filename
+            for filename in os.listdir(STORY_HISTORY_DIR)
+            if filename.endswith(".json")
+        ]
+
+        if len(json_files) <= STORY_HISTORY_MAX:
+            return
+
+        entries = sorted(
+            (
+                (
+                    filename,
+                    os.path.getmtime(
+                        os.path.join(STORY_HISTORY_DIR, filename)
+                    ),
+                )
+                for filename in json_files
+            ),
+            key=lambda item: item[1],
+        )
+
+        excess = len(entries) - STORY_HISTORY_MAX
+
+        for filename, _ in entries[:excess]:
+            story_id = filename[:-5]
+            for suffix in (".json", ".ogg"):
+                try:
+                    os.remove(
+                        os.path.join(
+                            STORY_HISTORY_DIR,
+                            story_id + suffix,
+                        )
+                    )
+                except FileNotFoundError:
+                    pass
+
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        print(f"[story] Errore cleanup: {e}", flush=True)
+
+
+def _story_load(story_id: str) -> dict:
+    """Carica i metadati di una storia, validando l'id."""
+    if not re.fullmatch(r"[0-9a-f-]{36}", story_id):
+        raise HTTPException(
+            status_code=400,
+            detail="story_id non valido.",
+        )
+
+    path = os.path.join(STORY_HISTORY_DIR, f"{story_id}.json")
+
+    if not os.path.isfile(path):
+        raise HTTPException(
+            status_code=404,
+            detail="Storia non trovata.",
+        )
+
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+@app.post("/api/admin/stories")
+async def story_save(
+    req: StorySaveRequest,
+    authorization: str | None = Header(None),
+):
+    """
+    Salva una storia completata (testo + audio + illustrazioni).
+
+    L'audio TTS viene scaricato dall'agente (es. Story Whisper :8088,
+    /tts/{filename}) e copiato in STORY_HISTORY_DIR, così sopravvive
+    alla pulizia dei file temporanei dell'agente.
+    """
+    verify_admin_token(authorization)
+
+    story_id = str(uuid.uuid4())
+    audio_saved = False
+
+    filename = (req.audio_filename or "").strip()
+    # Normalizza: tieni solo il nome file, non il percorso.
+    filename = filename.replace("\\", "/").rsplit("/", 1)[-1].strip()
+
+    if filename and not STORY_AUDIO_FILENAME_RE.fullmatch(filename):
+        # Nome ancora non valido: salto l'audio, la storia si salva comunque.
+        print(f"[story] Audio ignorato, nome file non valido: {filename[:200]}", flush=True)
+        filename = ""
+
+    agent_cfg = AGENTS.get(req.agent)
+
+    if agent_cfg and filename:
+        port = agent_cfg["port"]
+
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.get(
+                    f"http://127.0.0.1:{port}/tts/{filename}"
+                )
+
+            if response.status_code == 200 and response.content:
+                os.makedirs(STORY_HISTORY_DIR, exist_ok=True)
+
+                with open(
+                    os.path.join(
+                        STORY_HISTORY_DIR,
+                        f"{story_id}.ogg",
+                    ),
+                    "wb",
+                ) as f:
+                    f.write(response.content)
+
+                audio_saved = True
+
+        except Exception as e:
+            print(f"[story] Audio non salvato: {e}", flush=True)
+
+    meta = {
+        "story_id": story_id,
+        "created_at": time.time(),
+        "prompt": req.prompt,
+        "text": req.text,
+        "agent": req.agent,
+        "language": req.language,
+        "has_audio": audio_saved,
+        "scenes": [
+            {
+                "title": s.title,
+                "prompt": s.prompt,
+                "job_id": s.job_id,
+                "seconds": s.seconds,
+                "version": s.version,
+                "planner": s.planner,
+                "style_prompt": s.style_prompt,
+            }
+            for s in req.scenes
+        ],
+    }
+
+    os.makedirs(STORY_HISTORY_DIR, exist_ok=True)
+
+    with open(
+        os.path.join(STORY_HISTORY_DIR, f"{story_id}.json"),
+        "w",
+        encoding="utf-8",
+    ) as f:
+        json.dump(meta, f, ensure_ascii=False, indent=2)
+
+    _story_cleanup()
+
+    return {
+        "story_id": story_id,
+        "status": "ok",
+        "has_audio": audio_saved,
+    }
+
+
+@app.get("/api/admin/stories")
+async def story_list(
+    authorization: str | None = Header(None),
+):
+    """Elenco delle storie salvate, dalla più recente."""
+    verify_admin_token(authorization)
+
+    items = []
+
+    try:
+        json_files = [
+            filename
+            for filename in os.listdir(STORY_HISTORY_DIR)
+            if filename.endswith(".json")
+        ]
+
+        entries = sorted(
+            (
+                (
+                    filename,
+                    os.path.getmtime(
+                        os.path.join(STORY_HISTORY_DIR, filename)
+                    ),
+                )
+                for filename in json_files
+            ),
+            key=lambda item: item[1],
+            reverse=True,
+        )
+
+        for filename, _ in entries:
+            try:
+                with open(
+                    os.path.join(STORY_HISTORY_DIR, filename),
+                    encoding="utf-8",
+                ) as f:
+                    data = json.load(f)
+
+                items.append(
+                    {
+                        "story_id": data.get("story_id"),
+                        "created_at": data.get("created_at"),
+                        "prompt": data.get("prompt", ""),
+                        "agent": data.get("agent", ""),
+                        "has_audio": bool(data.get("has_audio")),
+                        "scene_count": len(data.get("scenes") or []),
+                    }
+                )
+            except Exception:
+                continue
+
+    except FileNotFoundError:
+        pass
+
+    return {"items": items, "max": STORY_HISTORY_MAX}
+
+
+@app.put("/api/admin/stories/{story_id}")
+async def story_update(
+    story_id: str,
+    req: StorySaveRequest,
+    authorization: str | None = Header(None),
+):
+    """Aggiorna testo/metadati e illustrazioni senza riscaricare o perdere l'audio."""
+    verify_admin_token(authorization)
+    existing = _story_load(story_id)
+
+    meta = {
+        "story_id": story_id,
+        "created_at": existing.get("created_at", time.time()),
+        "prompt": req.prompt,
+        "text": req.text,
+        "agent": req.agent,
+        "language": req.language,
+        "has_audio": bool(existing.get("has_audio")),
+        "scenes": [
+            {
+                "title": scene.title,
+                "prompt": scene.prompt,
+                "job_id": scene.job_id,
+                "seconds": scene.seconds,
+                "version": scene.version,
+                "planner": scene.planner,
+                "style_prompt": scene.style_prompt,
+            }
+            for scene in req.scenes
+        ],
+    }
+
+    path = os.path.join(STORY_HISTORY_DIR, f"{story_id}.json")
+    temp_path = path + ".tmp"
+    with open(temp_path, "w", encoding="utf-8") as f:
+        json.dump(meta, f, ensure_ascii=False, indent=2)
+    os.replace(temp_path, path)
+
+    return {
+        "story_id": story_id,
+        "status": "ok",
+        "has_audio": meta["has_audio"],
+        "scene_count": len(meta["scenes"]),
+    }
+
+
+@app.get("/api/admin/stories/{story_id}")
+async def story_get(
+    story_id: str,
+    authorization: str | None = Header(None),
+):
+    """Dettaglio completo di una storia (testo + scene con job_id)."""
+    verify_admin_token(authorization)
+    return _story_load(story_id)
+
+
+@app.get("/api/admin/stories/{story_id}/audio")
+async def story_audio(
+    story_id: str,
+    authorization: str | None = Header(None),
+):
+    """Serve l'audio TTS persistito della storia (audio/ogg)."""
+    verify_admin_token(authorization)
+
+    _story_load(story_id)
+
+    audio_path = os.path.join(STORY_HISTORY_DIR, f"{story_id}.ogg")
+
+    if not os.path.isfile(audio_path):
+        raise HTTPException(
+            status_code=404,
+            detail="Audio non trovato.",
+        )
+
+    return FileResponse(audio_path, media_type="audio/ogg")
+
+
+class ComicPdfRequest(BaseModel):
+    # Indici 0-based delle scene della versione attiva da includere
+    # (lista vuota = tutte le scene).
+    scene_indexes: list[int] = []
+    captions: bool = True
+    # Estratto del testo della storia accanto a ogni immagine
+    # (solo layout pages/strip; in collage ignorato).
+    narration: bool = False
+    # pages = 1 scena per pagina, collage = griglia 2x2, strip = unica
+    # pagina verticale lunga.
+    layout: str = "pages"
+    # landscape / portrait (A4 @ 96 dpi).
+    page_format: str = "landscape"
+    # Versione delle illustrazioni (badge V1/V2/… in Stories);
+    # assente = versione attiva (max).
+    version: int | None = None
+
+
+@app.post("/api/admin/stories/{story_id}/comic_pdf")
+async def story_comic_pdf(
+    story_id: str,
+    req: ComicPdfRequest,
+    authorization: str | None = Header(None),
+):
+    """
+    Fumetto PDF on-demand della storia (versione attiva): compone le
+    pagine con Pillow tramite leles/core/story_pdf_report e restituisce
+    il PDF in download diretto, senza passare da Airflow/Telegram.
+    """
+    import sys
+
+    verify_admin_token(authorization)
+    meta = _story_load(story_id)
+
+    layout = (req.layout or "pages").strip().lower()
+    if layout not in ("pages", "collage", "strip"):
+        raise HTTPException(
+            status_code=400,
+            detail="layout non valido (pages, collage, strip).",
+        )
+
+    page_format = (req.page_format or "landscape").strip().lower()
+    if page_format not in ("landscape", "portrait"):
+        raise HTTPException(
+            status_code=400,
+            detail="page_format non valido (landscape, portrait).",
+        )
+
+    # story_pdf_report vive nel repo leles (stesso Mac): ../leles/core
+    leles_core = os.path.abspath(
+        os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "..",
+            "leles",
+            "core",
+        )
+    )
+    if not os.path.isdir(leles_core):
+        raise HTTPException(
+            status_code=500,
+            detail=f"Repo leles non trovato: {leles_core}",
+        )
+    if leles_core not in sys.path:
+        sys.path.insert(0, leles_core)
+
+    import story_pdf_report as comic_builder
+
+    pdf_bytes, info = comic_builder.build_story_pdf_bytes(
+        meta,
+        IMAGE_HISTORY_DIR,
+        {
+            "scene_indexes": req.scene_indexes,
+            "captions": req.captions,
+            "narration": req.narration,
+            "layout": layout,
+            "page_format": page_format,
+            "version": req.version,
+        },
+    )
+    if not pdf_bytes:
+        raise HTTPException(
+            status_code=404,
+            detail=(info or {}).get("error", "Fumetto non generabile."),
+        )
+
+    version_used = (info or {}).get("version") or 1
+    filename = f"fumetto_{story_id}_V{version_used}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.delete("/api/admin/stories/{story_id}")
+async def story_delete(
+    story_id: str,
+    authorization: str | None = Header(None),
+):
+    """Elimina una storia (metadati + audio)."""
+    verify_admin_token(authorization)
+
+    _story_load(story_id)
+
+    for suffix in (".json", ".ogg"):
+        try:
+            os.remove(
+                os.path.join(STORY_HISTORY_DIR, story_id + suffix)
+            )
+        except FileNotFoundError:
+            pass
+
+    return {"status": "ok"}
+
+
+# ==========================================================================
+# VISION OCR — estrazione testo da immagini con Qwen-VL via Ollama
+# ==========================================================================
+#
+# Architettura:
+#   Sito -> Gateway autenticato -> Ollama locale :11434 (modello vision)
+#
+# Il nome del modello è configurabile da env perché la versione
+# installata può cambiare (qwen2.5vl, qwen2-vl, qwen3-vl, ...).
+# ==========================================================================
+
+OLLAMA_URL = os.environ.get(
+    "OLLAMA_URL",
+    "http://127.0.0.1:11434",
+).rstrip("/")
+
+VISION_OCR_MODEL = os.environ.get("VISION_OCR_MODEL", "qwen2.5vl:3b")
+
+# Peso massimo dell'immagine caricata (10 MB).
+VISION_MAX_IMAGE_BYTES = 10 * 1024 * 1024
+
+# Qwen-VL non è pesante quanto Z-Image, ma il Mac ha 16 GB:
+# una richiesta OCR alla volta.
+_VISION_LOCK = asyncio.Lock()
+
+VISION_TIMEOUT = 300.0
+
+
+class VisionOcrRequest(BaseModel):
+    image_base64: str = Field(..., min_length=1)
+
+    prompt: str = Field(
+        "Estrai tutto il testo presente in questa immagine. "
+        "Riportalo fedelmente, mantenendo ordine di lettura.",
+        max_length=2000,
+    )
+
+
+@app.post("/api/vision/ocr")
+async def vision_ocr(
+    req: VisionOcrRequest,
+    authorization: str | None = Header(None),
+):
+    """
+    Estrae testo da una immagine con il modello vision locale.
+
+    Il body è JSON: { image_base64, prompt? }.
+    """
+    verify_user_token(authorization)
+
+    # Il base64 può avere il prefisso data:image/...;base64,
+    image_b64 = req.image_base64
+    if ";base64," in image_b64:
+        image_b64 = image_b64.split(";base64,", 1)[1]
+
+    try:
+        raw = base64.b64decode(image_b64, validate=False)
+    except Exception:
+        raise HTTPException(
+            status_code=400,
+            detail="Immagine non valida (base64 corrotto).",
+        )
+
+    if not raw:
+        raise HTTPException(
+            status_code=400,
+            detail="Immagine vuota.",
+        )
+
+    if len(raw) > VISION_MAX_IMAGE_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Immagine troppo grande (massimo "
+                f"{VISION_MAX_IMAGE_BYTES // (1024 * 1024)} MB)."
+            ),
+        )
+
+    payload = {
+        "model": VISION_OCR_MODEL,
+        "prompt": req.prompt,
+        "images": [image_b64],
+        "stream": False,
+    }
+
+    timeout = httpx.Timeout(
+        timeout=VISION_TIMEOUT,
+        connect=10.0,
+    )
+
+    async with _VISION_LOCK:
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.post(
+                    f"{OLLAMA_URL}/api/generate",
+                    json=payload,
+                )
+
+                if response.status_code >= 400:
+                    raise HTTPException(
+                        status_code=502,
+                        detail=(
+                            f"Ollama ha restituito HTTP {response.status_code}: "
+                            f"{response.text[:1000]}"
+                        ),
+                    )
+
+                data = response.json()
+
+        except HTTPException:
+            raise
+
+        except httpx.RequestError as e:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Ollama non è raggiungibile su "
+                    f"{OLLAMA_URL}. Verifica che sia in esecuzione. Dettaglio: {e}"
+                ),
+            )
+
+    text = (data.get("response") or "").strip()
+
+    if not text:
+        text = "(Il modello non ha restituito testo.)"
+
+    result = {
+        "text": text,
+        "model": VISION_OCR_MODEL,
+        "is_jcs": False,
+        "jcs": "",
+    }
+
+    # Agente JCS: se il testo è un timesheet, lo interpreta.
+    # Il prefisso "Jai Ca sheet" rende evidente che l'agente JCS
+    # è stato attivato con il prompt di jcs_prompt.txt.
+    if _jcs_detect(text):
+        result["is_jcs"] = True
+        jcs_text = await _jcs_interpret(text)
+        if jcs_text:
+            result["jcs"] = f"Jai Ca sheet\n\n{jcs_text}"
+        else:
+            result["jcs"] = (
+                "Jai Ca sheet\n\n"
+                "(Interpretazione non riuscita: vedi testo OCR.)"
+            )
+
+    return result
+
+
+
+# ==========================================================================
+# JCS AGENT — Jay Ca Sheet (timesheet)
+# ==========================================================================
+#
+# Se l'OCR riconosce un timesheet JCS, il testo estratto viene passato
+# a una seconda chiamata LLM con le istruzioni di interpretazione,
+# caricate da jcs_prompt.txt (accanto a gateway.py) così sono
+# modificabili senza toccare il codice.
+#
+# Rilevamento v1 (partiamo facile): euristica su parole chiave.
+# ==========================================================================
+
+JCS_DAYS = {
+    "lunes", "martes", "miercoles", "miércoles", "jueves",
+    "viernes", "sabado", "sábado", "domingo",
+}
+
+JCS_STATUS_LETTERS = re.compile(r"\b[FBVDX]\b")
+
+
+def _jcs_load_prompt() -> str:
+    """
+    Carica le istruzioni dell'agente JCS da jcs_prompt.txt.
+    Se il file non esiste, usa il prompt di default.
+    """
+    default_prompt = (
+        "Sei l'agente JCS (Jay Ca Sheet), specializzato in fogli di presenza. "
+        "Ricevi il testo estratto con OCR da un timesheet. "
+        "Ogni numero nel titolo colonna corrisponde ad un ora del giorno(7-24) "
+        "Ogni gruppo di righe corrisponde a un giorno (LUNES, MARTES, ...). "
+        "Per ogni riga corrisponde una persona e le celle sono evidenziate se sono ore lavorate. "
+        "Interpreta il foglio: per ogni giorno riporta chi lavora e che range di ore deve lavorare. "
+        "Rispondi in italiano, in formato chiaro e strutturato."
+
+    )
+
+    prompt_path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "jcs_prompt.txt",
+    )
+
+    try:
+        with open(prompt_path, encoding="utf-8") as f:
+            content = f.read().strip()
+        return content if content else default_prompt
+    except FileNotFoundError:
+        return default_prompt
+
+
+def _jcs_detect(text: str) -> bool:
+    """
+    Euristica di rilevamento timesheet JCS sul testo OCR.
+    """
+    if not text:
+        return False
+
+    lowered = text.lower()
+
+    # Serve almeno un giorno della settimana in spagnolo
+    #
+    # Rilassato rispetto alla v1: l'OCR di una foto spesso attacca le
+    # parole, quindi i giorni valgono anche come sottostringhe e le
+    # lettere di stato contano anche in sequenze attaccate (FVBDX...).
+    has_day = any(day in lowered for day in JCS_DAYS)
+
+    isolated = len(JCS_STATUS_LETTERS.findall(text))
+    attached = sum(
+        len(seq)
+        for seq in re.findall(r"[FBVDXfbvdx]{4,}", text)
+    )
+
+    status_count = isolated + attached
+
+    return has_day and status_count >= 10
+
+
+async def _jcs_interpret(text: str) -> str:
+    """
+    Seconda chiamata LLM: l'agente JCS interpreta il timesheet.
+    """
+    prompt = (
+        _jcs_load_prompt()
+        + "\n\n=== TESTO ESTRATTO DAL FOGLIO ===\n"
+        + text
+        + "\n\n=== FINE TESTO ===\n"
+        + "Produci la tua interpretazione."
+    )
+
+    payload = {
+        "model": VISION_OCR_MODEL,
+        "prompt": prompt,
+        "stream": False,
+    }
+
+    timeout = httpx.Timeout(
+        timeout=VISION_TIMEOUT,
+        connect=10.0,
+    )
+
+    async with _VISION_LOCK:
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.post(
+                    f"{OLLAMA_URL}/api/generate",
+                    json=payload,
+                )
+
+                if response.status_code >= 400:
+                    # L'interpretazione è opzionale: se fallisce,
+                    # il testo OCR resta valido.
+                    print(
+                        f"[jcs] Errore interpretazione: HTTP {response.status_code} "
+                        f"{response.text[:500]}",
+                        flush=True,
+                    )
+                    return ""
+
+                data = response.json()
+
+        except httpx.RequestError as e:
+            print(f"[jcs] Errore interpretazione: {e}", flush=True)
+            return ""
+
+    return (data.get("response") or "").strip()
+
+# --------------------------------------------------------------------------
+# ADMIN: LLM STATELESS
+# --------------------------------------------------------------------------
+class AdminLlmRequest(BaseModel):
+    prompt: str
+    model: str = ""
+    keep_alive: int = 0
+
+
+@app.post("/api/admin/llm")
+async def admin_llm(
+    req: AdminLlmRequest,
+    authorization: str | None = Header(None),
+):
+    """
+    Chiamata LLM stateless: il prompt va dritto a Ollama, SENZA passare
+    dagli agenti e quindi senza la loro memoria di conversazione per
+    chat_id. Usata per pianificare le scene delle illustrazioni
+    senza che le conversazioni precedenti contaminino il piano.
+    """
+    verify_admin_token(authorization)
+
+    if not req.prompt.strip():
+        raise HTTPException(status_code=400, detail="Prompt vuoto.")
+
+    model = req.model.strip() or os.environ.get(
+        "ADMIN_LLM_DEFAULT_MODEL", "mistral:latest"
+    )
+
+    try:
+        timeout = httpx.Timeout(timeout=300.0, connect=10.0)
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.post(
+                f"{OLLAMA_URL}/api/generate",
+                json={
+                    "model": model,
+                    "prompt": req.prompt,
+                    "stream": False,
+                    "keep_alive": req.keep_alive,
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+    except httpx.HTTPError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Ollama non raggiungibile su {OLLAMA_URL}: {exc}",
+        )
+
+    answer = (data.get("response") or "").strip()
+    if not answer:
+        raise HTTPException(
+            status_code=502,
+            detail="Ollama non ha restituito testo.",
+        )
+
+    return {"answer": answer, "model": data.get("model", model)}
+
+
+# --------------------------------------------------------------------------
+# ADMIN: SCARICA MODELLI OLLAMA (libera RAM sul Mac)
+# --------------------------------------------------------------------------
+@app.post("/api/admin/ollama/unload")
+async def admin_ollama_unload(
+    authorization: str | None = Header(None),
+):
+    """
+    Scarica dalla RAM i modelli Ollama attualmente caricati (keep_alive=0).
+    Usato da Test2 dopo la pianificazione delle scene, per lasciare
+    memoria libera al modello di immagine durante il loop di generazione.
+    """
+    verify_admin_token(authorization)
+
+    unloaded = []
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(f"{OLLAMA_URL}/api/ps")
+            response.raise_for_status()
+            models = response.json().get("models", [])
+
+            for model in models:
+                name = model.get("name") or model.get("model")
+                if not name:
+                    continue
+                await client.post(
+                    f"{OLLAMA_URL}/api/generate",
+                    json={"model": name, "keep_alive": 0},
+                )
+                unloaded.append(name)
+    except httpx.HTTPError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Ollama non raggiungibile su {OLLAMA_URL}: {exc}",
+        )
+
+    return {"status": "ok", "unloaded": unloaded}
+
+
+# --------------------------------------------------------------------------
+# ADMIN: PROMPTS NIGHT STORY (Agents Lab — proxy verso NS :8666)
+# --------------------------------------------------------------------------
+NS_PORT = AGENTS["Night Story"]["port"]
+
+
+class NsPromptContent(BaseModel):
+    content: str = ""
+
+
+@app.get("/api/admin/ns-prompts")
+async def ns_prompts_list(
+    authorization: str | None = Header(None),
+):
+    """Lista dei prompt di Night Story (nome + contenuto)."""
+
+    verify_admin_token(authorization)
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(
+                f"http://127.0.0.1:{NS_PORT}/prompts"
+            )
+    except httpx.RequestError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                f"Night Story non raggiungibile sulla porta {NS_PORT}: {exc}"
+            ),
+        )
+
+    if response.status_code >= 400:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                f"Night Story ({response.status_code}): "
+                f"{response.text[:500]}"
+            ),
+        )
+
+    return response.json()
+
+
+@app.post("/api/admin/ns-prompts/{name}")
+async def ns_prompt_save(
+    name: str,
+    body: NsPromptContent,
+    authorization: str | None = Header(None),
+):
+    """Salva un prompt di Night Story (solo nomi a-z 0-9 _)."""
+
+    verify_admin_token(authorization)
+
+    if not re.fullmatch(r"[a-z0-9_]+", name):
+        raise HTTPException(status_code=400, detail="Nome prompt non valido.")
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                f"http://127.0.0.1:{NS_PORT}/prompts/{name}",
+                json={"content": body.content},
+            )
+    except httpx.RequestError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                f"Night Story non raggiungibile sulla porta {NS_PORT}: {exc}"
+            ),
+        )
+
+    if response.status_code >= 400:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                f"Night Story ({response.status_code}): "
+                f"{response.text[:500]}"
+            ),
+        )
+
+    return response.json()
+
+
+# --------------------------------------------------------------------------
+# COMPOSIZIONE MULTIFOTO (Pillow) — tab Multifoto di ImageLab
+# --------------------------------------------------------------------------
+#
+# N foto (fino a 12) in un'unica immagine: griglia automatica, fila,
+# colonna o prima-come-sfondo, con dissolvenza (cross-fade) tra le
+# foto. Composta server-side con Pillow; il PNG torna al browser e da
+# lì va all'img2img esistente (/api/image/img2img), che non cambia.
+# --------------------------------------------------------------------------
+
+MAX_COMPOSE_IMAGES = 12
+MAX_COMPOSE_BLEND = 0.45
+MAX_COMPOSE_UPLOAD_BYTES = 15 * 1024 * 1024
+
+
+@app.post("/api/image/compose")
+async def image_compose(
+    images: list[UploadFile] = File(...),
+    layout: str = Form("grid"),
+    blend: float = Form(0.0),
+    width: int = Form(1024),
+    height: int = Form(1024),
+    authorization: str | None = Header(None),
+):
+    """
+    Compone N foto in un'immagine unica con Pillow (tab Multifoto).
+
+    Form-data: images[] + layout (grid|side|stack|bg) + blend (0-0.45)
+    + width/height del canvas di destinazione. Ritorna il PNG composito.
+    """
+    import io as _io
+    import math as _math
+
+    from PIL import Image, ImageDraw
+
+    def _cover_fit(img, box_w, box_h):
+        scale = max(box_w / img.width, box_h / img.height)
+        thumb = img.resize(
+            (max(1, round(img.width * scale)), max(1, round(img.height * scale))),
+            Image.LANCZOS,
+        )
+        return thumb, (box_w - thumb.width) // 2, (box_h - thumb.height) // 2
+
+    def _leading_fade_mask(size, blend, fade_left, fade_top):
+        """Alfa 255 pieno, con bordo sinistro/superiore in rampa (cross-fade)."""
+        w, h = size
+        mask = Image.new("L", size, 255)
+        d = ImageDraw.Draw(mask)
+        if fade_left:
+            fw = max(2, int(w * blend))
+            for x in range(fw):
+                d.line([(x, 0), (x, h)], fill=int(255 * (x / (fw - 1))))
+        if fade_top:
+            fh = max(2, int(h * blend))
+            for y in range(fh):
+                d.line([(0, y), (w, y)], fill=int(255 * (y / (fh - 1))))
+        return mask
+
+    verify_admin_token(authorization)
+
+    if not images:
+        raise HTTPException(status_code=400, detail="Nessuna immagine ricevuta.")
+    if len(images) > MAX_COMPOSE_IMAGES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Massimo {MAX_COMPOSE_IMAGES} immagini per composizione.",
+        )
+
+    layout = (layout or "grid").strip().lower()
+    if layout not in ("side", "stack", "grid", "bg"):
+        raise HTTPException(
+            status_code=400,
+            detail="layout non valido (grid, side, stack, bg).",
+        )
+
+    width = max(64, min(4096, int(width)))
+    height = max(64, min(4096, int(height)))
+    blend = max(0.0, min(MAX_COMPOSE_BLEND, float(blend)))
+
+    imgs = []
+    for upload in images:
+        data = await upload.read()
+        if len(data) > MAX_COMPOSE_UPLOAD_BYTES:
+            raise HTTPException(status_code=400, detail="Immagine oltre 15 MB.")
+        try:
+            img = Image.open(_io.BytesIO(data)).convert("RGB")
+        except Exception:
+            raise HTTPException(status_code=400, detail="Immagine non leggibile.")
+        # Limita la RAM: mai oltre 2048px di lato per foto.
+        if max(img.size) > 2048:
+            img.thumbnail((2048, 2048), Image.LANCZOS)
+        imgs.append(img)
+
+    n = len(imgs)
+    base = Image.new("RGB", (width, height), (11, 16, 21))
+
+    if layout == "bg":
+        # La prima foto copre tutto il canvas; le altre (dissolte)
+        # formano una fila al centro.
+        cover, cx, cy = _cover_fit(imgs[0], width, height)
+        base.paste(cover, (max(0, cx), max(0, cy)))
+        rest = imgs[1:]
+        if rest:
+            k = len(rest)
+            cell_w = int(width * 0.75 / k)
+            cell_h = int(height * 0.55) if k > 1 else int(height * 0.7)
+            ox = (width - cell_w * k) // 2
+            oy = (height - cell_h) // 2
+            for i, img in enumerate(rest):
+                cell, dx, dy = _cover_fit(img, cell_w, cell_h)
+                mask = _leading_fade_mask(cell.size, max(blend, 0.10), True, True)
+                base.paste(cell, (ox + i * cell_w + dx, oy + dy), mask)
+    else:
+        if layout == "grid":
+            cols = max(1, _math.ceil(_math.sqrt(n)))
+            rows = max(1, _math.ceil(n / cols))
+        elif layout == "side":
+            cols, rows = n, 1
+        else:  # stack
+            cols, rows = 1, n
+
+        if blend > 0:
+            cell_w = int(width / (cols - (cols - 1) * blend))
+            cell_h = int(height / (rows - (rows - 1) * blend))
+            step_x = int(cell_w * (1 - blend))
+            step_y = int(cell_h * (1 - blend))
+        else:
+            cell_w, cell_h = width // cols, height // rows
+            step_x, step_y = cell_w, cell_h
+
+        for i, img in enumerate(imgs):
+            if layout == "grid":
+                r, c = divmod(i, cols)
+            elif layout == "side":
+                r, c = 0, i
+            else:
+                r, c = i, 0
+            cell, dx, dy = _cover_fit(img, cell_w, cell_h)
+            x, y = c * step_x + dx, r * step_y + dy
+            if blend > 0 and (c > 0 or r > 0):
+                mask = _leading_fade_mask(
+                    cell.size, blend, c > 0 and layout != "stack", r > 0 and layout != "side"
+                )
+                base.paste(cell, (x, y), mask)
+            else:
+                base.paste(cell, (x, y))
+
+    buf = _io.BytesIO()
+    base.save(buf, "PNG")
+    return Response(content=buf.getvalue(), media_type="image/png")
+
+
+# --------------------------------------------------------------------------
+# HEALTH CHECK IMAGE LAB
+# --------------------------------------------------------------------------
+
+
+def _port_process_info(port):
+    """PID, comando e RAM (MB) dei processi che ascoltano su una porta locale."""
+    import subprocess as _sp
+
+    try:
+        out = _sp.run(
+            ["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        ).stdout
+
+        pids = set()
+        for line in out.splitlines()[1:]:
+            parts = line.split()
+            if len(parts) > 1 and parts[1].isdigit():
+                pids.add(int(parts[1]))
+
+        if not pids:
+            return {"running": False, "pid": None, "ram_mb": None, "command": None}
+
+        # macOS: la memoria Metal/MPS del modello su GPU NON compare
+        # nell'RSS di ps (GraDV reale ~8GB mostrava ~140MB).
+        # La phys_footprint (stesso numero di Activity Monitor) la include.
+        def _rss_mb(pid):
+            # Fallback: RSS da ps. NON include la memoria Metal/MPS del
+            # modello (su Mac sottostima parecchio), ma e' meglio di 0
+            # quando footprint non e' utilizzabile (richiede root).
+            try:
+                out = _sp.run(
+                    ["ps", "-o", "rss=", "-p", str(pid)],
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                ).stdout.strip()
+                return round(int(out) / 1024, 1)
+            except Exception:
+                return 0.0
+
+        def _footprint_mb(pid):
+            try:
+                fp_out = _sp.run(
+                    ["/usr/bin/footprint", str(pid)],
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                ).stdout
+            except Exception:
+                # footprint richiede root: se fallisce, usa RSS di ps.
+                return _rss_mb(pid)
+            for line in fp_out.splitlines():
+                if "Physical footprint:" in line:
+                    val = line.split("Physical footprint:")[1].strip()
+                    units = {
+                        "K": 1 / 1024,
+                        "M": 1.0,
+                        "G": 1024.0,
+                        "T": 1024 * 1024,
+                    }
+                    for suf, mult in units.items():
+                        if val.endswith(suf):
+                            try:
+                                return float(val[:-1]) * mult
+                            except ValueError:
+                                return _rss_mb(pid)
+            return _rss_mb(pid)
+
+        total_mb = 0.0
+        first = None
+        for pid in pids:
+            cmd_out = _sp.run(
+                ["ps", "-o", "command=", "-p", str(pid)],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            ).stdout.strip()
+            if first is None and cmd_out:
+                first = {"pid": pid, "command": cmd_out[:120]}
+            total_mb += _footprint_mb(pid)
+
+        return {
+            "running": True,
+            "pid": first["pid"] if first else None,
+            "ram_mb": round(total_mb, 1),
+            "command": first["command"] if first else None,
+        }
+    except Exception as exc:
+        return {"running": None, "error": str(exc), "pid": None, "ram_mb": None, "command": None}
+
+
+def _gradv_process_info():
+    """Processo GraDV (UI Gradio) che ascolta sulla porta di IMAGE_MODEL_URL."""
+    from urllib.parse import urlparse as _urlparse
+
+    try:
+        port = _urlparse(IMAGE_MODEL_URL).port or 80
+    except Exception:
+        port = 7860
+    return _port_process_info(port)
+
+
+def _model_server_info():
+    """Model server GraDV (porta 7999): e' lui che tiene il modello in RAM,
+    non l'UI Gradio. Si spegne da solo quando inattivo (lite: dopo 5 min;
+    full: subito dopo ogni richiesta): 'spento' e' uno stato normale.
+    """
+    proc = _port_process_info(7999)
+    info = {
+        "running": proc.get("running"),
+        "pid": proc.get("pid"),
+        "ram_mb": proc.get("ram_mb"),
+        "backend": None,
+        "model_loaded": None,
+        "mps_allocated_mb": None,
+        "mps_driver_mb": None,
+    }
+    if info["running"]:
+        try:
+            r = httpx.get("http://127.0.0.1:7999/health", timeout=3.0)
+            if r.status_code == 200:
+                data = r.json()
+                info["backend"] = data.get("backend")
+                info["model_loaded"] = data.get("model_loaded")
+                info["mps_allocated_mb"] = data.get("mps_allocated_mb")
+                info["mps_driver_mb"] = data.get("mps_driver_mb")
+        except Exception:
+            pass
+    return info
+
+
+@app.get("/api/image/health")
+async def image_health(
+    authorization: str | None = Header(None),
+):
+    verify_user_token(authorization)
+
+    # Stato locale del processo GraDV: attivo + RAM (lsof/ps sul Mac).
+    proc = _gradv_process_info()
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(
+                f"{IMAGE_MODEL_URL}/gradio_api/info"
+            )
+
+        if response.status_code >= 400:
+            raise HTTPException(
+                status_code=502,
+                detail=f"GraDV ha restituito HTTP {response.status_code}.",
+            )
+
+        info = response.json()
+        endpoints = info.get("named_endpoints", {})
+
+        return {
+            "gateway": "ok",
+            "generator": "ok",
+            "url": IMAGE_MODEL_URL,
+            "api": "direct_generate" in endpoints,
+            "process": proc,
+            "model_server": _model_server_info(),
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as exc:
+        stato = (
+            f"attivo (RAM {proc.get('ram_mb')} MB)"
+            if proc.get("running")
+            else "non in esecuzione su questa macchina"
+        )
+        raise HTTPException(
+            status_code=503,
+            detail=f"GraDV non è raggiungibile su {IMAGE_MODEL_URL}: {exc} · processo: {stato}",
+        )
+
+# ==========================================================================
+# UTENTI DEMO - registro users.json (nessun DB per ora)
+# ==========================================================================
+# Gli ADMIN restano in gateway.env (ADMIN_ALLOWED_EMAILS). Qui si gestiscono
+# gli utenti demo: un JSON sul Mac, editabile a distanza via API admin
+# (tab "Utenti demo" di Improve). Schema per utente:
+#   { id, name, email, chat_id, note, active, created_at }
+# ==========================================================================
+
+USERS_FILE = os.environ.get("USERS_FILE", "users.json")
+
+
+def _load_demo_users():
+    try:
+        with open(USERS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data.get("users", []) if isinstance(data, dict) else data
+    except FileNotFoundError:
+        return []
+    except Exception:
+        return []
+
+
+def _save_demo_users(users):
+    tmp = USERS_FILE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump({"users": users}, f, indent=2, ensure_ascii=False)
+    os.replace(tmp, USERS_FILE)
+
+
+class DemoUserRequest(BaseModel):
+    name: str = Field(..., min_length=1, max_length=80)
+    email: str = Field(..., min_length=3, max_length=200)
+    chat_id: int | None = None
+    note: str = Field(default="", max_length=500)
+
+
+class DemoUserPatch(BaseModel):
+    active: bool
+
+
+@app.get("/api/users")
+async def list_demo_users(authorization: str | None = Header(None)):
+    verify_admin_token(authorization)
+    return {"users": _load_demo_users()}
+
+
+@app.post("/api/users", status_code=201)
+async def add_demo_user(req: DemoUserRequest, authorization: str | None = Header(None)):
+    verify_admin_token(authorization)
+    email = req.email.strip().lower()
+    users = _load_demo_users()
+    if any((u.get("email") or "").strip().lower() == email for u in users):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Esiste gia un utente {email}.",
+        )
+    user = {
+        "id": str(uuid.uuid4()),
+        "name": req.name.strip(),
+        "email": email,
+        "chat_id": req.chat_id,
+        "note": req.note.strip(),
+        "active": True,
+        "created_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+    }
+    users.append(user)
+    _save_demo_users(users)
+    return {"user": user}
+
+
+@app.patch("/api/users/{user_id}")
+async def patch_demo_user(user_id: str, req: DemoUserPatch, authorization: str | None = Header(None)):
+    verify_admin_token(authorization)
+    users = _load_demo_users()
+    for u in users:
+        if u.get("id") == user_id:
+            u["active"] = req.active
+            _save_demo_users(users)
+            return {"user": u}
+    raise HTTPException(status_code=404, detail="Utente non trovato.")
+
+
+@app.delete("/api/users/{user_id}")
+async def delete_demo_user(user_id: str, authorization: str | None = Header(None)):
+    verify_admin_token(authorization)
+    users = _load_demo_users()
+    kept = [u for u in users if u.get("id") != user_id]
+    if len(kept) == len(users):
+        raise HTTPException(status_code=404, detail="Utente non trovato.")
+    _save_demo_users(kept)
+    return {"deleted": user_id}
+
+
+@app.get("/api/users/me")
+async def who_am_i(authorization: str | None = Header(None)):
+    """Chi sono: admin (env) o utente demo. Per il gating della UI."""
+    email = verify_user_token(authorization)
+    role = "admin" if email in ADMIN_ALLOWED_EMAILS else "demo"
+    return {"email": email, "role": role}
+
+
+# AVVIO DIRETTO
+# --------------------------------------------------------------------------
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(
+        app,
+        host="0.0.0.0",
+        port=9090,
+    )
+
+
+
+
+
