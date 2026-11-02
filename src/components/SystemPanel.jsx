@@ -214,7 +214,7 @@ function SystemTiles({ data, gradvHealth }) {
           ollamaItems.push({
             label: 'Gpt-oss:20B',
             state: gpt?.state || 'off',
-            sub: '(SL only)',
+            sub: '(SuperLeles)',
           })
 
           // GraDV: health del generatore immagini, già recuperato da LeleAdmin.
