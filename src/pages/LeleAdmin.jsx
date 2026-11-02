@@ -2173,6 +2173,8 @@ const css = `
 .lc-ollama-box::after{content:'';position:absolute;top:6px;right:6px;width:5px;height:5px;
   border-radius:50%;background:currentColor}
 .lc-ollama-box b{font-size:10.5px;font-weight:650}
+.lc-ollama-gradv{align-items:flex-start;flex-direction:column;justify-content:center}
+.lc-ollama-gradv b{white-space:nowrap;word-break:normal}
 .lc-ollama-box small{font-size:9px;line-height:1.15;color:currentColor;opacity:.9}
 .lc-ollama-wide{grid-column:1/-1}
 .lc-ollama-box.is-bad{color:var(--bad);background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.45)}
