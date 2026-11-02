@@ -219,11 +219,11 @@ function SystemTiles({ data, gradvHealth }) {
           const gradvModel = gradvData?.model_server
           const gradvSub = gradvData
             ? (gradvModel?.running
-              ? `online · ${Math.round(gradvModel.ram_mb || 0)} MB` +
+              ? `${Math.round(gradvModel.ram_mb || 0)} MB` +
                 (gradvModel.mps_driver_mb
                   ? ` · GPU ${Math.round(gradvModel.mps_driver_mb)} MB`
                   : '')
-              : 'online · motore spento')
+              : 'motore spento')
             : gradvHealth?.err
               ? 'offline'
               : '…'
@@ -267,7 +267,7 @@ function SystemTiles({ data, gradvHealth }) {
                     key={it.label}
                     className={`lc-ollama-box is-${it.state}${
                       it.wide ? ' lc-ollama-wide' : ''
-                    }`}
+                    }${it.label === 'GraDV' ? ' lc-ollama-gradv' : ''}`}
                     title={it.title || it.label}
                   >
                     <b>{it.label}</b>
