@@ -1224,7 +1224,10 @@ export default function Improve() {
                     {u.note && <span className="imp-dim"> · {u.note}</span>}
                   </div>
                   <div className="imp-user-actions">
-                    <button className={"imp-btn " + (u.active ? "imp-tab-active" : "")} disabled={usersBusy} onClick={() => toggleUser(u)}>{u.active ? "Attivo" : "Disattivo"}</button>
+                    <label className="imp-check">
+                      <input type="checkbox" checked={!!u.active} disabled={usersBusy} onChange={() => toggleUser(u)} />
+                      attivo
+                    </label>
                     <button className="imp-btn imp-danger" disabled={usersBusy} onClick={() => removeUser(u)}>Elimina</button>
                   </div>
                 </div>
