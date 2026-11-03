@@ -60,6 +60,7 @@ export default function FumettiTab({ embedded = false } = {}) {
   const [status, setStatus] = useState("idle");
   const [error, setError] = useState("");
   const [resultUrl, setResultUrl] = useState("");
+  const [pdfBusy, setPdfBusy] = useState(false);
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -352,6 +353,40 @@ export default function FumettiTab({ embedded = false } = {}) {
     }
   }
 
+  async function exportPdf() {
+    if (!panels.length || !token || status === "drawing" || pdfBusy) return;
+    setPdfBusy(true);
+    setError("");
+    try {
+      const body = new FormData();
+      panels.forEach(p => body.append("images", p.file, p.file.name));
+      body.append("layout", layout);
+      body.append("format", "pdf");
+      body.append("bubbles", JSON.stringify(panels.map(p =>
+        p.bubbles.filter(b => (b.text || "").trim()).map(({ id, ...b }) => b)
+      )));
+      const response = await fetch(API + "/api/image/comic-page", {
+        method: "POST", headers: { Authorization: "Bearer " + token }, body,
+      });
+      if (!response.ok) {
+        let message = "HTTP " + response.status;
+        try { const data = await response.json(); message = data.detail || message; } catch {}
+        throw new Error(typeof message === "string" ? message : JSON.stringify(message));
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "fumetto-completo.pdf";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    } catch (err) {
+      setError(err.message || String(err));
+    } finally {
+      setPdfBusy(false);
+    }
+  }
+
   function download() {
     if (!resultUrl) return;
     const a = document.createElement("a");
@@ -429,8 +464,8 @@ export default function FumettiTab({ embedded = false } = {}) {
 
       <section className="fb-panel">
         <h2>4 · Pagina finale</h2>
-        <div className="fb-layouts"><label>Impaginazione <select className="fb-input" value={layout} onChange={e => setLayout(e.target.value)}><option value="grid">Griglia (2 colonne)</option><option value="vertical">Verticale (una colonna)</option><option value="horizontal">Orizzontale (una riga)</option></select></label></div>
-        <button type="button" className="fb-btn fb-primary" disabled={!panels.length || status === "drawing"} onClick={generate}>{status === "drawing" ? "Composizione…" : "Genera fumetto completo"}</button>
+        <div className="fb-layouts"><label>Impaginazione <select className="fb-input" value={layout} onChange={e => setLayout(e.target.value)}><option value="grid">Griglia (2 colonne)</option><option value="vertical">Verticale (una colonna)</option><option value="horizontal">Orizzontale (una riga)</option><option value="grid3">Griglia (3 colonne)</option><option value="single">Copertina (una vignetta)</option></select></label></div>
+        <button type="button" className="fb-btn fb-primary" disabled={!panels.length || status === "drawing" || pdfBusy} onClick={generate}>{status === "drawing" ? "Composizione…" : "Genera fumetto completo"}</button>{" "}<button type="button" className="fb-btn" disabled={!panels.length || status === "drawing" || pdfBusy} onClick={exportPdf}>{pdfBusy ? "Esportazione…" : "Esporta PDF"}</button>
         {error && <div className="fb-error" role="alert">{error}</div>}
         {resultUrl && status === "done" && <div className="fb-result"><h3>Anteprima fumetto completo</h3><img src={resultUrl} alt="Pagina a fumetti completa" /><button type="button" className="fb-btn fb-primary" onClick={download}>Scarica PNG</button></div>}
         <footer className="fb-footer">Comics Editor · Pillow sul Mac · fino a {MAX_PANELS} vignette</footer>

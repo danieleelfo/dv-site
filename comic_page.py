@@ -14,8 +14,14 @@ from image_bubbles import _draw_bubble
 MAX_PANELS = 12
 MAX_IMAGE_BYTES = 15 * 1024 * 1024
 MAX_TOTAL_BYTES = 120 * 1024 * 1024
-PANEL_W = 760
-PANEL_H = 570
+# Box massimo per vignetta: alto (760x1400) per non schiacciare le foto in
+# verticale. La vignetta finale ha le proporzioni della foto (contain nel
+# box) e viene incollata com'e': niente bande bianche di riempimento.
+PANEL_BOX = (760, 1400)
+SINGLE_BOX = (1400, 2000)
+PAGE_MAX = 4096
+PAGE_BG = "#171b20"
+BORDER = "#080b0e"
 GUTTER = 24
 MARGIN = 36
 
@@ -29,6 +35,7 @@ def build_comic_page_router(verify_admin_token):
         images: list[UploadFile] = File(...),
         bubbles: str = Form("[]"),
         layout: str = Form("grid"),
+        format: str = Form("png"),
     ):
         verify_admin_token(authorization)
 
@@ -37,8 +44,16 @@ def build_comic_page_router(verify_admin_token):
         if len(images) > MAX_PANELS:
             raise HTTPException(status_code=400, detail=f"Massimo {MAX_PANELS} vignette.")
         layout = (layout or "grid").strip().lower()
-        if layout not in ("grid", "vertical", "horizontal"):
+        if layout not in ("grid", "grid3", "vertical", "horizontal", "single"):
             raise HTTPException(status_code=400, detail="Layout non valido.")
+        if layout == "single" and len(images) != 1:
+            raise HTTPException(
+                status_code=400,
+                detail="Il layout copertina richiede esattamente una vignetta.",
+            )
+        fmt = (format or "png").strip().lower()
+        if fmt not in ("png", "pdf"):
+            raise HTTPException(status_code=400, detail="Formato non valido (png o pdf).")
 
         try:
             bubble_sets = json.loads(bubbles)
@@ -64,67 +79,109 @@ def build_comic_page_router(verify_admin_token):
             decoded.append(image)
 
         count = len(decoded)
-        panel_w, panel_h = PANEL_W, PANEL_H
+        box = SINGLE_BOX if layout == "single" else PANEL_BOX
+        fitted = []
+        for source in decoded:
+            image = source.copy()
+            image.thumbnail(box, Image.Resampling.LANCZOS)
+            fitted.append(image)
+
+        # --- colonne/righe e celle: dimensioni dalle foto reali --------------
         if layout == "vertical":
             cols = 1
-            panel_h = max(240, min(PANEL_H, (4096 - MARGIN * 2 - GUTTER * (count - 1)) // count))
         elif layout == "horizontal":
             cols = count
-            panel_w = max(240, min(PANEL_W, (4096 - MARGIN * 2 - GUTTER * (count - 1)) // count))
-        else:
+        elif layout == "grid":
             cols = min(2, count)
+        else:  # grid3 / single
+            cols = min(3, count)
         rows = math.ceil(count / cols)
-        page_w = MARGIN * 2 + cols * panel_w + (cols - 1) * GUTTER
-        page_h = MARGIN * 2 + rows * panel_h + (rows - 1) * GUTTER
-        page = Image.new("RGB", (page_w, page_h), "#171b20")
+
+        def _measure():
+            # Per ogni vignetta: larghezza/altezza cella di colonna/riga.
+            if layout == "vertical":
+                w = [max(f.width for f in fitted)] * count
+                h = [f.height for f in fitted]
+            elif layout == "horizontal":
+                w = [f.width for f in fitted]
+                h = [max(f.height for f in fitted)] * count
+            else:
+                w = [0] * cols
+                h = [0] * rows
+                for index, img in enumerate(fitted):
+                    r, col = divmod(index, cols)
+                    w[col] = max(w[col], img.width)
+                    h[r] = max(h[r], img.height)
+            return w, h
+
+        cell_w, cell_h = _measure()
+        gutters_x = GUTTER * (cols - 1)
+        gutters_y = GUTTER * (rows - 1)
+        page_w = MARGIN * 2 + sum(cell_w) + gutters_x
+        page_h = MARGIN * 2 + sum(cell_h) + gutters_y
+
+        # --- budget pagina: se sfora PAGE_MAX, scala tutto uniformemente ----
+        if page_w > PAGE_MAX or page_h > PAGE_MAX:
+            scale = min(PAGE_MAX / page_w, PAGE_MAX / page_h)
+            for i, img in enumerate(fitted):
+                fitted[i] = img.resize(
+                    (max(1, round(img.width * scale)), max(1, round(img.height * scale))),
+                    Image.Resampling.LANCZOS,
+                )
+            cell_w, cell_h = _measure()
+            page_w = MARGIN * 2 + sum(cell_w) + gutters_x
+            page_h = MARGIN * 2 + sum(cell_h) + gutters_y
+
+        page = Image.new("RGB", (page_w, page_h), PAGE_BG)
         page_draw = ImageDraw.Draw(page)
 
-        for index, (source, specs) in enumerate(zip(decoded, bubble_sets)):
+        for index, (source, panel, specs) in enumerate(zip(decoded, fitted, bubble_sets)):
             if not isinstance(specs, list):
                 raise HTTPException(status_code=400, detail=f"Balloon non validi nella vignetta {index + 1}.")
             if len(specs) > 20:
-                raise HTTPException(status_code=400, detail="Massimo 20 balloon per vignetta.")
+                raise HTTPException(status_code=400, detail=f"Massimo 20 balloon per vignetta {index + 1}.")
+
             row, col = divmod(index, cols)
-            x = MARGIN + col * (panel_w + GUTTER)
-            y = MARGIN + row * (panel_h + GUTTER)
+            x = MARGIN + sum(cell_w[:col]) + col * GUTTER
+            y = MARGIN + sum(cell_h[:row]) + row * GUTTER
 
-            # Vignetta con proporzioni originali: contain, senza tagliare la foto.
-            panel = Image.new("RGB", (panel_w, panel_h), "#ffffff")
-            fitted = source.copy()
-            fitted.thumbnail((panel_w, panel_h), Image.Resampling.LANCZOS)
-            px = (panel_w - fitted.width) // 2
-            py = (panel_h - fitted.height) // 2
-            panel.paste(fitted, (px, py))
-
-            # Le coordinate sono relative alla foto, non ai margini bianchi.
+            # Vignetta = la foto stessa, proporzioni originali, zero letterbox
+            # bianco: i balloon sono disegnati direttamente sulla foto e le
+            # coordinate restano relative all'immagine (niente offset).
             draw = ImageDraw.Draw(panel)
+            scale = min(panel.width / source.width, panel.height / source.height)
             mapped = []
-            sx = fitted.width / source.width
-            sy = fitted.height / source.height
-            scale = min(sx, sy)
             for spec in specs:
                 if not isinstance(spec, dict):
                     continue
                 item = dict(spec)
-                item["x"] = (px + float(item.get("x", 0.5)) * fitted.width) / panel_w
-                item["y"] = (py + float(item.get("y", 0.5)) * fitted.height) / panel_h
+                item["x"] = float(item.get("x", 0.5))
+                item["y"] = float(item.get("y", 0.5))
                 # Il frontend React usa camelCase; _draw_bubble usa snake_case.
-                # Accettiamo entrambi per mantenere compatibilità con eventuali client esistenti.
-                tail_x = item.get("tail_x", item.get("tailX", 0.5))
-                tail_y = item.get("tail_y", item.get("tailY", 0.5))
+                # Accettiamo entrambi per mantenere compatibilita' con eventuali client esistenti.
+                item["tail_x"] = float(item.get("tail_x", item.get("tailX", 0.5)))
+                item["tail_y"] = float(item.get("tail_y", item.get("tailY", 0.5)))
+                item["w"] = float(item.get("w", 0.34))
                 font_size = item.get("font_size", item.get("fontSize", 44))
-                item["tail_x"] = (px + float(tail_x) * fitted.width) / panel_w
-                item["tail_y"] = (py + float(tail_y) * fitted.height) / panel_h
-                item["w"] = float(item.get("w", 0.34)) * fitted.width / panel_w
                 item["font_size"] = max(10, round(float(font_size) * scale))
                 mapped.append(item)
             for item in mapped:
                 _draw_bubble(draw, panel.size, item)
 
-            page.paste(panel, (x, y))
-            page_draw.rectangle((x, y, x + panel_w - 1, y + panel_h - 1), outline="#080b0e", width=5)
+            # Foto centrata nella sua cella; il bordo segue la foto, non la cella.
+            px = x + (cell_w[col] - panel.width) // 2
+            py = y + (cell_h[row] - panel.height) // 2
+            page.paste(panel, (px, py))
+            page_draw.rectangle(
+                (px, py, px + panel.width - 1, py + panel.height - 1),
+                outline=BORDER,
+                width=5,
+            )
 
         output = io.BytesIO()
+        if fmt == "pdf":
+            page.save(output, "PDF", resolution=150.0)
+            return Response(content=output.getvalue(), media_type="application/pdf")
         page.save(output, "PNG", optimize=True)
         return Response(content=output.getvalue(), media_type="image/png")
 

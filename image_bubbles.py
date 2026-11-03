@@ -173,8 +173,34 @@ def _draw_bubble(draw, size, spec):
         thought=(btype == "thought"),
     )
 
-    if btype in ("speech", "thought"):
+    if btype == "speech":
         draw.ellipse(box, fill=fill, outline=outline, width=width)
+    elif btype == "thought":
+        # Nuvola di pensiero: ellisse centrale + sbuffi circolari sul
+        # perimetro. Silhouette dell'unione ingrandita in colore bordo, poi
+        # riempimento normale sopra: bordo continuo, niente linee interne.
+        rx, ry = bw / 2.0, bh / 2.0
+        puff = max(10.0, min(rx, ry) * 0.42)
+        steps = max(8, int((bw + bh) / (puff * 2.4)))
+        puffs = []
+        for i in range(steps):
+            ang = math.pi * 2.0 * i / steps + math.pi / steps
+            pcx = cx + (rx - puff * 0.4) * math.cos(ang)
+            pcy = cy + (ry - puff * 0.4) * math.sin(ang)
+            puffs.append((pcx, pcy, puff))
+        grow = width * 1.5
+        for pcx, pcy, pr in puffs:
+            draw.ellipse(
+                (pcx - pr - grow, pcy - pr - grow, pcx + pr + grow, pcy + pr + grow),
+                fill=outline,
+            )
+        draw.ellipse(
+            (x0 - grow, y0 - grow, x0 + bw + grow, y0 + bh + grow),
+            fill=outline,
+        )
+        for pcx, pcy, pr in puffs:
+            draw.ellipse((pcx - pr, pcy - pr, pcx + pr, pcy + pr), fill=fill)
+        draw.ellipse(box, fill=fill)
     elif btype == "rect":
         draw.rounded_rectangle(
             box, radius=max(10, fsize // 2), fill=fill, outline=outline, width=width
