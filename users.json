@@ -1,0 +1,31 @@
+{
+  "users": [
+    {
+      "id": "8eaea7c7-0f2d-45ff-8624-d10cab03942e",
+      "name": "Dan2",
+      "email": "dydlelesai@gmail.com",
+      "chat_id": null,
+      "note": "TestDan",
+      "active": true,
+      "created_at": "2026-11-02T12:25:56"
+    },
+    {
+      "id": "4770eb1c-d481-4c8b-9e12-f56df436f8be",
+      "name": "Denise2",
+      "email": "denisegonnella23@gmail.com",
+      "chat_id": null,
+      "note": "DeniseTest",
+      "active": true,
+      "created_at": "2026-11-02T12:27:01"
+    },
+    {
+      "id": "74050d0f-9162-49ac-812d-e096c5533d90",
+      "name": "Ratto",
+      "email": "ginoantonioratti@gmail.com",
+      "chat_id": null,
+      "note": "U Ratt",
+      "active": true,
+      "created_at": "2026-11-02T14:15:02"
+    }
+  ]
+}
