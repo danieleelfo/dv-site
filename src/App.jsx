@@ -128,7 +128,7 @@ export default function App() {
         <Route path="/test2" element={<><Nav /><Test2 /></>} />
         <Route path="/:lang/test2" element={<><Nav /><LangWrapper><Test2 /></LangWrapper></>} />
 
-        {/* Test7: admin preview isolata, senza modificare Test2 */}
+        {/* Test7: sandbox libera per altri test (console trial promossa su /console) */}
         <Route path="/test7" element={<><Nav /><Test7 /></>} />
         <Route path="/:lang/test7" element={<><Nav /><LangWrapper><Test7 /></LangWrapper></>} />
 
