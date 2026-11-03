@@ -22,6 +22,19 @@ const PIPER_AGENTS = ['Night Story', 'Story Whisper']
 const AUDIO_CAPABLE_AGENTS = ['Story Whisper', 'Night Story']
 const AUTO_SEND_RECORDING = true
 
+// Selettore modello Ollama: whitelist CHAT_ALLOWED_MODELS del gateway
+// (gemma4|llama3|mistral|qwen2.5|deepseek-r1). Solo Night Story lo usa:
+// gli altri agenti ignorano il campo. Vale solo per la chat testuale
+// (/api/chat): /api/chat/audio non inoltra il modello.
+const MODEL_AGENTS = ['Night Story']
+const AVAILABLE_MODELS = [
+  'gemma4',
+  'llama3',
+  'mistral',
+  'qwen2.5',
+  'deepseek-r1',
+]
+
 // Lingue supportate per agente (da tts_engine.py: SW=it,es,en,fr,nl,ca,ru,uk — NS=it,es,en,fr,nl,ca,uk,pt,fi)
 const LANG_NAMES = {
   it: 'Italiano',
@@ -82,6 +95,7 @@ export default function Test7() {
 
   const [selectedLele, setSelectedLele] = useState('Lele I')
   const [selectedLang, setSelectedLang] = useState(null)
+  const [selectedModel, setSelectedModel] = useState('')
   const [prompt, setPrompt] = useState('')
   const [response, setResponse] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -187,6 +201,12 @@ export default function Test7() {
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 120000)
 
+    // Modello Ollama: inoltrato solo se selezionato e valido per l'agente
+    const modelToSend =
+      MODEL_AGENTS.includes(selectedLele) && selectedModel
+        ? selectedModel
+        : null
+
     try {
       const res = await fetch(`${LELE_API_URL}/api/chat`, {
         method: 'POST',
@@ -197,6 +217,7 @@ export default function Test7() {
           prompt: promptToSend,
           language: selectedLang || i18n.language || 'en',
           chat_id: chatIdRef.current,
+          ...(modelToSend ? { model: modelToSend } : {}),
         }),
       })
 
@@ -580,6 +601,7 @@ export default function Test7() {
                 onChange={(e) => {
                   setSelectedLele(e.target.value)
                   setSelectedLang(null)
+                  setSelectedModel('')
                 }}
                 style={styles.select}
                 disabled={isRecording || isLoading}
@@ -591,6 +613,31 @@ export default function Test7() {
                 ))}
               </select>
             </div>
+
+            {/* Selettore modello Ollama (solo Night Story per ora) */}
+            {MODEL_AGENTS.includes(selectedLele) && (
+              <div style={styles.selector}>
+                <label htmlFor="model-select" style={styles.label}>
+                  {t('Model:')}
+                </label>
+
+                <select
+                  id="model-select"
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  style={styles.select}
+                  disabled={isRecording || isLoading}
+                >
+                  <option value="">🌐 Auto (modello di default)</option>
+
+                  {AVAILABLE_MODELS.map((model) => (
+                    <option key={model} value={model}>
+                      {model}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Bandierina: lingue supportate per l'agente selezionato */}
             <div style={styles.langRow}>
