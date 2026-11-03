@@ -398,6 +398,23 @@ class ChatRequest(BaseModel):
     prompt: str
     chat_id: int = 1010101010
     language: str = "en"
+    # Opzionali (selettore modello in console): inoltrati solo se
+    # presenti e validati. Night Story li supporta; gli altri agenti
+    # li ignorano (pydantic scarta i campi extra).
+    model: str | None = None
+    character: str | None = None
+
+
+# Whitelist per il selettore modello/character via /api/chat.
+# NS: model = gemma4|llama3|mistral|qwen2.5|deepseek-r1
+#     character = horror|drammatica|comico|ose|ricerca|random|amore|culturale
+CHAT_ALLOWED_MODELS = {
+    "gemma4", "llama3", "mistral", "qwen2.5", "deepseek-r1",
+}
+CHAT_ALLOWED_CHARACTERS = {
+    "horror", "drammatica", "comico", "ose",
+    "ricerca", "random", "amore", "culturale",
+}
 
 
 # --------------------------------------------------------------------------
@@ -498,6 +515,23 @@ async def chat_router(req: ChatRequest):
         "language": req.language,
         "chat_id": req.chat_id,
     }
+
+    # Selettore modello (es. Night Story): inoltrato solo se valido.
+    if req.model:
+        if req.model not in CHAT_ALLOWED_MODELS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Model '{req.model}' non valido.",
+            )
+        payload["model"] = req.model
+
+    if req.character:
+        if req.character not in CHAT_ALLOWED_CHARACTERS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Character '{req.character}' non valido.",
+            )
+        payload["character"] = req.character
 
     async with httpx.AsyncClient(timeout=300.0) as client:
         try:
