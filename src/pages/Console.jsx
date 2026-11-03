@@ -1,5 +1,5 @@
 // ============================================================
-// Old Console. trial
+// Console — Trial ufficiale (promossa da Test7) + bandierina lingua per agente
 // ============================================================
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -21,6 +21,40 @@ const AVAILABLE_AGENTS = [
 const PIPER_AGENTS = ['Night Story', 'Story Whisper']
 const AUDIO_CAPABLE_AGENTS = ['Story Whisper', 'Night Story']
 const AUTO_SEND_RECORDING = true
+
+// Lingue supportate per agente (da tts_engine.py: SW=it,es,en,fr,nl,ca,ru,uk — NS=it,es,en,fr,nl,ca,uk,pt,fi)
+const LANG_NAMES = {
+  it: 'Italiano',
+  es: 'Español',
+  en: 'English',
+  fr: 'Français',
+  nl: 'Nederlands',
+  ca: 'Català',
+  ru: 'Русский',
+  uk: 'Українська',
+  pt: 'Português',
+  fi: 'Suomi',
+}
+
+const LANG_FLAGS = {
+  it: '🇮🇹',
+  es: '🇪🇸',
+  en: '🇬🇧',
+  fr: '🇫🇷',
+  nl: '🇳🇱',
+  ca: '🏴',
+  ru: '🇷🇺',
+  uk: '🇺🇦',
+  pt: '🇵🇹',
+  fi: '🇫🇮',
+}
+
+const AGENT_LANGS = {
+  'Lele I': ['it', 'es', 'en', 'fr', 'nl', 'ca'],
+  'Story Whisper': ['it', 'es', 'en', 'fr', 'nl', 'ca', 'ru', 'uk'],
+  'Night Story': ['it', 'es', 'en', 'fr', 'nl', 'ca', 'uk', 'pt', 'fi'],
+}
+
 
 function getOrCreateChatId() {
   try {
@@ -47,6 +81,7 @@ export default function Console() {
   const { t, i18n } = useTranslation()
 
   const [selectedLele, setSelectedLele] = useState('Lele I')
+  const [selectedLang, setSelectedLang] = useState(null)
   const [prompt, setPrompt] = useState('')
   const [response, setResponse] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -160,7 +195,7 @@ export default function Console() {
         body: JSON.stringify({
           agent: selectedLele,
           prompt: promptToSend,
-          language: i18n.language || 'en',
+          language: selectedLang || i18n.language || 'en',
           chat_id: chatIdRef.current,
         }),
       })
@@ -381,7 +416,7 @@ export default function Console() {
 
       formData.append('audio', blob, 'recording.webm')
       formData.append('agent', selectedLele)
-      formData.append('language', i18n.language || 'en')
+      formData.append('language', selectedLang || i18n.language || 'en')
       formData.append('chat_id', String(chatIdRef.current))
 
       const res = await fetch(`${LELE_API_URL}/api/chat/audio`, {
@@ -542,7 +577,10 @@ export default function Console() {
               <select
                 id="lele-select"
                 value={selectedLele}
-                onChange={(e) => setSelectedLele(e.target.value)}
+                onChange={(e) => {
+                  setSelectedLele(e.target.value)
+                  setSelectedLang(null)
+                }}
                 style={styles.select}
                 disabled={isRecording || isLoading}
               >
@@ -553,6 +591,36 @@ export default function Console() {
                 ))}
               </select>
             </div>
+
+            {/* Bandierina: lingue supportate per l'agente selezionato */}
+            <div style={styles.langRow}>
+              {(AGENT_LANGS[selectedLele] || []).map((code) => (
+                <button
+                  type="button"
+                  key={code}
+                  onClick={() =>
+                    setSelectedLang(selectedLang === code ? null : code)
+                  }
+                  title={LANG_NAMES[code]}
+                  disabled={isRecording || isLoading}
+                  style={{
+                    ...styles.langButton,
+                    ...(selectedLang === code
+                      ? styles.langButtonActive
+                      : {}),
+                  }}
+                >
+                  {LANG_FLAGS[code]} {code}
+                </button>
+              ))}
+
+              <span style={styles.langHint}>
+                {selectedLang
+                  ? `${LANG_FLAGS[selectedLang]} ${LANG_NAMES[selectedLang]}`
+                  : '🌐 Auto (lingua sito)'}
+              </span>
+            </div>
+
 
             {/* Checkbox SOLO per Night Story e Story Whisper */}
             {PIPER_AGENTS.includes(selectedLele) && (
@@ -844,6 +912,31 @@ const styles = {
     color: '#e2e8f0',
     fontSize: '16px',
     cursor: 'pointer',
+  },
+  langRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    flexWrap: 'wrap',
+  },
+  langButton: {
+    padding: '6px 10px',
+    borderRadius: '6px',
+    border: '1px solid rgba(255, 255, 255, 0.3)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    color: '#cbd5e1',
+    fontSize: '13px',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  },
+  langButtonActive: {
+    backgroundColor: 'rgba(99, 102, 241, 0.35)',
+    borderColor: '#818cf8',
+    color: '#ffffff',
+  },
+  langHint: {
+    color: '#94a3b8',
+    fontSize: '12px',
   },
   textarea: {
     padding: '14px',
