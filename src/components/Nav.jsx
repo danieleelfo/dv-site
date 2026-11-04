@@ -13,7 +13,8 @@ export default function Nav() {
   const l = lang || (i18n.language || 'en').slice(0, 2)
 
   const [logoImgOk, setLogoImgOk] = useState(true)
-  const [menuOpen, setMenuOpen] = useState(false)
+  const [adminOpen, setAdminOpen] = useState(false)
+  const [labOpen, setLabOpen] = useState(false)
 
   return (
     <header style={styles.header}>
@@ -82,33 +83,58 @@ export default function Nav() {
           <nav style={styles.links}>
             <Link to={"/" + l} style={styles.link}>{t('nav.home')}</Link>
             <Link to={"/" + l + "/projects"} style={styles.link}>{t('nav.projects')}</Link>
-            <Link to={"/" + l + "/ai-lab"} style={styles.link}>AI Lab</Link>
             <Link to={"/" + l + "/ai-ethics"} style={styles.link}>AI News</Link>
-            <Link to={"/" + l + "/b2b"} style={styles.link}>B2B</Link>
             <Link to={"/" + l + "/console"} style={styles.link}>{t('nav.trial')}</Link>
             <Link to={"/" + l + "/image-lab"} style={styles.link}>ImgLab</Link>
             {/* Menu admin Leles: apre tutte le pagine admin */}
             <div
               style={styles.menuWrap}
-              onBlur={() => setTimeout(() => setMenuOpen(false), 150)}
+              onBlur={() => setTimeout(() => setAdminOpen(false), 150)}
             >
               <button
                 type="button"
                 style={styles.menuBtn}
-                onClick={() => setMenuOpen(o => !o)}
+                onClick={() => { setAdminOpen(o => !o); setLabOpen(false) }}
               >
                 Leles &#9662;
               </button>
-              {menuOpen && (
+              {adminOpen && (
                 <div style={styles.menu}>
-                  <Link to={"/" + l + "/leles"} style={styles.menuLink} onClick={() => setMenuOpen(false)}>Leles</Link>
-                  <Link to={"/" + l + "/improve"} style={styles.menuLink} onClick={() => setMenuOpen(false)}>Improve</Link>
-                  <Link to={"/" + l + "/querydb"} style={styles.menuLink} onClick={() => setMenuOpen(false)}>QueryDB</Link>
-                  <Link to={"/" + l + "/dag-admin"} style={styles.menuLink} onClick={() => setMenuOpen(false)}>DAG Admin</Link>
-                  <Link to={"/" + l + "/dagforge"} style={styles.menuLink} onClick={() => setMenuOpen(false)}>DagForge</Link>
-                  <Link to={"/" + l + "/git-admin"} style={styles.menuLink} onClick={() => setMenuOpen(false)}>Git Admin</Link>
-                  <Link to={"/" + l + "/bar-ai-admin"} style={styles.menuLink} onClick={() => setMenuOpen(false)}>Bar AI Admin</Link>
-                  <Link to={"/" + l + "/api-contracts"} style={styles.menuLink} onClick={() => setMenuOpen(false)}>API Contracts</Link>
+                  <Link to={"/" + l + "/leles"} style={styles.menuLink} onClick={() => setAdminOpen(false)}>Leles</Link>
+                  <Link to={"/" + l + "/improve"} style={styles.menuLink} onClick={() => setAdminOpen(false)}>Improve</Link>
+                  <Link to={"/" + l + "/querydb"} style={styles.menuLink} onClick={() => setAdminOpen(false)}>QueryDB</Link>
+                  <Link to={"/" + l + "/dag-admin"} style={styles.menuLink} onClick={() => setAdminOpen(false)}>DAG Admin</Link>
+                  <Link to={"/" + l + "/dagforge"} style={styles.menuLink} onClick={() => setAdminOpen(false)}>DagForge</Link>
+                  <Link to={"/" + l + "/git-admin"} style={styles.menuLink} onClick={() => setAdminOpen(false)}>Git Admin</Link>
+                  <Link to={"/" + l + "/bar-ai-admin"} style={styles.menuLink} onClick={() => setAdminOpen(false)}>Bar AI Admin</Link>
+                  <Link to={"/" + l + "/api-contracts"} style={styles.menuLink} onClick={() => setAdminOpen(false)}>API Contracts</Link>
+                </div>
+              )}
+            </div>
+            {/* LabZone: AI Lab, B2B e pagine di test */}
+            <div
+              style={styles.menuWrap}
+              onBlur={() => setTimeout(() => setLabOpen(false), 150)}
+            >
+              <button
+                type="button"
+                style={styles.menuBtn}
+                onClick={() => { setLabOpen(o => !o); setAdminOpen(false) }}
+              >
+                LabZone &#9662;
+              </button>
+              {labOpen && (
+                <div style={styles.menu}>
+                  <Link to={"/" + l + "/ai-lab"} style={styles.menuLink} onClick={() => setLabOpen(false)}>AI Lab</Link>
+                  <Link to={"/" + l + "/b2b"} style={styles.menuLink} onClick={() => setLabOpen(false)}>B2B</Link>
+                  <Link to={"/" + l + "/test"} style={styles.menuLink} onClick={() => setLabOpen(false)}>Test</Link>
+                  <Link to={"/" + l + "/test2"} style={styles.menuLink} onClick={() => setLabOpen(false)}>Test2</Link>
+                  <Link to={"/" + l + "/test3"} style={styles.menuLink} onClick={() => setLabOpen(false)}>Test3</Link>
+                  <Link to={"/" + l + "/test4"} style={styles.menuLink} onClick={() => setLabOpen(false)}>Test4</Link>
+                  <Link to={"/" + l + "/test5"} style={styles.menuLink} onClick={() => setLabOpen(false)}>Test5</Link>
+                  <Link to={"/" + l + "/test6"} style={styles.menuLink} onClick={() => setLabOpen(false)}>Test6</Link>
+                  <Link to={"/" + l + "/test7"} style={styles.menuLink} onClick={() => setLabOpen(false)}>Test7</Link>
+                  <Link to={"/" + l + "/testbarai"} style={styles.menuLink} onClick={() => setLabOpen(false)}>TestBarAI</Link>
                 </div>
               )}
             </div>
