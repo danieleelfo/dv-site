@@ -13,6 +13,7 @@ export default function Nav() {
   const l = lang || (i18n.language || 'en').slice(0, 2)
 
   const [logoImgOk, setLogoImgOk] = useState(true)
+  const [menuOpen, setMenuOpen] = useState(false)
 
   return (
     <header style={styles.header}>
@@ -83,11 +84,34 @@ export default function Nav() {
             <Link to={"/" + l + "/projects"} style={styles.link}>{t('nav.projects')}</Link>
             <Link to={"/" + l + "/ai-lab"} style={styles.link}>AI Lab</Link>
             <Link to={"/" + l + "/ai-ethics"} style={styles.link}>AI News</Link>
-            <Link to={"/" + l + "/leles"} style={styles.link}>Leles</Link>
             <Link to={"/" + l + "/b2b"} style={styles.link}>B2B</Link>
-            <Link to={"/" + l + "/image-lab"} style={styles.link}>ImgLab</Link>
-            <Link to={"/" + l + "/api-contracts"} style={styles.link}>API</Link>
             <Link to={"/" + l + "/console"} style={styles.link}>{t('nav.trial')}</Link>
+            <Link to={"/" + l + "/image-lab"} style={styles.link}>ImgLab</Link>
+            {/* Menu admin Leles: apre tutte le pagine admin */}
+            <div
+              style={styles.menuWrap}
+              onBlur={() => setTimeout(() => setMenuOpen(false), 150)}
+            >
+              <button
+                type="button"
+                style={styles.menuBtn}
+                onClick={() => setMenuOpen(o => !o)}
+              >
+                Leles &#9662;
+              </button>
+              {menuOpen && (
+                <div style={styles.menu}>
+                  <Link to={"/" + l + "/leles"} style={styles.menuLink} onClick={() => setMenuOpen(false)}>Leles</Link>
+                  <Link to={"/" + l + "/improve"} style={styles.menuLink} onClick={() => setMenuOpen(false)}>Improve</Link>
+                  <Link to={"/" + l + "/querydb"} style={styles.menuLink} onClick={() => setMenuOpen(false)}>QueryDB</Link>
+                  <Link to={"/" + l + "/dag-admin"} style={styles.menuLink} onClick={() => setMenuOpen(false)}>DAG Admin</Link>
+                  <Link to={"/" + l + "/dagforge"} style={styles.menuLink} onClick={() => setMenuOpen(false)}>DagForge</Link>
+                  <Link to={"/" + l + "/git-admin"} style={styles.menuLink} onClick={() => setMenuOpen(false)}>Git Admin</Link>
+                  <Link to={"/" + l + "/bar-ai-admin"} style={styles.menuLink} onClick={() => setMenuOpen(false)}>Bar AI Admin</Link>
+                  <Link to={"/" + l + "/api-contracts"} style={styles.menuLink} onClick={() => setMenuOpen(false)}>API Contracts</Link>
+                </div>
+              )}
+            </div>
           </nav>
           <LanguageSwitcher />
         </div>
@@ -110,8 +134,8 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'space-between',
     height: 64,
-    paddingLeft: '1.5rem',  /* Distanza dal bordo sinistro dello schermo */
-    paddingRight: '1.5rem', /* Distanza dal bordo destro dello schermo */
+    paddingLeft: '1.5rem',
+    paddingRight: '1.5rem',
     width: '100%',
     boxSizing: 'border-box',
   },
@@ -134,5 +158,41 @@ const styles = {
   link: {
     transition: 'color 0.2s',
     whiteSpace: 'nowrap',
+  },
+  menuWrap: {
+    position: 'relative',
+    display: 'flex',
+    alignItems: 'center',
+  },
+  menuBtn: {
+    background: 'none',
+    border: 'none',
+    padding: 0,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    fontSize: '0.9rem',
+    color: '#8fa1ac',
+    whiteSpace: 'nowrap',
+  },
+  menu: {
+    position: 'absolute',
+    top: '100%',
+    right: 0,
+    marginTop: '10px',
+    background: 'rgba(11,16,21,0.97)',
+    border: '1px solid #1f2b35',
+    borderRadius: '8px',
+    padding: '6px 0',
+    minWidth: '150px',
+    display: 'flex',
+    flexDirection: 'column',
+    zIndex: 50,
+  },
+  menuLink: {
+    color: '#8fa1ac',
+    padding: '6px 16px',
+    fontSize: '0.9rem',
+    whiteSpace: 'nowrap',
+    textDecoration: 'none',
   },
 }
