@@ -1,9 +1,8 @@
 // ============================================================
-// TEST2 — Leles Admin Console (v2 "piu' figa")
-// v2: 3 selettori modello (Super-Leles / Leles / Reviewer) sincronizzati
+//  3 selettori modello (Super-Leles / Leles / Reviewer) sincronizzati
 // col server via comando "modelli"; nuovo ordine sezioni (Comandi, Sessione,
 // Pagine, Audio, Test); restyling (titolo gradient, ombre, hover lift).
-// LeleAdmin.jsx resta la versione ufficiale su /leles.
+// LeleAdmin.jsx = la versione ufficiale su /leles.
 // ============================================================
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -101,6 +100,9 @@ const LELE_MODELS = ['mistral', 'gemma4', 'llama3', 'qwen2.5', 'deepseek-r1']
 const LELE_MODEL_KEY = 'lc_lele_model'
 const REVIEWER_MODEL_KEY = 'lc_reviewer_model'
 
+// Rescue bot su Telegram (username da BotFather): sostituisci il segnaposto.
+const RESCUE_BOT_URL = 'https://t.me/IL_TUO_RESCUE_BOT'
+
 // Pagine e console ufficiali del sito.
 const QUICK_LINKS = [
   { to: '/improve', label: 'Improve 🛠️', desc: 'lele.pages.improve', main: true },
@@ -114,6 +116,7 @@ const QUICK_LINKS = [
   { to: '/bar-ai-admin', label: 'Bar AI Admin 🍸', desc: 'lele.pages.barAiAdmin' },
   { to: '/ai-lab', label: 'AI Lab ◈', desc: 'lele.pages.aiLab' },
   { to: '/games', label: 'Games 🎮', desc: 'Games & Arcade' },
+  { href: RESCUE_BOT_URL, label: 'Rescue Bot 🛟', desc: 'Telegram: up, restart, status, logs' },
 ]
 
 // Pagine di test/laboratorio: in fondo, si validano da qui.
@@ -1739,16 +1742,29 @@ export default function LeleAdmin() {
             <span className="lc-dim lc-small">{t('lele.pagesSub')}</span>
           </div>
           <div className="lc-pages-grid">
-            {QUICK_LINKS.map((l) => (
-              <Link
-                key={l.to}
-                to={l.to}
-                className={`lc-pagecard${l.main ? ' lc-pagecard--main' : ''}`}
-              >
-                <span className="lc-pagecard-label">{l.label}</span>
-                <small>{t(l.desc)}</small>
-              </Link>
-            ))}
+            {QUICK_LINKS.map((l) =>
+              l.href ? (
+                <a
+                  key={l.href}
+                  href={l.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`lc-pagecard${l.main ? ' lc-pagecard--main' : ''}`}
+                >
+                  <span className="lc-pagecard-label">{l.label}</span>
+                  <small>{l.desc}</small>
+                </a>
+              ) : (
+                <Link
+                  key={l.to}
+                  to={l.to}
+                  className={`lc-pagecard${l.main ? ' lc-pagecard--main' : ''}`}
+                >
+                  <span className="lc-pagecard-label">{l.label}</span>
+                  <small>{t(l.desc)}</small>
+                </Link>
+              )
+            )}
           </div>
 
           {/* AUDIO: Story Whisper / Night Story (penultimo blocco) */}
@@ -2262,11 +2278,4 @@ const css = `
   .lc-bg{opacity:.6}
   .lc-shade{background:linear-gradient(180deg,rgba(11,16,21,.25) 0%,rgba(11,16,21,.85) 100%)}
 }
-` 
-
-
-
-
-
-
-
+`
