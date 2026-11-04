@@ -101,7 +101,7 @@ const LELE_MODEL_KEY = 'lc_lele_model'
 const REVIEWER_MODEL_KEY = 'lc_reviewer_model'
 
 // Rescue bot su Telegram (username da BotFather): sostituisci il segnaposto.
-const RESCUE_BOT_URL = 'https://t.me/IL_TUO_RESCUE_BOT'
+const RESCUE_BOT_URL = 'https://t.me/Rescue_Leles_bot'
 
 // Pagine e console ufficiali del sito.
 const QUICK_LINKS = [
