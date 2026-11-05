@@ -4420,6 +4420,56 @@ async def admin_worlds_list(authorization: str | None = Header(None)):
     }
 
 
+class SaveWorldRequest(BaseModel):
+    name: str
+    description: str
+
+
+@app.post("/api/admin/worlds")
+async def admin_worlds_save(req: SaveWorldRequest, authorization: str | None = Header(None)):
+    """
+    Salva un nuovo world (emergence.scenarios) DIRETTAMENTE dal gateway.
+
+    A differenza del comando "save world ..." via /api/admin/chat (timoniere
+    + parser + chat_id admin), qui e' un semplice INSERT deterministico:
+    nessun LLM, nessun routing, risposta in millisecondi.
+    """
+    verify_admin_token(authorization)
+
+    name = (req.name or "").strip().replace('"', "")
+    description = (req.description or "").strip()
+
+    if not name or not description:
+        raise HTTPException(status_code=400, detail="Nome e descrizione sono obbligatori.")
+
+    if " " in name:
+        raise HTTPException(status_code=400, detail="Il nome non puo' contenere spazi.")
+
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO emergence.scenarios (name, description)
+                VALUES (%s, %s)
+                RETURNING id
+                """,
+                (name, description),
+            )
+            world_id = cur.fetchone()[0]
+        conn.commit()
+    except psycopg2.Error as exc:
+        conn.rollback()
+        raise HTTPException(
+            status_code=502,
+            detail=f"Errore Postgres sul save world: {exc}",
+        )
+    finally:
+        conn.close()
+
+    return {"id": world_id, "name": name, "status": "ok"}
+
+
 # --------------------------------------------------------------------------
 # COMPOSIZIONE MULTIFOTO (Pillow) — tab Multifoto di ImageLab
 # --------------------------------------------------------------------------
