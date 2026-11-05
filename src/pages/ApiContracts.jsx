@@ -176,6 +176,13 @@ const GROUPS = [
         response: "JSON restituito dal servizio Night Story",
         notes: "Il nome può contenere solo lettere minuscole, numeri e underscore.",
       },
+      {
+        method: "GET", path: "/api/admin/worlds", auth: true,
+        summary: "Elenca i mondi (scenarios) dell'area emergence",
+        request: "—",
+        response: '{ "worlds": [{ "id", "name", "description", "created_at" }, ...] }',
+        notes: "Max 100 mondi, ordinati per id decrescente. Usata dal selettore Worlds di AI Lab.",
+      },
     ],
   },
   {
