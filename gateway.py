@@ -4391,12 +4391,12 @@ async def admin_worlds_list(authorization: str | None = Header(None)):
     try:
         with conn.cursor() as cur:
             cur.execute(
-                ""
+                """
                 SELECT id, name, description, created_at
                 FROM emergence.scenarios
                 ORDER BY id DESC
                 LIMIT 100
-                ""
+                """
             )
             rows = cur.fetchall()
     except psycopg2.Error as exc:
