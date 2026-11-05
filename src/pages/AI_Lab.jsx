@@ -423,19 +423,52 @@ export default function EmergenceLab() {
   // li sostituiamo con _ prima di inviare.
   // ==============================================================
 
+  // Save DIRETTO via POST /api/admin/worlds: INSERT deterministico su
+  // Postgres, senza passare da /api/admin/chat (timoniere/parser/LLM).
+  // Il comando "save world ..." via chat impiega troppo e Safari taglia
+  // la fetch a 60s ("Load failed"); qui la risposta arriva in millisecondi.
   async function handleSaveWorld() {
     const name = worldName.trim().replace(/\s+/g, '_')
     const desc = worldDesc.trim()
     if (!name || !desc) return
 
     setSelectedPromptRole(null)
-    await sendCommand(`save world ${name} as "${desc}"`)
-
-    // la risposta di Leles contiene il nuovo id:
-    // copiarlo nel campo World ID qui sopra e rilanciare
-    setWorldName('')
-    setWorldDesc('')
-    fetchWorlds()
+    setWorldsError('')
+    setWorldsBusy(true)
+    try {
+      const res = await fetch(`${LELE_API_URL}/api/admin/worlds`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ name, description: desc }),
+      })
+      if (res.status === 401 || res.status === 403) {
+        logout()
+        setWorldsError(
+          res.status === 401 ? t('ail.sessionExpired') : t('ail.unauthorizedShort')
+        )
+        return
+      }
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        throw new Error(
+          (data && data.detail) || `HTTP ${res.status}: ${res.statusText}`
+        )
+      }
+      const data = await res.json()
+      // l'id nuovo entra da solo nel campo World ID: si puo' lanciare subito
+      setWorldId(data.id)
+      setResponse(`✅ Scenario salvato — id ${data.id} (${data.name}). Id inserito nel campo World ID.`)
+      setWorldName('')
+      setWorldDesc('')
+    } catch (err) {
+      setWorldsError(err.message)
+    } finally {
+      setWorldsBusy(false)
+      fetchWorlds()
+    }
   }
 
   async function handleQueryWorlds() {
@@ -1087,9 +1120,9 @@ export default function EmergenceLab() {
 
             <p style={styles.promptHint}>
               Salva uno scenario una volta sola e riusalo in piu' run
-              senza riscriverlo. Niente virgolette doppie (") nel testo:
-              il parser del gateway si confonde. Dopo il save Leles
-              risponde con l'id: inseriscilo nel campo World ID qui sopra.
+              senza riscriverlo. Il salvataggio va dritto sul database
+              (nessun LLM): l'id nuovo viene inserito automaticamente nel
+              campo World ID qui sopra.
             </p>
 
             <div style={styles.grid2}>
