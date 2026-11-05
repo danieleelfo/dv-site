@@ -113,6 +113,10 @@ export default function EmergenceLab() {
   const [selectedPromptRole, setSelectedPromptRole] = useState(null)
   const [editingPrompt, setEditingPrompt] = useState(false)
 
+  // Worlds: creazione nuovo scenario (emergence.scenarios)
+  const [worldName, setWorldName] = useState('')
+  const [worldDesc, setWorldDesc] = useState('')
+
   // Agents Lab: tab attiva ('emergence' | 'ns') e stato pannello NS.
   const [activeTab, setActiveTab] = useState('emergence')
   const [nsPrompts, setNsPrompts] = useState(null)
@@ -397,6 +401,31 @@ export default function EmergenceLab() {
     e.preventDefault()
     setSelectedPromptRole(null)
     sendCommand(launchCommand)
+  }
+
+  // ==============================================================
+  // WORLDS — crea un nuovo scenario via "save world" del timoniere.
+  // Il nome non puo' contenere spazi (regex \S+ nel parser):
+  // li sostituiamo con _ prima di inviare.
+  // ==============================================================
+
+  async function handleSaveWorld() {
+    const name = worldName.trim().replace(/\s+/g, '_')
+    const desc = worldDesc.trim()
+    if (!name || !desc) return
+
+    setSelectedPromptRole(null)
+    await sendCommand(`save world ${name} as "${desc}"`)
+
+    // la risposta di Leles contiene il nuovo id:
+    // copiarlo nel campo World ID qui sopra e rilanciare
+    setWorldName('')
+    setWorldDesc('')
+  }
+
+  async function handleQueryWorlds() {
+    setSelectedPromptRole(null)
+    await sendCommand('query worlds')
   }
 
   // ==============================================================
@@ -988,6 +1017,70 @@ export default function EmergenceLab() {
                 )}
               </pre>
             )}
+          </div>
+
+          {/* ============================================================
+              WORLDS — crea scenario riusabile per emergence_flow
+          ============================================================ */}
+          <div style={styles.sectionBlock}>
+            <div style={styles.sectionHeader}>
+              <span style={styles.label}>🌍 Nuovo mondo</span>
+
+              <button
+                type="button"
+                disabled={isLoading}
+                onClick={handleQueryWorlds}
+                style={styles.secondaryBtn}
+              >
+                📜 Worlds esistenti
+              </button>
+            </div>
+
+            <p style={styles.promptHint}>
+              Salva uno scenario una volta sola e riusalo in piu' run
+              senza riscriverlo. Niente virgolette doppie (") nel testo:
+              il parser del gateway si confonde. Dopo il save Leles
+              risponde con l'id: inseriscilo nel campo World ID qui sopra.
+            </p>
+
+            <div style={styles.grid2}>
+              <label style={styles.field}>
+                <span style={styles.label}>Nome (senza spazi)</span>
+                <input
+                  value={worldName}
+                  onChange={(e) => setWorldName(e.target.value)}
+                  placeholder="es. refund_war"
+                  style={styles.input}
+                />
+              </label>
+
+              <label style={styles.field}>
+                <span style={styles.label}>Descrizione scenario</span>
+                <textarea
+                  value={worldDesc}
+                  onChange={(e) => setWorldDesc(e.target.value)}
+                  rows={3}
+                  placeholder="Un agente vuole chiedere un rimborso..."
+                  style={{ ...styles.input, minHeight: 80, resize: 'vertical' }}
+                />
+              </label>
+            </div>
+
+            <div style={styles.actionsRow}>
+              <button
+                type="button"
+                onClick={handleSaveWorld}
+                disabled={isLoading || !worldName.trim() || !worldDesc.trim()}
+                style={{
+                  ...styles.editBtn,
+                  ...(isLoading || !worldName.trim() || !worldDesc.trim()
+                    ? styles.buttonDisabled
+                    : {}),
+                }}
+              >
+                {isLoading ? 'Salvo…' : '💾 Salva mondo'}
+              </button>
+            </div>
           </div>
 
           <div style={styles.actionsRow}>
