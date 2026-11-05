@@ -307,7 +307,7 @@
       "lelesAudio": "Àudio de Leles no disponible: {{msg}}",
       "dangerAudio": "Comanda sensible: usa el prompt principal, que demana la confirmació."
     },
-    "cmdNote": "Git, Airflow i la revisió de fitxers (improve/verifica/review) han passat a les pàgines dedicades — Git Admin · DAG Admin · Improve: enllaços al peu de la consola.",
+    "cmdNote": "Les pàgines d’administració es troben en pàgines específiques dins de Leles i LabZone.",
     "story": {
       "create": "🎨 Crear il·lustracions de la història",
       "boxTitle": "Genera il·lustracions seqüencials de les escenes principals després del text i l'àudio",

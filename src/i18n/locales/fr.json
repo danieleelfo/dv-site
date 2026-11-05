@@ -307,7 +307,7 @@
       "lelesAudio": "Audio de Leles indisponible : {{msg}}",
       "dangerAudio": "Commande sensible : utilisez le prompt principal, qui demande la confirmation."
     },
-    "cmdNote": "Git, Airflow et la révision de fichiers (improve/verifica/review) passent par les pages dédiées — Git Admin · DAG Admin · Improve : liens en bas de la console.",
+    "cmdNote": "Les pages d’administration se trouvent dans des pages dédiées sous Leles et LabZone.",
     "story": {
       "create": "🎨 Créer les illustrations de l'histoire",
       "boxTitle": "Génère des illustrations séquentielles des scènes clés après le texte et l'audio",

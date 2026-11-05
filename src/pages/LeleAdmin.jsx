@@ -1,5 +1,5 @@
 // ============================================================
-//  3 selettori modello (Super-Leles / Leles / Reviewer) sincronizzati
+// 3 selettori modello (Super-Leles / Leles / Reviewer) sincronizzati
 // col server via comando "modelli"; nuovo ordine sezioni (Comandi, Sessione,
 // Pagine, Audio, Test); restyling (titolo gradient, ombre, hover lift).
 // LeleAdmin.jsx = la versione ufficiale su /leles.
@@ -100,7 +100,7 @@ const LELE_MODELS = ['mistral', 'gemma4', 'llama3', 'qwen2.5', 'deepseek-r1']
 const LELE_MODEL_KEY = 'lc_lele_model'
 const REVIEWER_MODEL_KEY = 'lc_reviewer_model'
 
-// Rescue bot su Telegram (username da BotFather): sostituisci il segnaposto.
+// Rescue bot su Telegram 
 const RESCUE_BOT_URL = 'https://t.me/Rescue_Leles_bot'
 
 // Pagine e console ufficiali del sito.

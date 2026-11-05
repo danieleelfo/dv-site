@@ -307,7 +307,7 @@
       "lelesAudio": "Leles-audio niet beschikbaar: {{msg}}",
       "dangerAudio": "Gevoelig commando: gebruik de hoofdprompt, die om bevestiging vraagt."
     },
-    "cmdNote": "Git, Airflow en bestandsrevisie (improve/verifica/review) zijn verplaatst naar de eigen pagina's — Git Admin · DAG Admin · Improve: link onderaan de console.",
+    "cmdNote": "Beheerderspagina’s staan op speciale pagina’s onder Leles en LabZone.",
     "story": {
       "create": "🎨 Maak illustraties bij het verhaal",
       "boxTitle": "Genereer opeenvolgende illustraties van de belangrijkste scènes na tekst en audio",
