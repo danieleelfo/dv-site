@@ -183,6 +183,13 @@ const GROUPS = [
         response: '{ "worlds": [{ "id", "name", "description", "created_at" }, ...] }',
         notes: "Max 100 mondi, ordinati per id decrescente. Usata dal selettore Worlds di AI Lab.",
       },
+      {
+        method: "POST", path: "/api/admin/worlds", auth: true,
+        summary: "Salva un nuovo mondo (scenario) direttamente su Postgres",
+        request: '{ "name": "senza_spazi", "description": "testo scenario" }',
+        response: '{ "id": 16, "name": "senza_spazi", "status": "ok" }',
+        notes: "INSERT deterministico, nessun timoniere/LLM: usata dal form Salva mondo di AI Lab, che inserisce da solo l'id nel campo World ID.",
+      },
     ],
   },
   {
