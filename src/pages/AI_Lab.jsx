@@ -117,6 +117,12 @@ export default function EmergenceLab() {
   const [worldName, setWorldName] = useState('')
   const [worldDesc, setWorldDesc] = useState('')
 
+  // Worlds: lista dal gateway (GET /api/admin/worlds) + selezione
+  const [worldsList, setWorldsList] = useState(null)
+  const [worldsBusy, setWorldsBusy] = useState(false)
+  const [worldsError, setWorldsError] = useState('')
+  const [selectedWorld, setSelectedWorld] = useState(null)
+
   // Agents Lab: tab attiva ('emergence' | 'ns') e stato pannello NS.
   const [activeTab, setActiveTab] = useState('emergence')
   const [nsPrompts, setNsPrompts] = useState(null)
@@ -220,6 +226,14 @@ export default function EmergenceLab() {
   useEffect(() => {
     if (activeTab === 'ns' && idToken && nsPrompts === null) {
       fetchNsPrompts()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, idToken])
+
+  // Agents Lab: carica i worlds alla prima apertura del tab emergence.
+  useEffect(() => {
+    if (activeTab === 'emergence' && idToken && worldsList === null && !worldsBusy) {
+      fetchWorlds()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, idToken])
@@ -421,11 +435,46 @@ export default function EmergenceLab() {
     // copiarlo nel campo World ID qui sopra e rilanciare
     setWorldName('')
     setWorldDesc('')
+    fetchWorlds()
   }
 
   async function handleQueryWorlds() {
     setSelectedPromptRole(null)
-    await sendCommand('query worlds')
+    fetchWorlds()
+  }
+
+  async function fetchWorlds() {
+    if (!idToken || worldsBusy) return
+    setWorldsBusy(true)
+    setWorldsError('')
+    try {
+      const res = await fetch(`${LELE_API_URL}/api/admin/worlds`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      })
+      if (res.status === 401 || res.status === 403) {
+        logout()
+        setWorldsError(
+          res.status === 401
+            ? t('ail.sessionExpired')
+            : t('ail.unauthorizedShort')
+        )
+        return
+      }
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        throw new Error(
+          (data && data.detail) || `HTTP ${res.status}: ${res.statusText}`
+        )
+      }
+      const data = await res.json()
+      const list = Array.isArray(data.worlds) ? data.worlds : []
+      setWorldsList(list)
+      setSelectedWorld(list[0] || null)
+    } catch (err) {
+      setWorldsError(err.message)
+    } finally {
+      setWorldsBusy(false)
+    }
   }
 
   // ==============================================================
@@ -1081,6 +1130,102 @@ export default function EmergenceLab() {
                 {isLoading ? 'Salvo…' : '💾 Salva mondo'}
               </button>
             </div>
+
+            {worldsError && (
+              <p style={{ color: '#ff8f8f', margin: '0.5rem 0 0', fontSize: '0.85rem' }}>
+                ⚠️ {worldsError}
+              </p>
+            )}
+
+            {worldsBusy && !worldsList && (
+              <p style={{ color: '#8fa1ac', margin: '0.5rem 0 0', fontSize: '0.85rem' }}>
+                Carico i worlds…
+              </p>
+            )}
+
+            {worldsList && worldsList.length === 0 && (
+              <p style={{ color: '#8fa1ac', margin: '0.5rem 0 0', fontSize: '0.85rem' }}>
+                Nessun world salvato: creane uno qui sopra.
+              </p>
+            )}
+
+            {worldsList && worldsList.length > 0 && (
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'minmax(150px, 230px) 1fr',
+                  gap: '0.75rem',
+                  marginTop: '0.75rem',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.4rem',
+                    maxHeight: 280,
+                    overflowY: 'auto',
+                  }}
+                >
+                  {worldsList.map((w) => (
+                    <button
+                      key={w.id}
+                      type="button"
+                      onClick={() => setSelectedWorld(w)}
+                      style={{
+                        ...styles.promptRoleBtn,
+                        justifyContent: 'flex-start',
+                        ...(selectedWorld?.id === w.id
+                          ? styles.promptRoleBtnActive
+                          : {}),
+                      }}
+                      title={w.name}
+                    >
+                      <span style={styles.promptRoleIcon}>🌍</span>
+                      <span>{w.name}</span>
+                      <span
+                        style={{ marginLeft: 'auto', opacity: 0.55, fontSize: '0.7rem' }}
+                      >
+                        #{w.id}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{ ...styles.response, margin: 0, padding: '0.75rem' }}>
+                  {selectedWorld ? (
+                    <>
+                      <div style={styles.responseHeader}>
+                        <h3 style={styles.responseTitle}>
+                          #{selectedWorld.id} · {selectedWorld.name}
+                        </h3>
+                        <span style={styles.sessionLabel}>
+                          {selectedWorld.created_at}
+                        </span>
+                      </div>
+                      <pre
+                        style={{ ...styles.responsePre, maxHeight: 220, overflowY: 'auto' }}
+                      >
+                        {selectedWorld.description}
+                      </pre>
+                      <div style={{ ...styles.actionsRow, marginTop: '0.6rem' }}>
+                        <button
+                          type="button"
+                          onClick={() => setWorldId(selectedWorld.id)}
+                          style={styles.editBtn}
+                        >
+                          ⬆️ Usa nel World ID
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <p style={{ color: '#8fa1ac', margin: 0, fontSize: '0.85rem' }}>
+                      Seleziona un world a sinistra.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           <div style={styles.actionsRow}>
@@ -1581,6 +1726,8 @@ const styles = {
   },
 
   responsePre: {
+    textAlign: 'left',
+    direction: 'ltr',
     margin: 0,
     color: '#c5d4de',
     whiteSpace: 'pre-wrap',
