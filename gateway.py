@@ -4378,6 +4378,49 @@ async def ns_prompt_save(
 
 
 # --------------------------------------------------------------------------
+# ADMIN: WORLDS (Agents Lab — scenari emergence.scenarios, DB lele)
+# --------------------------------------------------------------------------
+
+@app.get("/api/admin/worlds")
+async def admin_worlds_list(authorization: str | None = Header(None)):
+    """Lista dei worlds salvati (id, nome, descrizione, created_at)."""
+
+    verify_admin_token(authorization)
+
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                ""
+                SELECT id, name, description, created_at
+                FROM emergence.scenarios
+                ORDER BY id DESC
+                LIMIT 100
+                ""
+            )
+            rows = cur.fetchall()
+    except psycopg2.Error as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Errore Postgres sui worlds: {exc}",
+        )
+    finally:
+        conn.close()
+
+    return {
+        "worlds": [
+            {
+                "id": r[0],
+                "name": r[1],
+                "description": r[2],
+                "created_at": str(r[3]),
+            }
+            for r in rows
+        ]
+    }
+
+
+# --------------------------------------------------------------------------
 # COMPOSIZIONE MULTIFOTO (Pillow) — tab Multifoto di ImageLab
 # --------------------------------------------------------------------------
 #
