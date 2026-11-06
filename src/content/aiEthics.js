@@ -18,7 +18,6 @@ export const ARTICLES = [
       readTime: 3,
       sources: [
         { label: 'SecurityWeek - OpenAI Says New GPT-6 Cyber Model Hunts Flaws Without Crossing the Line', url: 'https://www.securityweek.com/openai-says-new-gpt-6-cyber-model-hunts-flaws-without-crossing-the-line/' },
-        { label: 'Reuters via The Hindu - OpenAI launches GPT-6 Cyber with Critical cybersecurity rating', url: 'https://www.thehindu.com/sci-tech/technology/openai-launches-gpt-6-cyber-with-critical-cybersecurity-rating/article71672703.ece' },
         { label: 'AP - Cyberattack hits French blood bank site', url: 'https://apnews.com/article/france-plasma-blood-bank-cyberattack-temperature-fridge-12b80bcf93b8404264209e519c204919' },
         { label: 'AP - Supermarket freezers in several European countries hit by apparent cyberattacks', url: 'https://apnews.com/article/europe-supermarkets-freezers-cyberattacks-a8ea5b30d67da47957769f29101fe686' },
       ],
