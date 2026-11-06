@@ -25,9 +25,9 @@ export const ARTICLES = [
       content: {
         en: {
           title: 'AI finds the flaws. Attackers just use them.',
-          dek: 'GPT-6 Cyber and Europe's cold-chain attacks are two halves of the same story.',
+          dek: 'GPT-6 Cyber and Europe’s cold-chain attacks are two halves of the same story.',
           body: [
-            { type: 'p', text: 'Two parallel stories this week. OpenAI released GPT-6 Cyber, an AI model rated Critical that found 948 exploitable Linux kernel flaws and 81 unknown Firefox bugs. The same days, hackers hit Europe's cold chain: supermarket fridges forced to defrost across at least nine countries, and French blood banks with plasma freezer temperatures raised from -30C to a reported 110C, stopped in time. The targeted Danfoss controllers were legacy hardware, exposed online with weak passwords, without security updates.' },
+            { type: 'p', text: 'Two parallel stories this week. OpenAI released GPT-6 Cyber, an AI model rated Critical that found 948 exploitable Linux kernel flaws and 81 unknown Firefox bugs. The same days, hackers hit Europe’s cold chain: supermarket fridges forced to defrost across at least nine countries, and French blood banks with plasma freezer temperatures raised from -30C to a reported 110C, stopped in time. The targeted Danfoss controllers were legacy hardware, exposed online with weak passwords, without security updates.' },
             { type: 'p', text: 'The connection is the point: AI is dropping the skill floor for finding and exploiting weaknesses, while the physical world keeps running on unpatched, internet-connected equipment. One side of the problem is being solved in a lab. The other is a blood bank with a decade-old freezer controller.' },
           ],
         },
