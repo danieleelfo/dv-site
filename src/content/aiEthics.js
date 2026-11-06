@@ -11,6 +11,29 @@
 export const ARTICLES = [
 
     {
+      slug: 'gpt-6-cyber',
+      category: 'NEWS',
+      number: 3,
+      date: '2026-11-06',
+      readTime: 2,
+      sources: [
+        { label: 'SecurityWeek - OpenAI Says New GPT-6 Cyber Model Hunts Flaws Without Crossing the Line', url: 'https://www.securityweek.com/openai-says-new-gpt-6-cyber-model-hunts-flaws-without-crossing-the-line/' },
+        { label: 'Reuters via The Hindu - OpenAI launches GPT-6 Cyber with Critical cybersecurity rating', url: 'https://www.thehindu.com/sci-tech/technology/openai-launches-gpt-6-cyber-with-critical-cybersecurity-rating/article71672703.ece' },
+      ],
+      content: {
+        en: {
+          title: 'OpenAI launches GPT-6 Cyber, an AI model that finds and exploits security flaws',
+          dek: 'Rated Critical under its Preparedness Framework, the model is restricted to vetted customers of the Daybreak Red program.',
+          body: [
+            { type: 'p', text: 'OpenAI has released GPT-6 Cyber, a security-focused AI model rated Critical for cybersecurity under its Preparedness Framework, available only to vetted customers of Daybreak Red, its program for authorized offensive security testing.' },
+            { type: 'p', text: 'In testing, the model built working privilege-escalation exploits for 948 Linux kernel vulnerabilities and documented 81 previously unknown Firefox flaws classified as high severity by Mozilla, which has already begun patching them. OpenAI has reported 304 critical issues to maintainers with proposed fixes.' },
+            { type: 'p', text: 'The launch highlights the dual role of advanced AI in cybersecurity: a powerful tool for finding and fixing weaknesses, and a technology that lowers the skill floor for reconnaissance and vulnerability research before an attack. OpenAI says it is also seeing growing attempts by malicious actors to misuse its models.' },
+          ],
+        },
+      },
+    },
+
+    {
       slug: 'robot-danzanti-cina-110',
       category: 'NEWS',
       number: 2,
