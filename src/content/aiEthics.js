@@ -11,28 +11,28 @@
 export const ARTICLES = [
 
     {
-      slug: 'gpt-6-cyber',
+      slug: 'ai-finds-the-flaws',
       category: 'NEWS',
       number: 3,
       date: '2026-11-06',
-      readTime: 2,
+      readTime: 3,
       sources: [
         { label: 'SecurityWeek - OpenAI Says New GPT-6 Cyber Model Hunts Flaws Without Crossing the Line', url: 'https://www.securityweek.com/openai-says-new-gpt-6-cyber-model-hunts-flaws-without-crossing-the-line/' },
         { label: 'Reuters via The Hindu - OpenAI launches GPT-6 Cyber with Critical cybersecurity rating', url: 'https://www.thehindu.com/sci-tech/technology/openai-launches-gpt-6-cyber-with-critical-cybersecurity-rating/article71672703.ece' },
+        { label: 'AP - Cyberattack hits French blood bank site', url: 'https://apnews.com/article/france-plasma-blood-bank-cyberattack-temperature-fridge-12b80bcf93b8404264209e519c204919' },
+        { label: 'AP - Supermarket freezers in several European countries hit by apparent cyberattacks', url: 'https://apnews.com/article/europe-supermarkets-freezers-cyberattacks-a8ea5b30d67da47957769f29101fe686' },
       ],
       content: {
         en: {
-          title: 'OpenAI launches GPT-6 Cyber, an AI model that finds and exploits security flaws',
-          dek: 'Rated Critical under its Preparedness Framework, the model is restricted to vetted customers of the Daybreak Red program.',
+          title: 'AI finds the flaws. Attackers just use them.',
+          dek: 'GPT-6 Cyber and Europe's cold-chain attacks are two halves of the same story.',
           body: [
-            { type: 'p', text: 'OpenAI has released GPT-6 Cyber, a security-focused AI model rated Critical for cybersecurity under its Preparedness Framework, available only to vetted customers of Daybreak Red, its program for authorized offensive security testing.' },
-            { type: 'p', text: 'In testing, the model built working privilege-escalation exploits for 948 Linux kernel vulnerabilities and documented 81 previously unknown Firefox flaws classified as high severity by Mozilla, which has already begun patching them. OpenAI has reported 304 critical issues to maintainers with proposed fixes.' },
-            { type: 'p', text: 'The launch highlights the dual role of advanced AI in cybersecurity: a powerful tool for finding and fixing weaknesses, and a technology that lowers the skill floor for reconnaissance and vulnerability research before an attack. OpenAI says it is also seeing growing attempts by malicious actors to misuse its models.' },
+            { type: 'p', text: 'Two parallel stories this week. OpenAI released GPT-6 Cyber, an AI model rated Critical that found 948 exploitable Linux kernel flaws and 81 unknown Firefox bugs. The same days, hackers hit Europe's cold chain: supermarket fridges forced to defrost across at least nine countries, and French blood banks with plasma freezer temperatures raised from -30C to a reported 110C, stopped in time. The targeted Danfoss controllers were legacy hardware, exposed online with weak passwords, without security updates.' },
+            { type: 'p', text: 'The connection is the point: AI is dropping the skill floor for finding and exploiting weaknesses, while the physical world keeps running on unpatched, internet-connected equipment. One side of the problem is being solved in a lab. The other is a blood bank with a decade-old freezer controller.' },
           ],
         },
       },
     },
-
     {
       slug: 'robot-danzanti-cina-110',
       category: 'NEWS',
