@@ -17,6 +17,7 @@ from image_bubbles import build_bubbles_router
 from comic_page import build_comic_page_router
 from gradv_archive import build_gradv_archive_router
 from personaggi import build_personaggi_router
+from news_draft import build_news_draft_router
 
 import httpx
 from fastapi import FastAPI, Header, HTTPException, Request, UploadFile, File, Form
@@ -266,6 +267,11 @@ app.include_router(
 # PERSONAGGI — CRUD personaggi (nome, descrizione, foto) per le storie
 app.include_router(
     build_personaggi_router(verify_admin_token, get_connection)
+)
+
+# NEWS DRAFT — bozza articolo AI News (Test7): translate + publish
+app.include_router(
+    build_news_draft_router(verify_admin_token)
 )
 
 # --------------------------------------------------------------------------
