@@ -23,12 +23,15 @@ export const ARTICLES = [
       ],
       content: {
         en: {
-          title: 'AI finds the flaws. Attackers just use them.',
+          title: 'AI finds the flaws. Attackers use them.',
           dek: 'GPT-6 Cyber and Europe’s cold-chain attacks are two halves of the same story.',
           body: [
             { type: 'p', text: 'Two parallel stories this week. OpenAI released GPT-6 Cyber, an AI model rated Critical that found 948 exploitable Linux kernel flaws and 81 unknown Firefox bugs. The same days, hackers hit Europe’s cold chain: supermarket fridges forced to defrost across at least nine countries, and French blood banks with plasma freezer temperatures raised from -30C to a reported 110C, stopped in time. The targeted Danfoss controllers were legacy hardware, exposed online with weak passwords, without security updates.' },
-            { type: 'p', text: 'The two stories are one. GPT-6 Cyber shows that AI can now find security holes at industrial scale, and... what about security in Europe? The cold-chain attacks needed no AI at all: the freezer controllers were old, connected to the internet, and protected by weak passwords.' },
-            { type: 'p', text: 'The real risk is the mix: an AI that finds thousands of forgotten machines in minutes, and a world full of millions of machines nobody has patched in a decade. Not a superhuman hacker, just an open, weak door.' },
+            { type: 'p', text: 'The two stories are one. AI can now find security holes at industrial scale.' },
+            { type: 'p', text: 'And what about security in Europe? Even in AI model design, we are far behind other countries.' },
+            { type: 'p', text: 'The cold-chain attacks needed no AI at all: the freezer controllers were old, connected to the internet, and protected by weak passwords.' },
+            { type: 'p', text: 'I\u2019ve seen this often in big companies, and now, the real risk is the mix: an AI that finds thousands of forgotten machines in minutes, and a world full of millions of machines nobody has patched in a decade.' },
+            { type: 'p', text: 'Not a superhuman hacker, just an open, weak door.' },
           ],
         },
       },
