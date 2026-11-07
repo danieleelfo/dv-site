@@ -203,8 +203,8 @@ console.log(JSON.stringify(ARTICLES));
 """
 
 JS_WRITE = r"""
+import fs from 'node:fs';
 const [dataPath, payloadPath] = process.argv.slice(1);
-const fs = require('fs');
 const payload = JSON.parse(fs.readFileSync(payloadPath, 'utf8'));
 const original = fs.readFileSync(dataPath, 'utf8');
 const START = 'export const ARTICLES = [';
