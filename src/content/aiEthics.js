@@ -215,6 +215,10 @@ export const ARTICLES = [
         ],
       },
     },
+    image: {
+      src: '/news/news-1794046518.jpg',
+      caption: '',
+    },
   },
 {
     slug: 'robot-danzanti-cina-110',
