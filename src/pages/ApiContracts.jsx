@@ -2,7 +2,7 @@
 // API CONTRACTS (contratti API del gateway)
 // Pagina statica di documentazione: nessuna chiamata al backend
 // oltre alla verifica del login Google. Nessuna modifica backend.
-// Dati allineati a gateway.py / git_admin.py / query_db.py / admin_routes.py (31 ottobre 2026).
+// Dati allineati a gateway.py / git_admin.py / query_db.py / admin_routes.py / news_draft.py (7 novembre 2026).
 // ============================================================
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -398,6 +398,66 @@ const GROUPS = [
         method: "POST", path: "/api/improve/save", auth: true,
         summary: "api.ep.impSave",
         request: '{ ...path + contenuto... }', response: '{ "ok", ... }',
+      },
+    ],
+  },
+  {
+    id: "newsdraft", label: "News Admin", icon: "✦",
+    note: "Bozza/revisione articoli AI News (Test7, news_draft.py). Tutte admin: Authorization: Bearer <google_id_token>.",
+    endpoints: [
+      {
+        method: "GET", path: "/api/admin/news-draft", auth: true,
+        summary: "Bozza corrente del News Admin (o default vuoto)",
+        request: "—",
+        response: '{ "number", "slug", "date", "readTime", "sources", "image", "content": { en: { "title", "dek", "body" }, ... }, "master" }',
+        notes: "Persistita in news_draft.json accanto a gateway.py.",
+      },
+      {
+        method: "GET", path: "/api/admin/news-draft/articles", auth: true,
+        summary: "Lista articoli AI News per il selettore news#",
+        request: "—",
+        response: '{ "articles": [{ "number", "slug", "date", "readTime", "title", "langs": [...] }, ...] }',
+      },
+      {
+        method: "GET", path: "/api/admin/news-draft/article/{number}", auth: true,
+        summary: "Articolo esistente → box EN/IT/ES (testo) e metadati",
+        request: "—",
+        response: '{ "number", "slug", "date", "readTime", "sources" (testo "Etichetta | URL"), "image", "content" }',
+        notes: "404 se l'articolo non esiste. I blocchi body sono riconvertiti in testo: \"## Titolo\" = h3, \"- voce\" = lista.",
+      },
+      {
+        method: "POST", path: "/api/admin/news-draft/save", auth: true,
+        summary: "Salva una lingua (diventa la master) e i metadati",
+        request: '{ "lang": "en|it|es|fr|ca|nl", "content": { "title", "dek", "body" }, "number"?, "slug"?, "date"?, "readTime"?, "sources"?, "image"? }',
+        response: "{ ...bozza aggiornata... }",
+      },
+      {
+        method: "POST", path: "/api/admin/news-draft/translate", auth: true,
+        summary: "Traduce una lingua dal master con Ollama",
+        request: '{ "target_lang": "en|it|es|fr|ca|nl" }',
+        response: "{ ...bozza aggiornata... }",
+        notes: "Ollama locale (env NEWS_DRAFT_MODEL, default mistral:latest). Registro editoriale, caporali « » per it/es/fr/ca, nomi/sigle/URL non tradotti.",
+      },
+      {
+        method: "POST", path: "/api/admin/news-draft/translate-all", auth: true,
+        summary: "Traduce dal master TUTTE le lingue non-master (5)",
+        request: "—",
+        response: "{ ...bozza aggiornata con content completo... }",
+        notes: "Salva la bozza dopo ogni lingua: i progressi restano anche se la richiesta cade a metà.",
+      },
+      {
+        method: "POST", path: "/api/admin/news-draft/image", auth: true,
+        summary: "Upload immagine news (multipart → public/news/)",
+        request: 'Content-Type: multipart/form-data\n\nimage:  <file jpeg/png/webp, max 10 MB>',
+        response: '{ "src": "/news/news-<ts>.<ext>" }',
+        notes: "L'immagine viene committata insieme all'articolo alla pubblicazione.",
+      },
+      {
+        method: "POST", path: "/api/admin/news-draft/publish", auth: true,
+        summary: "Pubblica: insert nuovo articolo o update in place (commit + push su main)",
+        request: '{ "number"?, "slug", "date", "readTime", "sources", "image"? }',
+        response: '{ "published": true, "mode": "insert|update", "slug", "number", "commit", "sha" }',
+        notes: "git pull --ff-only, node dump/serialize di aiEthics.js + node --check con rollback, poi commit + push su main. En obbligatorio.",
       },
     ],
   },
