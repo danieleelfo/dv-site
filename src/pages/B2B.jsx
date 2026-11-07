@@ -91,8 +91,15 @@ function useGoogleAuth() {
       if (e.key !== TOKEN_STORAGE_KEY) return;
       setIdToken(e.newValue && isTokenValid(e.newValue) ? e.newValue : null);
     }
+    function onSync() {
+      setIdToken(readStoredToken());
+    }
     window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    window.addEventListener("dv-token-sync", onSync);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("dv-token-sync", onSync);
+    };
   }, []);
   const [authError, setAuthError] = useState("");
   const buttonRef = useRef(null);
@@ -109,6 +116,7 @@ function useGoogleAuth() {
       /* ignore */
     }
     setIdToken(null);
+    window.dispatchEvent(new Event("dv-token-sync"));
   };
 
   // Scadenza automatica del token
@@ -155,6 +163,7 @@ function useGoogleAuth() {
             /* ignore */
           }
           setIdToken(credential);
+          window.dispatchEvent(new Event("dv-token-sync"));
         },
       });
 
@@ -280,7 +289,7 @@ const DEFAULT_CFG = {
 // MAIN
 // ============================================================
 
-export default function Test4() {
+function ArenaTab() {
   const [cfg, setCfg] = useState(DEFAULT_CFG);
   const [runId, setRunId] = useState(null);
   const [data, setData] = useState({ status: "IDLE", turns: [] });
@@ -1853,5 +1862,663 @@ const styles = {
     color: "#9bacb5",
     fontSize: 13,
     textAlign: "center",
+  },
+};
+
+
+// ============================================================
+// B2BIMG — 12 bot img2img sulla stessa immagine di partenza
+// ============================================================
+// V1: ogni bot riceve l'IMMAGINE INIZIALE e produce la sua variante
+// con il proprio prompt di modifica, steps e "temperatura"
+// (strength: 0.15 fedele -> 0.95 libera). Il run e' SEQUENZIALE:
+// il gateway accetta un solo job img2img per utente, quindi un bot
+// alla volta. La risoluzione e' globale, uguale per tutti i bot.
+// Prossima versione: ogni bot passa il suo output al successivo.
+//
+// API (esistenti, nessuna modifica al gateway):
+//   POST /api/image/img2img (multipart: image, prompt, strength,
+//        width, height, steps, seed) -> { job_id }
+//   GET  /api/image/jobs/{id}  -> { status, error? }
+//   GET  /api/image/jobs/{id}/result -> { image_base64, seed }
+// ============================================================
+
+const IMG_STEPS = [1, 3, 4, 5, 6, 7, 8, 9, 12, 15];
+
+// Stessa griglia di GRADIO_FORMATS (ImageLab / app Gradio).
+const IMG_FORMATS = {
+  512: [["512 × 512 (1:1)", 512, 512], ["640 × 384 (5:3)", 640, 384], ["384 × 640 (3:5)", 384, 640], ["512 × 384 (4:3)", 512, 384], ["384 × 512 (3:4)", 384, 512], ["640 × 368 (16:9)", 640, 368], ["368 × 640 (9:16)", 368, 640]],
+  768: [["768 × 768 (1:1)", 768, 768], ["960 × 576 (5:3)", 960, 576], ["576 × 960 (3:5)", 576, 960], ["768 × 576 (4:3)", 768, 576], ["576 × 768 (3:4)", 576, 768], ["960 × 544 (16:9)", 960, 544], ["544 × 960 (9:16)", 544, 960]],
+  1024: [["1024 × 1024 (1:1)", 1024, 1024], ["1280 × 768 (5:3)", 1280, 768], ["768 × 1280 (3:5)", 768, 1280], ["1024 × 768 (4:3)", 1024, 768], ["768 × 1024 (3:4)", 768, 1024], ["1280 × 720 (16:9)", 1280, 720], ["720 × 1280 (9:16)", 720, 1280], ["1024 × 576 (16:9)", 1024, 576], ["576 × 1024 (9:16)", 576, 1024]],
+  1280: [["1280 × 1280 (1:1)", 1280, 1280], ["1536 × 1024 (3:2)", 1536, 1024], ["1024 × 1536 (2:3)", 1024, 1536], ["1536 × 864 (16:9)", 1536, 864], ["864 × 1536 (9:16)", 864, 1536]],
+};
+
+function makeImgBot(i) {
+  return {
+    id: i,
+    on: true,
+    prompt: "",
+    temp: 0.65,
+    steps: 4,
+    seed: Math.floor(Math.random() * 2147483647),
+    status: "idle", // idle | waiting | running | done | error
+    img: "",
+    error: "",
+  };
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function B2BImgTab() {
+  const { idToken, email, buttonRef, logout } = useGoogleAuth();
+
+  const [imgFile, setImgFile] = useState(null);
+  const [imgPreview, setImgPreview] = useState("");
+  const [size, setSize] = useState(512);
+  const [formatIdx, setFormatIdx] = useState(0);
+  const [bots, setBots] = useState(() =>
+    Array.from({ length: 12 }, (_, i) => makeImgBot(i))
+  );
+  const [running, setRunning] = useState(false);
+  const [notice, setNotice] = useState("");
+  const stopRef = useRef(false);
+
+  const formats = IMG_FORMATS[size] || IMG_FORMATS[512];
+  const dims = formats[Math.min(formatIdx, formats.length - 1)].slice(1);
+
+  const setBot = (id, patch) =>
+    setBots((cur) => cur.map((b) => (b.id === id ? { ...b, ...patch } : b)));
+
+  function pickFile(file) {
+    setNotice("");
+    if (!file) {
+      setImgFile(null);
+      setImgPreview("");
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      setNotice("Il file non e' un'immagine.");
+      return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      setNotice("Immagine troppo grande (max 15 MB).");
+      return;
+    }
+    setImgFile(file);
+    setImgPreview(URL.createObjectURL(file));
+  }
+
+  async function runBot(bot) {
+    setBot(bot.id, { status: "running", error: "" });
+    const headers = { Authorization: "Bearer " + idToken };
+    try {
+      const fd = new FormData();
+      fd.append("image", imgFile);
+      fd.append(
+        "prompt",
+        bot.prompt.trim() || "enhance this image, keep the composition"
+      );
+      fd.append("strength", String(bot.temp));
+      fd.append("width", String(dims[0]));
+      fd.append("height", String(dims[1]));
+      fd.append("steps", String(bot.steps));
+      fd.append("seed", String(bot.seed));
+
+      const res = await fetch(API + "/api/image/img2img", {
+        method: "POST",
+        headers,
+        body: fd,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const detail =
+          typeof data.detail === "string"
+            ? data.detail
+            : data.detail
+              ? JSON.stringify(data.detail)
+              : "HTTP " + res.status;
+        throw new Error(detail);
+      }
+      if (!data.job_id) throw new Error("Nessun job_id dal gateway.");
+
+      for (;;) {
+        if (stopRef.current) throw new Error("__STOP__");
+        await sleep(3000);
+        const st = await fetch(
+          API + "/api/image/jobs/" + encodeURIComponent(data.job_id),
+          { headers }
+        ).then((r) => r.json());
+        const s = String(st.status || "").toLowerCase();
+        if (["completed", "complete", "succeeded", "success"].includes(s)) break;
+        if (["failed", "error", "cancelled", "canceled"].includes(s)) {
+          throw new Error(st.error || "Generazione fallita.");
+        }
+      }
+
+      const result = await fetch(
+        API + "/api/image/jobs/" + encodeURIComponent(data.job_id) + "/result",
+        { headers }
+      ).then((r) => r.json());
+      if (!result.image_base64) throw new Error("Risultato senza immagine.");
+      const b64 = String(result.image_base64).replace(
+        /^data:image\/png;base64,/i,
+        ""
+      );
+      setBot(bot.id, { status: "done", img: "data:image/png;base64," + b64 });
+    } catch (e) {
+      if (String(e.message) === "__STOP__") {
+        setBot(bot.id, { status: "idle" });
+        throw e;
+      }
+      setBot(bot.id, { status: "error", error: e.message || String(e) });
+    }
+  }
+
+  async function runAll() {
+    if (!imgFile) {
+      setNotice("Carica prima un'immagine di partenza.");
+      return;
+    }
+    const active = bots.filter((b) => b.on);
+    if (!active.length) {
+      setNotice("Attiva almeno un bot.");
+      return;
+    }
+    stopRef.current = false;
+    setRunning(true);
+    setNotice("");
+    setBots((cur) => cur.map((b) => (b.on ? { ...b, status: "waiting" } : b)));
+    for (const bot of active) {
+      if (stopRef.current) break;
+      try {
+        await runBot(bot);
+      } catch (e) {
+        if (String(e.message) === "__STOP__") break;
+      }
+    }
+    setRunning(false);
+  }
+
+  async function runOne(bot) {
+    if (!imgFile || running) return;
+    stopRef.current = false;
+    setRunning(true);
+    setNotice("");
+    try {
+      await runBot(bot);
+    } catch (e) {
+      /* stato già scritto in runBot */
+    }
+    setRunning(false);
+  }
+
+  if (!idToken) {
+    return (
+      <div style={{ textAlign: "center", padding: "60px 0" }}>
+        <div style={styles.eyebrow}>B2B IMG</div>
+        <h1 style={imgStyles.imgTitle}>B2BImg</h1>
+        <p style={imgStyles.imgSub}>
+          Accedi con Google per modificare un'immagine con 12 bot img2img.
+        </p>
+        <div style={{ marginTop: 20 }}>
+          <div ref={buttonRef} style={{ display: "inline-block" }} />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={imgStyles.imgHead}>
+        <div style={styles.eyebrow}>B2B IMG</div>
+        <h1 style={imgStyles.imgTitle}>B2BImg</h1>
+        <p style={imgStyles.imgSub}>
+          Un'immagine di partenza, 12 bot: ognuno produce la sua variante con il
+          proprio prompt di modifica, steps e temperatura (strength). Il run è
+          sequenziale, un job per volta sul Mac. Risoluzione uguale per tutti.
+        </p>
+      </div>
+
+      <section style={imgStyles.inputCard}>
+        <div style={styles.sectionHeader}>
+          <span style={styles.sectionIcon}>🖼️</span>
+          <div>
+            <div style={styles.sectionTitle}>IMMAGINE + RISOLUZIONE (GLOBALI)</div>
+            <div style={styles.sectionSubtitle}>
+              La stessa immagine e la stessa risoluzione per tutti i bot.
+            </div>
+          </div>
+        </div>
+        <input
+          type="file"
+          accept="image/*"
+          disabled={running}
+          onChange={(e) => pickFile(e.target.files && e.target.files[0])}
+        />
+        {imgPreview && (
+          <img style={imgStyles.preview} src={imgPreview} alt="immagine di partenza" />
+        )}
+        <div style={imgStyles.resRow}>
+          <label>
+            <div style={imgStyles.paramLabel}>RISOLUZIONE</div>
+            <select
+              style={imgStyles.resSelect}
+              value={size}
+              disabled={running}
+              onChange={(e) => {
+                setSize(Number(e.target.value));
+                setFormatIdx(0);
+              }}
+            >
+              {Object.keys(IMG_FORMATS).map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <div style={imgStyles.paramLabel}>FORMATO</div>
+            <select
+              style={imgStyles.resSelect}
+              value={formatIdx}
+              disabled={running}
+              onChange={(e) => setFormatIdx(Number(e.target.value))}
+            >
+              {formats.map((f, i) => (
+                <option key={f[0]} value={i}>{f[0]}</option>
+              ))}
+            </select>
+          </label>
+          <div style={{ marginLeft: "auto", display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap" }}>
+            {!running ? (
+              <button
+                style={imgStyles.runBtn}
+                onClick={runAll}
+                disabled={!imgFile}
+              >
+                ▶ Genera ({bots.filter((b) => b.on).length} bot)
+              </button>
+            ) : (
+              <button
+                style={imgStyles.stopBtn}
+                onClick={() => {
+                  stopRef.current = true;
+                }}
+              >
+                ■ Stop
+              </button>
+            )}
+            <div style={styles.userRow}>
+              <span>{email}</span>
+              <button style={styles.linkButton} onClick={logout}>Logout</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {notice && <div style={imgStyles.errorBox}>{notice}</div>}
+
+      <div style={imgStyles.botGrid}>
+        {bots.map((bot) => (
+          <section key={bot.id} style={imgStyles.botCard}>
+            <div style={imgStyles.botHeader}>
+              <span style={imgStyles.botName}>🤖 Bot {bot.id + 1}</span>
+              <label style={{ display: "flex", gap: 5, fontSize: 11, color: "#9bacb5", alignItems: "center" }}>
+                <input
+                  type="checkbox"
+                  checked={bot.on}
+                  disabled={running}
+                  onChange={(e) => setBot(bot.id, { on: e.target.checked })}
+                />
+                on
+              </label>
+            </div>
+            <textarea
+              style={imgStyles.botPrompt}
+              placeholder="prompt di modifica (es. rendilo notturno, pioggia)"
+              value={bot.prompt}
+              disabled={running}
+              onChange={(e) => setBot(bot.id, { prompt: e.target.value })}
+            />
+            <div style={imgStyles.paramRow}>
+              <span style={imgStyles.paramLabel}>TEMP</span>
+              <input
+                type="range"
+                min="0.15"
+                max="0.95"
+                step="0.05"
+                value={bot.temp}
+                style={imgStyles.range}
+                disabled={running}
+                onChange={(e) => setBot(bot.id, { temp: Number(e.target.value) })}
+              />
+              <span style={{ fontSize: 11, color: "#9db2bd", minWidth: 32 }}>
+                {bot.temp.toFixed(2)}
+              </span>
+            </div>
+            <div style={imgStyles.paramRow}>
+              <span style={imgStyles.paramLabel}>STEPS</span>
+              <select
+                style={imgStyles.smallNum}
+                value={bot.steps}
+                disabled={running}
+                onChange={(e) => setBot(bot.id, { steps: Number(e.target.value) })}
+              >
+                {IMG_STEPS.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+              <span style={{ ...imgStyles.paramLabel, marginLeft: 6 }}>SEED</span>
+              <input
+                type="number"
+                style={imgStyles.smallNum}
+                value={bot.seed}
+                disabled={running}
+                onChange={(e) => setBot(bot.id, { seed: Number(e.target.value) })}
+              />
+              <button
+                style={imgStyles.smallBtn}
+                disabled={running}
+                title="seed casuale"
+                onClick={() =>
+                  setBot(bot.id, { seed: Math.floor(Math.random() * 2147483647) })
+                }
+              >
+                🎲
+              </button>
+            </div>
+            <div
+              style={{
+                ...imgStyles.statusLine,
+                ...(bot.status === "running" || bot.status === "waiting"
+                  ? imgStyles.statusRun
+                  : bot.status === "done"
+                    ? imgStyles.statusDone
+                    : bot.status === "error"
+                      ? imgStyles.statusErr
+                      : {}),
+              }}
+            >
+              {bot.status === "idle" && "—"}
+              {bot.status === "waiting" && "in coda…"}
+              {bot.status === "running" && "generando…"}
+              {bot.status === "done" && "fatto ✓"}
+              {bot.status === "error" && bot.error}
+            </div>
+            {bot.img && (
+              <img style={imgStyles.botImg} src={bot.img} alt={"Bot " + (bot.id + 1)} />
+            )}
+            <div style={{ marginTop: 10 }}>
+              <button
+                style={imgStyles.miniBtn}
+                disabled={running || !imgFile}
+                onClick={() => runOne(bot)}
+              >
+                ▶ solo questo
+              </button>
+            </div>
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// WRAPPER CON TAB — Arena e B2BImg restano entrambi montati
+// (cosi' un run arena in corso continua anche nell'altro tab).
+// Login/logout sincronizzati via evento "dv-token-sync".
+// ============================================================
+
+export default function B2B() {
+  const [tab, setTab] = useState("arena");
+
+  return (
+    <div style={styles.page}>
+      <div
+        style={{
+          ...styles.background,
+          backgroundImage: "url(" + bgImage + ")",
+        }}
+      />
+      <div style={styles.overlay} />
+      <div style={styles.content}>
+        <div style={imgStyles.tabBar}>
+          <button
+            style={tab === "arena" ? imgStyles.tabBtnActive : imgStyles.tabBtn}
+            onClick={() => setTab("arena")}
+          >
+            Bot to Bot
+          </button>
+          <button
+            style={tab === "img" ? imgStyles.tabBtnActive : imgStyles.tabBtn}
+            onClick={() => setTab("img")}
+          >
+            B2BImg
+          </button>
+        </div>
+        <div style={{ display: tab === "arena" ? "block" : "none" }}>
+          <ArenaTab />
+        </div>
+        <div style={{ display: tab === "img" ? "block" : "none" }}>
+          <B2BImgTab />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// STILI B2BIMG
+// ============================================================
+
+const imgStyles = {
+  tabBar: {
+    display: "flex",
+    gap: 8,
+    marginBottom: 24,
+    paddingBottom: 14,
+    borderBottom: "1px solid #25343d",
+  },
+  tabBtn: {
+    border: "1px solid #344853",
+    background: "#121c23",
+    color: "#9bacb5",
+    borderRadius: 999,
+    padding: "10px 18px",
+    fontSize: 12,
+    fontWeight: 700,
+    letterSpacing: ".7px",
+    cursor: "pointer",
+  },
+  tabBtnActive: {
+    border: "1px solid #4a626e",
+    background: "linear-gradient(135deg, #263943, #17262f)",
+    color: "#eef4f6",
+    borderRadius: 999,
+    padding: "10px 18px",
+    fontSize: 12,
+    fontWeight: 750,
+    letterSpacing: ".7px",
+    cursor: "pointer",
+  },
+  imgHead: {
+    textAlign: "center",
+    marginBottom: 26,
+  },
+  imgTitle: {
+    margin: 0,
+    fontSize: "clamp(28px, 5vw, 42px)",
+    color: "#f1f5f7",
+    letterSpacing: "-1px",
+  },
+  imgSub: {
+    marginTop: 10,
+    color: "#93a3ad",
+    fontSize: 14,
+    lineHeight: 1.6,
+    maxWidth: 640,
+    marginLeft: "auto",
+    marginRight: "auto",
+  },
+  inputCard: {
+    marginTop: 6,
+    padding: 22,
+    borderRadius: 18,
+    background: "rgba(15,23,30,.9)",
+    border: "1px solid #273640",
+  },
+  resRow: {
+    display: "flex",
+    gap: 14,
+    flexWrap: "wrap",
+    marginTop: 16,
+    alignItems: "flex-end",
+  },
+  resSelect: {
+    background: "#101920",
+    color: "#e4ebef",
+    border: "1px solid #2d404b",
+    borderRadius: 9,
+    padding: "10px 12px",
+    fontSize: 14,
+  },
+  preview: {
+    maxHeight: 200,
+    maxWidth: "100%",
+    borderRadius: 10,
+    border: "1px solid #293b45",
+    display: "block",
+    marginTop: 12,
+  },
+  botGrid: {
+    marginTop: 18,
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))",
+    gap: 12,
+  },
+  botCard: {
+    minWidth: 0,
+    padding: 16,
+    borderRadius: 14,
+    background: "linear-gradient(145deg, rgba(20,29,37,.92), rgba(11,17,23,.92))",
+    border: "1px solid #354955",
+  },
+  botHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  botName: {
+    fontSize: 13,
+    fontWeight: 700,
+    color: "#edf2f4",
+  },
+  botPrompt: {
+    width: "100%",
+    boxSizing: "border-box",
+    minHeight: 48,
+    resize: "vertical",
+    background: "#0d151b",
+    color: "#e5ecef",
+    border: "1px solid #2b3d47",
+    borderRadius: 9,
+    padding: 8,
+    fontFamily: "inherit",
+    fontSize: 12.5,
+    lineHeight: 1.4,
+    outline: "none",
+  },
+  paramRow: {
+    display: "flex",
+    gap: 8,
+    alignItems: "center",
+    marginTop: 10,
+  },
+  paramLabel: {
+    fontSize: 9,
+    letterSpacing: "1.2px",
+    fontWeight: 700,
+    color: "#82949e",
+  },
+  smallNum: {
+    width: 90,
+    background: "#101920",
+    color: "#e4ebef",
+    border: "1px solid #2d404b",
+    borderRadius: 8,
+    padding: "7px 8px",
+    fontSize: 12,
+  },
+  smallBtn: {
+    border: "1px solid #344853",
+    background: "#121c23",
+    color: "#b6c4ca",
+    borderRadius: 8,
+    padding: "7px 10px",
+    fontSize: 11,
+    cursor: "pointer",
+  },
+  range: {
+    flex: 1,
+    accentColor: "#3fd0c9",
+  },
+  statusLine: {
+    marginTop: 8,
+    fontSize: 11,
+    color: "#71838d",
+    minHeight: 15,
+  },
+  statusRun: { color: "#8aaebc" },
+  statusDone: { color: "#7fd3a8" },
+  statusErr: { color: "#e5a0a0", overflowWrap: "anywhere" },
+  botImg: {
+    width: "100%",
+    borderRadius: 10,
+    border: "1px solid #293b45",
+    marginTop: 10,
+    display: "block",
+  },
+  runBtn: {
+    border: "1px solid #4a626e",
+    background: "linear-gradient(135deg, #263943, #17262f)",
+    color: "#eef4f6",
+    borderRadius: 999,
+    padding: "12px 22px",
+    fontSize: 12,
+    fontWeight: 750,
+    letterSpacing: ".7px",
+    cursor: "pointer",
+  },
+  stopBtn: {
+    border: "1px solid #674a4a",
+    background: "#241719",
+    color: "#e5bebe",
+    borderRadius: 999,
+    padding: "12px 22px",
+    fontSize: 12,
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+  miniBtn: {
+    border: "1px solid #344853",
+    background: "#121c23",
+    color: "#b6c4ca",
+    borderRadius: 999,
+    padding: "6px 12px",
+    fontSize: 11,
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+  errorBox: {
+    padding: 14,
+    borderRadius: 12,
+    border: "1px solid #5c3a3a",
+    background: "rgba(35,16,18,.9)",
+    color: "#e5bebe",
+    fontSize: 13,
+    marginTop: 14,
   },
 };
