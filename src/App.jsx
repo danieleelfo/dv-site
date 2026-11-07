@@ -25,6 +25,7 @@ import Test from './pages/Test.jsx'
 import Test2 from './pages/Test2.jsx'
 import Test7 from './pages/Test7.jsx'
 import ApiContracts from './pages/ApiContracts.jsx'
+import I18nAdmin from './pages/I18nAdmin.jsx'
 import BarAiAdmin from './pages/BarAiAdmin.jsx'
 import Test3 from './pages/Test3.jsx'
 import Test4 from './pages/Test4.jsx'
@@ -136,6 +137,13 @@ export default function App() {
         <Route path="/api-contracts" element={<><Nav /><ApiContracts /></>} />
         <Route path="/:lang/api-contracts" element={<><Nav /><LangWrapper><ApiContracts /></LangWrapper></>} />
 
+        {/* I18n Admin: editor dei testi del sito (locales) */}
+        <Route path="/i18n-admin" element={<><Nav /><I18nAdmin /></>} />
+        <Route path="/:lang/i18n-admin" element={<><Nav /><LangWrapper><I18nAdmin /></LangWrapper></>} />
+
+        {/* News Admin: alias pubblico di Test7 (stesso componente) */}
+        <Route path="/news-admin" element={<><Nav /><Test7 /></>} />
+        <Route path="/:lang/news-admin" element={<><Nav /><LangWrapper><Test7 /></LangWrapper></>} />
         <Route path="/bar-ai-admin" element={<><Nav /><BarAiAdmin /></>} />
         <Route path="/:lang/bar-ai-admin" element={<><Nav /><LangWrapper><BarAiAdmin /></LangWrapper></>} />
 

@@ -18,6 +18,7 @@ from comic_page import build_comic_page_router
 from gradv_archive import build_gradv_archive_router
 from personaggi import build_personaggi_router
 from news_draft import build_news_draft_router
+from i18n_admin import build_i18n_router
 
 import httpx
 from fastapi import FastAPI, Header, HTTPException, Request, UploadFile, File, Form
@@ -272,6 +273,11 @@ app.include_router(
 # NEWS DRAFT — bozza articolo AI News (Test7): translate + publish
 app.include_router(
     build_news_draft_router(verify_admin_token)
+)
+
+# I18N ADMIN — editor locale del sito (I18nAdmin.jsx)
+app.include_router(
+    build_i18n_router(verify_admin_token)
 )
 
 # --------------------------------------------------------------------------

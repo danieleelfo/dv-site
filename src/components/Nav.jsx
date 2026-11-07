@@ -135,6 +135,8 @@ export default function Nav() {
                   <Link to={"/" + l + "/test6"} style={styles.menuLink} onClick={() => setLabOpen(false)}>Test6</Link>
                   <Link to={"/" + l + "/test7"} style={styles.menuLink} onClick={() => setLabOpen(false)}>Test7</Link>
                   <Link to={"/" + l + "/testbarai"} style={styles.menuLink} onClick={() => setLabOpen(false)}>TestBarAI</Link>
+                  <Link to={"/" + l + "/news-admin"} style={styles.menuLink} onClick={() => setLabOpen(false)}>News Admin</Link>
+                  <Link to={"/" + l + "/i18n-admin"} style={styles.menuLink} onClick={() => setLabOpen(false)}>I18n Admin</Link>
                 </div>
               )}
             </div>

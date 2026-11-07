@@ -18,7 +18,6 @@ const API = "https://api.danielevillanova.com";
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const TOKEN_STORAGE_KEY = "dv_google_id_token";
 
-const BOX_LANGS = ["en", "it", "es"];
 const ALL_LANGS = ["en", "it", "es", "fr", "ca", "nl"];
 const LANG_LABELS = {
   en: "English", it: "Italiano", es: "Español",
@@ -520,7 +519,7 @@ export default function Test7() {
 
       {/* TRE BOX EN / IT / ES */}
       <div className="nd-cols">
-        {BOX_LANGS.map((lang) => {
+        {ALL_LANGS.map((lang) => {
           const c = draft.content[lang] || { title: "", dek: "", body: "" };
           const isMaster = masterLang === lang;
           return (
