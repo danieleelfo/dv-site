@@ -1,10 +1,13 @@
 // ============================================================
-// Test7 — AI News Draft: bozza articolo EN/IT/ES + pubblicazione
+// Test7 — News Admin: bozza/revisione articoli AI News
 // ============================================================
-// Tre riquadri (en/it/es): Salva rende quella lingua la "master",
-// Traduci la rigenera dal master con Ollama (via gateway).
-// "Pubblica su AI News" inserisce l'articolo in aiEthics.js e
-// fa commit+push su main (con git pull, node --check e rollback).
+// Selettore "news#": nuovo articolo o uno esistente → popola i
+// tre box EN/IT/ES (title, dek, body). Salva rende quella lingua
+// la "master", Traduci la rigenera dal master con Ollama.
+// Selettore lingua (6) per l'ANTEPRIMA sotto: replica il rendering
+// della pagina AI News (fallback EN come il sito).
+// Immagine opzionale (upload → public/news/). Pubblica fa
+// insert (nuovo) o update (esistente) con commit+push su main.
 //
 // AUTH: login Google, stesso client/token del gateway (come Improve.jsx).
 // ============================================================
@@ -15,9 +18,15 @@ const API = "https://api.danielevillanova.com";
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const TOKEN_STORAGE_KEY = "dv_google_id_token";
 
-const LANGS = ["en", "it", "es"];
-const LANG_LABELS = { en: "English", it: "Italiano", es: "Español" };
-const LANG_FLAGS = { en: "🇬🇧", it: "🇮🇹", es: "🇪🇸" };
+const BOX_LANGS = ["en", "it", "es"];
+const ALL_LANGS = ["en", "it", "es", "fr", "ca", "nl"];
+const LANG_LABELS = {
+  en: "English", it: "Italiano", es: "Español",
+  fr: "Français", ca: "Català", nl: "Nederlands",
+};
+const LANG_FLAGS = {
+  en: "🇬🇧", it: "🇮🇹", es: "🇪🇸", fr: "🇫🇷", ca: "🏴", nl: "🇳🇱",
+};
 
 // ============================================================
 // GOOGLE AUTH (stesso pattern di Improve.jsx)
@@ -124,38 +133,75 @@ function useGoogleAuth() {
 }
 
 // ============================================================
-// PAGINA
+// HELPERS
 // ============================================================
 
+// Testo del box → blocchi (stesse regole del gateway: "## " = h3, "- " = list)
+function textToBlocks(text) {
+  const blocks = [];
+  for (const para of (text || "").split(/\n\n+/)) {
+    const p = para.trim();
+    if (!p) continue;
+    if (p.startsWith("## ")) {
+      blocks.push({ type: "h3", text: p.slice(3).trim() });
+      continue;
+    }
+    const lines = p.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (lines.length && lines.every((l) => l.startsWith("- "))) {
+      blocks.push({ type: "list", items: lines.map((l) => l.slice(2).trim()) });
+      continue;
+    }
+    blocks.push({ type: "p", text: lines.join(" ") });
+  }
+  return blocks;
+}
+
+function parseSourcesText(text) {
+  return (text || "")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const i = line.indexOf("|");
+      return i === -1
+        ? { label: line, url: "" }
+        : { label: line.slice(0, i).trim(), url: line.slice(i + 1).trim() };
+    });
+}
+
 const EMPTY_DRAFT = {
+  number: null,
   slug: "",
   date: new Date().toISOString().slice(0, 10),
   readTime: 2,
   sources: "",
+  image: null,
   content: {},
   master: null,
 };
 
+// ============================================================
+// PAGINA
+// ============================================================
+
 export default function Test7() {
   const { idToken, email, buttonRef, logout } = useGoogleAuth();
 
+  const [articles, setArticles] = useState([]);
   const [draft, setDraft] = useState(EMPTY_DRAFT);
-  const [loaded, setLoaded] = useState(false);
-  const [busy, setBusy] = useState(""); // lang | "publish" | "load"
+  const [previewLang, setPreviewLang] = useState("en");
+  const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [okMsg, setOkMsg] = useState("");
   const [publishResult, setPublishResult] = useState(null);
 
-  async function api(path, body) {
+  async function api(path, body, method) {
     setError("");
     setOkMsg("");
     const res = await fetch(API + path, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: "Bearer " + idToken,
-      },
-      body: JSON.stringify(body),
+      method: method || (body ? "POST" : "GET"),
+      headers: { Authorization: "Bearer " + idToken },
+      ...(body ? { headers: { "Content-Type": "application/json", Authorization: "Bearer " + idToken }, body: JSON.stringify(body) } : {}),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -170,31 +216,20 @@ export default function Test7() {
     return data;
   }
 
-  // Carica la bozza quando c'è il token.
+  // Carica lista articoli + bozza quando c'è il token.
   useEffect(() => {
     if (!idToken) return;
     let cancelled = false;
-    setBusy("load");
-    fetch(API + "/api/admin/news-draft", {
-      headers: { Authorization: "Bearer " + idToken },
-    })
-      .then((r) => (r.ok ? r.json() : Promise.reject(r)))
-      .then((d) => {
+    Promise.all([
+      api("/api/admin/news-draft/articles"),
+      api("/api/admin/news-draft"),
+    ])
+      .then(([list, d]) => {
         if (cancelled) return;
-        setDraft({
-          ...EMPTY_DRAFT,
-          ...d,
-          content: d.content || {},
-          date: d.date || EMPTY_DRAFT.date,
-        });
-        setLoaded(true);
+        setArticles(list.articles || []);
+        setDraft((prev) => ({ ...prev, ...d, content: d.content || {} }));
       })
-      .catch(() => {
-        if (!cancelled) setLoaded(true);
-      })
-      .finally(() => {
-        if (!cancelled) setBusy("");
-      });
+      .catch((e) => !cancelled && setError(e.message || String(e)));
     return () => {
       cancelled = true;
     };
@@ -214,7 +249,35 @@ export default function Test7() {
     setDraft((d) => ({ ...d, ...patch }));
   }
 
-  // Salva una lingua → diventa master.
+  // Selettore news#: 0 = nuovo, altrimenti carica l'articolo esistente.
+  async function pickArticle(ev) {
+    const number = parseInt(ev.target.value, 10);
+    setPublishResult(null);
+    if (!number) {
+      setDraft({ ...EMPTY_DRAFT, date: EMPTY_DRAFT.date });
+      return;
+    }
+    setBusy("load");
+    try {
+      const a = await api(`/api/admin/news-draft/article/${number}`);
+      setDraft({
+        ...EMPTY_DRAFT,
+        number: a.number,
+        slug: a.slug,
+        date: a.date,
+        readTime: a.readTime,
+        sources: a.sources || "",
+        image: a.image || null,
+        content: a.content || {},
+        master: "en",
+      });
+    } catch (e) {
+      setError(e.message || String(e));
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function saveLang(lang) {
     setBusy(lang);
     try {
@@ -222,10 +285,12 @@ export default function Test7() {
       const d = await api("/api/admin/news-draft/save", {
         lang,
         content: { title: c.title || "", dek: c.dek || "", body: c.body || "" },
+        number: draft.number,
         slug: draft.slug,
         date: draft.date,
         readTime: draft.readTime,
         sources: draft.sources,
+        image: draft.image,
       });
       setDraft((prev) => ({ ...prev, ...d, content: d.content || {} }));
       setOkMsg(LANG_LABELS[lang] + " salvato: ora è la lingua master ★");
@@ -236,13 +301,12 @@ export default function Test7() {
     }
   }
 
-  // Rigenera una lingua dal master (Ollama).
   async function translateLang(lang) {
     setBusy(lang);
     try {
       const d = await api("/api/admin/news-draft/translate", { target_lang: lang });
       setDraft((prev) => ({ ...prev, ...d, content: d.content || {} }));
-      setOkMsg(LANG_LABELS[lang] + " tradotto dal master (" + (d.master || "en") + ")");
+      setOkMsg(LANG_LABELS[lang] + " tradotto dal master (" + LANG_LABELS[d.master || "en"] + ")");
     } catch (e) {
       setError(e.message || String(e));
     } finally {
@@ -250,25 +314,50 @@ export default function Test7() {
     }
   }
 
-  // Pubblica: articolo in aiEthics.js + commit + push.
+  async function uploadImage(ev) {
+    const file = ev.target.files?.[0];
+    if (!file) return;
+    setBusy("image");
+    try {
+      const fd = new FormData();
+      fd.append("image", file);
+      const res = await fetch(API + "/api/admin/news-draft/image", {
+        method: "POST",
+        headers: { Authorization: "Bearer " + idToken },
+        body: fd,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "HTTP " + res.status);
+      setDraft((d) => ({ ...d, image: { src: data.src, caption: d.image?.caption || "" } }));
+      setOkMsg("Immagine caricata: " + data.src + " (committata alla pubblicazione)");
+    } catch (e) {
+      setError(e.message || String(e));
+    } finally {
+      setBusy("");
+      ev.target.value = "";
+    }
+  }
+
   async function publish() {
-    if (
-      !window.confirm(
-        "Pubblicare l'articolo su AI News?\n\nCommit + push su main di dv-site."
-      )
-    )
-      return;
+    const what = draft.number
+      ? "Aggiornare l'articolo #" + draft.number + " su AI News?"
+      : "Pubblicare il nuovo articolo su AI News?";
+    if (!window.confirm(what + "\n\nCommit + push su main di dv-site.")) return;
     setBusy("publish");
     setPublishResult(null);
     try {
       const d = await api("/api/admin/news-draft/publish", {
+        number: draft.number,
         slug: draft.slug,
         date: draft.date,
         readTime: draft.readTime,
         sources: draft.sources,
+        image: draft.image,
       });
       setPublishResult(d);
       setDraft({ ...EMPTY_DRAFT, date: EMPTY_DRAFT.date });
+      // refresh lista (nuovo numero disponibile)
+      api("/api/admin/news-draft/articles").then((l) => setArticles(l.articles || [])).catch(() => {});
     } catch (e) {
       setError(e.message || String(e));
     } finally {
@@ -279,21 +368,37 @@ export default function Test7() {
   if (!idToken) {
     return (
       <div className="nd-page">
-        <h1>AI News Draft</h1>
-        <p className="nd-empty">Accedi con Google per preparare la bozza.</p>
+        <h1>News Admin</h1>
+        <p className="nd-empty">Accedi con Google per gestire gli articoli AI News.</p>
         <div ref={buttonRef} />
       </div>
     );
   }
 
+  // --- Contenuto per l'anteprima nella lingua selezionata ---
+  const masterLang = draft.master || "en";
+  const previewContent = (() => {
+    const c = draft.content;
+    if (previewLang === "en" || previewLang === "it" || previewLang === "es") {
+      return c[previewLang] || (previewLang !== "en" && c.en) || { title: "", dek: "", body: "" };
+    }
+    // fr/ca/nl: se c'è la traduzione la mostra, altrimenti fallback EN (come il sito)
+    return c[previewLang] || c.en || { title: "", dek: "", body: "" };
+  })();
+  const previewFallback =
+    !draft.content[previewLang] && previewLang !== "en" && !!draft.content.en;
+
+  const enBody = (draft.content.en || {}).body || "";
+
   return (
     <div className="nd-page">
       <div className="nd-head">
         <div>
-          <h1>AI News Draft</h1>
+          <h1>News Admin</h1>
           <p className="nd-sub">
-            Scrivi in inglese, salva: diventa master ★. Traduci IT/ES dal master,
-            correggi, salva: la lingua corretta diventa il nuovo master.
+            Seleziona un articolo: i box si popolano. Salva rende quella lingua la
+            master ★, Traduci rigenera dal master. L'anteprima sotto segue la
+            lingua scelta (fallback EN come sul sito).
           </p>
         </div>
         <div className="nd-auth">
@@ -302,8 +407,40 @@ export default function Test7() {
         </div>
       </div>
 
-      {/* META */}
+      {/* SELETTORI */}
       <section className="nd-meta">
+        <div className="nd-meta-row">
+          <label>
+            news#
+            <select value={draft.number || 0} onChange={pickArticle} disabled={busy === "load"}>
+              <option value={0}>＋ Nuovo articolo</option>
+              {articles.map((a) => (
+                <option key={a.number} value={a.number}>
+                  #{a.number} — {a.slug} ({a.date})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            anteprima lang
+            <select value={previewLang} onChange={(e) => setPreviewLang(e.target.value)}>
+              {ALL_LANGS.map((l) => (
+                <option key={l} value={l}>
+                  {LANG_FLAGS[l]} {LANG_LABELS[l]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            className="nd-btn"
+            disabled={busy === previewLang || !draft.content[masterLang]?.body || previewLang === masterLang}
+            onClick={() => translateLang(previewLang)}
+            title={"Rigenera " + LANG_LABELS[previewLang] + " dal master (" + LANG_LABELS[masterLang] + ")"}
+          >
+            Traduci anteprima
+          </button>
+        </div>
+
         <div className="nd-meta-row">
           <label>
             slug
@@ -315,23 +452,18 @@ export default function Test7() {
           </label>
           <label>
             date
-            <input
-              value={draft.date}
-              onChange={(e) => setMeta({ date: e.target.value })}
-              placeholder="2026-11-06"
-            />
+            <input value={draft.date} onChange={(e) => setMeta({ date: e.target.value })} />
           </label>
           <label>
             readTime (min)
             <input
-              type="number"
-              min="1"
-              max="30"
+              type="number" min="1" max="30"
               value={draft.readTime}
               onChange={(e) => setMeta({ readTime: parseInt(e.target.value, 10) || 2 })}
             />
           </label>
         </div>
+
         <label>
           sources — una per riga, formato: Etichetta | URL
           <textarea
@@ -341,18 +473,35 @@ export default function Test7() {
             placeholder={"SecurityWeek - ... | https://..."}
           />
         </label>
+
+        {/* IMMAGINE (opzionale) */}
+        <div className="nd-imgrow">
+          <label className="nd-imglabel">
+            immagine news (opzionale)
+            <input type="file" accept="image/jpeg,image/png,image/webp" onChange={uploadImage} disabled={busy === "image"} />
+          </label>
+          {draft.image && (
+            <>
+              <img className="nd-thumb" src={draft.image.src} alt="" />
+              <input
+                className="nd-caption"
+                placeholder="Caption"
+                value={draft.image.caption || ""}
+                onChange={(e) => setDraft((d) => ({ ...d, image: { ...d.image, caption: e.target.value } }))}
+              />
+              <button className="nd-btn" onClick={() => setMeta({ image: null })}>Rimuovi</button>
+            </>
+          )}
+        </div>
       </section>
 
-      {/* TRE RIQUADRI */}
+      {/* TRE BOX EN / IT / ES */}
       <div className="nd-cols">
-        {LANGS.map((lang) => {
+        {BOX_LANGS.map((lang) => {
           const c = draft.content[lang] || { title: "", dek: "", body: "" };
-          const isMaster = draft.master === lang;
+          const isMaster = masterLang === lang;
           return (
-            <section
-              key={lang}
-              className={"nd-col" + (isMaster ? " nd-master" : "")}
-            >
+            <section key={lang} className={"nd-col" + (isMaster ? " nd-master" : "")}>
               <div className="nd-col-head">
                 <h2>
                   {LANG_FLAGS[lang]} {LANG_LABELS[lang]}{" "}
@@ -373,8 +522,8 @@ export default function Test7() {
                 className="nd-body"
                 placeholder={
                   lang === "en"
-                    ? "Body inglese. Paragrafi separati da riga vuota; '## Titolo' per un heading."
-                    : "Body (rigenerato dal master con Traduci, poi correggibile)"
+                    ? "Body inglese. Paragrafi separati da riga vuota; '## Titolo' = heading; '- voce' = lista."
+                    : "Rigenerato dal master con Traduci, poi correggibile"
                 }
                 value={c.body}
                 onChange={(e) => setContent(lang, { body: e.target.value })}
@@ -389,13 +538,9 @@ export default function Test7() {
                 </button>
                 <button
                   className="nd-btn"
-                  disabled={busy === lang || !draft.master || draft.master === lang}
+                  disabled={busy === lang || !draft.content[masterLang]?.body || lang === masterLang}
                   onClick={() => translateLang(lang)}
-                  title={
-                    draft.master === lang
-                      ? "Questa lingua è già il master"
-                      : "Rigenera dal master (" + LANG_LABELS[draft.master || "en"] + ")"
-                  }
+                  title={lang === masterLang ? "Questa lingua è già il master" : "Rigenera dal master (" + LANG_LABELS[masterLang] + ")"}
                 >
                   Traduci
                 </button>
@@ -405,30 +550,81 @@ export default function Test7() {
         })}
       </div>
 
+      {/* ANTEPRIMA (rendering stile AI News) */}
+      <section className="nd-previewbox">
+        <div className="nd-previewhead">
+          <h2>Anteprima · {LANG_FLAGS[previewLang]} {LANG_LABELS[previewLang]}</h2>
+          {previewFallback && (
+            <span className="nd-fallback">fallback EN (non ancora tradotto)</span>
+          )}
+        </div>
+        <div className="nd-preview">
+          <div className="nd-pv-kicker">
+            NEWS {draft.number ? "#" + draft.number : "#nuovo"}
+          </div>
+          <h1 className="nd-pv-title">{previewContent.title || "(titolo)"}</h1>
+          <div className="nd-pv-meta">
+            {draft.date} · {draft.readTime} min read · AI Ethics
+          </div>
+          <p className="nd-pv-dek">{previewContent.dek || "(dek)"}</p>
+          {draft.image && (
+            <figure className="nd-pv-img">
+              <img src={draft.image.src} alt="" />
+              {draft.image.caption && <figcaption>{draft.image.caption}</figcaption>}
+            </figure>
+          )}
+          <div className="nd-pv-body">
+            {textToBlocks(previewContent.body).map((b, i) =>
+              b.type === "h3" ? (
+                <h3 key={i}>{b.text}</h3>
+              ) : b.type === "list" ? (
+                <ul key={i}>{b.items.map((it, j) => <li key={j}>{it}</li>)}</ul>
+              ) : (
+                <p key={i}>{b.text}</p>
+              )
+            )}
+          </div>
+          {(draft.sources || "").trim() && (
+            <>
+              <h3 className="nd-pv-srctitle">Sources</h3>
+              <ul className="nd-pv-sources">
+                {parseSourcesText(draft.sources).map((s, i) => (
+                  <li key={i}>{s.url ? <a href={s.url} target="_blank" rel="noopener noreferrer">{s.label}</a> : s.label}</li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      </section>
+
       {/* PUBBLICA */}
       <div className="nd-publish">
         <button
           className="nd-btn nd-danger"
-          disabled={busy === "publish" || !draft.slug || !(draft.content.en || {}).body}
+          disabled={busy === "publish" || !draft.slug || !enBody.trim()}
           onClick={publish}
-          title={!draft.slug ? "Serve uno slug" : ""}
+          title={!draft.slug ? "Serve uno slug" : "Commit + push su main"}
         >
-          {busy === "publish" ? "Pubblicazione…" : "Pubblica su AI News"}
+          {busy === "publish"
+            ? "Pubblicazione…"
+            : draft.number
+            ? "Aggiorna articolo #" + draft.number
+            : "Pubblica su AI News"}
         </button>
         <span className="nd-hint">
-          Inserisce l'articolo in aiEthics.js e fa commit + push su main
-          (git pull, node --check, rollback se la sintassi fallisce).
+          {draft.number
+            ? "Update in place dell'articolo esistente (le altre lingue restano)."
+            : "Insert in testa ad ARTICLES, commit + push su main (git pull, node --check, rollback)."}
         </span>
       </div>
 
       {error && <div className="nd-error">! {error}</div>}
       {okMsg && <div className="nd-ok">{okMsg}</div>}
-      {!loaded && busy === "load" && <p className="nd-empty">Carico la bozza…</p>}
 
       {publishResult && (
         <div className="nd-ok">
-          Pubblicato: articolo #{publishResult.number} “{publishResult.slug}” —
-          commit <code>{publishResult.sha}</code>
+          {publishResult.mode === "update" ? "Aggiornato" : "Pubblicato"}: articolo
+          #{publishResult.number} “{publishResult.slug}” — commit <code>{publishResult.sha}</code>
         </div>
       )}
 
@@ -436,36 +632,58 @@ export default function Test7() {
         .nd-page { max-width: 1400px; margin: 0 auto; padding: 24px; color: #e5e7eb; min-height: 100vh; background: #0b0e14; }
         .nd-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
         .nd-head h1 { margin: 0 0 6px; }
-        .nd-sub { margin: 0; color: #9ca3af; font-size: 13px; max-width: 560px; line-height: 1.5; }
+        .nd-sub { margin: 0; color: #9ca3af; font-size: 13px; max-width: 620px; line-height: 1.5; }
         .nd-auth { display: flex; gap: 10px; align-items: center; font-size: 13px; color: #9ca3af; }
-        .nd-meta { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
-        .nd-meta-row { display: flex; gap: 12px; flex-wrap: wrap; }
+        .nd-meta { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 16px; margin-bottom: 16px; display: flex; flex-direction: column; gap: 12px; }
+        .nd-meta-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
         .nd-meta label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #9ca3af; }
-        .nd-meta label:first-child input { min-width: 260px; }
-        .nd-meta label:nth-child(2) input { min-width: 130px; }
-        .nd-meta label:nth-child(3) input { min-width: 80px; }
-        .nd-meta > label { flex: 1; margin-top: 12px; }
-        .nd-meta input, .nd-meta textarea, .nd-col input, .nd-col textarea {
+        .nd-meta select { min-width: 240px; }
+        .nd-meta input, .nd-meta textarea, .nd-meta select, .nd-col input, .nd-col textarea {
           background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.12);
           border-radius: 8px; color: #e5e7eb; padding: 8px 10px; font-size: 13px;
           width: 100%; box-sizing: border-box;
         }
+        .nd-meta > label { flex: 1; }
+        .nd-imgrow { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+        .nd-imglabel { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #9ca3af; display: flex; flex-direction: column; gap: 4px; }
+        .nd-thumb { height: 48px; border-radius: 6px; border: 1px solid rgba(255,255,255,.15); }
+        .nd-caption { flex: 1; min-width: 180px; background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.12); border-radius: 8px; color: #e5e7eb; padding: 8px 10px; font-size: 13px; }
         .nd-cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
         @media (max-width: 1000px) { .nd-cols { grid-template-columns: 1fr; } }
         .nd-col { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
         .nd-col.nd-master { border-color: rgba(16,185,129,.5); }
-        .nd-col-head { display: flex; justify-content: space-between; align-items: center; }
         .nd-col-head h2 { margin: 0; font-size: 15px; }
         .nd-star { color: #34d399; font-size: 11px; margin-left: 6px; }
-        .nd-body { min-height: 300px; resize: vertical; line-height: 1.5; }
+        .nd-body { min-height: 260px; resize: vertical; line-height: 1.5; }
         .nd-actions { display: flex; gap: 8px; }
         .nd-btn { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); color: #e5e7eb; border-radius: 8px; padding: 7px 14px; font-size: 13px; cursor: pointer; }
         .nd-btn:hover { background: rgba(255,255,255,.14); }
         .nd-btn:disabled { opacity: .5; cursor: not-allowed; }
         .nd-primary { background: #10b981; border-color: #10b981; color: #06281d; font-weight: 700; }
         .nd-danger { background: #6366f1; border-color: #6366f1; color: #fff; font-weight: 700; padding: 12px 22px; }
+        .nd-previewbox { margin-top: 20px; border: 1px solid rgba(255,255,255,.08); border-radius: 12px; overflow: hidden; }
+        .nd-previewhead { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: rgba(255,255,255,.03); }
+        .nd-previewhead h2 { margin: 0; font-size: 14px; }
+        .nd-fallback { color: #f59e0b; font-size: 12px; }
+        .nd-preview { max-width: 700px; margin: 0 auto; padding: 32px 20px 40px; background: #0b1015; color: #e8edf2; }
+        .nd-pv-kicker { font-family: monospace; font-size: 12px; letter-spacing: .18em; color: #5eead4; text-transform: uppercase; }
+        .nd-pv-title { font-size: clamp(26px, 4vw, 36px); line-height: 1.15; font-weight: 800; margin: 12px 0; color: #fff; }
+        .nd-pv-meta { font-size: 13px; color: #75879a; margin-bottom: 18px; }
+        .nd-pv-dek { font-size: 17px; line-height: 1.6; color: #b8c6d4; font-weight: 500; margin: 0 0 26px; }
+        .nd-pv-img { margin: 0 0 26px; }
+        .nd-pv-img img { width: 100%; border-radius: 12px; border: 1px solid #1e2a36; }
+        .nd-pv-img figcaption { font-size: 12.5px; color: #75879a; margin-top: 8px; }
+        .nd-pv-body p { font-size: 16px; line-height: 1.75; color: #c8d3de; margin: 0 0 20px; }
+        .nd-pv-body h3 { font-size: 21px; color: #fff; font-weight: 700; margin: 30px 0 14px; }
+        .nd-pv-body ul { margin: 0 0 22px; padding-left: 22px; }
+        .nd-pv-body li { font-size: 15.5px; line-height: 1.7; color: #c8d3de; margin-bottom: 10px; }
+        .nd-pv-srctitle { font-size: 18px; color: #fff; font-weight: 700; margin: 34px 0 14px; border-top: 1px solid #1e2a36; padding-top: 24px; }
+        .nd-pv-sources { margin: 0; padding-left: 22px; }
+        .nd-pv-sources li { font-size: 13.5px; line-height: 1.6; color: #8ea0b3; margin-bottom: 8px; }
+        .nd-pv-sources a { color: #5eead4; text-decoration: none; }
+        .nd-pv-sources a:hover { text-decoration: underline; }
         .nd-publish { display: flex; align-items: center; gap: 12px; margin-top: 18px; flex-wrap: wrap; }
-        .nd-hint { color: #6b7280; font-size: 12px; max-width: 520px; }
+        .nd-hint { color: #6b7280; font-size: 12px; max-width: 560px; }
         .nd-error { margin-top: 12px; color: #f87171; font-size: 13px; }
         .nd-ok { margin-top: 12px; color: #34d399; font-size: 13px; }
         .nd-empty { color: #6b7280; font-size: 13px; }

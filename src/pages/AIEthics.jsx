@@ -90,6 +90,11 @@ export function AIEthicsIndex() {
                     {fmtDate(a.date, lang)} · {t('ethics.minRead', { count: a.readTime })}
                   </span>
                 </div>
+                {a.image && (
+                  <Link className="ae-thumb" to={`/ai-ethics/${a.slug}`} aria-label={c.title}>
+                    <img src={a.image.src} alt="" loading="lazy" />
+                  </Link>
+                )}
                 {a.video && (
                   <Link className="ae-thumb" to={`/ai-ethics/${a.slug}`} aria-label={c.title}>
                     <img
@@ -200,6 +205,13 @@ export function AIEthicsArticle() {
         </div>
         <p className="ae-dek">{c.dek}</p>
 
+        {article.image && (
+          <figure className="ae-image">
+            <img src={article.image.src} alt={article.image.caption || ""} loading="lazy" />
+            {article.image.caption && <figcaption>{article.image.caption}</figcaption>}
+          </figure>
+        )}
+
         {article.video && renderBlock({ type: 'video', ...article.video }, 'top-video')}
 
         <div className="ae-body">
@@ -232,6 +244,9 @@ const AE_STYLE = `
 .ae-body h3{font-size:21px;color:#fff;font-weight:700;margin:38px 0 14px}
 .ae-body ul{margin:0 0 22px;padding-left:22px}
 .ae-body li{font-size:15.5px;line-height:1.7;color:#c8d3de;margin-bottom:10px}
+.ae-image{margin:0 0 30px}
+.ae-image img{width:100%;border-radius:12px;border:1px solid #1e2a36;display:block}
+.ae-image figcaption{font-size:12.5px;color:#75879a;margin-top:8px}
 .ae-video{margin:0 0 24px}
 .ae-video-frame{position:relative;aspect-ratio:16/9;border-radius:12px;overflow:hidden;border:1px solid #1e2a36;background:#000}
 .ae-video-frame iframe{position:absolute;inset:0;width:100%;height:100%;border:0}

@@ -1,52 +1,63 @@
 """
-NEWS DRAFT — bozza articolo AI News con traduzione e pubblicazione.
+NEWS DRAFT — News Admin: bozza/revisione articoli AI News.
 
-Editor di Test7: tre riquadri (en/it/es), la lingua salvata per ultima
-è la "master"; Traduci rigenera una lingua dal master con Ollama.
+Test7: selettore "news#" (nuovo articolo o esistente), tre box EN/IT/ES,
+anteprima con selettore lingua (6 lingue, fallback EN come il sito),
+traduzione dal master con Ollama, immagine opzionale, pubblicazione con
+commit+push (insert nuovo articolo o update di quello esistente).
 
-Persistenza: news_draft.json accanto a gateway.py (nessuna tabella).
-Pubblicazione: git pull --ff-only, inserimento in testa ad ARTICLES in
-src/content/aiEthics.js via Node (stile news_agent), node --check,
-commit e push su main. Rollback del file se la sintassi non valida.
+Persistenza: news_draft.json accanto a gateway.py.
+Immagini: public/news/ del repo locale (committate al publish).
 
 Rotte (tutte Google auth admin via verify_admin_token):
-    GET  /api/admin/news-draft               legge la bozza (o default vuota)
-    POST /api/admin/news-draft/save          salva una lingua (diventa master)
-    POST /api/admin/news-draft/translate     traduce dal master alla lingua target
-    POST /api/admin/news-draft/publish       articolo in aiEthics.js + commit + push
+    GET  /api/admin/news-draft                    bozza corrente (o default)
+    GET  /api/admin/news-draft/articles           lista articoli per il selettore
+    GET  /api/admin/news-draft/article/{number}   articolo esistente → box/meta
+    POST /api/admin/news-draft/save               salva una lingua (diventa master)
+    POST /api/admin/news-draft/translate          traduce dal master (6 lingue)
+    POST /api/admin/news-draft/image              upload immagine (multipart)
+    POST /api/admin/news-draft/publish            insert nuovo o update esistente
 """
 
 import json
 import os
+import re
 import subprocess
+import time
 import urllib.request
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
 DV_SITE_DIR = Path(__file__).resolve().parent
 DRAFT_FILE = DV_SITE_DIR / "news_draft.json"
 DATA_FILE = DV_SITE_DIR / "src" / "content" / "aiEthics.js"
+NEWS_IMG_DIR = DV_SITE_DIR / "public" / "news"
 
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
 LLM_MODEL = os.environ.get("NEWS_DRAFT_MODEL", "mistral:latest")
 
-LANGS = {"en": "inglese", "it": "italiano", "es": "spagnolo"}
-LANG_QUOTES = {"en": '" "', "it": "« »", "es": "« »"}
+BOX_LANGS = ("en", "it", "es")
+ALL_LANGS = {"en": "inglese", "it": "italiano", "es": "spagnolo",
+             "fr": "francese", "ca": "catalano", "nl": "olandese"}
+LANG_QUOTES = {"en": '" "', "it": "« »", "es": "« »", "fr": "« »",
+               "ca": "« »", "nl": '" "'}
 
-COMMIT_PREFIX = "AI News: articolo"
+COMMIT_PREFIX = "AI News:"
 
 
 # ------------------------------------------------------------ BOZZA (JSON) ---
 
 def _empty_draft():
     return {
+        "number": None,      # None = nuovo articolo; int = revisione esistente
         "slug": "",
         "date": "",
         "readTime": 2,
         "sources": "",
-        "content": {},
+        "image": None,       # {src, caption} opzionale
+        "content": {},       # lang -> {title, dek, body(testo)}
         "master": None,
     }
 
@@ -70,12 +81,11 @@ def _write_draft(draft):
 # ------------------------------------------------------------------- LLM ---
 
 def _llm_translate(lang, text, context):
-    """Traduzione editoriale (stesso stile di news_agent.py)."""
     style = (
         f"Sei un traduttore editoriale per il sito AI News di Danny Villanova. "
-        f"Traduci in {LANGS[lang]} il testo inglese che ti viene dato. "
+        f"Traduci in {ALL_LANGS[lang]} il testo inglese che ti viene dato. "
         f"Regole: registro giornalistico, frasi fluide, NON letterale; "
-        f"usa apostrofi tipografici (’), mai apostrofi dritti; "
+        f"usa apostrofi tipografici (\u2019), mai apostrofi dritti; "
         f"per le citazioni usa {LANG_QUOTES[lang]}; non tradurre nomi propri, "
         f"sigle (AI, GPT, EFS) né URL. "
         f"Rispondi SOLO con la traduzione, nessun commento."
@@ -113,15 +123,13 @@ def _sanity(translated, original):
 
 
 def _translate_content(src, target_lang):
-    """Traduce {title, dek, body} dal master alla lingua target."""
-    context = src["title"]
+    context = src.get("title", "")
     out = {}
     for field in ("title", "dek"):
         t = _llm_translate(target_lang, src[field], context)
         if not _sanity(t, src[field]):
             raise HTTPException(502, f"Traduzione insicura per {field} ({target_lang}).")
         out[field] = t
-    # body: paragrafi separati da riga vuota, righe "## " = heading
     paragraphs = [p.strip() for p in src["body"].split("\n\n") if p.strip()]
     translated_paras = []
     for para in paragraphs:
@@ -133,26 +141,40 @@ def _translate_content(src, target_lang):
     return out
 
 
-# ---------------------------------------------------------------- BLOCCHI ---
+# -------------------------------------------------- TESTO <-> BLOCCHI/SRC ---
 
 def _blocks_from_text(text):
-    """Testo → blocchi di aiEthics.js. Paragrafi su riga vuota, '## ' = h3."""
     blocks = []
-    for para in text.split("\n\n"):
+    for para in (text or "").split("\n\n"):
         para = para.strip()
         if not para:
             continue
         if para.startswith("## "):
             blocks.append({"type": "h3", "text": para[3:].strip()})
-        else:
-            blocks.append({"type": "p", "text": para.replace("\n", " ")})
+            continue
+        lines = [l.strip() for l in para.split("\n") if l.strip()]
+        if lines and all(l.startswith("- ") for l in lines):
+            blocks.append({"type": "list", "items": [l[2:].strip() for l in lines]})
+            continue
+        blocks.append({"type": "p", "text": " ".join(lines)})
     if not blocks:
         raise HTTPException(422, "Il body dell'articolo è vuoto.")
     return blocks
 
 
+def _text_from_blocks(blocks):
+    parts = []
+    for b in blocks or []:
+        if b.get("type") == "h3":
+            parts.append("## " + b.get("text", ""))
+        elif b.get("type") == "list":
+            parts.append("\n".join("- " + str(i) for i in b.get("items", [])))
+        else:
+            parts.append(b.get("text", ""))
+    return "\n\n".join(parts)
+
+
 def _parse_sources(text):
-    """Righe 'Etichetta | URL' → [{label, url}]."""
     sources = []
     for line in (text or "").splitlines():
         line = line.strip()
@@ -166,6 +188,10 @@ def _parse_sources(text):
         if label:
             sources.append({"label": label, "url": url})
     return sources
+
+
+def _sources_to_text(sources):
+    return "\n".join(f"{s.get('label', '')} | {s.get('url', '')}" for s in sources or [])
 
 
 # ------------------------------------------------------------ NODE (FILE) ---
@@ -207,9 +233,14 @@ function dump(v, ind) {
   return JSON.stringify(v);
 }
 
-// articoli esistenti + nuovo articolo in testa
 const articles = JSON.parse(fs.readFileSync(payloadPath + '.base', 'utf8'));
-articles.unshift(JSON.parse(fs.readFileSync(payloadPath + '.new', 'utf8')));
+if (payload.mode === 'update') {
+  const idx = articles.findIndex(a => a.number === payload.article.number);
+  if (idx === -1) { console.error('articolo #' + payload.article.number + ' non trovato'); process.exit(1); }
+  articles[idx] = payload.article;
+} else {
+  articles.unshift(payload.article);
+}
 const body = articles.map(a => dump(a, '  ')).join(',\n');
 fs.writeFileSync(dataPath, prefix + '\n' + body + ',\n' + tail);
 console.log('OK');
@@ -227,11 +258,13 @@ def _run_node(code, args):
 
 
 def _git(args):
-    p = subprocess.run(
-        ["git", "-C", str(DV_SITE_DIR), *args],
-        capture_output=True, text=True,
+    return subprocess.run(
+        ["git", "-C", str(DV_SITE_DIR), *args], capture_output=True, text=True
     )
-    return p
+
+
+def _dump_articles():
+    return json.loads(_run_node(JS_DUMP, []))
 
 
 # ---------------------------------------------------------------- ROUTER ---
@@ -245,10 +278,12 @@ class ContentIn(BaseModel):
 class SaveIn(BaseModel):
     lang: str
     content: ContentIn
+    number: int | None = None
     slug: str | None = None
     date: str | None = None
     readTime: int | None = None
     sources: str | None = None
+    image: dict | None = None
 
 
 class TranslateIn(BaseModel):
@@ -256,10 +291,12 @@ class TranslateIn(BaseModel):
 
 
 class PublishIn(BaseModel):
+    number: int | None = None
     slug: str
     date: str
     readTime: int = 2
     sources: str = ""
+    image: dict | None = None
 
 
 def build_news_draft_router(verify_admin_token):
@@ -270,14 +307,60 @@ def build_news_draft_router(verify_admin_token):
         verify_admin_token(authorization)
         return _read_draft()
 
+    @router.get("/api/admin/news-draft/articles")
+    def list_articles(authorization: str | None = None):
+        verify_admin_token(authorization)
+        articles = _dump_articles()
+        return {
+            "articles": [
+                {
+                    "number": a.get("number"),
+                    "slug": a.get("slug"),
+                    "date": a.get("date"),
+                    "readTime": a.get("readTime"),
+                    "title": (a.get("content", {}).get("en") or {}).get("title", ""),
+                    "langs": [l for l in (a.get("content") or {}) if l],
+                }
+                for a in articles
+            ]
+        }
+
+    @router.get("/api/admin/news-draft/article/{number}")
+    def get_article(number: int, authorization: str | None = None):
+        verify_admin_token(authorization)
+        articles = _dump_articles()
+        for a in articles:
+            if a.get("number") == number:
+                content = {}
+                for lang, c in (a.get("content") or {}).items():
+                    if not c:
+                        continue
+                    content[lang] = {
+                        "title": c.get("title", ""),
+                        "dek": c.get("dek", ""),
+                        "body": _text_from_blocks(c.get("body")),
+                    }
+                return {
+                    "number": number,
+                    "slug": a.get("slug", ""),
+                    "date": a.get("date", ""),
+                    "readTime": a.get("readTime", 2),
+                    "sources": _sources_to_text(a.get("sources")),
+                    "image": a.get("image"),
+                    "content": content,
+                }
+        raise HTTPException(404, f"Articolo #{number} non trovato.")
+
     @router.post("/api/admin/news-draft/save")
     def save_lang(body_in: SaveIn, authorization: str | None = None):
         verify_admin_token(authorization)
-        if body_in.lang not in LANGS:
-            raise HTTPException(422, "Lingua non supportata (en/it/es).")
+        if body_in.lang not in ALL_LANGS:
+            raise HTTPException(422, "Lingua non supportata (en/it/es/fr/ca/nl).")
         draft = _read_draft()
         draft["content"][body_in.lang] = body_in.content.model_dump()
         draft["master"] = body_in.lang
+        if body_in.number is not None:
+            draft["number"] = body_in.number
         if body_in.slug is not None:
             draft["slug"] = body_in.slug.strip()
         if body_in.date is not None:
@@ -286,6 +369,8 @@ def build_news_draft_router(verify_admin_token):
             draft["readTime"] = body_in.readTime
         if body_in.sources is not None:
             draft["sources"] = body_in.sources
+        if body_in.image is not None:
+            draft["image"] = body_in.image
         _write_draft(draft)
         return draft
 
@@ -293,8 +378,8 @@ def build_news_draft_router(verify_admin_token):
     def translate_lang(body_in: TranslateIn, authorization: str | None = None):
         verify_admin_token(authorization)
         target = body_in.target_lang
-        if target not in LANGS:
-            raise HTTPException(422, "Lingua non supportata (en/it/es).")
+        if target not in ALL_LANGS:
+            raise HTTPException(422, "Lingua non supportata (en/it/es/fr/ca/nl).")
         draft = _read_draft()
         master = draft.get("master") or "en"
         src = draft["content"].get(master)
@@ -306,21 +391,40 @@ def build_news_draft_router(verify_admin_token):
         _write_draft(draft)
         return draft
 
+    @router.post("/api/admin/news-draft/image")
+    async def upload_image(
+        image: UploadFile = File(...),
+        authorization: str | None = None,
+    ):
+        verify_admin_token(authorization)
+        ext = (Path(image.filename or "img.jpg").suffix or ".jpg").lower()
+        if ext not in (".jpg", ".jpeg", ".png", ".webp"):
+            raise HTTPException(422, "Formato immagine non supportato (jpg/png/webp).")
+        data = await image.read()
+        if len(data) > 10 * 1024 * 1024:
+            raise HTTPException(413, "Immagine troppo grande (max 10 MB).")
+        NEWS_IMG_DIR.mkdir(parents=True, exist_ok=True)
+        name = f"news-{int(time.time())}{ext}"
+        (NEWS_IMG_DIR / name).write_bytes(data)
+        return {"src": "/news/" + name}
+
     @router.post("/api/admin/news-draft/publish")
     def publish(body_in: PublishIn, authorization: str | None = None):
         verify_admin_token(authorization)
         draft = _read_draft()
-        for k, v in [("slug", body_in.slug), ("date", body_in.date),
-                     ("readTime", body_in.readTime), ("sources", body_in.sources)]:
-            draft[k] = v
+        draft["number"] = body_in.number
+        draft["slug"] = body_in.slug.strip()
+        draft["date"] = body_in.date.strip()
+        draft["readTime"] = body_in.readTime
+        draft["sources"] = body_in.sources
+        if body_in.image is not None:
+            draft["image"] = body_in.image
 
-        slug = draft["slug"].strip()
-        if not slug or not draft["date"].strip():
+        if not draft["slug"] or not draft["date"]:
             raise HTTPException(422, "Slug e date sono obbligatori.")
         if not draft["content"].get("en", {}).get("body"):
             raise HTTPException(422, "Manca il contenuto inglese (obbligatorio).")
 
-        # 1. sync del repo locale (abort se non pulito)
         pull = _git(["pull", "--ff-only", "origin", "main"])
         if pull.returncode != 0:
             raise HTTPException(
@@ -328,42 +432,74 @@ def build_news_draft_router(verify_admin_token):
                      + pull.stderr[-400:]
             )
 
-        # 2. articoli esistenti → number = max + 1
-        articles = json.loads(_run_node(JS_DUMP, []))
-        number = max((a.get("number") or 0) for a in articles) + 1
+        articles = _dump_articles()
+        existing = None
+        if draft["number"]:
+            existing = next(
+                (a for a in articles if a.get("number") == draft["number"]), None
+            )
+            if existing is None:
+                raise HTTPException(404, f"Articolo #{draft['number']} non trovato.")
 
-        # 3. articolo nuovo (in testa)
-        content = {}
-        for lang in ("en", "it", "es"):
-            c = draft["content"].get(lang)
+        # Contenuto: i 3 box (en/it/es) vengono (ri)scritti dal testo;
+        # le altre lingue restano quelle esistenti (se revisione).
+        if existing:
+            content = dict(existing.get("content") or {})
+        else:
+            content = {}
+        for lang, c in draft["content"].items():
             if c and c.get("body"):
                 content[lang] = {
-                    "title": c["title"].strip(),
-                    "dek": c["dek"].strip(),
+                    "title": (c.get("title") or "").strip(),
+                    "dek": (c.get("dek") or "").strip(),
                     "body": _blocks_from_text(c["body"]),
                 }
-        article = {
-            "slug": slug,
-            "category": "NEWS",
-            "number": number,
-            "date": draft["date"].strip(),
-            "readTime": draft["readTime"],
-            "sources": _parse_sources(draft["sources"]),
-            "content": content,
-        }
+        for lang in list(content):
+            if lang not in ALL_LANGS:
+                del content[lang]
 
-        # 4. scrittura aiEthics.js via Node
+        if existing:
+            article = dict(existing)
+            article.update({
+                "date": draft["date"],
+                "readTime": draft["readTime"],
+                "sources": _parse_sources(draft["sources"]) or existing.get("sources", []),
+                "content": content,
+            })
+            if draft["image"]:
+                article["image"] = draft["image"]
+            elif "image" in article:
+                del article["image"]
+            mode = "update"
+            number = draft["number"]
+        else:
+            number = max((a.get("number") or 0) for a in articles) + 1
+            article = {
+                "slug": draft["slug"],
+                "category": "NEWS",
+                "number": number,
+                "date": draft["date"],
+                "readTime": draft["readTime"],
+                "sources": _parse_sources(draft["sources"]),
+                "content": content,
+            }
+            if draft["image"]:
+                article["image"] = draft["image"]
+            mode = "insert"
+
         tmp_base = DV_SITE_DIR / ".news_draft.base"
         tmp_new = DV_SITE_DIR / ".news_draft.new"
         tmp_base.write_text(json.dumps(articles, ensure_ascii=False), encoding="utf-8")
-        tmp_new.write_text(json.dumps(article, ensure_ascii=False), encoding="utf-8")
+        tmp_new.write_text(
+            json.dumps({"mode": mode, "article": article}, ensure_ascii=False),
+            encoding="utf-8",
+        )
         try:
             _run_node(JS_WRITE, [str(DATA_FILE), str(tmp_new)])
         finally:
             tmp_base.unlink(missing_ok=True)
             tmp_new.unlink(missing_ok=True)
 
-        # 5. validazione sintassi OBBLIGATORIA (rollback se KO)
         chk = subprocess.run(
             ["node", "--check", str(DATA_FILE)], capture_output=True, text=True
         )
@@ -372,10 +508,20 @@ def build_news_draft_router(verify_admin_token):
             raise HTTPException(500, "Sintassi JS non valida, commit annullato: "
                                      + chk.stderr[-400:])
 
-        # 6. commit + push
-        _git(["add", str(DATA_FILE)])
+        # file da committare: data + eventuale immagine caricata
+        to_add = [str(DATA_FILE)]
+        if draft["image"] and str(draft["image"].get("src", "")).startswith("/news/"):
+            img_path = DV_SITE_DIR / "public" / draft["image"]["src"].lstrip("/")
+            if img_path.is_file():
+                to_add.append(str(img_path))
+        for p in to_add:
+            _git(["add", p])
+
         langs_ok = "/".join(content.keys()).upper()
-        msg = f"{COMMIT_PREFIX} #{number} {slug} ({langs_ok}, da Test7 draft)"
+        if mode == "update":
+            msg = f"{COMMIT_PREFIX} update #{number} {draft['slug']} ({langs_ok}, da News Admin)"
+        else:
+            msg = f"{COMMIT_PREFIX} articolo #{number} {draft['slug']} ({langs_ok}, da News Admin)"
         commit = _git(["commit", "-m", msg])
         if commit.returncode != 0:
             raise HTTPException(500, "git commit fallito: " + commit.stderr[-400:])
@@ -386,8 +532,8 @@ def build_news_draft_router(verify_admin_token):
             )
         sha = _git(["rev-parse", "--short", "HEAD"]).stdout.strip()
 
-        # 7. bozza pubblicata → reset
         _write_draft(_empty_draft())
-        return {"published": True, "slug": slug, "number": number, "commit": msg, "sha": sha}
+        return {"published": True, "mode": mode, "slug": draft["slug"],
+                "number": number, "commit": msg, "sha": sha}
 
     return router
