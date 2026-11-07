@@ -85,7 +85,7 @@ export function AIEthicsIndex() {
             return (
               <article key={a.slug} className={`ae-card${featured ? ' ae-featured' : ''}`}>
                 <div className="ae-card-top">
-                  <span className="ae-chip">{a.category} #{a.number}</span>
+                  <span className="ae-chip">{a.category} #{String(a.number).padStart(3, '0')}</span>
                   <span className="ae-date">
                     {fmtDate(a.date, lang)} · {t('ethics.minRead', { count: a.readTime })}
                   </span>
@@ -198,7 +198,7 @@ export function AIEthicsArticle() {
       <style>{AE_STYLE}</style>
       <article className="ae-wrap">
         <Link className="ae-backlink" to="/ai-ethics">← {t('ethics.back')}</Link>
-        <div className="ae-kicker">{article.category} #{article.number}</div>
+        <div className="ae-kicker">{article.category} #{String(article.number).padStart(3, '0')}</div>
         <h1 className="ae-h1">{c.title}</h1>
         <div className="ae-meta">
           {fmtDate(article.date, lang)} · {t('ethics.minRead', { count: article.readTime })} · AI Ethics

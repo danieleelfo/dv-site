@@ -440,7 +440,7 @@ export const ARTICLES = [
   },
 {
     slug: 'when-ai-escapes-the-boundaries',
-    number: '001',
+    number: 1,
     category: 'INVESTIGATION',
     date: '2026-10-27',
     readTime: 9,
