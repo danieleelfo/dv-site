@@ -157,6 +157,7 @@ export default function I18nAdmin() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [okMsg, setOkMsg] = useState("");
+  const [collapsed, setCollapsed] = useState({});
 
   async function api(path, body) {
     setError("");
@@ -205,7 +206,36 @@ export default function I18nAdmin() {
     return (f ? list.filter((p) => p.toLowerCase().includes(f)) : list).sort();
   }, [enFlat, filter]);
 
-  const sel = selected && paths.includes(selected) ? selected : paths[0] || "";
+  const tree = useMemo(() => {
+    const t = {};
+    for (const p of Object.keys(enFlat)) {
+      const parts = p.split(".");
+      const g = parts[0];
+      if (!t[g]) t[g] = { direct: [], subs: {} };
+      if (parts.length <= 2) t[g].direct.push(p);
+      else (t[g].subs[parts[1]] ||= []).push(p);
+    }
+    return t;
+  }, [enFlat]);
+
+  const isDirty = (p) => Object.values(edits).some((o) => p in (o || {}));
+  const toggle = (k) => () => setCollapsed((c) => ({ ...c, [k]: !c[k] }));
+
+  function keyBtn(p, label) {
+    return (
+      <button
+        key={p}
+        className={"i18-key" + (p === sel ? " i18-key-on" : "")}
+        onClick={() => setSelected(p)}
+        title={p}
+      >
+        {label}
+        {isDirty(p) ? <span className="i18-dirty">•</span> : null}
+      </button>
+    );
+  }
+
+  const sel = selected && selected in enFlat ? selected : paths[0] || "";
 
   function valueFor(lang, path) {
     if (edits[lang] && path in edits[lang]) return edits[lang][path];
@@ -312,18 +342,55 @@ export default function I18nAdmin() {
             {paths.length === 0 && (
               <p className="i18-empty">Nessuna chiave trovata.</p>
             )}
-            {paths.map((p) => (
-              <button
-                key={p}
-                className={"i18-key" + (p === sel ? " i18-key-on" : "")}
-                onClick={() => setSelected(p)}
-              >
-                {p}
-                {Object.values(edits).some((o) => p in (o || {})) ? (
-                  <span className="i18-dirty">•</span>
-                ) : null}
-              </button>
-            ))}
+            {filter.trim()
+              ? paths.map((p) => keyBtn(p, p))
+              : Object.keys(tree).sort().map((g) => {
+                  const node = tree[g];
+                  const gPaths = node.direct.concat(...Object.values(node.subs));
+                  const gOpen = !collapsed[g];
+                  return (
+                    <div key={g} className="i18-group">
+                      <button className="i18-group-btn" onClick={toggle(g)}>
+                        <span className="i18-arrow">{gOpen ? "▾" : "▸"}</span>
+                        {g}
+                        <span className="i18-count">{gPaths.length}</span>
+                        {gPaths.some(isDirty) ? (
+                          <span className="i18-dirty">•</span>
+                        ) : null}
+                      </button>
+                      {gOpen && (
+                        <div className="i18-group-body">
+                          {node.direct.map((p) =>
+                            keyBtn(p, p === g ? p : p.slice(g.length + 1))
+                          )}
+                          {Object.keys(node.subs).sort().map((s) => {
+                            const sk = g + "." + s;
+                            const spaths = node.subs[s];
+                            const sOpen = !collapsed[sk];
+                            return (
+                              <div key={sk} className="i18-sub">
+                                <button className="i18-sub-btn" onClick={toggle(sk)}>
+                                  <span className="i18-arrow">
+                                    {sOpen ? "▾" : "▸"}
+                                  </span>
+                                  {s}
+                                  <span className="i18-count">{spaths.length}</span>
+                                  {spaths.some(isDirty) ? (
+                                    <span className="i18-dirty">•</span>
+                                  ) : null}
+                                </button>
+                                {sOpen &&
+                                  spaths.map((p) =>
+                                    keyBtn(p, p.slice(sk.length + 1))
+                                  )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
           </div>
 
           <div className="i18-editor">
@@ -401,6 +468,14 @@ export default function I18nAdmin() {
         .i18-error { margin-top: 12px; color: #f87171; font-size: 13px; }
         .i18-ok { margin-top: 12px; color: #34d399; font-size: 13px; }
         .i18-empty { color: #6b7280; font-size: 13px; }
+        .i18-group { margin: 2px 0; }
+        .i18-group-btn { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; background: rgba(255,255,255,.05); border: none; border-radius: 8px; color: #e5e7eb; padding: 7px 10px; font-size: 12px; cursor: pointer; font-family: ui-monospace, monospace; font-weight: 700; }
+        .i18-group-btn:hover { background: rgba(255,255,255,.1); }
+        .i18-sub-btn { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; background: none; border: none; border-radius: 6px; color: #9db3c2; padding: 5px 10px 5px 24px; font-size: 11.5px; cursor: pointer; font-family: ui-monospace, monospace; }
+        .i18-sub-btn:hover { background: rgba(255,255,255,.06); }
+        .i18-count { color: #6b7280; font-weight: 400; }
+        .i18-arrow { width: 12px; text-align: center; color: #6b7280; }
+        .i18-group-body .i18-key { padding-left: 36px; }
       `}</style>
     </div>
   );

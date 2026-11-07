@@ -108,6 +108,8 @@ export default function Nav() {
                   <Link to={"/" + l + "/git-admin"} style={styles.menuLink} onClick={() => setAdminOpen(false)}>Git Admin</Link>
                   <Link to={"/" + l + "/bar-ai-admin"} style={styles.menuLink} onClick={() => setAdminOpen(false)}>Bar AI Admin</Link>
                   <Link to={"/" + l + "/api-contracts"} style={styles.menuLink} onClick={() => setAdminOpen(false)}>API Contracts</Link>
+                  <Link to={"/" + l + "/news-admin"} style={styles.menuLink} onClick={() => setAdminOpen(false)}>News Admin</Link>
+                  <Link to={"/" + l + "/i18n-admin"} style={styles.menuLink} onClick={() => setAdminOpen(false)}>I18n Admin</Link>
                 </div>
               )}
             </div>
@@ -135,8 +137,6 @@ export default function Nav() {
                   <Link to={"/" + l + "/test6"} style={styles.menuLink} onClick={() => setLabOpen(false)}>Test6</Link>
                   <Link to={"/" + l + "/test7"} style={styles.menuLink} onClick={() => setLabOpen(false)}>Test7</Link>
                   <Link to={"/" + l + "/testbarai"} style={styles.menuLink} onClick={() => setLabOpen(false)}>TestBarAI</Link>
-                  <Link to={"/" + l + "/news-admin"} style={styles.menuLink} onClick={() => setLabOpen(false)}>News Admin</Link>
-                  <Link to={"/" + l + "/i18n-admin"} style={styles.menuLink} onClick={() => setLabOpen(false)}>I18n Admin</Link>
                 </div>
               )}
             </div>
