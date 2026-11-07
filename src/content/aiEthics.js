@@ -31,32 +31,36 @@ export const ARTICLES = [
     ],
     content: {
       en: {
-        title: 'AI finds the flaws. Hackers use them.',
-        dek: 'GPT-6 Cyber and Europe’s cold-chain attacks are two halves of the same story.',
+        title: 'Artificial Intelligence finds flaws. Hackers exploit them.',
+        dek: 'GPT-6: Cybernetic attacks and intrusions into the Cold War European chain are two sides of the same story.',
         body: [
           {
             type: 'p',
-            text: 'Two parallel stories this week. OpenAI released GPT-6 Cyber, an AI model rated Critical that found 948 exploitable Linux kernel flaws and 81 unknown Firefox bugs. The same days, hackers hit Europe’s cold chain: supermarket fridges forced to defrost across at least nine countries, and French blood banks with plasma freezer temperatures raised from -30C to a reported 110C, stopped in time. The targeted Danfoss controllers were legacy hardware, exposed online with weak passwords, without security updates.',
+            text: 'Two parallel stories this week.',
           },
           {
             type: 'p',
-            text: 'The two stories are one. AI can now find security holes at industrial scale.',
+            text: 'OpenAI has released GPT-6 Cyber, an artificial intelligence evaluation model that identified 948 vulnerabilities in the Linux kernel and 81 unknown bugs in Firefox. At the same time, hackers targeted the European cold chain: refrigerators for supermarkets forced to melt down in at least nine countries, and French blood banks with plasma blood temperatures raised from -30°C to reportedly 110°C, stopped just in time. The Danfoss controllers were exposed online with weak passwords and no security updates. "',
           },
           {
             type: 'p',
-            text: 'And what about security in Europe? Even in AI model design, we are far behind other countries.',
+            text: 'The two stories could be one and the same. AI can now identify industrial-level security vulnerabilities.',
           },
           {
             type: 'p',
-            text: 'The cold-chain attacks needed no AI at all: the freezer controllers were old, connected to the internet, and protected by weak passwords.',
+            text: 'What are the security concerns in Europe? Even in the design of AI models, we are significantly behind compared to other countries.',
           },
           {
             type: 'p',
-            text: 'I’ve seen this often in big companies, and now, the real risk is the mix: an AI that finds thousands of forgotten machines in minutes, and a world full of millions of machines nobody has patched in a decade.',
+            text: 'Cold chain attacks didn\'t require the use of AI as the refrigerator controllers were old, connected to the internet and protected by weak passwords.',
           },
           {
             type: 'p',
-            text: 'Not a superhuman hacker, just an open, weak door.',
+            text: 'I have often seen this in large groups, and now, the real threat is the combination: an AI that finds thousands of forgotten machines in a few minutes, and a world full of millions of machines on which no updates have been applied for decades.',
+          },
+          {
+            type: 'p',
+            text: 'Not a superhuman hacker, merely an open and vulnerable door.',
           },
         ],
       },
@@ -66,11 +70,11 @@ export const ARTICLES = [
         body: [
           {
             type: 'p',
-            text: 'Due storie parallele questa settimana. OpenAI ha rilasciato GPT-6 Cyber, un modello di intelligence artificiale valutato Critico che ha identificato 948 vulnerabilità esplicabili nel kernel Linux e 81 bug ignoti in Firefox non ancora noti. Nello stesso tempo, i hacker hanno colpito la catena fredda europea: forni per supermercati costretti a sciogliersi in almeno nove paesi, e banche di sangue francesi con temperature del plasma del sangue sollevate da -30°C fino a un rapportato 110°C, fermati all\'ultimo minuto. Gli controller Danfoss sono stati hardware legacy esposti online con password deboli e senza aggiornamenti di sicurezza.',
+            text: 'Due storie parallele questa settimana. OpenAI ha rilasciato GPT-6 Cyber, un modello di intelligence artificiale valutato Critico che ha identificato 948 vulnerabilità nel kernel Linux e 81 bug ignoti in Firefox. Nello stesso tempo, gli hacker hanno colpito la catena fredda europea: frigoriferi per supermercati costretti a sciogliersi in almeno nove paesi, e banche di sangue francesi con temperature del plasma del sangue sollevate da -30°C fino a un rapportato 110°C, fermati all\'ultimo minuto. I controller Danfoss sono stati esposti online con password deboli e senza aggiornamenti di sicurezza.',
           },
           {
             type: 'p',
-            text: 'Le due storie sono una unica. L\'AI può ora individuare lacune di sicurezza a livello industriale.',
+            text: 'Le due storie potrebbero essere una unica. L\'AI può ora individuare lacune di sicurezza a livello industriale.',
           },
           {
             type: 'p',
@@ -86,127 +90,127 @@ export const ARTICLES = [
           },
           {
             type: 'p',
-            text: 'Non un hacker superumano, semplicemente una porta aperta e debole.',
+            text: 'Non un hacker superumano, semplicemente una porta aperta e vulnerabile.',
           },
         ],
       },
       es: {
-        title: 'La Inteligencia Artificial encuentra las debilidades. Los hackers las utilizan.',
-        dek: 'GPT-6: Ciber y los ataques a la cadena fría de Europa son dos mitades de la misma historia.',
+        title: 'La inteligencia artificial encuentra las debilidades. Los hackers los utilizan.',
+        dek: 'GPT-6: los ataques cibernéticos y las incursiones en la cadena fría europea son dos partes de la misma historia.',
         body: [
           {
             type: 'p',
-            text: 'Dos historias paralelas esta semana. OpenAI lanzó GPT-6 Cyber, un modelo de inteligencia artificial calificado como Crítico que identificó 948 fallas explotables en el núcleo Linux y 81 errores desconocidos en Firefox. En los mismos días, los hackers atacaron la cadena fría de Europa: se informó que los congeladores de supermercados tuvieron que deshielo en al menos nueve países, y las bancas de sangre francesas con temperaturas de plasma de -30C subidas a un informado 110C, se detuvieron a tiempo. Los controladores objetivo fueron equipos de hardware obsoletos expuestos en línea con contraseñas débiles y sin actualizaciones de seguridad.',
+            text: 'Dos historias paralelas esta semana. OpenAI ha lanzado GPT-6 Cyber, un modelo de inteligencia artificial evaluado Crítico que ha identificado 948 vulnerabilidades en el núcleo Linux y 81 bugs desconocidos en Firefox. Al mismo tiempo, los hackers han atacado la cadena fría europea: refrigeradores para supermercados forzados a derritselves en al menos nueve países, y bancos de sangre franceses con temperaturas del plasma del sangre elevadas de -30°C hasta un reportado 110°C, detenidos al último minuto. Los controladores Danfoss han sido expuestos en línea con contraseñas débiles y sin actualizaciones de seguridad.',
           },
           {
             type: 'p',
-            text: 'Las dos historias están unidas. La IA puede ahora encontrar fallas de seguridad en escala industrial.',
+            text: 'Las dos historias podrían ser una sola. La inteligencia artificial puede ahora identificar brechas de seguridad a nivel industrial.',
           },
           {
             type: 'p',
-            text: '¿Y en cuanto al seguro en Europa? Aún en el diseño de modelos de inteligencia artificial, estamos muy por detrás de otros países.',
+            text: '¿Y qué son las preguntas sobre la seguridad en Europa? Aún en el diseño de modelos AI, estamos muy atrás con respecto a otros países.',
           },
           {
             type: 'p',
-            text: 'Los ataques a la cadena fría no necesitaban ningún AI en absoluto: los controladores de congeladores eran antiguos, conectados a Internet y protegidos por contraseñas débiles.',
+            text: 'Los ataques en cadena fría no han requerido el uso de la IA debido a que los reguladores de refrigeración eran antiguos, conectados a Internet y protegidos por contraseñas débiles.',
           },
           {
             type: 'p',
-            text: 'He encontrado esto frecuentemente en grandes empresas, y ahora, la verdadera amenaza es la mezcla: una IA que encuentra miles de máquinas olvidadas en minutos, y un mundo lleno de millones de máquinas que nadie ha actualizado durante una década.',
+            text: 'He visto a menudo esto en los grandes grupos y ahora, la verdadera amenaza es la combinación: una AI que encuentra miles de máquinas olvidadas en pocos minutos, y un mundo lleno de millones de máquinas sobre las cuales nadie ha aplicado actualizaciones durante décadas.',
           },
           {
             type: 'p',
-            text: 'No un hacker superhumano, simplemente una puerta abierta y debilitada.',
+            text: 'No es un hacker superhumano, simplemente una puerta abierta y vulnerable.',
           },
         ],
       },
       fr: {
-        title: 'L\'IA découvre les failles. Les attaquants en profitent.',
-        dek: 'GPT-6 : les attaques sur le cyber et les attaques sur la chaîne froide en Europe sont deux parties de l\'histoire identique.',
+        title: 'L\'intelligence artificielle détecte les failles. Les hackers en font usage.',
+        dek: 'L\'intelligence artificielle détecte les failles. Les hackers en profitent.\n\nContenu de l\'article : L\'intelligence artificielle détecte les failles. Les hackers en profitent.\n\nTesto à traduire :\nGPT-6 : cyberattaques et incursions dans la chaîne froide européenne sont deux parties du même récit.',
         body: [
           {
             type: 'p',
-            text: 'Deux histoires parallèles cette semaine. OpenAI a récemment lancé GPT-6 Cyber, un modèle d\'IA classé Critique qui a détecté 948 faiblesses exploitables dans le noyau Linux et 81 bogues inconnus de Firefox. Les mêmes jours, les pirates ont attaqué la chaîne froide européenne : des réfrigérateurs de supermarchés ont dû dégeler dans au moins neuf pays, ainsi que des banques sanguines françaises avec une température de congélateur de plasma passée de -30°C à un rapporté de 110°C, arrêtées à temps. Les contrôleurs ciblés étaient du matériel d\'ancienne génération, exposés en ligne avec des mots de passe faibles, sans mises à jour de sécurité.',
+            text: 'Deux histoires parallèles cette semaine. OpenAI a sorti GPT-6 Cyber, un modèle d\'intelligence artificielle évalué Critique qui a identifié 948 vulnérabilités dans le noyau Linux et 81 bogues inconnus dans Firefox. En même temps, les hackers ont frappé la chaîne froide européenne : des réfrigérateurs pour supermarchés contraints de fondre au moins dans neuf pays, et des banques de sang françaises avec des températures du plasma du sang relevées de -30°C jusqu\'à un rapporté 110°C, arrêtées à l\'ultime minute. Les contrôleurs Danfoss ont été exposés en ligne avec des mots de passe faibles et sans mises à jour de sécurité.',
           },
           {
             type: 'p',
-            text: 'Les deux histoires sont une seule. L\'IA peut maintenant détecter des failles de sécurité à l\'échelle industrielle.',
+            text: 'Les deux histoires pourraient être une seule. L\'IA peut maintenant identifier des failles de sécurité à niveau industriel.',
           },
           {
             type: 'p',
-            text: 'Et ce qui est-il de la sécurité en Europe ? Même dans le contexte du modèle d\'IA, nous sommes loin derrière d\'autres pays.',
+            text: 'Quels sont les questions de sécurité en Europe ? Nous sommes également très retardés dans la conception des modèles AI par rapport à d\'autres pays.',
           },
           {
             type: 'p',
-            text: 'Les attaques sur la chaîne froide n\'ont pas nécessité l\'utilisation d\'IA : les contrôleurs de réfrigération étaient vieux, connectés à Internet et protégés par des mots de passe faibles.',
+            text: 'Les attaques à chaîne froide n\'ont pas nécessité l\'utilisation d\'IA car les régulateurs du réfrigérateur étaient vieux, connectés à internet et protégés par des mots de passe faibles.',
           },
           {
             type: 'p',
-            text: 'J\'ai souvent constaté cela dans de grandes entreprises, et maintenant, le risque réel est la combinaison : un AI qui identifie des milliers de machines oubliées en quelques minutes, et un monde rempli de millions de machines dont personne n\'a mis à jour pendant une décennie.',
+            text: 'J\'ai souvent observé cela dans de grands groupes et maintenant, la vraie menace est la combinaison : une AI qui détecte des milliers de machines oubliées en quelques minutes, et un monde plein de millions de machines sur lesquelles personne n\'a appliqué des mises à jour pendant des décennies.',
           },
           {
             type: 'p',
-            text: 'Pas un hacker surhumain, simplement une porte ouverte et faible.',
+            text: 'Pas un hacker surhumain, simplement une porte ouverte et vulnérable.',
           },
         ],
       },
       ca: {
-        title: 'L\'AI troba les falles. Els atacants en utilitzen.',
-        dek: 'GPT-6: Ciber i atacs al cadena freda d\'Europa són dos mitges de la mateixa història.',
+        title: 'La intel·ligència artificial localitza els defectes. Els hackers en en fan ús.',
+        dek: 'GPT-6: ciberatacs i ciberincursions i la cadena freda europea són dues parts de la mateixa història.',
         body: [
           {
             type: 'p',
-            text: 'Dues històries paral·leles aquesta setmana. OpenAI va llançar GPT-6 Cyber, un model d\'IA classificat Crític que ha identificat 948 flaws exploitables del nucli Linux i 81 bugs desconeguts de Firefox. Els mateix dies, els hackers van atacar la cadena freda europea: refrigeradors de supermercat obligats a descongelar-se en almenys nou països, i bancs de sang francesos amb temperatures de congelador de plasma elevades des de -30C fins a un informe de 110C, es van aturar a temps. Els controladors Danfoss objectiu eren maquinari històric exposat en línia amb contrasenyes febles, sense actualitzacions de seguretat.',
+            text: 'Dues històries paral·leles aquesta setmana. OpenAI ha llançat GPT-6 Cyber, un model de intel·ligència artificial valorat Critic que ha identificat 948 vulnerabilitats al nucli Linux i 81 bugs desconeguts a Firefox. Al mateix temps, els hackers han atacat la cadena freda europea: refrigeradors per supermercats obligats a fondre\'s almenys en nou països, i bancs de sang francesos amb temperatures del plasma del sangue elevades des de -30°C fins a un informat 110°C, aturats a l\'últim minut. Els controladors Danfoss han estat exposats en línia amb contrasenyes febles i sense actualitzacions de seguretat.',
           },
           {
             type: 'p',
-            text: 'Les dues històries són una. L\'AI pot ara trobar falles de seguretat en escala industrial.',
+            text: 'Les dues històries podrien ser una sola. L\'AI potencia ara identificar falles de seguretat a nivell industrial.',
           },
           {
             type: 'p',
-            text: 'I el seguretat a Europa? Encara que en el disseny de models d\'AI, estem molt endarrerits respecte a altres països.',
+            text: 'Quins són les preguntes sobre seguretat a Europa? Encara en el disseny dels models d\'IA, estem molt endarrerits respecte a altres països.',
           },
           {
             type: 'p',
-            text: 'Els atacs de cadena freda no van necessitar d\'AI en absolut: els controladors de congeladors eren vells, connectats a Internet i protegits per contrasenyes febles.',
+            text: 'Els atacs en cadena freda no van requerir l\'ús d\'AI perquè els reguladors del gel eren antics, connectats a internet i protegits per contrasenyes febles.',
           },
           {
             type: 'p',
-            text: 'Heus va fent sovint en grans empreses, i ara, la veritable amenaça és la mescla: un AI que troba milers de màquines oblidades en minuts, i un món ple de milions de màquines que ningú ha actualitzat durant una dècada.',
+            text: 'He heut sovint això als grans grups i ara, la veritable amenaça és la combinació: una AI que troba milers de màquines oblidades en pocs minuts, i un món ple de milions de màquines sobre les quals ningú ha aplicat actualitzacions durant dècades.',
           },
           {
             type: 'p',
-            text: 'No superhumà hacker, simplement una porta oberta i feble.',
+            text: 'No pas superhacker, simplement una porta oberta i vulnerables.',
           },
         ],
       },
       nl: {
-        title: 'AI vindt de zwaktes. Aanvallers gebruiken ze.',
-        dek: 'GPT-6 Cyber en Europes koude-keten aanvallen zijn twee helften van dezelfde verhaal.',
+        title: 'Kunstmatige intelligentie vindt de fouten. De hackers gebruiken ze.',
+        dek: 'GPT-6: cyberaanvallen en invalideringen in de Koude Oorlog-keten zijn twee delen van hetzelfde verhaal.',
         body: [
           {
             type: 'p',
-            text: 'Twee parallelle verhalen deze week. OpenAI bracht GPT-6 Cyber uit, een AI-model dat kritiek werd beoordeeld en 948 exploiterbare Linux kernelfouten en 81 onbekende Firefox fouten ontdekte. Dezelfde dagen vielen hackers Europe\'s koelketens aan: supermarktkoelkasten moesten in ten minste negen landen ontdooid worden, en Franse bloedbanken met plasma-vries temperaturen van -30C naar een vermelding van 110C opgeheven, werden net op tijd gestopt. De doelwit waren de legacy-controllers van Danfoss, die online zichtbaar waren met zwakke wachtwoorden en geen beveiligingsupdates.',
+            text: 'Twee parallelle verhalen deze week. OpenAI heeft GPT-6 Cyber vrijgegeven, een kunstmatige intelligentiebeoordelingsmodel dat 948 Linux kernel-kwetsbaarheden en 81 onbekende bugs in Firefox heeft geïdentificeerd. Tegelijkertijd hebben hackers de Europese koudeketen getroffen: ten minste negen landen met supermarktfrigoriferen die moesten opdooien, en Franse bloedbanken met plasma-bloedtemperatuur die van -30°C is gestegen tot een gemeld 110°C, net voordat ze werden gestopt. De controller Danfoss zijn online blootgelegd met zwakke wachtwoorden en geen veiligheidsupdates.',
           },
           {
             type: 'p',
-            text: 'De twee verhalen zijn één. AI kan nu veiligheidslekken op industriële schaal ontdekken.',
+            text: 'De twee verhalen kunnen één zijn. AI kan nu industriële veiligheidslekken identificeren.',
           },
           {
             type: 'p',
-            text: 'En wat betreft de veiligheid in Europa? Zelfs bij het ontwerpen van AI-modellen staan we achter andere landen.',
+            text: 'Welke zijn de veiligheidsvragen in Europa? Ook bij het ontwerpen van AI-modellen staan we achter op andere landen.',
           },
           {
             type: 'p',
-            text: 'De koude-keten aanvallen hielden geen AI in behoud: de koelregelcontrollers waren oud, verbonden met het internet en beschermd door zwakke wachtwoorden.',
+            text: 'Kettingaanvallen hebben geen vereist het gebruik van kunstmatige intelligentie, omdat de regelgevers van de koelkast oud waren, verbonden met het internet en beschermd door zwakke wachtwoorden.',
           },
           {
             type: 'p',
-            text: 'Ik heb dit vaak gezien bij grote bedrijven en nu is het echt de kans dat er opgegaan wordt: een AI die duizenden vergeten machines in minuten vindt, en een wereld vol miljoenen onbeveiligde machines die in een decennium niet zijn bijgewerkt.',
+            text: 'Ik heb vaak dit gezien bij grote groepen en nu is de ware bedreiging de combinatie: een AI die duizenden vergeten machines in enkele minuten kan vinden, en een wereld vol miljoenen machines waar niemand decennia lang updates heeft toegepast.',
           },
           {
             type: 'p',
-            text: 'Geen superschaakende hacker, maar slechts een open, zwakke deur.',
+            text: 'Geen superschaakende hacker, slechts een openbaar en kwetsbaar deurtje.',
           },
         ],
       },
