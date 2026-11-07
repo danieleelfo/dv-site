@@ -157,7 +157,8 @@ export default function I18nAdmin() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [okMsg, setOkMsg] = useState("");
-  const [collapsed, setCollapsed] = useState({});
+  // gruppi CHIUSI di default: la mappa registra quelli APERTI
+  const [openAcc, setOpenAcc] = useState({});
 
   async function api(path, body) {
     setError("");
@@ -219,7 +220,7 @@ export default function I18nAdmin() {
   }, [enFlat]);
 
   const isDirty = (p) => Object.values(edits).some((o) => p in (o || {}));
-  const toggle = (k) => () => setCollapsed((c) => ({ ...c, [k]: !c[k] }));
+  const toggle = (k) => () => setOpenAcc((c) => ({ ...c, [k]: !c[k] }));
 
   function keyBtn(p, label) {
     return (
@@ -347,7 +348,7 @@ export default function I18nAdmin() {
               : Object.keys(tree).sort().map((g) => {
                   const node = tree[g];
                   const gPaths = node.direct.concat(...Object.values(node.subs));
-                  const gOpen = !collapsed[g];
+                  const gOpen = !!openAcc[g];
                   return (
                     <div key={g} className="i18-group">
                       <button className="i18-group-btn" onClick={toggle(g)}>
@@ -366,7 +367,7 @@ export default function I18nAdmin() {
                           {Object.keys(node.subs).sort().map((s) => {
                             const sk = g + "." + s;
                             const spaths = node.subs[s];
-                            const sOpen = !collapsed[sk];
+                            const sOpen = !!openAcc[sk];
                             return (
                               <div key={sk} className="i18-sub">
                                 <button className="i18-sub-btn" onClick={toggle(sk)}>
