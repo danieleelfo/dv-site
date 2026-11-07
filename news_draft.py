@@ -204,7 +204,7 @@ console.log(JSON.stringify(ARTICLES));
 
 JS_WRITE = r"""
 import fs from 'node:fs';
-const [dataPath, payloadPath] = process.argv.slice(1);
+const [dataPath, payloadPath, basePath] = process.argv.slice(1);
 const payload = JSON.parse(fs.readFileSync(payloadPath, 'utf8'));
 const original = fs.readFileSync(dataPath, 'utf8');
 const START = 'export const ARTICLES = [';
@@ -234,7 +234,7 @@ function dump(v, ind) {
   return JSON.stringify(v);
 }
 
-const articles = JSON.parse(fs.readFileSync(payloadPath + '.base', 'utf8'));
+const articles = JSON.parse(fs.readFileSync(basePath, 'utf8'));
 if (payload.mode === 'update') {
   const idx = articles.findIndex(a => a.number === payload.article.number);
   if (idx === -1) { console.error('articolo #' + payload.article.number + ' non trovato'); process.exit(1); }
@@ -513,7 +513,7 @@ def build_news_draft_router(verify_admin_token):
             encoding="utf-8",
         )
         try:
-            _run_node(JS_WRITE, [str(DATA_FILE), str(tmp_new)])
+            _run_node(JS_WRITE, [str(DATA_FILE), str(tmp_new), str(tmp_base)])
         finally:
             tmp_base.unlink(missing_ok=True)
             tmp_new.unlink(missing_ok=True)
