@@ -289,7 +289,7 @@ const DEFAULT_CFG = {
 // MAIN
 // ============================================================
 
-function ArenaTab() {
+function ArenaTab({ setTab }) {
   const [cfg, setCfg] = useState(DEFAULT_CFG);
   const [runId, setRunId] = useState(null);
   const [data, setData] = useState({ status: "IDLE", turns: [] });
@@ -646,7 +646,23 @@ function ArenaTab() {
             {/* HEADER */}
             <div style={styles.header}>
               <div style={styles.eyebrow}>AGENT ARENA</div>
-              <h1 style={styles.title}>Bot to Bot</h1>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 12,
+                  flexWrap: "wrap",
+                }}
+              >
+                <h1 style={{ ...styles.title, margin: 0 }}>Bot to Bot</h1>
+                <button
+                  style={imgStyles.tabBtn}
+                  onClick={() => setTab && setTab("img")}
+                >
+                  B2BImg →
+                </button>
+              </div>
               <p style={styles.subtitle}>
                 {t("b2b.subtitle")}
               </p>
@@ -1911,7 +1927,7 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function B2BImgTab() {
+function B2BImgTab({ setTab }) {
   const { idToken, email, buttonRef, logout } = useGoogleAuth();
 
   const [imgFile, setImgFile] = useState(null);
@@ -2058,7 +2074,23 @@ function B2BImgTab() {
     return (
       <div style={{ textAlign: "center", padding: "60px 0" }}>
         <div style={styles.eyebrow}>B2B IMG</div>
-        <h1 style={imgStyles.imgTitle}>B2BImg</h1>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <h1 style={imgStyles.imgTitle}>B2BImg</h1>
+          <button
+            style={imgStyles.tabBtn}
+            onClick={() => setTab && setTab("arena")}
+          >
+            ← Bot to Bot
+          </button>
+        </div>
         <p style={imgStyles.imgSub}>
           Accedi con Google per modificare un'immagine con 12 bot img2img.
         </p>
@@ -2073,7 +2105,23 @@ function B2BImgTab() {
     <div>
       <div style={imgStyles.imgHead}>
         <div style={styles.eyebrow}>B2B IMG</div>
-        <h1 style={imgStyles.imgTitle}>B2BImg</h1>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 12,
+            flexWrap: "wrap",
+          }}
+        >
+          <h1 style={imgStyles.imgTitle}>B2BImg</h1>
+          <button
+            style={imgStyles.tabBtn}
+            onClick={() => setTab && setTab("arena")}
+          >
+            ← Bot to Bot
+          </button>
+        </div>
         <p style={imgStyles.imgSub}>
           Un'immagine di partenza, 12 bot: ognuno produce la sua variante con il
           proprio prompt di modifica, steps e temperatura (strength). Il run è
@@ -2284,25 +2332,11 @@ export default function B2B() {
       />
       <div style={styles.overlay} />
       <div style={styles.content}>
-        <div style={imgStyles.tabBar}>
-          <button
-            style={tab === "arena" ? imgStyles.tabBtnActive : imgStyles.tabBtn}
-            onClick={() => setTab("arena")}
-          >
-            Bot to Bot
-          </button>
-          <button
-            style={tab === "img" ? imgStyles.tabBtnActive : imgStyles.tabBtn}
-            onClick={() => setTab("img")}
-          >
-            B2BImg
-          </button>
-        </div>
         <div style={{ display: tab === "arena" ? "block" : "none" }}>
-          <ArenaTab />
+          <ArenaTab setTab={setTab} />
         </div>
         <div style={{ display: tab === "img" ? "block" : "none" }}>
-          <B2BImgTab />
+          <B2BImgTab setTab={setTab} />
         </div>
       </div>
     </div>
