@@ -27,7 +27,7 @@ import time
 import urllib.request
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, Header, HTTPException, UploadFile
 from pydantic import BaseModel
 
 DV_SITE_DIR = Path(__file__).resolve().parent
@@ -303,12 +303,12 @@ def build_news_draft_router(verify_admin_token):
     router = APIRouter()
 
     @router.get("/api/admin/news-draft")
-    def get_draft(authorization: str | None = None):
+    def get_draft(authorization: str | None = Header(None)):
         verify_admin_token(authorization)
         return _read_draft()
 
     @router.get("/api/admin/news-draft/articles")
-    def list_articles(authorization: str | None = None):
+    def list_articles(authorization: str | None = Header(None)):
         verify_admin_token(authorization)
         articles = _dump_articles()
         return {
@@ -326,7 +326,7 @@ def build_news_draft_router(verify_admin_token):
         }
 
     @router.get("/api/admin/news-draft/article/{number}")
-    def get_article(number: int, authorization: str | None = None):
+    def get_article(number: int, authorization: str | None = Header(None)):
         verify_admin_token(authorization)
         articles = _dump_articles()
         for a in articles:
@@ -352,7 +352,7 @@ def build_news_draft_router(verify_admin_token):
         raise HTTPException(404, f"Articolo #{number} non trovato.")
 
     @router.post("/api/admin/news-draft/save")
-    def save_lang(body_in: SaveIn, authorization: str | None = None):
+    def save_lang(body_in: SaveIn, authorization: str | None = Header(None)):
         verify_admin_token(authorization)
         if body_in.lang not in ALL_LANGS:
             raise HTTPException(422, "Lingua non supportata (en/it/es/fr/ca/nl).")
@@ -375,7 +375,7 @@ def build_news_draft_router(verify_admin_token):
         return draft
 
     @router.post("/api/admin/news-draft/translate")
-    def translate_lang(body_in: TranslateIn, authorization: str | None = None):
+    def translate_lang(body_in: TranslateIn, authorization: str | None = Header(None)):
         verify_admin_token(authorization)
         target = body_in.target_lang
         if target not in ALL_LANGS:
@@ -394,7 +394,7 @@ def build_news_draft_router(verify_admin_token):
     @router.post("/api/admin/news-draft/image")
     async def upload_image(
         image: UploadFile = File(...),
-        authorization: str | None = None,
+        authorization: str | None = Header(None),
     ):
         verify_admin_token(authorization)
         ext = (Path(image.filename or "img.jpg").suffix or ".jpg").lower()
@@ -409,7 +409,7 @@ def build_news_draft_router(verify_admin_token):
         return {"src": "/news/" + name}
 
     @router.post("/api/admin/news-draft/publish")
-    def publish(body_in: PublishIn, authorization: str | None = None):
+    def publish(body_in: PublishIn, authorization: str | None = Header(None)):
         verify_admin_token(authorization)
         draft = _read_draft()
         draft["number"] = body_in.number
