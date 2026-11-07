@@ -15,6 +15,7 @@ Rotte (tutte Google auth admin via verify_admin_token):
     GET  /api/admin/news-draft/article/{number}   articolo esistente → box/meta
     POST /api/admin/news-draft/save               salva una lingua (diventa master)
     POST /api/admin/news-draft/translate          traduce dal master (6 lingue)
+    POST /api/admin/news-draft/translate-all      traduce dal master TUTTE le lingue
     POST /api/admin/news-draft/image              upload immagine (multipart)
     POST /api/admin/news-draft/publish            insert nuovo o update esistente
 """
@@ -389,6 +390,23 @@ def build_news_draft_router(verify_admin_token):
             raise HTTPException(422, "La lingua target è già il master.")
         draft["content"][target] = _translate_content(src, target)
         _write_draft(draft)
+        return draft
+
+    @router.post("/api/admin/news-draft/translate-all")
+    def translate_all(authorization: str | None = Header(None)):
+        verify_admin_token(authorization)
+        draft = _read_draft()
+        master = draft.get("master") or "en"
+        src = draft["content"].get(master)
+        if not src or not src.get("body"):
+            raise HTTPException(409, f"Nessun contenuto master ({master}) da tradurre.")
+        done = []
+        for lang in ALL_LANGS:
+            if lang == master:
+                continue
+            draft["content"][lang] = _translate_content(src, lang)
+            _write_draft(draft)  # salva dopo ogni lingua: i progressi restano
+            done.append(lang)
         return draft
 
     @router.post("/api/admin/news-draft/image")

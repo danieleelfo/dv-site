@@ -314,6 +314,29 @@ export default function Test7() {
     }
   }
 
+  async function translateAll() {
+    const master = draft.master || "en";
+    if (
+      !window.confirm(
+        "Tradurre dal master (" + LANG_LABELS[master] + ") in tutte le altre 5 lingue con Ollama?\nPuò metterci qualche minuto."
+      )
+    )
+      return;
+    setBusy("translateall");
+    try {
+      const d = await api("/api/admin/news-draft/translate-all", {});
+      setDraft((prev) => ({ ...prev, ...d, content: d.content || {} }));
+      const langs = Object.keys(d.content || {})
+        .filter((l) => (d.content[l] || {}).body)
+        .map((l) => LANG_FLAGS[l] + " " + l.toUpperCase());
+      setOkMsg("Tradotte tutte le lingue: " + langs.join(" "));
+    } catch (e) {
+      setError(e.message || String(e));
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function uploadImage(ev) {
     const file = ev.target.files?.[0];
     if (!file) return;
@@ -550,6 +573,35 @@ export default function Test7() {
         })}
       </div>
 
+      {/* TRADUCI TUTTE LE LINGUE (fr/ca/nl incluse) */}
+      <div className="nd-translateall">
+        <button
+          className="nd-btn"
+          disabled={busy === "translateall" || !draft.content[masterLang]?.body}
+          onClick={translateAll}
+          title={"Rigenera dal master (" + LANG_LABELS[masterLang] + ") tutte le lingue con Ollama"}
+        >
+          {busy === "translateall" ? "Traduzione in corso…" : "Traduci tutte le lingue (5)"}
+        </button>
+        <span className="nd-langchips">
+          {ALL_LANGS.map((l) => {
+            const has = !!(draft.content[l] || {}).body;
+            return (
+              <span
+                key={l}
+                className={
+                  "nd-chip" +
+                  (l === masterLang ? " nd-chip-master" : has ? " nd-chip-on" : "")
+                }
+              >
+                {LANG_FLAGS[l]} {l.toUpperCase()}
+                {l === masterLang ? "★" : has ? "✓" : "–"}
+              </span>
+            );
+          })}
+        </span>
+      </div>
+
       {/* ANTEPRIMA (rendering stile AI News) */}
       <section className="nd-previewbox">
         <div className="nd-previewhead">
@@ -661,6 +713,11 @@ export default function Test7() {
         .nd-btn:disabled { opacity: .5; cursor: not-allowed; }
         .nd-primary { background: #10b981; border-color: #10b981; color: #06281d; font-weight: 700; }
         .nd-danger { background: #6366f1; border-color: #6366f1; color: #fff; font-weight: 700; padding: 12px 22px; }
+        .nd-translateall { display: flex; align-items: center; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+        .nd-langchips { display: flex; gap: 6px; flex-wrap: wrap; }
+        .nd-chip { font-size: 11.5px; padding: 4px 9px; border-radius: 999px; border: 1px solid rgba(255,255,255,.12); color: #6b7280; background: rgba(0,0,0,.25); }
+        .nd-chip-on { color: #34d399; border-color: rgba(52,211,153,.4); }
+        .nd-chip-master { color: #5eead4; border-color: rgba(94,234,212,.5); }
         .nd-previewbox { margin-top: 20px; border: 1px solid rgba(255,255,255,.08); border-radius: 12px; overflow: hidden; }
         .nd-previewhead { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: rgba(255,255,255,.03); }
         .nd-previewhead h2 { margin: 0; font-size: 14px; }
