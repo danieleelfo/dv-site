@@ -20,6 +20,16 @@ import { useEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ARTICLES, getArticle, getArticleContent } from '../content/aiEthics'
+import bgNews from '../assets/IMG-20261107-WA0008.jpg'
+
+// Sfondo: AI News con overlay scuro (il testo resta leggibile).
+const AE_BG = {
+  backgroundImage:
+    'linear-gradient(rgba(11,16,21,.88), rgba(11,16,21,.94)), url(' + bgNews + ')',
+  backgroundSize: 'cover',
+  backgroundPosition: 'center',
+  backgroundAttachment: 'fixed',
+}
 
 function fmtDate(iso, lang) {
   try {
@@ -46,7 +56,7 @@ export function AIEthicsIndex() {
   const sorted = [...ARTICLES].sort((x, y) => y.date.localeCompare(x.date))
 
   return (
-    <section className="ae-page">
+    <section className="ae-page" style={AE_BG}>
       <style>{`
 .ae-page{min-height:100vh;background:#0b1015;color:#e8edf2;padding:56px 20px 80px}
 .ae-wrap{max-width:760px;margin:0 auto}
@@ -183,7 +193,7 @@ export function AIEthicsArticle() {
 
   if (!article || !c) {
     return (
-      <section className="ae-page">
+      <section className="ae-page" style={AE_BG}>
         <style>{AE_STYLE}</style>
         <div className="ae-wrap">
           <h1 className="ae-h1">{t('ethics.notFound')}</h1>
@@ -194,7 +204,7 @@ export function AIEthicsArticle() {
   }
 
   return (
-    <section className="ae-page">
+    <section className="ae-page" style={AE_BG}>
       <style>{AE_STYLE}</style>
       <article className="ae-wrap">
         <Link className="ae-backlink" to="/ai-ethics">← {t('ethics.back')}</Link>

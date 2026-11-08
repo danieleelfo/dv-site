@@ -7,6 +7,16 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import bgTimoniere from "../assets/gradv-timoniere.png";
+
+// Sfondo: timoniere con overlay scuro (i pannelli restano leggibili).
+const API_BG = {
+  backgroundImage:
+    "linear-gradient(rgba(8,13,19,.90), rgba(8,13,19,.95)), url(" + bgTimoniere + ")",
+  backgroundSize: "cover",
+  backgroundPosition: "center",
+  backgroundAttachment: "fixed",
+};
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const TOKEN_STORAGE_KEY = "leles_admin_id_token";
@@ -570,7 +580,7 @@ export default function ApiContracts() {
 
   if (!auth.token || !auth.allowed) {
     return (
-      <main className="api-page"><ApiStyles />
+      <main className="api-page" style={API_BG}><ApiStyles />
         <section className="api-login panel">
           <p className="eyebrow">D. VILLANOVA · DEVELOPER TOOLS</p>
           <h1>API Contracts</h1>
@@ -587,7 +597,7 @@ export default function ApiContracts() {
   }
 
   return (
-    <main className="api-page"><ApiStyles />
+    <main className="api-page" style={API_BG}><ApiStyles />
       <header className="api-topbar">
         <div>
           <p className="eyebrow">D. VILLANOVA · DEVELOPER TOOLS</p>
