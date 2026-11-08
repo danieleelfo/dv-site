@@ -10,9 +10,11 @@ import { useTranslation } from "react-i18next";
 import bgTimoniere from "../assets/gradv-timoniere.png";
 
 // Sfondo: timoniere con overlay scuro (i pannelli restano leggibili).
+// Come LeleAdmin (.lc-bg + .lc-shade): immagine sotto e shade che
+// scurisce dal 25% in alto all'85% in basso.
 const API_BG = {
   backgroundImage:
-    "linear-gradient(rgba(8,13,19,.90), rgba(8,13,19,.95)), url(" + bgTimoniere + ")",
+    "linear-gradient(180deg, rgba(11,16,21,.25) 0%, rgba(11,16,21,.85) 100%), url(" + bgTimoniere + ")",
   backgroundSize: "cover",
   backgroundPosition: "center",
   backgroundAttachment: "fixed",

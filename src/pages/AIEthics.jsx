@@ -20,12 +20,14 @@ import { useEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { ARTICLES, getArticle, getArticleContent } from '../content/aiEthics'
-import bgNews from '../assets/IMG-20261107-WA0008.jpg'
+import bgNews from '../assets/gradv-news.png'
 
 // Sfondo: AI News con overlay scuro (il testo resta leggibile).
+// Come LeleAdmin (.lc-bg + .lc-shade): immagine sotto e shade che
+// scurisce dal 25% in alto all'85% in basso.
 const AE_BG = {
   backgroundImage:
-    'linear-gradient(rgba(11,16,21,.88), rgba(11,16,21,.94)), url(' + bgNews + ')',
+    'linear-gradient(180deg, rgba(11,16,21,.25) 0%, rgba(11,16,21,.85) 100%), url(' + bgNews + ')',
   backgroundSize: 'cover',
   backgroundPosition: 'center',
   backgroundAttachment: 'fixed',
