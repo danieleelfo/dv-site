@@ -85,11 +85,13 @@ def _llm_translate(lang, text, context):
     style = (
         f"Sei un traduttore editoriale per il sito AI News di Danny Villanova. "
         f"Traduci in {ALL_LANGS[lang]} il testo inglese che ti viene dato. "
+        f"Contesto/titolo articolo: {context!r}. "
         f"Regole: registro giornalistico, frasi fluide, NON letterale; "
         f"usa apostrofi tipografici (\u2019), mai apostrofi dritti; "
         f"per le citazioni usa {LANG_QUOTES[lang]}; non tradurre nomi propri, "
         f"sigle (AI, GPT, EFS) né URL. "
-        f"Rispondi SOLO con la traduzione, nessun commento."
+        f"Restituisci esclusivamente il testo tradotto, senza intestazioni, "
+        f"etichette, prefazioni, spiegazioni o ripetizioni del testo originale."
     )
     payload = {
         "model": LLM_MODEL,
@@ -99,7 +101,7 @@ def _llm_translate(lang, text, context):
             {"role": "system", "content": style},
             {
                 "role": "user",
-                "content": f"Contesto articolo: {context}\n\nTesto da tradurre:\n{text}",
+                "content": text,
             },
         ],
     }
@@ -116,7 +118,14 @@ def _llm_translate(lang, text, context):
 def _sanity(translated, original):
     if not translated or len(translated) < 2:
         return False
-    if translated.lower().startswith(("i'm sorry", "sorry", "come traduttore")):
+    lowered = translated.lower().strip()
+    if lowered.startswith(("i'm sorry", "sorry", "come traduttore")):
+        return False
+    # Blocca risposte che ripetono etichette o istruzioni del prompt.
+    leaked_prompt = ("testo da tradurre", "contesto articolo", "traduci in ", "rispondi solo con", "ecco la traduzione", "translation:", "translated text:")
+    if any(marker in lowered for marker in leaked_prompt):
+        return False
+    if len(original) > 80 and translated.strip() == original.strip():
         return False
     if "http" in original and "http" not in translated:
         return False
