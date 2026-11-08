@@ -47,3 +47,16 @@ story_history/
 /.news_agent_tmp.base
 
 src/components/snake conf.pages
+
+# News Admin: bozza locale e cover di test (nomi esatti, NON il pattern:
+# le cover pubblicate devono restare committabili)
+news_draft.json
+public/news/news-1794046423.jpg
+public/news/news-1794075727.jpg
+public/news/news-1794075741.jpg
+public/news/news-1794075751.jpg
+public/news/news-1794075786.jpg
+public/news/news-1794075792.jpg
+public/news/news-1794075800.jpg
+public/news/news-1794075869.jpg
+public/news/news-1794077829.jpg
