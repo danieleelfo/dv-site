@@ -501,8 +501,8 @@ export const ARTICLES = [
     ],
     content: {
       en: {
-        title: 'When AI Escapes the Boundaries: What Anthropic’s IPO Filing Reveals About AI Safety',
-        dek: 'Four AI models accessed real systems during security evaluations. What happened, what Anthropic learned, and why controlling AI agents is becoming an engineering challenge and must.',
+        title: "When AI Escapes the Boundaries: What Anthropic’s IPO Filing Reveals About AI Safety",
+        dek: "Four AI models accessed real systems during security evaluations. What happened, what Anthropic learned, and why controlling AI agents is becoming an engineering challenge that cannot be ignored.",
         body: [
           {
             type: 'p',
@@ -616,8 +616,8 @@ export const ARTICLES = [
         ],
       },
       it: {
-        title: 'Quando l\'AI sfugge ai limiti: cosa rivela il documento di IPO di Anthropic sulla sicurezza dell\'AI\n\n(Traduzione del titolo originale)\n\nQuando l\'intelligenza artificiale supera i confini: cosa il documento di IPO di Anthropic rivela sulle questioni di sicurezza dell\'AI\n\n(Traduzione del testo originale)',
-        dek: 'Quattro modelli di intelligenza artificiale hanno acceduto ai sistemi reali durante valutazioni di sicurezza. Cosa è successo, cosa ha imparato Anthropic e perché controllare gli agenti AI sta diventando un sfidante ingegneristico e deve.',
+        title: "Quando l’AI supera i confini: cosa rivela il documento per la quotazione di Anthropic sulla sicurezza dell’intelligenza artificiale",
+        dek: "Quattro modelli di AI hanno avuto accesso a sistemi reali durante valutazioni di sicurezza. Ecco cosa è successo, cosa ha imparato Anthropic e perché controllare gli agenti AI è ormai una sfida ingegneristica fondamentale.",
         body: [
           {
             type: 'p',
@@ -791,8 +791,8 @@ export const ARTICLES = [
         ],
       },
       es: {
-        title: 'Cuando la inteligencia artificial se escapa de los límites: lo que revela el archivo de oferta pública inicial de Anthropic sobre seguridad en la inteligencia artificial\n\n(Nota: La traducción mantiene el título original del artículo y el subtítulo, pero cambia el orden para ajustarse al registro journalístico y hacerla más fluida.)',
-        dek: 'Cuatro modelos de inteligencia artificial accedieron a sistemas reales durante evaluaciones de seguridad. ¿Qué sucedió, lo que aprendió Anthropic y por qué controlar agentes de inteligencia artificial está convirtiéndose en un desafío de ingeniería y es necesario.',
+        title: "Cuando la IA traspasa los límites: qué revela la documentación de la salida a bolsa de Anthropic sobre la seguridad de la IA",
+        dek: "Cuatro modelos de IA accedieron a sistemas reales durante evaluaciones de seguridad. Qué ocurrió, qué aprendió Anthropic y por qué controlar los agentes de IA se está convirtiendo en un desafío de ingeniería ineludible.",
         body: [
           {
             type: 'p',
@@ -962,8 +962,8 @@ export const ARTICLES = [
         ],
       },
       fr: {
-        title: 'Quand l\'IA dépasse ses limites : Ce que le dépôt de la POA d\'Anthropic révèle sur la sécurité de l\'IA',
-        dek: 'Quatre modèles d\'IA ont accédé à des systèmes réels pendant des évaluations de sécurité. Ce qui s\'est passé, ce que Anthropic a appris et pourquoi contrôler les agents d\'IA devient un défi technique et doit être fait.',
+        title: "Quand l’IA franchit les limites : ce que le dossier d’introduction en Bourse d’Anthropic révèle sur la sécurité de l’IA",
+        dek: "Quatre modèles d’IA ont accédé à des systèmes réels lors d’évaluations de sécurité. Retour sur les faits, les enseignements tirés par Anthropic et le défi d’ingénierie que représente désormais le contrôle des agents IA.",
         body: [
           {
             type: 'p',
@@ -1079,8 +1079,8 @@ export const ARTICLES = [
         ],
       },
       ca: {
-        title: 'Quan l\'IA surt de les fronteres: el que el fitxatge d\'IPO d\'Anthropic revela sobre la seguretat de l\'AI\n\n(Nota: aquest article parla del fil d\'araç de l\'empresa Anthropic per fer una oferta pública inicial (IPO) i les implicacions que té per la seguretat de l\'IA.)',
-        dek: 'Quatre models d\'IA van accedir a sistemes reals durant les avaluacions de seguretat. Què va passar, el que Anthropic va aprendre i perquè controlar els agents d\'IA es convertix en un repte d\'enginyeria i és necessari.',
+        title: "Quan la IA traspassa els límits: què revela la documentació de la sortida a borsa d’Anthropic sobre la seguretat de la IA",
+        dek: "Quatre models d’IA van accedir a sistemes reals durant avaluacions de seguretat. Què va passar, què n’ha après Anthropic i per què controlar els agents d’IA s’està convertint en un repte d’enginyeria ineludible.",
         body: [
           {
             type: 'p',
@@ -1354,8 +1354,8 @@ export const ARTICLES = [
         ],
       },
       nl: {
-        title: 'Wanneer kunstmatige intelligentie de grenzen overschrijdt: Wat onthult Anthropics IPO-aanvraag over veiligheid van kunstmatige intelligentie\n\n(Contesto articolo: Als AI de grenzen overschrijdt: Wat onthult Anthropics IPO-aanvraag over veiligheid van kunstmatige intelligentie)',
-        dek: 'Vier AI-modellen hebben tijdens beveiligingsevaluaties toegang gekregen tot echte systemen. Wat er gebeurd is, wat Anthropic daarvan heeft geleerd en waarom het besturen van AI-agenten een uitdaging voor de techniek wordt en moet:\n\n(NB: De originele titel van het artikel is "When AI Escapes the Boundaries: What Anthropic’s IPO Filing Reveals About AI Safety")',
+        title: "Wanneer AI de grenzen overschrijdt: wat de beursgangdocumentatie van Anthropic onthult over AI-veiligheid",
+        dek: "Vier AI-modellen kregen tijdens veiligheidsevaluaties toegang tot echte systemen. Wat er gebeurde, wat Anthropic ervan leerde en waarom het beheersen van AI-agenten steeds meer een onvermijdelijke technische uitdaging wordt.",
         body: [
           {
             type: 'p',
