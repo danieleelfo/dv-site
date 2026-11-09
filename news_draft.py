@@ -520,7 +520,6 @@ def build_news_draft_router(verify_admin_token):
             raise HTTPException(422, "Lingua non supportata (en/it/es/fr/ca/nl).")
         draft = _read_draft()
         draft["content"][body_in.lang] = body_in.content.model_dump()
-        draft["master"] = body_in.lang
         if body_in.number is not None:
             draft["number"] = body_in.number
         if body_in.slug is not None:
