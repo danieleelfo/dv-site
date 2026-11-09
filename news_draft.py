@@ -217,16 +217,9 @@ def _sanity(translated, original, field="body"):
     if len(translated) < 2:
         return False
     lowered = translated.lower()
-    leaked_prompt = (
-        "testo da tradurre", "contesto articolo", "traduci in ",
-        "rispondi solo con", "ecco la traduzione", "translation:",
-        "translated text:", "text to translate", "context article",
-        "contenu de l'article", "titolo dell'articolo",
-        "sottotitolo dell'articolo", "testo à traduire",
-    )
     if lowered.startswith(("i'm sorry", "sorry", "come traduttore")):
         return False
-    if any(marker in lowered for marker in leaked_prompt):
+    if any(marker in lowered for marker in LEAK_MARKERS):
         return False
     if field in ("title", "dek", "heading"):
         max_len = max(220, len(original) * 3 + 120)
@@ -508,6 +501,8 @@ class TranslateAllIn(BaseModel):
 
 class CheckIn(BaseModel):
     content: dict
+    # Lingua master da usare per il confronto (default: bozza corrente o EN).
+    master: str | None = None
 
 
 class PublishIn(BaseModel):
@@ -678,6 +673,10 @@ def build_news_draft_router(verify_admin_token):
 
         def work(job, _target=target, _src=src, _snapshot=draft):
             d = json.loads(json.dumps(_snapshot, ensure_ascii=False))
+            # Svuota la lingua target PRIMA di tradurre: se il job fallisce,
+            # nel draft non resta la vecchia traduzione sporca.
+            d["content"][_target] = {"title": "", "dek": "", "body": ""}
+            _write_draft(d)
             d["content"][_target] = _translate_content(_src, _target)
             _write_draft(d)
             job["draft"] = d
@@ -707,6 +706,10 @@ def build_news_draft_router(verify_admin_token):
             for lang in ALL_LANGS:
                 if lang == _master:
                     continue
+                # Svuota la lingua prima di (ri)tradurla: una traduzione
+                # fallita non lascia nel draft la vecchia versione sporca.
+                d["content"][lang] = {"title": "", "dek": "", "body": ""}
+                _write_draft(d)
                 d["content"][lang] = _translate_content(_src, lang)
                 _write_draft(d)  # salva dopo ogni lingua: i progressi restano
                 job["note"] = f"lingua completata: {lang}"
@@ -729,22 +732,34 @@ def build_news_draft_router(verify_admin_token):
 
     @router.post("/api/admin/news-draft/check")
     def check_content(body_in: CheckIn, authorization: str | None = Header(None)):
-        """Controllo contenuti DETERMINISTICO (nessun LLM) vs master EN.
+        """Controllo contenuti DETERMINISTICO (nessun LLM) vs lingua master.
+
+        La lingua master arriva dal frontend (o dalla bozza corrente, default
+        EN): finché era hardcoded a EN, col master IT il report confrontava
+        tutte le lingue con l'inglese invece che con l'italiano.
 
         Lingua per lingua: campi vuoti, title/dek multi-riga o anomali o
-        identici all'inglese, body identico, struttura dei blocchi diversa
+        identici al master, body identico, struttura dei blocchi diversa
         dal master, blocchi fuori misura, marker di prompt leakati,
         sigle/nomi propri assenti nell'originale (l'LLM li inventa).
         """
         verify_admin_token(authorization)
         content = body_in.content or {}
-        master = "en"
+        master = (body_in.master or "").lower() or None
+        if not master:
+            d = _read_draft()
+            if d.get("master"):
+                master = d["master"]
+        if not master or master not in ALL_LANGS:
+            master = "en"
         en = content.get(master) or {}
         en_title = (en.get("title") or "").strip()
         en_dek = (en.get("dek") or "").strip()
         en_body = (en.get("body") or "").strip()
         if not en_body:
-            raise HTTPException(409, "Nessun contenuto EN (master) da confrontare.")
+            raise HTTPException(
+                409, f"Nessun contenuto {master.upper()} (master) da confrontare."
+            )
         en_blocks = _parse_blocks_lenient(en_body)
         en_words = set(re.findall(
             r"[a-zà-ÿ'’]+",
@@ -767,10 +782,10 @@ def build_news_draft_router(verify_admin_token):
                     warns.append("title su più righe")
                 if len(title) > 1.8 * len(en_title) + 40:
                     warns.append(
-                        f"title anomalo: {len(title)} caratteri vs {len(en_title)} EN"
+                        f"title anomalo: {len(title)} caratteri vs {len(en_title)} {master.upper()}"
                     )
                 if title == en_title and len(title) > 60:
-                    warns.append("title identico all'inglese")
+                    warns.append("title identico al master")
                 if "—" in title and "—" not in en_title:
                     warns.append("title: trattino — assente nel master")
                 if "(" in en_title and "(" not in title:
@@ -780,43 +795,43 @@ def build_news_draft_router(verify_admin_token):
                     warns.append("dek su più paragrafi")
                 if len(dek) > 1.8 * len(en_dek) + 60:
                     warns.append(
-                        f"dek anomalo: {len(dek)} caratteri vs {len(en_dek)} EN"
+                        f"dek anomalo: {len(dek)} caratteri vs {len(en_dek)} {master.upper()}"
                     )
                 if dek == en_dek and len(dek) > 80:
-                    warns.append("dek identico all'inglese")
+                    warns.append("dek identico al master")
                 if "—" in dek and "—" not in en_dek:
                     warns.append("dek: trattino — assente nel master")
                 if "(" in en_dek and "(" not in dek:
                     warns.append("dek: parentesi tonde del master perse")
             if body:
                 if body == en_body:
-                    warns.append("body identico all'inglese (traduzione mancante?)")
+                    warns.append("body identico al master (traduzione mancante?)")
                 blocks = _parse_blocks_lenient(body)
                 if len(blocks) != len(en_blocks):
-                    warns.append(f"{len(blocks)} blocchi vs {len(en_blocks)} EN")
+                    warns.append(f"{len(blocks)} blocchi vs {len(en_blocks)} {master.upper()}")
                 else:
                     for i, (be, bl) in enumerate(zip(en_blocks, blocks), 1):
                         if be.get("type") != bl.get("type"):
                             warns.append(
                                 f"blocco {i}: tipo '{bl.get('type')}' vs "
-                                f"'{be.get('type')}' EN"
+                                f"'{be.get('type')}' {master.upper()}"
                             )
                             continue
                         if be.get("type") == "list":
                             bi, bj = be.get("items") or [], bl.get("items") or []
                             if len(bj) != len(bi):
                                 warns.append(
-                                    f"blocco {i}: {len(bj)} voci lista vs {len(bi)} EN"
+                                    f"blocco {i}: {len(bj)} voci lista vs {len(bi)} {master.upper()}"
                                 )
                             te, tl = " ".join(bi), " ".join(bj)
                         else:
                             te, tl = be.get("text") or "", bl.get("text") or ""
                         if len(tl) > 2.5 * len(te) + 80:
                             warns.append(
-                                f"blocco {i} fuori misura: {len(tl)} vs {len(te)} caratteri EN"
+                                f"blocco {i} fuori misura: {len(tl)} vs {len(te)} caratteri {master.upper()}"
                             )
                         elif len(te) > 80 and tl.strip() == te.strip():
-                            warns.append(f"blocco {i} identico all'inglese")
+                            warns.append(f"blocco {i} identico al master")
                         if "—" in tl and "—" not in te:
                             warns.append(f"blocco {i}: trattino — assente nel master")
                         if "(" in te and "(" not in tl:
@@ -843,7 +858,7 @@ def build_news_draft_router(verify_admin_token):
                     )
             if warns:
                 report[lang] = warns
-        return {"report": report, "ok": not report}
+        return {"report": report, "ok": not report, "master": master}
 
     @router.post("/api/admin/news-draft/image")
     async def upload_image(
