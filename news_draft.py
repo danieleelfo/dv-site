@@ -11,6 +11,7 @@ Immagini: public/news/ del repo locale (committate al publish).
 
 Rotte (tutte Google auth admin via verify_admin_token):
     GET  /api/admin/news-draft                    bozza corrente (o default)
+    POST /api/admin/news-draft/reset             azzera la bozza (nuovo articolo)
     GET  /api/admin/news-draft/articles           lista articoli per il selettore
     GET  /api/admin/news-draft/article/{number}   articolo esistente → box/meta
     POST /api/admin/news-draft/save               salva soltanto una lingua
@@ -112,6 +113,33 @@ def _write_draft(draft):
     DRAFT_FILE.write_text(
         json.dumps(draft, ensure_ascii=False, indent=2), encoding="utf-8"
     )
+
+
+# Salva manuale e job di traduzione (thread) toccano lo stesso
+# news_draft.json: il lock serializza le scritture, e il job scrive con
+# _job_write_langs (solo le SUE lingue, mai il file intero).
+_DRAFT_LOCK = threading.Lock()
+
+
+def _job_write_langs(d, langs):
+    """Il job aggiorna nel draft SOLO le lingue indicate, senza clobber totale.
+
+    Così un Salva manuale fatto mentre il job gira (su un'altra lingua,
+    slug, meta...) non viene perso. Se nel frattempo la bozza è passata a
+    un altro articolo (numero/slug diversi), il risultato del job è
+    scartato: nessuna contaminazione tra articoli.
+    """
+    with _DRAFT_LOCK:
+        cur = _read_draft()
+        if (cur.get("number") or None) != (d.get("number") or None) \
+                or (cur.get("slug") or "") != (d.get("slug") or ""):
+            raise HTTPException(
+                409, "Bozza cambiata durante la traduzione (altro articolo): "
+                     "risultato scartato."
+            )
+        for lang in langs:
+            cur["content"][lang] = d["content"][lang]
+        _write_draft(cur)
 
 
 # ------------------------------------------------------------------ JOBS ---
@@ -522,6 +550,14 @@ def build_news_draft_router(verify_admin_token):
         verify_admin_token(authorization)
         return _read_draft()
 
+    @router.post("/api/admin/news-draft/reset")
+    def reset_draft(authorization: str | None = Header(None)):
+        """Nuovo articolo: azzera tutta la bozza (da chiamare dal selettore "nuovo")."""
+        verify_admin_token(authorization)
+        with _DRAFT_LOCK:
+            _write_draft(_empty_draft())
+        return _empty_draft()
+
     @router.get("/api/admin/news-draft/articles")
     def list_articles(authorization: str | None = Header(None)):
         verify_admin_token(authorization)
@@ -555,7 +591,16 @@ def build_news_draft_router(verify_admin_token):
                         "dek": c.get("dek", ""),
                         "body": _text_from_blocks(c.get("body")),
                     }
-                return {
+                prev = _read_draft()
+                master = (
+                    prev.get("master")
+                    if prev.get("number") == number and prev.get("master") in content
+                    else "en"
+                )
+                # Selezionare un articolo RISCRIVE la bozza per intero:
+                # nessun residuo (lingue, slug, immagine, sources) di un
+                # articolo precedente può finire nel Salva o nel publish.
+                draft = {
                     "number": number,
                     "slug": a.get("slug", ""),
                     "date": a.get("date", ""),
@@ -563,11 +608,11 @@ def build_news_draft_router(verify_admin_token):
                     "sources": _sources_to_text(a.get("sources")),
                     "image": a.get("image"),
                     "content": content,
-                    "master": (
-                        (_read_draft().get("master") or "en")
-                        if _read_draft().get("number") == number else "en"
-                    ),
+                    "master": master,
                 }
+                with _DRAFT_LOCK:
+                    _write_draft(draft)
+                return draft
         raise HTTPException(404, f"Articolo #{number} non trovato.")
 
     @router.post("/api/admin/news-draft/save")
@@ -575,22 +620,26 @@ def build_news_draft_router(verify_admin_token):
         verify_admin_token(authorization)
         if body_in.lang not in ALL_LANGS:
             raise HTTPException(422, "Lingua non supportata (en/it/es/fr/ca/nl).")
-        draft = _read_draft()
-        draft["content"][body_in.lang] = body_in.content.model_dump()
-        if body_in.number is not None:
-            draft["number"] = body_in.number
-        if body_in.slug is not None:
-            draft["slug"] = body_in.slug.strip()
-        if body_in.date is not None:
-            draft["date"] = body_in.date.strip()
-        if body_in.readTime is not None:
-            draft["readTime"] = body_in.readTime
-        if body_in.sources is not None:
-            draft["sources"] = body_in.sources
-        if body_in.image is not None:
-            draft["image"] = body_in.image
-        # Salvare una lingua NON cambia la lingua master.
-        _write_draft(draft)
+        # Salva per lingua ISOLATO: sotto lock rilegge la bozza corrente e
+        # tocca SOLO la lingua (e la meta passata) — le altre lingue non
+        # vengono ridefinite qui, quindi niente residui e niente sovrascritture.
+        with _DRAFT_LOCK:
+            draft = _read_draft()
+            draft["content"][body_in.lang] = body_in.content.model_dump()
+            if body_in.number is not None:
+                draft["number"] = body_in.number
+            if body_in.slug is not None:
+                draft["slug"] = body_in.slug.strip()
+            if body_in.date is not None:
+                draft["date"] = body_in.date.strip()
+            if body_in.readTime is not None:
+                draft["readTime"] = body_in.readTime
+            if body_in.sources is not None:
+                draft["sources"] = body_in.sources
+            if body_in.image is not None:
+                draft["image"] = body_in.image
+            # Salvare una lingua NON cambia la lingua master.
+            _write_draft(draft)
         return draft
 
     @router.post("/api/admin/news-draft/master")
@@ -598,19 +647,20 @@ def build_news_draft_router(verify_admin_token):
         verify_admin_token(authorization)
         if body_in.lang not in ("en", "it", "es"):
             raise HTTPException(422, "La lingua master può essere EN, IT o ES.")
-        draft = _read_draft()
-        if body_in.content is not None:
-            draft["content"] = {
-                lang: value.model_dump() for lang, value in body_in.content.items()
-            }
-        if body_in.number is not None:
-            draft["number"] = body_in.number
-        content = draft.get("content") or {}
-        selected = content.get(body_in.lang) or {}
-        if not selected.get("body"):
-            raise HTTPException(409, f"Nessun contenuto {body_in.lang.upper()} salvato da impostare come master.")
-        draft["master"] = body_in.lang
-        _write_draft(draft)
+        with _DRAFT_LOCK:
+            draft = _read_draft()
+            if body_in.content is not None:
+                draft["content"] = {
+                    lang: value.model_dump() for lang, value in body_in.content.items()
+                }
+            if body_in.number is not None:
+                draft["number"] = body_in.number
+            content = draft.get("content") or {}
+            selected = content.get(body_in.lang) or {}
+            if not selected.get("body"):
+                raise HTTPException(409, f"Nessun contenuto {body_in.lang.upper()} salvato da impostare come master.")
+            draft["master"] = body_in.lang
+            _write_draft(draft)
         return {"master": body_in.lang}
 
     @router.post("/api/admin/news-draft/translate")
@@ -619,66 +669,67 @@ def build_news_draft_router(verify_admin_token):
         target = body_in.target_lang
         if target not in ALL_LANGS:
             raise HTTPException(422, "Lingua non supportata (en/it/es/fr/ca/nl).")
-        draft = _read_draft()
-        if body_in.content is not None:
-            draft["content"] = {lang: value.model_dump() for lang, value in body_in.content.items()}
-        for key in ("number", "slug", "date", "readTime", "sources", "image"):
-            value = getattr(body_in, key, None)
-            if value is not None:
-                draft[key] = value
-        master = body_in.master_lang or draft.get("master") or "en"
-        draft["master"] = master
-        src = draft["content"].get(master)
-        if not src or not src.get("body"):
-            raise HTTPException(409, f"Nessun contenuto master ({master}) da tradurre.")
-        if master == target:
-            raise HTTPException(422, "La lingua target è già il master.")
-        if body_in.field:
-            # Traduzione di UN SOLO campo (title o dek) del master.
-            if body_in.field not in ("title", "dek"):
-                raise HTTPException(422, "field deve essere 'title' o 'dek'.")
-            src_text = (src.get(body_in.field) or "").strip()
-            if not src_text:
-                raise HTTPException(
-                    409, f"Il master ({master}) non ha un {body_in.field} da tradurre."
+        with _DRAFT_LOCK:
+            draft = _read_draft()
+            if body_in.content is not None:
+                draft["content"] = {lang: value.model_dump() for lang, value in body_in.content.items()}
+            for key in ("number", "slug", "date", "readTime", "sources", "image"):
+                value = getattr(body_in, key, None)
+                if value is not None:
+                    draft[key] = value
+            master = body_in.master_lang or draft.get("master") or "en"
+            draft["master"] = master
+            src = draft["content"].get(master)
+            if not src or not src.get("body"):
+                raise HTTPException(409, f"Nessun contenuto master ({master}) da tradurre.")
+            if master == target:
+                raise HTTPException(422, "La lingua target è già il master.")
+            if body_in.field:
+                # Traduzione di UN SOLO campo (title o dek) del master.
+                if body_in.field not in ("title", "dek"):
+                    raise HTTPException(422, "field deve essere 'title' o 'dek'.")
+                src_text = (src.get(body_in.field) or "").strip()
+                if not src_text:
+                    raise HTTPException(
+                        409, f"Il master ({master}) non ha un {body_in.field} da tradurre."
+                    )
+                t = _llm_translate(
+                    target, src_text,
+                    None if body_in.field == "title" else src.get("title", ""),
+                    field=body_in.field,
                 )
-            t = _llm_translate(
-                target, src_text,
-                None if body_in.field == "title" else src.get("title", ""),
-                field=body_in.field,
-            )
-            if body_in.field == "title":
-                t = next((ln.strip() for ln in t.splitlines() if ln.strip()), t)
-            else:
-                t = t.split("\n\n")[0].strip()
-            if not _sanity(t, src_text):
-                raise HTTPException(
-                    502, f"Traduzione insicura per {body_in.field} ({target})."
-                )
-            cur = draft["content"].get(target) or {}
-            draft["content"][target] = {
-                "title": cur.get("title", ""),
-                "dek": cur.get("dek", ""),
-                "body": cur.get("body", ""),
-                body_in.field: t,
-            }
+                if body_in.field == "title":
+                    t = next((ln.strip() for ln in t.splitlines() if ln.strip()), t)
+                else:
+                    t = t.split("\n\n")[0].strip()
+                if not _sanity(t, src_text):
+                    raise HTTPException(
+                        502, f"Traduzione insicura per {body_in.field} ({target})."
+                    )
+                cur = draft["content"].get(target) or {}
+                draft["content"][target] = {
+                    "title": cur.get("title", ""),
+                    "dek": cur.get("dek", ""),
+                    "body": cur.get("body", ""),
+                    body_in.field: t,
+                }
+                _write_draft(draft)
+                return draft
+            # Traduzione INTERA lingua: job in background (vedi _start_job),
+            # il frontend polla /jobs/{id}. Il campo singolo (title/dek) è una
+            # sola chiamata LLM e resta sincrono.
+            # Salva lo snapshot prima di avviare il job: il job non deve leggere
+            # una bozza vecchia o appartenente a un altro articolo.
             _write_draft(draft)
-            return draft
-        # Traduzione INTERA lingua: job in background (vedi _start_job),
-        # il frontend polla /jobs/{id}. Il campo singolo (title/dek) è una
-        # sola chiamata LLM e resta sincrono.
-        # Salva lo snapshot prima di avviare il job: il job non deve leggere
-        # una bozza vecchia o appartenente a un altro articolo.
-        _write_draft(draft)
 
         def work(job, _target=target, _src=src, _snapshot=draft):
             d = json.loads(json.dumps(_snapshot, ensure_ascii=False))
             # Svuota la lingua target PRIMA di tradurre: se il job fallisce,
             # nel draft non resta la vecchia traduzione sporca.
             d["content"][_target] = {"title": "", "dek": "", "body": ""}
-            _write_draft(d)
+            _job_write_langs(d, [_target])
             d["content"][_target] = _translate_content(_src, _target)
-            _write_draft(d)
+            _job_write_langs(d, [_target])
             job["draft"] = d
 
         return {"job_id": _start_job(work)}
@@ -686,20 +737,20 @@ def build_news_draft_router(verify_admin_token):
     @router.post("/api/admin/news-draft/translate-all")
     def translate_all(body_in: TranslateAllIn, authorization: str | None = Header(None)):
         verify_admin_token(authorization)
-        draft = _read_draft()
-        if body_in.content is not None:
-            draft["content"] = {lang: value.model_dump() for lang, value in body_in.content.items()}
-        for key in ("number", "slug", "date", "readTime", "sources", "image"):
-            value = getattr(body_in, key, None)
-            if value is not None:
-                draft[key] = value
-        master = body_in.master_lang or draft.get("master") or "en"
-        draft["master"] = master
-        src = draft["content"].get(master)
-        if not src or not src.get("body"):
-            raise HTTPException(409, f"Nessun contenuto master ({master}) da tradurre.")
-
-        _write_draft(draft)
+        with _DRAFT_LOCK:
+            draft = _read_draft()
+            if body_in.content is not None:
+                draft["content"] = {lang: value.model_dump() for lang, value in body_in.content.items()}
+            for key in ("number", "slug", "date", "readTime", "sources", "image"):
+                value = getattr(body_in, key, None)
+                if value is not None:
+                    draft[key] = value
+            master = body_in.master_lang or draft.get("master") or "en"
+            draft["master"] = master
+            src = draft["content"].get(master)
+            if not src or not src.get("body"):
+                raise HTTPException(409, f"Nessun contenuto master ({master}) da tradurre.")
+            _write_draft(draft)
 
         def work(job, _master=master, _src=src, _snapshot=draft):
             d = json.loads(json.dumps(_snapshot, ensure_ascii=False))
@@ -709,9 +760,9 @@ def build_news_draft_router(verify_admin_token):
                 # Svuota la lingua prima di (ri)tradurla: una traduzione
                 # fallita non lascia nel draft la vecchia versione sporca.
                 d["content"][lang] = {"title": "", "dek": "", "body": ""}
-                _write_draft(d)
+                _job_write_langs(d, [lang])
                 d["content"][lang] = _translate_content(_src, lang)
-                _write_draft(d)  # salva dopo ogni lingua: i progressi restano
+                _job_write_langs(d, [lang])  # salva dopo ogni lingua: i progressi restano
                 job["note"] = f"lingua completata: {lang}"
             job["draft"] = d
 
@@ -880,14 +931,16 @@ def build_news_draft_router(verify_admin_token):
     @router.post("/api/admin/news-draft/publish")
     def publish(body_in: PublishIn, authorization: str | None = Header(None)):
         verify_admin_token(authorization)
-        draft = _read_draft()
-        draft["number"] = body_in.number
-        draft["slug"] = body_in.slug.strip()
-        draft["date"] = body_in.date.strip()
-        draft["readTime"] = body_in.readTime
-        draft["sources"] = body_in.sources
-        if body_in.image is not None:
-            draft["image"] = body_in.image
+        with _DRAFT_LOCK:
+            draft = _read_draft()
+            draft["number"] = body_in.number
+            draft["slug"] = body_in.slug.strip()
+            draft["date"] = body_in.date.strip()
+            draft["readTime"] = body_in.readTime
+            draft["sources"] = body_in.sources
+            if body_in.image is not None:
+                draft["image"] = body_in.image
+            _write_draft(draft)
 
         if not draft["slug"] or not draft["date"]:
             raise HTTPException(422, "Slug e date sono obbligatori.")
@@ -1001,7 +1054,8 @@ def build_news_draft_router(verify_admin_token):
             )
         sha = _git(["rev-parse", "--short", "HEAD"]).stdout.strip()
 
-        _write_draft(_empty_draft())
+        with _DRAFT_LOCK:
+            _write_draft(_empty_draft())
         return {"published": True, "mode": mode, "slug": draft["slug"],
                 "number": number, "commit": msg, "sha": sha}
 
