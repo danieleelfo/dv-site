@@ -308,7 +308,12 @@ export default function Test7() {
         sources: draft.sources,
         image: draft.image,
       });
-      setDraft((prev) => ({ ...prev, ...d, content: d.content || {} }));
+      setDraft((prev) => ({
+        ...prev,
+        ...d,
+        master: prev.master || "en",
+        content: { ...prev.content, [lang]: d.content?.[lang] || c },
+      }));
       setOkMsg(LANG_LABELS[lang] + " salvato.");
     } catch (e) {
       setError(e.message || String(e));
