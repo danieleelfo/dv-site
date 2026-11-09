@@ -225,32 +225,53 @@ def _translate_content(src, target_lang):
     context = src.get("title", "")
     out = {}
     for field in ("title", "dek"):
-        if not (src.get(field) or "").strip():
+        original = (src.get(field) or "").strip()
+        if not original:
             out[field] = ""
             continue
-        # title: nessun contesto (era se stesso: invito allo sproloquio).
         t = _llm_translate(
-            target_lang, src[field],
+            target_lang, original,
             None if field == "title" else context,
             field=field,
         )
-        # Pulizia risposta: del titolo solo la prima riga, del dek solo
-        # il primo paragrafo. Il resto è robaccia che il modello aggiunge.
         if field == "title":
             t = next((ln.strip() for ln in t.splitlines() if ln.strip()), t)
         else:
-            t = t.split("\n\n")[0].strip()
-        if not _sanity(t, src[field]):
+            t = t.split("\\n\\n")[0].strip()
+        if not _sanity(t, original):
             raise HTTPException(502, f"Traduzione insicura per {field} ({target_lang}).")
         out[field] = t
-    paragraphs = [p.strip() for p in src["body"].split("\n\n") if p.strip()]
-    translated_paras = []
-    for para in paragraphs:
-        t = _llm_translate(target_lang, para, context)
-        if not _sanity(t, para):
-            raise HTTPException(502, f"Traduzione insicura nel body ({target_lang}).")
-        translated_paras.append(t)
-    out["body"] = "\n\n".join(translated_paras)
+
+    # Traduci per blocchi, non come testo indistinto: così h3, paragrafi
+    # e liste mantengono esattamente il tipo e l'ordine dell'originale.
+    translated_blocks = []
+    for block_no, block in enumerate(_parse_blocks_lenient(src.get("body", "")), 1):
+        kind = block.get("type")
+        if kind == "h3":
+            original = (block.get("text") or "").strip()
+            translated = _llm_translate(target_lang, original, context, field="title")
+            translated = next((ln.strip() for ln in translated.splitlines() if ln.strip()), translated)
+            if not _sanity(translated, original):
+                raise HTTPException(502, f"Traduzione insicura nell'intestazione {block_no} ({target_lang}).")
+            translated_blocks.append("## " + translated)
+        elif kind == "list":
+            items = []
+            for item_no, item in enumerate(block.get("items") or [], 1):
+                translated = _llm_translate(target_lang, item, context)
+                translated = next((ln.strip() for ln in translated.splitlines() if ln.strip()), translated)
+                if not _sanity(translated, item):
+                    raise HTTPException(502, f"Traduzione insicura nella lista {block_no}, voce {item_no} ({target_lang}).")
+                items.append("- " + translated)
+            translated_blocks.append("\\n".join(items))
+        else:
+            original = (block.get("text") or "").strip()
+            translated = _llm_translate(target_lang, original, context)
+            if not _sanity(translated, original):
+                raise HTTPException(502, f"Traduzione insicura nel paragrafo {block_no} ({target_lang}).")
+            translated_blocks.append(translated)
+    out["body"] = "\\n\\n".join(translated_blocks)
+    if not out["body"].strip():
+        raise HTTPException(422, "Il body del master è vuoto.")
     return out
 
 
@@ -443,9 +464,28 @@ class MasterIn(BaseModel):
 
 class TranslateIn(BaseModel):
     target_lang: str
-    # Se valorizzato ("title" | "dek") traduce SOLO quel campo del master,
-    # senza toccare il resto del contenuto della lingua target.
+    # Snapshot dell'articolo effettivamente aperto nell'editor.
+    master_lang: str | None = None
+    content: dict[str, ContentIn] | None = None
+    number: int | None = None
+    slug: str | None = None
+    date: str | None = None
+    readTime: int | None = None
+    sources: str | None = None
+    image: dict | None = None
+    # Se valorizzato ("title" | "dek") traduce SOLO quel campo.
     field: str | None = None
+
+
+class TranslateAllIn(BaseModel):
+    master_lang: str | None = None
+    content: dict[str, ContentIn] | None = None
+    number: int | None = None
+    slug: str | None = None
+    date: str | None = None
+    readTime: int | None = None
+    sources: str | None = None
+    image: dict | None = None
 
 
 class CheckIn(BaseModel):
@@ -557,7 +597,14 @@ def build_news_draft_router(verify_admin_token):
         if target not in ALL_LANGS:
             raise HTTPException(422, "Lingua non supportata (en/it/es/fr/ca/nl).")
         draft = _read_draft()
-        master = draft.get("master") or "en"
+        if body_in.content is not None:
+            draft["content"] = {lang: value.model_dump() for lang, value in body_in.content.items()}
+        for key in ("number", "slug", "date", "readTime", "sources", "image"):
+            value = getattr(body_in, key, None)
+            if value is not None:
+                draft[key] = value
+        master = body_in.master_lang or draft.get("master") or "en"
+        draft["master"] = master
         src = draft["content"].get(master)
         if not src or not src.get("body"):
             raise HTTPException(409, f"Nessun contenuto master ({master}) da tradurre.")
@@ -597,8 +644,12 @@ def build_news_draft_router(verify_admin_token):
         # Traduzione INTERA lingua: job in background (vedi _start_job),
         # il frontend polla /jobs/{id}. Il campo singolo (title/dek) è una
         # sola chiamata LLM e resta sincrono.
-        def work(job, _target=target, _src=src):
-            d = _read_draft()
+        # Salva lo snapshot prima di avviare il job: il job non deve leggere
+        # una bozza vecchia o appartenente a un altro articolo.
+        _write_draft(draft)
+
+        def work(job, _target=target, _src=src, _snapshot=draft):
+            d = json.loads(json.dumps(_snapshot, ensure_ascii=False))
             d["content"][_target] = _translate_content(_src, _target)
             _write_draft(d)
             job["draft"] = d
@@ -606,16 +657,25 @@ def build_news_draft_router(verify_admin_token):
         return {"job_id": _start_job(work)}
 
     @router.post("/api/admin/news-draft/translate-all")
-    def translate_all(authorization: str | None = Header(None)):
+    def translate_all(body_in: TranslateAllIn, authorization: str | None = Header(None)):
         verify_admin_token(authorization)
         draft = _read_draft()
-        master = draft.get("master") or "en"
+        if body_in.content is not None:
+            draft["content"] = {lang: value.model_dump() for lang, value in body_in.content.items()}
+        for key in ("number", "slug", "date", "readTime", "sources", "image"):
+            value = getattr(body_in, key, None)
+            if value is not None:
+                draft[key] = value
+        master = body_in.master_lang or draft.get("master") or "en"
+        draft["master"] = master
         src = draft["content"].get(master)
         if not src or not src.get("body"):
             raise HTTPException(409, f"Nessun contenuto master ({master}) da tradurre.")
 
-        def work(job, _master=master, _src=src):
-            d = _read_draft()
+        _write_draft(draft)
+
+        def work(job, _master=master, _src=src, _snapshot=draft):
+            d = json.loads(json.dumps(_snapshot, ensure_ascii=False))
             for lang in ALL_LANGS:
                 if lang == _master:
                     continue
