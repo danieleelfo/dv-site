@@ -991,7 +991,7 @@ export const ARTICLES = [
         ],
       },
       ca: {
-        title: 'Quan l\'AI supera els límits: què revela el document d\'oferta inicial d\'Anthropic sobre la seguretat de l\'AI (Català)',
+        title: 'Quan l\'AI supera els límits: què revela el document d\'oferta inicial d\'Anthropic sobre la seguretat de l\'AI',
         dek: '"Quatre models d\'AI accedeixen als sistemes reals durant avaluacions de seguretat. Què s\'ha passat, què Anthropic ha après i perquè controlar els agents AI esdevé una empresa i un deure d\'enginyeria."',
         body: [
           {
@@ -1124,7 +1124,7 @@ export const ARTICLES = [
         ],
       },
       nl: {
-        title: 'Buiten de grenzen van AI: Wat onthult het eerste aanbiedingsdocument van Anthropic over veiligheid van AI (Nederlands)',
+        title: 'Buiten de grenzen van AI: Wat onthult het eerste aanbiedingsdocument van Anthropic over veiligheid van AI',
         dek: 'Boven de grenzen van AI: Wat onthult het introductie document van Anthropic over veiligheid bij AI (Nederlands)',
         body: [
           {
