@@ -2,8 +2,8 @@
 // Test7 — News Admin: bozza/revisione articoli AI News
 // ============================================================
 // Selettore "news#": nuovo articolo o uno esistente → popola i
-// tre box EN/IT/ES (title, dek, body). Salva rende quella lingua
-// la "master", Traduci la rigenera dal master con Ollama.
+// box per le sei lingue. Salva aggiorna soltanto la lingua scelta;
+// la master si cambia esplicitamente con la stellina su IT o ES.
 // Selettore lingua (6) per l'ANTEPRIMA sotto: replica il rendering
 // della pagina AI News (fallback EN come il sito).
 // Immagine opzionale (upload → public/news/). Pubblica fa
@@ -309,7 +309,21 @@ export default function Test7() {
         image: draft.image,
       });
       setDraft((prev) => ({ ...prev, ...d, content: d.content || {} }));
-      setOkMsg(LANG_LABELS[lang] + " salvato: ora è la lingua master ★");
+      setOkMsg(LANG_LABELS[lang] + " salvato.");
+    } catch (e) {
+      setError(e.message || String(e));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function setMasterLang(lang) {
+    if (!["it", "es"].includes(lang)) return;
+    setBusy("master:" + lang);
+    try {
+      const d = await api("/api/admin/news-draft/master", { lang });
+      setDraft((prev) => ({ ...prev, master: d.master || lang }));
+      setOkMsg(LANG_LABELS[lang] + " impostato come master ★");
     } catch (e) {
       setError(e.message || String(e));
     } finally {
@@ -470,9 +484,9 @@ export default function Test7() {
         <div>
           <h1>News Admin</h1>
           <p className="nd-sub">
-            Seleziona un articolo: i box si popolano. Salva rende quella lingua la
-            master ★, Traduci rigenera dal master. L'anteprima sotto segue la
-            lingua scelta (fallback EN come sul sito).
+            Seleziona un articolo: i box si popolano. Salva aggiorna soltanto
+            quella lingua; la stellina accanto a IT o ES la imposta come master.
+            Traduci rigenera dal master. L'anteprima segue la lingua scelta.
           </p>
         </div>
         <div className="nd-auth">
@@ -580,6 +594,18 @@ export default function Test7() {
                 <h2>
                   {LANG_FLAGS[lang]} {LANG_LABELS[lang]}{" "}
                   {isMaster && <span className="nd-star">★ master</span>}
+                  {["it", "es"].includes(lang) && (
+                    <button
+                      type="button"
+                      className="nd-mini"
+                      disabled={!!busy || isMaster}
+                      onClick={() => setMasterLang(lang)}
+                      title={isMaster ? "Questa lingua è già il master" : "Imposta " + LANG_LABELS[lang] + " come lingua master"}
+                      aria-label={"Imposta " + LANG_LABELS[lang] + " come master"}
+                    >
+                      {busy === "master:" + lang ? "…" : "★"}
+                    </button>
+                  )}
                 </h2>
               </div>
               <div className="nd-fieldrow">
