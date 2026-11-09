@@ -205,25 +205,34 @@ def _llm_translate(lang, text, context, field=None):
     return out["message"]["content"].strip()
 
 
-def _sanity(translated, original):
-    if not translated or len(translated) < 2:
+def _sanity(translated, original, field="body"):
+    """Filtro anti-risposte fuori tema, non un giudizio sulla sicurezza del testo.
+
+    Le traduzioni possono essere più lunghe dell'originale (in particolare ES/IT);
+    per i paragrafi il limite è volutamente largo. Non rifiutiamo una traduzione
+    solo perché contiene nomi propri o una frase rimasta uguale.
+    """
+    translated = (translated or "").strip()
+    original = (original or "").strip()
+    if len(translated) < 2:
         return False
-    lowered = translated.lower().strip()
+    lowered = translated.lower()
+    leaked_prompt = (
+        "testo da tradurre", "contesto articolo", "traduci in ",
+        "rispondi solo con", "ecco la traduzione", "translation:",
+        "translated text:", "text to translate", "context article",
+        "contenu de l'article", "titolo dell'articolo",
+        "sottotitolo dell'articolo", "testo à traduire",
+    )
     if lowered.startswith(("i'm sorry", "sorry", "come traduttore")):
         return False
-    # Blocca risposte che ripetono etichette o istruzioni del prompt.
-    leaked_prompt = ("testo da tradurre", "contesto articolo", "traduci in ", "rispondi solo con", "ecco la traduzione", "translation:", "translated text:", "text to translate", "context article", "contenu de l'article", "titolo dell'articolo", "sottotitolo dell'articolo", "testo à traduire")
     if any(marker in lowered for marker in leaked_prompt):
         return False
-    if len(original) > 80 and translated.strip() == original.strip():
-        return False
-    # Campo corto: la traduzione non può esplodere di lunghezza
-    # (il modello ha restituito anche interi paragrafi per un titolo).
-    if len(original) < 250 and len(translated) > 1.6 * len(original) + 60:
-        return False
-    if len(translated) > 2.2 * len(original) + 100:
-        return False
-    if "http" in original and "http" not in translated:
+    if field in ("title", "dek", "heading"):
+        max_len = max(220, len(original) * 3 + 120)
+    else:
+        max_len = max(1200, len(original) * 4 + 300)
+    if len(translated) > max_len:
         return False
     return True
 
@@ -245,7 +254,7 @@ def _translate_content(src, target_lang):
             t = next((ln.strip() for ln in t.splitlines() if ln.strip()), t)
         else:
             t = t.split("\n\n")[0].strip()
-        if not _sanity(t, original):
+        if not _sanity(t, original, field=field):
             raise HTTPException(502, f"Traduzione insicura per {field} ({target_lang}).")
         out[field] = t
 
@@ -258,7 +267,7 @@ def _translate_content(src, target_lang):
             original = (block.get("text") or "").strip()
             translated = _llm_translate(target_lang, original, context, field="heading")
             translated = next((ln.strip() for ln in translated.splitlines() if ln.strip()), translated)
-            if not _sanity(translated, original):
+            if not _sanity(translated, original, field="heading"):
                 raise HTTPException(502, f"Traduzione insicura nell'intestazione {block_no} ({target_lang}).")
             translated_blocks.append("## " + translated)
         elif kind == "list":
@@ -266,14 +275,14 @@ def _translate_content(src, target_lang):
             for item_no, item in enumerate(block.get("items") or [], 1):
                 translated = _llm_translate(target_lang, item, context)
                 translated = next((ln.strip() for ln in translated.splitlines() if ln.strip()), translated)
-                if not _sanity(translated, item):
+                if not _sanity(translated, item, field="list"):
                     raise HTTPException(502, f"Traduzione insicura nella lista {block_no}, voce {item_no} ({target_lang}).")
                 items.append("- " + translated)
             translated_blocks.append("\n".join(items))
         else:
             original = (block.get("text") or "").strip()
             translated = _llm_translate(target_lang, original, context)
-            if not _sanity(translated, original):
+            if not _sanity(translated, original, field="body"):
                 raise HTTPException(502, f"Traduzione insicura nel paragrafo {block_no} ({target_lang}).")
             translated_blocks.append(translated)
     out["body"] = "\n\n".join(translated_blocks)
