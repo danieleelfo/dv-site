@@ -13,7 +13,8 @@ Rotte (tutte Google auth admin via verify_admin_token):
     GET  /api/admin/news-draft                    bozza corrente (o default)
     GET  /api/admin/news-draft/articles           lista articoli per il selettore
     GET  /api/admin/news-draft/article/{number}   articolo esistente → box/meta
-    POST /api/admin/news-draft/save               salva una lingua (diventa master)
+    POST /api/admin/news-draft/save               salva soltanto una lingua
+    POST /api/admin/news-draft/master             imposta esplicitamente la lingua master
     POST /api/admin/news-draft/translate          traduce dal master (6 lingue)
     POST /api/admin/news-draft/translate-all      traduce dal master TUTTE le lingue
     GET  /api/admin/news-draft/jobs/{id}          stato di un job di traduzione
@@ -436,6 +437,10 @@ class SaveIn(BaseModel):
     image: dict | None = None
 
 
+class MasterIn(BaseModel):
+    lang: str
+
+
 class TranslateIn(BaseModel):
     target_lang: str
     # Se valorizzato ("title" | "dek") traduce SOLO quel campo del master,
@@ -528,8 +533,23 @@ def build_news_draft_router(verify_admin_token):
             draft["sources"] = body_in.sources
         if body_in.image is not None:
             draft["image"] = body_in.image
+        # Salvare una lingua NON cambia la lingua master.
         _write_draft(draft)
         return draft
+
+    @router.post("/api/admin/news-draft/master")
+    def set_master(body_in: MasterIn, authorization: str | None = Header(None)):
+        verify_admin_token(authorization)
+        if body_in.lang not in ("en", "it", "es"):
+            raise HTTPException(422, "La lingua master può essere EN, IT o ES.")
+        draft = _read_draft()
+        content = draft.get("content") or {}
+        selected = content.get(body_in.lang) or {}
+        if not selected.get("body"):
+            raise HTTPException(409, f"Nessun contenuto {body_in.lang.upper()} salvato da impostare come master.")
+        draft["master"] = body_in.lang
+        _write_draft(draft)
+        return {"master": body_in.lang}
 
     @router.post("/api/admin/news-draft/translate")
     def translate_lang(body_in: TranslateIn, authorization: str | None = Header(None)):
