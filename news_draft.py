@@ -237,7 +237,7 @@ def _translate_content(src, target_lang):
         if field == "title":
             t = next((ln.strip() for ln in t.splitlines() if ln.strip()), t)
         else:
-            t = t.split("\\n\\n")[0].strip()
+            t = t.split("\n\n")[0].strip()
         if not _sanity(t, original):
             raise HTTPException(502, f"Traduzione insicura per {field} ({target_lang}).")
         out[field] = t
@@ -262,14 +262,14 @@ def _translate_content(src, target_lang):
                 if not _sanity(translated, item):
                     raise HTTPException(502, f"Traduzione insicura nella lista {block_no}, voce {item_no} ({target_lang}).")
                 items.append("- " + translated)
-            translated_blocks.append("\\n".join(items))
+            translated_blocks.append("\n".join(items))
         else:
             original = (block.get("text") or "").strip()
             translated = _llm_translate(target_lang, original, context)
             if not _sanity(translated, original):
                 raise HTTPException(502, f"Traduzione insicura nel paragrafo {block_no} ({target_lang}).")
             translated_blocks.append(translated)
-    out["body"] = "\\n\\n".join(translated_blocks)
+    out["body"] = "\n\n".join(translated_blocks)
     if not out["body"].strip():
         raise HTTPException(422, "Il body del master è vuoto.")
     return out
