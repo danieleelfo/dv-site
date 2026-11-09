@@ -340,11 +340,20 @@ export default function Test7() {
     const key = field ? "field:" + lang + ":" + field : lang;
     setBusy(key);
     try {
-      const d = field
-        ? await api("/api/admin/news-draft/translate", { target_lang: lang, field })
-        : await waitJob(
-            (await api("/api/admin/news-draft/translate", { target_lang: lang })).job_id
-          );
+      const payload = {
+        target_lang: lang,
+        master_lang: draft.master || "en",
+        content: draft.content,
+        number: draft.number,
+        slug: draft.slug,
+        date: draft.date,
+        readTime: draft.readTime,
+        sources: draft.sources,
+        image: draft.image,
+        ...(field ? { field } : {}),
+      };
+      const started = await api("/api/admin/news-draft/translate", payload);
+      const d = field ? started : await waitJob(started.job_id);
       setDraft((prev) => ({ ...prev, ...d, content: d.content || {} }));
       setOkMsg(
         field
@@ -393,7 +402,16 @@ export default function Test7() {
       return;
     setBusy("translateall");
     try {
-      const started = await api("/api/admin/news-draft/translate-all", {});
+      const started = await api("/api/admin/news-draft/translate-all", {
+        master_lang: master,
+        content: draft.content,
+        number: draft.number,
+        slug: draft.slug,
+        date: draft.date,
+        readTime: draft.readTime,
+        sources: draft.sources,
+        image: draft.image,
+      });
       const d = await waitJob(started.job_id);
       setDraft((prev) => ({ ...prev, ...d, content: d.content || {} }));
       const langs = Object.keys(d.content || {})
