@@ -460,6 +460,8 @@ class SaveIn(BaseModel):
 
 class MasterIn(BaseModel):
     lang: str
+    number: int | None = None
+    content: dict[str, ContentIn] | None = None
 
 
 class TranslateIn(BaseModel):
@@ -550,6 +552,10 @@ def build_news_draft_router(verify_admin_token):
                     "sources": _sources_to_text(a.get("sources")),
                     "image": a.get("image"),
                     "content": content,
+                    "master": (
+                        (_read_draft().get("master") or "en")
+                        if _read_draft().get("number") == number else "en"
+                    ),
                 }
         raise HTTPException(404, f"Articolo #{number} non trovato.")
 
@@ -582,6 +588,12 @@ def build_news_draft_router(verify_admin_token):
         if body_in.lang not in ("en", "it", "es"):
             raise HTTPException(422, "La lingua master può essere EN, IT o ES.")
         draft = _read_draft()
+        if body_in.content is not None:
+            draft["content"] = {
+                lang: value.model_dump() for lang, value in body_in.content.items()
+            }
+        if body_in.number is not None:
+            draft["number"] = body_in.number
         content = draft.get("content") or {}
         selected = content.get(body_in.lang) or {}
         if not selected.get("body"):
