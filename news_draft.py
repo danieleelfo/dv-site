@@ -138,6 +138,9 @@ def _llm_translate(lang, text, context, field=None):
         f"usa apostrofi tipografici (\u2019), mai apostrofi dritti; "
         f"per le citazioni usa {LANG_QUOTES[lang]}; non tradurre nomi propri, "
         f"sigle (AI, GPT, EFS) né URL. "
+        f"Per le precisazioni usa le parentesi tonde ( ... ) come nell'originale, "
+        f"mai coppie di trattini — ... —; mantieni la formattazione del blocco "
+        f"identica all'originale (righe di elenco '- ', intestazioni '## '). "
         f"Restituisci esclusivamente il testo tradotto, senza intestazioni, "
         f"etichette, prefazioni, spiegazioni o ripetizioni del testo originale."
     )
@@ -606,6 +609,10 @@ def build_news_draft_router(verify_admin_token):
                     )
                 if title == en_title and len(title) > 60:
                     warns.append("title identico all'inglese")
+                if "—" in title and "—" not in en_title:
+                    warns.append("title: trattino — assente nel master")
+                if "(" in en_title and "(" not in title:
+                    warns.append("title: parentesi tonde del master perse")
             if dek and en_dek:
                 if "\n\n" in dek:
                     warns.append("dek su più paragrafi")
@@ -615,6 +622,10 @@ def build_news_draft_router(verify_admin_token):
                     )
                 if dek == en_dek and len(dek) > 80:
                     warns.append("dek identico all'inglese")
+                if "—" in dek and "—" not in en_dek:
+                    warns.append("dek: trattino — assente nel master")
+                if "(" in en_dek and "(" not in dek:
+                    warns.append("dek: parentesi tonde del master perse")
             if body:
                 if body == en_body:
                     warns.append("body identico all'inglese (traduzione mancante?)")
@@ -644,6 +655,10 @@ def build_news_draft_router(verify_admin_token):
                             )
                         elif len(te) > 80 and tl.strip() == te.strip():
                             warns.append(f"blocco {i} identico all'inglese")
+                        if "—" in tl and "—" not in te:
+                            warns.append(f"blocco {i}: trattino — assente nel master")
+                        if "(" in te and "(" not in tl:
+                            warns.append(f"blocco {i}: parentesi tonde del master perse")
                 whole = (title + "\n" + dek + "\n" + body).lower()
                 leaked = [m for m in LEAK_MARKERS if m in whole]
                 if leaked:

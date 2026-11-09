@@ -129,6 +129,9 @@ def llm_translate(lang: str, text: str, context: str) -> str:
         f"usa apostrofi tipografici (\u2019), mai apostrofi dritti; "
         f"per le citazioni usa {LANG_QUOTES[lang]}; non tradurre nomi propri, "
         f"sigle (AI, S-1, METR) né URL. "
+        f"Per le precisazioni usa le parentesi tonde ( ... ) come nell'originale, "
+        f"mai coppie di trattini — ... —; mantieni la formattazione del blocco "
+        f"identica all'originale (righe di elenco '- ', intestazioni '## '). "
         f"Rispondi SOLO con la traduzione, nessun commento."
     )
     payload = {
