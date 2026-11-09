@@ -193,6 +193,7 @@ export default function Test7() {
   const [error, setError] = useState("");
   const [okMsg, setOkMsg] = useState("");
   const [publishResult, setPublishResult] = useState(null);
+  const [checkReport, setCheckReport] = useState(null);
 
   async function api(path, body, method) {
     setError("");
@@ -235,6 +236,7 @@ export default function Test7() {
   }, [idToken]);
 
   function setContent(lang, patch) {
+    setCheckReport(null);
     setDraft((d) => ({
       ...d,
       content: {
@@ -252,6 +254,7 @@ export default function Test7() {
   async function pickArticle(ev) {
     const number = parseInt(ev.target.value, 10);
     setPublishResult(null);
+    setCheckReport(null);
     if (!number) {
       setDraft({ ...EMPTY_DRAFT, date: EMPTY_DRAFT.date });
       return;
@@ -300,12 +303,45 @@ export default function Test7() {
     }
   }
 
-  async function translateLang(lang) {
-    setBusy(lang);
+  async function translateLang(lang, field) {
+    const key = field ? "field:" + lang + ":" + field : lang;
+    setBusy(key);
     try {
-      const d = await api("/api/admin/news-draft/translate", { target_lang: lang });
+      const d = await api(
+        "/api/admin/news-draft/translate",
+        field ? { target_lang: lang, field } : { target_lang: lang }
+      );
       setDraft((prev) => ({ ...prev, ...d, content: d.content || {} }));
-      setOkMsg(LANG_LABELS[lang] + " tradotto dal master (" + LANG_LABELS[d.master || "en"] + ")");
+      setOkMsg(
+        field
+          ? LANG_LABELS[lang] + " · " + (field === "title" ? "titolo" : "dek") +
+            " ritradotto dal master (" + LANG_LABELS[d.master || "en"] + ")"
+          : LANG_LABELS[lang] + " tradotto dal master (" + LANG_LABELS[d.master || "en"] + ")"
+      );
+      setCheckReport(null);
+    } catch (e) {
+      setError(e.message || String(e));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  // Controllo contenuti deterministico vs master EN (nessun LLM):
+  // campi vuoti, lunghezze, struttura blocchi, marker di prompt, nomi inventati.
+  async function checkContents() {
+    setBusy("check");
+    setError("");
+    setOkMsg("");
+    try {
+      const content = {};
+      for (const l of ALL_LANGS) {
+        const c = draft.content[l];
+        if (c) content[l] = { title: c.title || "", dek: c.dek || "", body: c.body || "" };
+      }
+      const r = await api("/api/admin/news-draft/check", { content });
+      setCheckReport(r.report || {});
+      if (r.ok) setOkMsg("Controllo contenuti: nessun problema nelle lingue tradotte.");
+      else setError("Controllo contenuti: problemi trovati, vedi il report sotto.");
     } catch (e) {
       setError(e.message || String(e));
     } finally {
@@ -530,16 +566,40 @@ export default function Test7() {
                   {isMaster && <span className="nd-star">★ master</span>}
                 </h2>
               </div>
-              <input
-                placeholder="Title"
-                value={c.title}
-                onChange={(e) => setContent(lang, { title: e.target.value })}
-              />
-              <input
-                placeholder="Dek (sottotitolo)"
-                value={c.dek}
-                onChange={(e) => setContent(lang, { dek: e.target.value })}
-              />
+              <div className="nd-fieldrow">
+                <input
+                  placeholder="Title"
+                  value={c.title}
+                  onChange={(e) => setContent(lang, { title: e.target.value })}
+                />
+                {!isMaster && (
+                  <button
+                    className="nd-mini"
+                    disabled={!!busy || !draft.content[masterLang]?.body}
+                    onClick={() => translateLang(lang, "title")}
+                    title={"Ritraduci SOLO il titolo dal master (" + LANG_LABELS[masterLang] + ")"}
+                  >
+                    {busy === "field:" + lang + ":title" ? "…" : "↻"}
+                  </button>
+                )}
+              </div>
+              <div className="nd-fieldrow">
+                <input
+                  placeholder="Dek (sottotitolo)"
+                  value={c.dek}
+                  onChange={(e) => setContent(lang, { dek: e.target.value })}
+                />
+                {!isMaster && (
+                  <button
+                    className="nd-mini"
+                    disabled={!!busy || !draft.content[masterLang]?.body}
+                    onClick={() => translateLang(lang, "dek")}
+                    title={"Ritraduci SOLO il dek dal master (" + LANG_LABELS[masterLang] + ")"}
+                  >
+                    {busy === "field:" + lang + ":dek" ? "…" : "↻"}
+                  </button>
+                )}
+              </div>
               <textarea
                 className="nd-body"
                 placeholder={
@@ -582,6 +642,14 @@ export default function Test7() {
         >
           {busy === "translateall" ? "Traduzione in corso…" : "Traduci tutte le lingue (5)"}
         </button>
+        <button
+          className="nd-btn"
+          disabled={!!busy || !draft.content[masterLang]?.body}
+          onClick={checkContents}
+          title="Controllo deterministico vs master EN: campi vuoti, lunghezze, struttura blocchi, marker di prompt, nomi/sigle inventati"
+        >
+          {busy === "check" ? "Controllo…" : "Controlla contenuti"}
+        </button>
         <span className="nd-langchips">
           {ALL_LANGS.map((l) => {
             const has = !!(draft.content[l] || {}).body;
@@ -590,7 +658,8 @@ export default function Test7() {
                 key={l}
                 className={
                   "nd-chip" +
-                  (l === masterLang ? " nd-chip-master" : has ? " nd-chip-on" : "")
+                  (l === masterLang ? " nd-chip-master" : has ? " nd-chip-on" : "") +
+                  (checkReport && checkReport[l] && checkReport[l].length ? " nd-chip-bad" : "")
                 }
               >
                 {LANG_FLAGS[l]} {l.toUpperCase()}
@@ -600,6 +669,25 @@ export default function Test7() {
           })}
         </span>
       </div>
+
+      {/* REPORT CONTROLLO CONTENUTI (deterministico, vs master EN) */}
+      {checkReport && (
+        <section className="nd-checkreport">
+          <h3>Controllo contenuti · vs {LANG_FLAGS[masterLang]} {LANG_LABELS[masterLang]} master</h3>
+          {Object.keys(checkReport).length === 0 ? (
+            <p className="nd-checkok">Nessun problema rilevato nelle lingue tradotte.</p>
+          ) : (
+            ALL_LANGS.filter((l) => checkReport[l] && checkReport[l].length).map((l) => (
+              <div key={l} className="nd-checklang">
+                <b>{LANG_FLAGS[l]} {LANG_LABELS[l]}</b>
+                <ul>
+                  {checkReport[l].map((m, i) => <li key={i}>{m}</li>)}
+                </ul>
+              </div>
+            ))
+          )}
+        </section>
+      )}
 
       {/* ANTEPRIMA (rendering stile AI News) */}
       <section className="nd-previewbox">
@@ -717,6 +805,19 @@ export default function Test7() {
         .nd-chip { font-size: 11.5px; padding: 4px 9px; border-radius: 999px; border: 1px solid rgba(255,255,255,.12); color: #6b7280; background: rgba(0,0,0,.25); }
         .nd-chip-on { color: #34d399; border-color: rgba(52,211,153,.4); }
         .nd-chip-master { color: #5eead4; border-color: rgba(94,234,212,.5); }
+        .nd-fieldrow { display: flex; gap: 6px; align-items: stretch; }
+        .nd-fieldrow input { flex: 1; }
+        .nd-mini { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); color: #e5e7eb; border-radius: 8px; padding: 0 10px; font-size: 14px; cursor: pointer; }
+        .nd-mini:hover { background: rgba(255,255,255,.16); }
+        .nd-mini:disabled { opacity: .5; cursor: not-allowed; }
+        .nd-chip-bad { color: #f87171 !important; border-color: rgba(248,113,113,.5) !important; }
+        .nd-checkreport { margin-top: 14px; background: rgba(248,113,113,.06); border: 1px solid rgba(248,113,113,.25); border-radius: 12px; padding: 14px 16px; }
+        .nd-checkreport h3 { margin: 0 0 10px; font-size: 14px; color: #fca5a5; }
+        .nd-checkok { color: #34d399; font-size: 13px; margin: 0; }
+        .nd-checklang { margin-bottom: 10px; font-size: 13px; color: #e5e7eb; }
+        .nd-checklang b { display: block; margin-bottom: 4px; }
+        .nd-checklang ul { margin: 0; padding-left: 20px; }
+        .nd-checklang li { color: #fca5a5; margin-bottom: 3px; font-size: 12.5px; line-height: 1.45; }
         .nd-previewbox { margin-top: 20px; border: 1px solid rgba(255,255,255,.08); border-radius: 12px; overflow: hidden; }
         .nd-previewhead { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: rgba(255,255,255,.03); }
         .nd-previewhead h2 { margin: 0; font-size: 14px; }

@@ -16,6 +16,8 @@ Rotte (tutte Google auth admin via verify_admin_token):
     POST /api/admin/news-draft/save               salva una lingua (diventa master)
     POST /api/admin/news-draft/translate          traduce dal master (6 lingue)
     POST /api/admin/news-draft/translate-all      traduce dal master TUTTE le lingue
+    POST /api/admin/news-draft/translate?field    traduce SOLO title/dek di una lingua
+    POST /api/admin/news-draft/check              controllo contenuti vs master (no LLM)
     POST /api/admin/news-draft/image              upload immagine (multipart)
     POST /api/admin/news-draft/publish            insert nuovo o update esistente
 """
@@ -44,6 +46,35 @@ ALL_LANGS = {"en": "inglese", "it": "italiano", "es": "spagnolo",
              "fr": "francese", "ca": "catalano", "nl": "olandese"}
 LANG_QUOTES = {"en": '" "', "it": "« »", "es": "« »", "fr": "« »",
                "ca": "« »", "nl": '" "'}
+
+# Marker di prompt/istruzioni che non devono mai finire nella traduzione.
+LEAK_MARKERS = (
+    "testo da tradurre", "contesto articolo", "traduci in ", "rispondi solo con",
+    "ecco la traduzione", "translation:", "translated text:", "text to translate",
+    "context article", "contenu de l'article", "titolo dell'articolo",
+    "sottotitolo dell'articolo", "testo à traduire", "come traduttore",
+    "ecco la versione", "in questo articolo analizziamo",
+)
+
+# Sigle note ammesse anche se non compaiono nel testo EN dell'articolo.
+ALLOW_CAPS = {
+    "AI", "SEC", "IPO", "USA", "UK", "EU", "METR", "API", "HTTP", "HTTPS",
+    "URL", "GPT", "LLM", "LLMS", "CEO", "CTO", "COO", "NASA", "IBM", "PDF",
+    "JS", "CSS", "HTML", "JSON", "SQL", "RAM", "CPU", "GPU", "DAG", "SAM",
+    "AGI", "ETA", "OGM", "ONG", "AVV", "SRL", "SPA", "S-1",
+}
+
+# Parole che in alcune lingue restano maiuscole a metà frase senza essere
+# nomi propri (lingue/nazionalità). Chiavi in minuscolo.
+COMMON_CAPS = {
+    "inglese", "italiano", "italiani", "italiana", "spagnolo", "spagnola",
+    "francese", "francesi", "catalano", "catalana", "olandese", "olandesi",
+    "americano", "americana", "americani", "americane", "europeo", "europea",
+    "européen", "européenne", "engels", "engelse", "nederlands", "nederlandse",
+    "nederlander", "frans", "franse", "espanol", "española", "europese",
+    "amerikaans", "amerikaanse", "italiaanse", "spaanse", "europa",
+    "inglés", "anglès", "italià", "català", "française",
+}
 
 COMMIT_PREFIX = "AI News:"
 
@@ -221,6 +252,44 @@ def _text_from_blocks(blocks):
     return "\n\n".join(parts)
 
 
+def _parse_blocks_lenient(text):
+    """Come _blocks_from_text ma senza mai sollevare (per il check contenuti)."""
+    blocks = []
+    for para in (text or "").split("\n\n"):
+        para = para.strip()
+        if not para:
+            continue
+        if para.startswith("## "):
+            blocks.append({"type": "h3", "text": para[3:].strip()})
+            continue
+        lines = [l.strip() for l in para.split("\n") if l.strip()]
+        if lines and all(l.startswith("- ") for l in lines):
+            blocks.append({"type": "list", "items": [l[2:].strip() for l in lines]})
+            continue
+        blocks.append({"type": "p", "text": " ".join(lines)})
+    return blocks
+
+
+def _unknown_names(text, en_words):
+    """Nomi propri maiuscoli a metà frase che non compaiono nell'originale.
+
+    Salta la prima parola di ogni frase (mai maiuscola per costruzione).
+    Controllo euristico: produce avvisi da valutare a occhio, non errori.
+    """
+    out = set()
+    for chunk in re.split(r"(?<=[.!?;:])\s+", text or ""):
+        words = chunk.replace("\n", " ").split()
+        for w in words[1:]:
+            m = re.match(r"^[A-ZÀ-Þ][a-zà-ÿ'’\-]{3,}[.,;:!?]?$", w)
+            if not m:
+                continue
+            core = w.strip(".,;:!?").lower()
+            if core in en_words or core in COMMON_CAPS:
+                continue
+            out.add(w.strip(".,;:!?"))
+    return sorted(out)
+
+
 def _parse_sources(text):
     sources = []
     for line in (text or "").splitlines():
@@ -335,6 +404,13 @@ class SaveIn(BaseModel):
 
 class TranslateIn(BaseModel):
     target_lang: str
+    # Se valorizzato ("title" | "dek") traduce SOLO quel campo del master,
+    # senza toccare il resto del contenuto della lingua target.
+    field: str | None = None
+
+
+class CheckIn(BaseModel):
+    content: dict
 
 
 class PublishIn(BaseModel):
@@ -434,6 +510,37 @@ def build_news_draft_router(verify_admin_token):
             raise HTTPException(409, f"Nessun contenuto master ({master}) da tradurre.")
         if master == target:
             raise HTTPException(422, "La lingua target è già il master.")
+        if body_in.field:
+            # Traduzione di UN SOLO campo (title o dek) del master.
+            if body_in.field not in ("title", "dek"):
+                raise HTTPException(422, "field deve essere 'title' o 'dek'.")
+            src_text = (src.get(body_in.field) or "").strip()
+            if not src_text:
+                raise HTTPException(
+                    409, f"Il master ({master}) non ha un {body_in.field} da tradurre."
+                )
+            t = _llm_translate(
+                target, src_text,
+                None if body_in.field == "title" else src.get("title", ""),
+                field=body_in.field,
+            )
+            if body_in.field == "title":
+                t = next((ln.strip() for ln in t.splitlines() if ln.strip()), t)
+            else:
+                t = t.split("\n\n")[0].strip()
+            if not _sanity(t, src_text):
+                raise HTTPException(
+                    502, f"Traduzione insicura per {body_in.field} ({target})."
+                )
+            cur = draft["content"].get(target) or {}
+            draft["content"][target] = {
+                "title": cur.get("title", ""),
+                "dek": cur.get("dek", ""),
+                "body": cur.get("body", ""),
+                body_in.field: t,
+            }
+            _write_draft(draft)
+            return draft
         draft["content"][target] = _translate_content(src, target)
         _write_draft(draft)
         return draft
@@ -454,6 +561,112 @@ def build_news_draft_router(verify_admin_token):
             _write_draft(draft)  # salva dopo ogni lingua: i progressi restano
             done.append(lang)
         return draft
+
+    @router.post("/api/admin/news-draft/check")
+    def check_content(body_in: CheckIn, authorization: str | None = Header(None)):
+        """Controllo contenuti DETERMINISTICO (nessun LLM) vs master EN.
+
+        Lingua per lingua: campi vuoti, title/dek multi-riga o anomali o
+        identici all'inglese, body identico, struttura dei blocchi diversa
+        dal master, blocchi fuori misura, marker di prompt leakati,
+        sigle/nomi propri assenti nell'originale (l'LLM li inventa).
+        """
+        verify_admin_token(authorization)
+        content = body_in.content or {}
+        master = "en"
+        en = content.get(master) or {}
+        en_title = (en.get("title") or "").strip()
+        en_dek = (en.get("dek") or "").strip()
+        en_body = (en.get("body") or "").strip()
+        if not en_body:
+            raise HTTPException(409, "Nessun contenuto EN (master) da confrontare.")
+        en_blocks = _parse_blocks_lenient(en_body)
+        en_words = set(re.findall(
+            r"[a-zà-ÿ'’]+",
+            (en_title + " " + en_dek + " " + en_body).lower()
+        ))
+        report = {}
+        for lang in ALL_LANGS:
+            if lang == master:
+                continue
+            c = content.get(lang) or {}
+            title = (c.get("title") or "").strip()
+            dek = (c.get("dek") or "").strip()
+            body = (c.get("body") or "").strip()
+            warns = []
+            for name, val in (("title", title), ("dek", dek), ("body", body)):
+                if not val:
+                    warns.append(name + " vuoto")
+            if title and en_title:
+                if "\n" in title:
+                    warns.append("title su più righe")
+                if len(title) > 1.8 * len(en_title) + 40:
+                    warns.append(
+                        f"title anomalo: {len(title)} caratteri vs {len(en_title)} EN"
+                    )
+                if title == en_title and len(title) > 60:
+                    warns.append("title identico all'inglese")
+            if dek and en_dek:
+                if "\n\n" in dek:
+                    warns.append("dek su più paragrafi")
+                if len(dek) > 1.8 * len(en_dek) + 60:
+                    warns.append(
+                        f"dek anomalo: {len(dek)} caratteri vs {len(en_dek)} EN"
+                    )
+                if dek == en_dek and len(dek) > 80:
+                    warns.append("dek identico all'inglese")
+            if body:
+                if body == en_body:
+                    warns.append("body identico all'inglese (traduzione mancante?)")
+                blocks = _parse_blocks_lenient(body)
+                if len(blocks) != len(en_blocks):
+                    warns.append(f"{len(blocks)} blocchi vs {len(en_blocks)} EN")
+                else:
+                    for i, (be, bl) in enumerate(zip(en_blocks, blocks), 1):
+                        if be.get("type") != bl.get("type"):
+                            warns.append(
+                                f"blocco {i}: tipo '{bl.get('type')}' vs "
+                                f"'{be.get('type')}' EN"
+                            )
+                            continue
+                        if be.get("type") == "list":
+                            bi, bj = be.get("items") or [], bl.get("items") or []
+                            if len(bj) != len(bi):
+                                warns.append(
+                                    f"blocco {i}: {len(bj)} voci lista vs {len(bi)} EN"
+                                )
+                            te, tl = " ".join(bi), " ".join(bj)
+                        else:
+                            te, tl = be.get("text") or "", bl.get("text") or ""
+                        if len(tl) > 2.5 * len(te) + 80:
+                            warns.append(
+                                f"blocco {i} fuori misura: {len(tl)} vs {len(te)} caratteri EN"
+                            )
+                        elif len(te) > 80 and tl.strip() == te.strip():
+                            warns.append(f"blocco {i} identico all'inglese")
+                whole = (title + "\n" + dek + "\n" + body).lower()
+                leaked = [m for m in LEAK_MARKERS if m in whole]
+                if leaked:
+                    warns.append(
+                        "marker di prompt leakati: " + ", ".join(repr(m) for m in leaked[:4])
+                    )
+                caps = sorted({
+                    t for t in re.findall(r"\b[A-Z]{2,}\b", title + " " + dek + " " + body)
+                    if t not in ALLOW_CAPS and t.lower() not in en_words
+                })
+                if caps:
+                    warns.append(
+                        "sigle/nomi MAIUSCOLI assenti nell'originale: "
+                        + ", ".join(caps[:8])
+                    )
+                names = _unknown_names(title + "\n" + dek + "\n" + body, en_words)
+                if names:
+                    warns.append(
+                        "nomi propri assenti nell'originale: " + ", ".join(names[:8])
+                    )
+            if warns:
+                report[lang] = warns
+        return {"report": report, "ok": not report}
 
     @router.post("/api/admin/news-draft/image")
     async def upload_image(
