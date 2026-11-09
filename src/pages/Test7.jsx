@@ -216,6 +216,20 @@ export default function Test7() {
     return data;
   }
 
+  // Job in background (traduzione completa: una lingua = ~20 chiamate LLM,
+  // tutte = ~100): la richiesta sincrona sfora il timeout del proxy
+  // ("Failed to fetch"), quindi si polla il job ogni 2.5 secondi.
+  async function waitJob(jobId) {
+    for (;;) {
+      await new Promise((r) => setTimeout(r, 2500));
+      const j = await api("/api/admin/news-draft/jobs/" + jobId);
+      if (j.done) {
+        if (j.error) throw new Error(j.error);
+        return j.draft;
+      }
+    }
+  }
+
   // Carica lista articoli + bozza quando c'è il token.
   useEffect(() => {
     if (!idToken) return;
@@ -307,10 +321,11 @@ export default function Test7() {
     const key = field ? "field:" + lang + ":" + field : lang;
     setBusy(key);
     try {
-      const d = await api(
-        "/api/admin/news-draft/translate",
-        field ? { target_lang: lang, field } : { target_lang: lang }
-      );
+      const d = field
+        ? await api("/api/admin/news-draft/translate", { target_lang: lang, field })
+        : await waitJob(
+            (await api("/api/admin/news-draft/translate", { target_lang: lang })).job_id
+          );
       setDraft((prev) => ({ ...prev, ...d, content: d.content || {} }));
       setOkMsg(
         field
@@ -359,7 +374,8 @@ export default function Test7() {
       return;
     setBusy("translateall");
     try {
-      const d = await api("/api/admin/news-draft/translate-all", {});
+      const started = await api("/api/admin/news-draft/translate-all", {});
+      const d = await waitJob(started.job_id);
       setDraft((prev) => ({ ...prev, ...d, content: d.content || {} }));
       const langs = Object.keys(d.content || {})
         .filter((l) => (d.content[l] || {}).body)

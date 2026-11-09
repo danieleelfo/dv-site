@@ -16,6 +16,7 @@ Rotte (tutte Google auth admin via verify_admin_token):
     POST /api/admin/news-draft/save               salva una lingua (diventa master)
     POST /api/admin/news-draft/translate          traduce dal master (6 lingue)
     POST /api/admin/news-draft/translate-all      traduce dal master TUTTE le lingue
+    GET  /api/admin/news-draft/jobs/{id}          stato di un job di traduzione
     POST /api/admin/news-draft/translate?field    traduce SOLO title/dek di una lingua
     POST /api/admin/news-draft/check              controllo contenuti vs master (no LLM)
     POST /api/admin/news-draft/image              upload immagine (multipart)
@@ -26,8 +27,10 @@ import json
 import os
 import re
 import subprocess
+import threading
 import time
 import urllib.request
+import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, File, Header, HTTPException, UploadFile
@@ -108,6 +111,34 @@ def _write_draft(draft):
     DRAFT_FILE.write_text(
         json.dumps(draft, ensure_ascii=False, indent=2), encoding="utf-8"
     )
+
+
+# ------------------------------------------------------------------ JOBS ---
+# Tradurre una lingua intera = ~20 chiamate LLM, tutte = ~100: la richiesta
+# sincrona sfora il timeout di qualunque proxy/tunnel davanti al gateway e
+# il browser mostra "Failed to fetch". Il lavoro gira in un thread e il
+# frontend polla GET /jobs/{id}.
+
+_JOBS = {}
+
+
+def _start_job(work):
+    jid = uuid.uuid4().hex[:12]
+    job = {"done": False, "error": None, "draft": None, "note": ""}
+    _JOBS[jid] = job
+
+    def run():
+        try:
+            work(job)
+        except HTTPException as e:
+            job["error"] = str(e.detail)
+        except Exception as e:
+            job["error"] = f"{type(e).__name__}: {e}"
+        finally:
+            job["done"] = True
+
+    threading.Thread(target=run, daemon=True).start()
+    return jid
 
 
 # ------------------------------------------------------------------- LLM ---
@@ -544,9 +575,16 @@ def build_news_draft_router(verify_admin_token):
             }
             _write_draft(draft)
             return draft
-        draft["content"][target] = _translate_content(src, target)
-        _write_draft(draft)
-        return draft
+        # Traduzione INTERA lingua: job in background (vedi _start_job),
+        # il frontend polla /jobs/{id}. Il campo singolo (title/dek) è una
+        # sola chiamata LLM e resta sincrono.
+        def work(job, _target=target, _src=src):
+            d = _read_draft()
+            d["content"][_target] = _translate_content(_src, _target)
+            _write_draft(d)
+            job["draft"] = d
+
+        return {"job_id": _start_job(work)}
 
     @router.post("/api/admin/news-draft/translate-all")
     def translate_all(authorization: str | None = Header(None)):
@@ -556,14 +594,31 @@ def build_news_draft_router(verify_admin_token):
         src = draft["content"].get(master)
         if not src or not src.get("body"):
             raise HTTPException(409, f"Nessun contenuto master ({master}) da tradurre.")
-        done = []
-        for lang in ALL_LANGS:
-            if lang == master:
-                continue
-            draft["content"][lang] = _translate_content(src, lang)
-            _write_draft(draft)  # salva dopo ogni lingua: i progressi restano
-            done.append(lang)
-        return draft
+
+        def work(job, _master=master, _src=src):
+            d = _read_draft()
+            for lang in ALL_LANGS:
+                if lang == _master:
+                    continue
+                d["content"][lang] = _translate_content(_src, lang)
+                _write_draft(d)  # salva dopo ogni lingua: i progressi restano
+                job["note"] = f"lingua completata: {lang}"
+            job["draft"] = d
+
+        return {"job_id": _start_job(work)}
+
+    @router.get("/api/admin/news-draft/jobs/{job_id}")
+    def job_status(job_id: str, authorization: str | None = Header(None)):
+        verify_admin_token(authorization)
+        job = _JOBS.get(job_id)
+        if not job:
+            raise HTTPException(404, "Job sconosciuto (o gateway riavviato).")
+        out = {"done": job["done"], "error": job["error"], "note": job["note"]}
+        if job["done"]:
+            if not job["error"]:
+                out["draft"] = job["draft"] or _read_draft()
+            _JOBS.pop(job_id, None)  # consegnato: libera
+        return out
 
     @router.post("/api/admin/news-draft/check")
     def check_content(body_in: CheckIn, authorization: str | None = Header(None)):
