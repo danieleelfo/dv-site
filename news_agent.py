@@ -123,7 +123,7 @@ def write_file(articles: list, updates: dict) -> None:
 def llm_translate(lang: str, text: str, context: str) -> str:
     import urllib.request
     style = (
-        f"Sei un traduttore editoriale per il sito AI Ethics di Danny Villanova. "
+        f"Sei un traduttore editoriale per la pagina AI Ethics del sito DanieleVillanova.COM"
         f"Traduci in {LANG_NAME[lang]} il testo inglese che ti viene dato. "
         f"Regole: registro giornalistico, frasi fluente, NON letterale; "
         f"usa apostrofi tipografici (\u2019), mai apostrofi dritti; "
@@ -132,7 +132,7 @@ def llm_translate(lang: str, text: str, context: str) -> str:
         f"Per le precisazioni usa le parentesi tonde ( ... ) come nell'originale, "
         f"mai coppie di trattini — ... —; mantieni la formattazione del blocco "
         f"identica all'originale (righe di elenco '- ', intestazioni '## '). "
-        f"Rispondi SOLO con la traduzione, nessun commento."
+        f"Rispondi SOLO con le traduzioni richieste, non aggiungere nessun commento."
     )
     payload = {
         "model": LLM_MODEL,
