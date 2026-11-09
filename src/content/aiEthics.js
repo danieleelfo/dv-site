@@ -14,7 +14,7 @@ export const ARTICLES = [
     category: 'NEWS',
     number: 3,
     date: '2026-11-06',
-    readTime: 3,
+    readTime: 1,
     sources: [
       {
         label: 'SecurityWeek - OpenAI Says New GPT-6 Cyber Model Hunts Flaws Without Crossing the Line',
