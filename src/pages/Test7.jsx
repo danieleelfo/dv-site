@@ -285,7 +285,7 @@ export default function Test7() {
         sources: a.sources || "",
         image: a.image || null,
         content: a.content || {},
-        master: "en",
+        master: a.master || "en",
       });
     } catch (e) {
       setError(e.message || String(e));
@@ -326,7 +326,11 @@ export default function Test7() {
     if (!["it", "es"].includes(lang)) return;
     setBusy("master:" + lang);
     try {
-      const d = await api("/api/admin/news-draft/master", { lang });
+      const d = await api("/api/admin/news-draft/master", {
+        lang,
+        number: draft.number,
+        content: draft.content,
+      });
       setDraft((prev) => ({ ...prev, master: d.master || lang }));
       setOkMsg(LANG_LABELS[lang] + " impostato come master ★");
     } catch (e) {
