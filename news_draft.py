@@ -81,9 +81,26 @@ def _write_draft(draft):
 
 # ------------------------------------------------------------------- LLM ---
 
-def _llm_translate(lang, text, context):
+def _llm_translate(lang, text, context, field=None):
+    # Istruzioni specifiche per campo corto: senza queste, Mistral tende a
+    # "sproloquiare" (ripete il contesto, incolla istruzioni o l'articolo
+    # intero anche quando gli è stato dato solo il titolo).
+    field_hint = ""
+    if field == "title":
+        field_hint = (
+            "Il testo da tradurre è il TITOLO di un articolo: restituisci SOLO il "
+            "titolo tradotto, UNA sola riga, senza virgolette di contorno e senza "
+            "nessun altro testo, etichetta o spiegazione. "
+        )
+    elif field == "dek":
+        field_hint = (
+            "Il testo da tradurre è il SOTTOTITOLO (dek) di un articolo: "
+            "restituisci SOLO il sottotitolo tradotto, un unico breve paragrafo, "
+            "senza nessun altro testo, etichetta o spiegazione. "
+        )
     style = (
         f"Sei un traduttore editoriale per il sito AI News di Danny Villanova. "
+        + field_hint +
         f"Traduci in {ALL_LANGS[lang]} il testo inglese che ti viene dato. "
         f"Contesto/titolo articolo: {context!r}. "
         f"Regole: registro giornalistico, frasi fluide, NON letterale; "
@@ -122,10 +139,16 @@ def _sanity(translated, original):
     if lowered.startswith(("i'm sorry", "sorry", "come traduttore")):
         return False
     # Blocca risposte che ripetono etichette o istruzioni del prompt.
-    leaked_prompt = ("testo da tradurre", "contesto articolo", "traduci in ", "rispondi solo con", "ecco la traduzione", "translation:", "translated text:")
+    leaked_prompt = ("testo da tradurre", "contesto articolo", "traduci in ", "rispondi solo con", "ecco la traduzione", "translation:", "translated text:", "text to translate", "context article", "contenu de l'article", "titolo dell'articolo", "sottotitolo dell'articolo", "testo à traduire")
     if any(marker in lowered for marker in leaked_prompt):
         return False
     if len(original) > 80 and translated.strip() == original.strip():
+        return False
+    # Campo corto: la traduzione non può esplodere di lunghezza
+    # (il modello ha restituito anche interi paragrafi per un titolo).
+    if len(original) < 250 and len(translated) > 1.6 * len(original) + 60:
+        return False
+    if len(translated) > 2.2 * len(original) + 100:
         return False
     if "http" in original and "http" not in translated:
         return False
@@ -136,7 +159,21 @@ def _translate_content(src, target_lang):
     context = src.get("title", "")
     out = {}
     for field in ("title", "dek"):
-        t = _llm_translate(target_lang, src[field], context)
+        if not (src.get(field) or "").strip():
+            out[field] = ""
+            continue
+        # title: nessun contesto (era se stesso: invito allo sproloquio).
+        t = _llm_translate(
+            target_lang, src[field],
+            None if field == "title" else context,
+            field=field,
+        )
+        # Pulizia risposta: del titolo solo la prima riga, del dek solo
+        # il primo paragrafo. Il resto è robaccia che il modello aggiunge.
+        if field == "title":
+            t = next((ln.strip() for ln in t.splitlines() if ln.strip()), t)
+        else:
+            t = t.split("\n\n")[0].strip()
         if not _sanity(t, src[field]):
             raise HTTPException(502, f"Traduzione insicura per {field} ({target_lang}).")
         out[field] = t
