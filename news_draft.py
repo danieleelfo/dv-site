@@ -45,6 +45,9 @@ NEWS_IMG_DIR = DV_SITE_DIR / "public" / "news"
 
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
 LLM_MODEL = os.environ.get("NEWS_DRAFT_MODEL", "mistral:latest")
+# Timeout per SINGOLA chiamata LLM: un blocco che si impantana costa
+# al massimo 300s x 2 tentativi, non 600s buttati via (e il job prosegue).
+LLM_TIMEOUT = int(os.environ.get("NEWS_DRAFT_LLM_TIMEOUT", "300"))
 
 BOX_LANGS = ("en", "it", "es")
 ALL_LANGS = {"en": "inglese", "it": "italiano", "es": "spagnolo",
@@ -228,7 +231,7 @@ def _llm_translate(lang, text, context, field=None):
         data=json.dumps(payload).encode(),
         headers={"Content-Type": "application/json"},
     )
-    with urllib.request.urlopen(req, timeout=600) as r:
+    with urllib.request.urlopen(req, timeout=LLM_TIMEOUT) as r:
         out = json.load(r)
     return out["message"]["content"].strip()
 
@@ -258,7 +261,44 @@ def _sanity(translated, original, field="body"):
     return True
 
 
-def _translate_content(src, target_lang):
+def _clean_field(t, field):
+    """Normalizza la risposta LLM secondo il campo (title/dek/heading/list/body)."""
+    if field in ("title", "heading", "list"):
+        return next((ln.strip() for ln in t.splitlines() if ln.strip()), t)
+    if field == "dek":
+        return t.split("\n\n")[0].strip()
+    return t.strip()
+
+
+def _translate_with_retry(lang, text, context, field, label, warns, attempts=2):
+    """Una chiamata LLM con retry: un blocco sfortunato non ammazza più il job.
+
+    Ritorna la traduzione pulita, oppure None dopo `attempts` tentativi
+    (timeout Ollama, risposta fuori tema): il chiamante lascia in quel
+    punto l'originale del master e il "Controlla contenuti" lo segnala
+    ("identico al master"). Prima un solo blocco fallito buttava via
+    tutta la lingua (job in errore dopo 10 minuti).
+    """
+    for attempt in range(1, attempts + 1):
+        try:
+            raw = _llm_translate(
+                lang, text, context,
+                field=field if field in ("title", "dek", "heading") else None,
+            )
+        except Exception as e:
+            warns.append(f"{label}: tentativo {attempt} fallito ({type(e).__name__})")
+            time.sleep(3)
+            continue
+        t = _clean_field(raw, field)
+        if _sanity(t, text, field=field):
+            return t
+        warns.append(f"{label}: risposta insicura al tentativo {attempt}")
+    warns.append(f"{label}: lasciato l'originale del master")
+    return None
+
+
+def _translate_content(src, target_lang, warns=None, on_progress=None):
+    warns = warns if warns is not None else []
     context = src.get("title", "")
     out = {}
     for field in ("title", "dek"):
@@ -266,46 +306,48 @@ def _translate_content(src, target_lang):
         if not original:
             out[field] = ""
             continue
-        t = _llm_translate(
+        t = _translate_with_retry(
             target_lang, original,
             None if field == "title" else context,
-            field=field,
+            field, f"{field} ({target_lang})", warns,
         )
-        if field == "title":
-            t = next((ln.strip() for ln in t.splitlines() if ln.strip()), t)
-        else:
-            t = t.split("\n\n")[0].strip()
-        if not _sanity(t, original, field=field):
-            raise HTTPException(502, f"Traduzione insicura per {field} ({target_lang}).")
-        out[field] = t
+        # Se title/dek non passano i tentativi, resta l'originale del
+        # master: meglio un titolo inglese (segnalato dal check) che un
+        # job morto con la lingua vuota.
+        out[field] = t if t is not None else original
 
     # Traduci per blocchi, non come testo indistinto: così h3, paragrafi
     # e liste mantengono esattamente il tipo e l'ordine dell'originale.
     translated_blocks = []
-    for block_no, block in enumerate(_parse_blocks_lenient(src.get("body", "")), 1):
+    blocks = list(_parse_blocks_lenient(src.get("body", "")))
+    total = len(blocks)
+    for block_no, block in enumerate(blocks, 1):
+        if on_progress:
+            on_progress(block_no, total)
         kind = block.get("type")
         if kind == "h3":
             original = (block.get("text") or "").strip()
-            translated = _llm_translate(target_lang, original, context, field="heading")
-            translated = next((ln.strip() for ln in translated.splitlines() if ln.strip()), translated)
-            if not _sanity(translated, original, field="heading"):
-                raise HTTPException(502, f"Traduzione insicura nell'intestazione {block_no} ({target_lang}).")
-            translated_blocks.append("## " + translated)
+            t = _translate_with_retry(
+                target_lang, original, context, "heading",
+                f"intestazione {block_no} ({target_lang})", warns,
+            )
+            translated_blocks.append("## " + (t if t is not None else original))
         elif kind == "list":
             items = []
             for item_no, item in enumerate(block.get("items") or [], 1):
-                translated = _llm_translate(target_lang, item, context)
-                translated = next((ln.strip() for ln in translated.splitlines() if ln.strip()), translated)
-                if not _sanity(translated, item, field="list"):
-                    raise HTTPException(502, f"Traduzione insicura nella lista {block_no}, voce {item_no} ({target_lang}).")
-                items.append("- " + translated)
+                t = _translate_with_retry(
+                    target_lang, item, context, "list",
+                    f"lista {block_no} voce {item_no} ({target_lang})", warns,
+                )
+                items.append("- " + (t if t is not None else item))
             translated_blocks.append("\n".join(items))
         else:
             original = (block.get("text") or "").strip()
-            translated = _llm_translate(target_lang, original, context)
-            if not _sanity(translated, original, field="body"):
-                raise HTTPException(502, f"Traduzione insicura nel paragrafo {block_no} ({target_lang}).")
-            translated_blocks.append(translated)
+            t = _translate_with_retry(
+                target_lang, original, context, "body",
+                f"paragrafo {block_no} ({target_lang})", warns,
+            )
+            translated_blocks.append(t if t is not None else original)
     out["body"] = "\n\n".join(translated_blocks)
     if not out["body"].strip():
         raise HTTPException(422, "Il body del master è vuoto.")
@@ -693,18 +735,16 @@ def build_news_draft_router(verify_admin_token):
                     raise HTTPException(
                         409, f"Il master ({master}) non ha un {body_in.field} da tradurre."
                     )
-                t = _llm_translate(
+                warns = []
+                t = _translate_with_retry(
                     target, src_text,
                     None if body_in.field == "title" else src.get("title", ""),
-                    field=body_in.field,
+                    body_in.field, f"{body_in.field} ({target})", warns,
                 )
-                if body_in.field == "title":
-                    t = next((ln.strip() for ln in t.splitlines() if ln.strip()), t)
-                else:
-                    t = t.split("\n\n")[0].strip()
-                if not _sanity(t, src_text, field=body_in.field):
+                if t is None:
                     raise HTTPException(
-                        502, f"Traduzione insicura per {body_in.field} ({target})."
+                        502, f"Traduzione fallita per {body_in.field} ({target}): "
+                             + "; ".join(warns[-2:])
                     )
                 cur = draft["content"].get(target) or {}
                 draft["content"][target] = {
@@ -728,8 +768,17 @@ def build_news_draft_router(verify_admin_token):
             # nel draft non resta la vecchia traduzione sporca.
             d["content"][_target] = {"title": "", "dek": "", "body": ""}
             _job_write_langs(d, [_target])
-            d["content"][_target] = _translate_content(_src, _target)
+            warns = []
+
+            def prog(i, n):
+                job["note"] = f"{_target}: blocco {i}/{n}"
+
+            d["content"][_target] = _translate_content(
+                _src, _target, warns=warns, on_progress=prog
+            )
             _job_write_langs(d, [_target])
+            if warns:
+                job["note"] = f"{_target}: {len(warns)} avvisi — " + "; ".join(warns[-4:])
             job["draft"] = d
 
         return {"job_id": _start_job(work)}
@@ -754,6 +803,7 @@ def build_news_draft_router(verify_admin_token):
 
         def work(job, _master=master, _src=src, _snapshot=draft):
             d = json.loads(json.dumps(_snapshot, ensure_ascii=False))
+            all_warns = []
             for lang in ALL_LANGS:
                 if lang == _master:
                     continue
@@ -761,9 +811,22 @@ def build_news_draft_router(verify_admin_token):
                 # fallita non lascia nel draft la vecchia versione sporca.
                 d["content"][lang] = {"title": "", "dek": "", "body": ""}
                 _job_write_langs(d, [lang])
-                d["content"][lang] = _translate_content(_src, lang)
+                warns = []
+
+                def prog(i, n, _lang=lang):
+                    job["note"] = f"{_lang}: blocco {i}/{n}"
+
+                d["content"][lang] = _translate_content(
+                    _src, lang, warns=warns, on_progress=prog
+                )
                 _job_write_langs(d, [lang])  # salva dopo ogni lingua: i progressi restano
-                job["note"] = f"lingua completata: {lang}"
+                if warns:
+                    all_warns.extend(f"{lang}: {w}" for w in warns)
+                    job["note"] = f"lingua {lang} completata con {len(warns)} avvisi"
+                else:
+                    job["note"] = f"lingua completata: {lang}"
+            if all_warns:
+                job["note"] = "avvisi: " + "; ".join(all_warns[-6:])
             job["draft"] = d
 
         return {"job_id": _start_job(work)}

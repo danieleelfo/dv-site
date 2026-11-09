@@ -194,6 +194,7 @@ export default function Test7() {
   const [okMsg, setOkMsg] = useState("");
   const [publishResult, setPublishResult] = useState(null);
   const [checkReport, setCheckReport] = useState(null);
+  const [jobNote, setJobNote] = useState("");
 
   async function api(path, body, method) {
     setError("");
@@ -219,10 +220,11 @@ export default function Test7() {
   // Job in background (traduzione completa: una lingua = ~20 chiamate LLM,
   // tutte = ~100): la richiesta sincrona sfora il timeout del proxy
   // ("Failed to fetch"), quindi si polla il job ogni 2.5 secondi.
-  async function waitJob(jobId) {
+  async function waitJob(jobId, onNote) {
     for (;;) {
       await new Promise((r) => setTimeout(r, 2500));
       const j = await api("/api/admin/news-draft/jobs/" + jobId);
+      if (onNote && j.note) onNote(j.note);
       if (j.done) {
         if (j.error) throw new Error(j.error);
         return j.draft;
@@ -360,7 +362,7 @@ export default function Test7() {
         ...(field ? { field } : {}),
       };
       const started = await api("/api/admin/news-draft/translate", payload);
-      const d = field ? started : await waitJob(started.job_id);
+      const d = field ? started : await waitJob(started.job_id, setJobNote);
       setDraft((prev) => ({ ...prev, ...d, content: d.content || {} }));
       setOkMsg(
         field
@@ -373,6 +375,7 @@ export default function Test7() {
       setError(e.message || String(e));
     } finally {
       setBusy("");
+      setJobNote("");
     }
   }
 
@@ -408,6 +411,7 @@ export default function Test7() {
     )
       return;
     setBusy("translateall");
+    setJobNote("");
     try {
       const started = await api("/api/admin/news-draft/translate-all", {
         master_lang: master,
@@ -419,7 +423,7 @@ export default function Test7() {
         sources: draft.sources,
         image: draft.image,
       });
-      const d = await waitJob(started.job_id);
+      const d = await waitJob(started.job_id, setJobNote);
       setDraft((prev) => ({ ...prev, ...d, content: d.content || {} }));
       const langs = Object.keys(d.content || {})
         .filter((l) => (d.content[l] || {}).body)
@@ -429,6 +433,7 @@ export default function Test7() {
       setError(e.message || String(e));
     } finally {
       setBusy("");
+      setJobNote("");
     }
   }
 
@@ -722,6 +727,9 @@ export default function Test7() {
         >
           {busy === "check" ? "Controllo…" : "Controlla contenuti"}
         </button>
+        {(busy === "translateall" || busy === previewLang || ALL_LANGS.includes(busy)) && jobNote && (
+          <span className="nd-hint">⏳ {jobNote}</span>
+        )}
         <span className="nd-langchips">
           {ALL_LANGS.map((l) => {
             const has = !!(draft.content[l] || {}).body;
