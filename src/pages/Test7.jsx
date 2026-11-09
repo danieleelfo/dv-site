@@ -270,6 +270,9 @@ export default function Test7() {
     setPublishResult(null);
     setCheckReport(null);
     if (!number) {
+      // Azzera anche la bozza sul gateway: senza /reset il news_draft.json
+      // resta dell'articolo precedente (number/slug residui nel publish).
+      try { await api("/api/admin/news-draft/reset", {}); } catch { /* offline: prosegue */ }
       setDraft({ ...EMPTY_DRAFT, date: EMPTY_DRAFT.date });
       return;
     }
@@ -385,7 +388,7 @@ export default function Test7() {
         const c = draft.content[l];
         if (c) content[l] = { title: c.title || "", dek: c.dek || "", body: c.body || "" };
       }
-      const r = await api("/api/admin/news-draft/check", { content });
+      const r = await api("/api/admin/news-draft/check", { content, master: draft.master || "en" });
       setCheckReport(r.report || {});
       if (r.ok) setOkMsg("Controllo contenuti: nessun problema nelle lingue tradotte.");
       else setError("Controllo contenuti: problemi trovati, vedi il report sotto.");
@@ -682,14 +685,14 @@ export default function Test7() {
               <div className="nd-actions">
                 <button
                   className="nd-btn nd-primary"
-                  disabled={busy === lang || (!c.title && !c.dek && !c.body)}
+                  disabled={!!busy || (!c.title && !c.dek && !c.body)}
                   onClick={() => saveLang(lang)}
                 >
                   {busy === lang ? "…" : "Salva" + (isMaster ? " ★" : "")}
                 </button>
                 <button
                   className="nd-btn"
-                  disabled={busy === lang || !draft.content[masterLang]?.body || lang === masterLang}
+                  disabled={!!busy || !draft.content[masterLang]?.body || lang === masterLang}
                   onClick={() => translateLang(lang)}
                   title={lang === masterLang ? "Questa lingua è già il master" : "Rigenera dal master (" + LANG_LABELS[masterLang] + ")"}
                 >

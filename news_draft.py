@@ -702,7 +702,7 @@ def build_news_draft_router(verify_admin_token):
                     t = next((ln.strip() for ln in t.splitlines() if ln.strip()), t)
                 else:
                     t = t.split("\n\n")[0].strip()
-                if not _sanity(t, src_text):
+                if not _sanity(t, src_text, field=body_in.field):
                     raise HTTPException(
                         502, f"Traduzione insicura per {body_in.field} ({target})."
                     )
