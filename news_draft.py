@@ -161,6 +161,13 @@ def _llm_translate(lang, text, context, field=None):
             "restituisci SOLO il sottotitolo tradotto, un unico breve paragrafo, "
             "senza nessun altro testo, etichetta o spiegazione. "
         )
+    elif field == "heading":
+        field_hint = (
+            "Il testo da tradurre è una BREVE INTESTAZIONE DI SEZIONE, non il titolo "
+            "dell'articolo. Traduci soltanto questa intestazione; restituisci una "
+            "sola riga, senza prefazioni, virgolette o spiegazioni. Mantieni il "
+            "significato e la brevità dell'originale. "
+        )
     style = (
         f"Sei un traduttore editoriale per il sito AI News di Danny Villanova. "
         + field_hint +
@@ -249,7 +256,7 @@ def _translate_content(src, target_lang):
         kind = block.get("type")
         if kind == "h3":
             original = (block.get("text") or "").strip()
-            translated = _llm_translate(target_lang, original, context, field="title")
+            translated = _llm_translate(target_lang, original, context, field="heading")
             translated = next((ln.strip() for ln in translated.splitlines() if ln.strip()), translated)
             if not _sanity(translated, original):
                 raise HTTPException(502, f"Traduzione insicura nell'intestazione {block_no} ({target_lang}).")
