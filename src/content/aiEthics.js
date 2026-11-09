@@ -1125,7 +1125,7 @@ export const ARTICLES = [
       },
       nl: {
         title: 'Buiten de grenzen van AI: Wat onthult het eerste aanbiedingsdocument van Anthropic over veiligheid van AI',
-        dek: 'Boven de grenzen van AI: Wat onthult het introductie document van Anthropic over veiligheid bij AI (Nederlands)',
+        dek: 'Boven de grenzen van AI: Wat onthult het introductie document van Anthropic over veiligheid bij AI',
         body: [
           {
             type: 'p',
