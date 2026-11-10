@@ -311,11 +311,8 @@ def _clean_field(t, field):
 def _translate_with_retry(lang, text, context, field, label, warns, model, attempts=2):
     """Una chiamata LLM con retry: un blocco sfortunato non ammazza più il job.
 
-    Ritorna la traduzione pulita, oppure None dopo `attempts` tentativi
-    (timeout Ollama, risposta fuori tema): il chiamante lascia in quel
-    punto l'originale del master e il "Controlla contenuti" lo segnala
-    ("identico al master"). Prima un solo blocco fallito buttava via
-    tutta la lingua (job in errore dopo 10 minuti).
+    Ritorna la traduzione pulita. Se tutti i tentativi falliscono,
+    solleva HTTP 502: non inserisce mai il testo originale nella lingua target.
     """
     for attempt in range(1, attempts + 1):
         try:
@@ -727,7 +724,6 @@ def build_news_draft_router(verify_admin_token):
         verify_admin_token(authorization)
         if body_in.lang not in ("en", "it", "es"):
             raise HTTPException(422, "La lingua master può essere EN, IT o ES.")
-        active_model = _active_leles_model()
         with _DRAFT_LOCK:
             draft = _read_draft()
             if body_in.content is not None:
@@ -750,6 +746,7 @@ def build_news_draft_router(verify_admin_token):
         target = body_in.target_lang
         if target not in ALL_LANGS:
             raise HTTPException(422, "Lingua non supportata (en/it/es/fr/ca/nl).")
+        active_model = _active_leles_model()
         with _DRAFT_LOCK:
             draft = _read_draft()
             if body_in.content is not None:
