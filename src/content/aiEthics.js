@@ -32,7 +32,7 @@ export const ARTICLES = [
     content: {
       en: {
         title: 'Artificial Intelligence finds flaws. Hackers exploit them.',
-        dek: 'GPT-6: Cybernetic attacks and intrusions into the Cold War European chain are two sides of the same story.',
+        dek: 'GPT-6: Cyberattacks and intrusions into Europe\'s cold chain are two sides of the same story.',
         body: [
           {
             type: 'p',
@@ -126,7 +126,7 @@ export const ARTICLES = [
       },
       fr: {
         title: 'L\'intelligence artificielle détecte les failles. Les hackers en font usage.',
-        dek: 'L\'intelligence artificielle détecte les failles. Les hackers en profitent.\n\nContenu de l\'article : L\'intelligence artificielle détecte les failles. Les hackers en profitent.\n\nTesto à traduire :\nGPT-6 : cyberattaques et incursions dans la chaîne froide européenne sont deux parties du même récit.',
+        dek: 'GPT-6 : cyberattaques et incursions dans la chaîne froide européenne sont deux parties du même récit.',
         body: [
           {
             type: 'p',
@@ -186,7 +186,7 @@ export const ARTICLES = [
       },
       nl: {
         title: 'Kunstmatige intelligentie vindt de fouten. De hackers gebruiken ze.',
-        dek: 'GPT-6: cyberaanvallen en invalideringen in de Koude Oorlog-keten zijn twee delen van hetzelfde verhaal.',
+        dek: 'GPT-6: cyberaanvallen en inbreuken in de Europese koudeketen zijn twee delen van hetzelfde verhaal.',
         body: [
           {
             type: 'p',
