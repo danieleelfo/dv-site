@@ -44,7 +44,10 @@ DATA_FILE = DV_SITE_DIR / "src" / "content" / "aiEthics.js"
 NEWS_IMG_DIR = DV_SITE_DIR / "public" / "news"
 
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
-LLM_MODEL = os.environ.get("NEWS_DRAFT_MODEL", "mistral:latest")
+# Stessa API usata da LeleAdmin per il comando "modelli": il modello non è
+# configurato qui, viene letto da Leles a ogni nuovo job di traduzione.
+LELES_API_URL = os.environ.get("LELES_API_URL", "http://127.0.0.1:8082").rstrip("/")
+LELES_MODEL_CHAT_ID = int(os.environ.get("NEWS_DRAFT_LELES_CHAT_ID", "8733881519"))
 # Timeout per SINGOLA chiamata LLM: un blocco che si impantana costa
 # al massimo 300s x 2 tentativi, non 600s buttati via (e il job prosegue).
 LLM_TIMEOUT = int(os.environ.get("NEWS_DRAFT_LLM_TIMEOUT", "300"))
@@ -175,7 +178,42 @@ def _start_job(work):
 
 # ------------------------------------------------------------------- LLM ---
 
-def _llm_translate(lang, text, context, field=None):
+def _active_leles_model():
+    """Legge il modello Leles attivo usando lo stesso comando 'modelli' di LeleAdmin.
+
+    Non interroga /api/tags: serve il modello selezionato in ACTIVE_MODELS['leles'],
+    non un modello installato o il modello del Reviewer/Super-Leles.
+    """
+    payload = {
+        "message": "modelli",
+        "chat_id": LELES_MODEL_CHAT_ID,
+    }
+    req = urllib.request.Request(
+        LELES_API_URL + "/ask",
+        data=json.dumps(payload).encode(),
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=20) as response:
+            data = json.load(response)
+    except Exception as exc:
+        raise HTTPException(
+            503,
+            f"Non riesco a leggere i modelli attivi da Leles ({type(exc).__name__}: {exc}). "
+            "Traduzione annullata: nessun modello alternativo verrà usato.",
+        )
+    answer = str(data.get("answer") or "")
+    match = re.search(r"(?im)^\\s*Leles\\s*→\\s*([^\\s]+)", answer)
+    if not match:
+        raise HTTPException(
+            502,
+            "Leles ha risposto a 'modelli', ma non trovo la riga del modello Leles. "
+            "Traduzione annullata.",
+        )
+    return match.group(1).strip()
+
+
+def _llm_translate(lang, text, context, model, field=None):
     # Istruzioni specifiche per campo corto: senza queste, Mistral tende a
     # "sproloquiare" (ripete il contesto, incolla istruzioni o l'articolo
     # intero anche quando gli è stato dato solo il titolo).
@@ -202,7 +240,7 @@ def _llm_translate(lang, text, context, field=None):
     style = (
         f"Sei un traduttore editoriale per il sito AI News di Danny Villanova. "
         + field_hint +
-        f"Traduci in {ALL_LANGS[lang]} il testo inglese che ti viene dato. "
+        f"Traduci in {ALL_LANGS[lang]} il testo che ti viene dato. "
         f"Contesto/titolo articolo: {context!r}. "
         f"Regole: registro giornalistico, frasi fluide, NON letterale; "
         f"usa apostrofi tipografici (\u2019), mai apostrofi dritti; "
@@ -215,7 +253,7 @@ def _llm_translate(lang, text, context, field=None):
         f"etichette, prefazioni, spiegazioni o ripetizioni del testo originale."
     )
     payload = {
-        "model": LLM_MODEL,
+        "model": model,
         "stream": False,
         "options": {"temperature": 0.3},
         "messages": [
@@ -270,7 +308,7 @@ def _clean_field(t, field):
     return t.strip()
 
 
-def _translate_with_retry(lang, text, context, field, label, warns, attempts=2):
+def _translate_with_retry(lang, text, context, field, label, warns, model, attempts=2):
     """Una chiamata LLM con retry: un blocco sfortunato non ammazza più il job.
 
     Ritorna la traduzione pulita, oppure None dopo `attempts` tentativi
@@ -282,7 +320,7 @@ def _translate_with_retry(lang, text, context, field, label, warns, attempts=2):
     for attempt in range(1, attempts + 1):
         try:
             raw = _llm_translate(
-                lang, text, context,
+                lang, text, context, model,
                 field=field if field in ("title", "dek", "heading") else None,
             )
         except Exception as e:
@@ -293,11 +331,14 @@ def _translate_with_retry(lang, text, context, field, label, warns, attempts=2):
         if _sanity(t, text, field=field):
             return t
         warns.append(f"{label}: risposta insicura al tentativo {attempt}")
-    warns.append(f"{label}: lasciato l'originale del master")
-    return None
+    raise HTTPException(
+        502,
+        f"{label}: traduzione non riuscita dopo {attempts} tentativi. "
+        + "; ".join(warns[-attempts:]),
+    )
 
 
-def _translate_content(src, target_lang, warns=None, on_progress=None):
+def _translate_content(src, target_lang, model, warns=None, on_progress=None):
     warns = warns if warns is not None else []
     context = src.get("title", "")
     out = {}
@@ -309,12 +350,9 @@ def _translate_content(src, target_lang, warns=None, on_progress=None):
         t = _translate_with_retry(
             target_lang, original,
             None if field == "title" else context,
-            field, f"{field} ({target_lang})", warns,
+            field, f"{field} ({target_lang})", warns, model,
         )
-        # Se title/dek non passano i tentativi, resta l'originale del
-        # master: meglio un titolo inglese (segnalato dal check) che un
-        # job morto con la lingua vuota.
-        out[field] = t if t is not None else original
+        out[field] = t
 
     # Traduci per blocchi, non come testo indistinto: così h3, paragrafi
     # e liste mantengono esattamente il tipo e l'ordine dell'originale.
@@ -329,25 +367,25 @@ def _translate_content(src, target_lang, warns=None, on_progress=None):
             original = (block.get("text") or "").strip()
             t = _translate_with_retry(
                 target_lang, original, context, "heading",
-                f"intestazione {block_no} ({target_lang})", warns,
+                f"intestazione {block_no} ({target_lang})", warns, model,
             )
-            translated_blocks.append("## " + (t if t is not None else original))
+            translated_blocks.append("## " + t)
         elif kind == "list":
             items = []
             for item_no, item in enumerate(block.get("items") or [], 1):
                 t = _translate_with_retry(
                     target_lang, item, context, "list",
-                    f"lista {block_no} voce {item_no} ({target_lang})", warns,
+                    f"lista {block_no} voce {item_no} ({target_lang})", warns, model,
                 )
-                items.append("- " + (t if t is not None else item))
+                items.append("- " + t)
             translated_blocks.append("\n".join(items))
         else:
             original = (block.get("text") or "").strip()
             t = _translate_with_retry(
                 target_lang, original, context, "body",
-                f"paragrafo {block_no} ({target_lang})", warns,
+                f"paragrafo {block_no} ({target_lang})", warns, model,
             )
-            translated_blocks.append(t if t is not None else original)
+            translated_blocks.append(t)
     out["body"] = "\n\n".join(translated_blocks)
     if not out["body"].strip():
         raise HTTPException(422, "Il body del master è vuoto.")
@@ -689,6 +727,7 @@ def build_news_draft_router(verify_admin_token):
         verify_admin_token(authorization)
         if body_in.lang not in ("en", "it", "es"):
             raise HTTPException(422, "La lingua master può essere EN, IT o ES.")
+        active_model = _active_leles_model()
         with _DRAFT_LOCK:
             draft = _read_draft()
             if body_in.content is not None:
@@ -740,6 +779,7 @@ def build_news_draft_router(verify_admin_token):
                     target, src_text,
                     None if body_in.field == "title" else src.get("title", ""),
                     body_in.field, f"{body_in.field} ({target})", warns,
+                    active_model,
                 )
                 if t is None:
                     raise HTTPException(
@@ -762,7 +802,7 @@ def build_news_draft_router(verify_admin_token):
             # una bozza vecchia o appartenente a un altro articolo.
             _write_draft(draft)
 
-        def work(job, _target=target, _src=src, _snapshot=draft):
+        def work(job, _target=target, _src=src, _snapshot=draft, _model=active_model):
             d = json.loads(json.dumps(_snapshot, ensure_ascii=False))
             # Svuota la lingua target PRIMA di tradurre: se il job fallisce,
             # nel draft non resta la vecchia traduzione sporca.
@@ -771,17 +811,17 @@ def build_news_draft_router(verify_admin_token):
             warns = []
 
             def prog(i, n):
-                job["note"] = f"{_target}: blocco {i}/{n}"
+                job["note"] = f"Modello Leles {_model} · {_target}: blocco {i}/{n}"
 
             d["content"][_target] = _translate_content(
-                _src, _target, warns=warns, on_progress=prog
+                _src, _target, _model, warns=warns, on_progress=prog
             )
             _job_write_langs(d, [_target])
             if warns:
                 job["note"] = f"{_target}: {len(warns)} avvisi — " + "; ".join(warns[-4:])
             job["draft"] = d
 
-        return {"job_id": _start_job(work)}
+        return {"job_id": _start_job(work), "model": active_model}
 
     @router.post("/api/admin/news-draft/translate-all")
     def translate_all(body_in: TranslateAllIn, authorization: str | None = Header(None)):
@@ -801,7 +841,9 @@ def build_news_draft_router(verify_admin_token):
                 raise HTTPException(409, f"Nessun contenuto master ({master}) da tradurre.")
             _write_draft(draft)
 
-        def work(job, _master=master, _src=src, _snapshot=draft):
+        active_model = _active_leles_model()
+
+        def work(job, _master=master, _src=src, _snapshot=draft, _model=active_model):
             d = json.loads(json.dumps(_snapshot, ensure_ascii=False))
             all_warns = []
             for lang in ALL_LANGS:
@@ -814,10 +856,10 @@ def build_news_draft_router(verify_admin_token):
                 warns = []
 
                 def prog(i, n, _lang=lang):
-                    job["note"] = f"{_lang}: blocco {i}/{n}"
+                    job["note"] = f"Modello Leles {_model} · {_lang}: blocco {i}/{n}"
 
                 d["content"][lang] = _translate_content(
-                    _src, lang, warns=warns, on_progress=prog
+                    _src, lang, _model, warns=warns, on_progress=prog
                 )
                 _job_write_langs(d, [lang])  # salva dopo ogni lingua: i progressi restano
                 if warns:
@@ -829,7 +871,7 @@ def build_news_draft_router(verify_admin_token):
                 job["note"] = "avvisi: " + "; ".join(all_warns[-6:])
             job["draft"] = d
 
-        return {"job_id": _start_job(work)}
+        return {"job_id": _start_job(work), "model": active_model}
 
     @router.get("/api/admin/news-draft/jobs/{job_id}")
     def job_status(job_id: str, authorization: str | None = Header(None)):
