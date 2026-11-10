@@ -658,7 +658,42 @@ export default function ImageLab({ initialTab = "genera" }) {
 
     setError("");
     setInitFile(file);
-    setInitPreview(URL.createObjectURL(file));
+
+    // Formato automatico: legge le dimensioni REALI della foto caricata e
+    // seleziona categoria + formato col rapporto piu' vicino (es. una 16:9
+    // non esce piu' 1:1 solo perche' il dropdown era su 512x512).
+    // L'utente puo' comunque cambiare formato dopo l'upload.
+    const url = URL.createObjectURL(file);
+    const probe = new Image();
+    probe.onload = () => {
+      const w = probe.naturalWidth;
+      const h = probe.naturalHeight;
+
+      if (w > 0 && h > 0) {
+        const ratio = w / h;
+        let bestCat = null;
+        let bestIdx = 0;
+        let bestDiff = Infinity;
+
+        for (const cat of Object.keys(GRADIO_FORMATS)) {
+          GRADIO_FORMATS[cat].forEach((f, i) => {
+            const diff = Math.abs(Math.log(f[1] / f[2] / ratio));
+            if (diff < bestDiff) {
+              bestDiff = diff;
+              bestCat = Number(cat);
+              bestIdx = i;
+            }
+          });
+        }
+
+        if (bestCat !== null) {
+          setSize(bestCat);
+          setFormatIdx(bestIdx);
+        }
+      }
+    };
+    probe.src = url;
+    setInitPreview(url);
   }
 
   // ----------------------------------------------------------
