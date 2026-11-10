@@ -381,14 +381,14 @@ const GROUPS = [
         method: "GET", path: "/api/gradv/proc", auth: true,
         summary: "Stato del processo GraDV (UI + model server)",
         request: "—",
-        response: '{ "ui": { "running", "pid", "command", "ram_mb" }, "model_server": { ... }, "dir", "start_cmd" }',
+        response: '{ "ui": { "running", "pid", "command", "ram_mb" }, "model_server": { ... }, "dir", "python" }',
       },
       {
         method: "POST", path: "/api/gradv/proc/start", auth: true,
         summary: "Avvia GraDV (conda env gradv, python main.py, detached)",
         request: "—",
         response: '{ "started": true, "log": ".../gradv_gateway.log", "detail" }',
-        notes: "409 se e' gia' in esecuzione. Attende fino a 90s che la UI apra la porta. Comando configurabile in gateway.env (GRADV_DIR / GRADV_START_CMD).",
+        notes: "409 se e' gia' in esecuzione. Attende fino a 90s che la UI apra la porta. Configurabile in gateway.env: GRADV_DIR / GRADV_PYTHON / GRADV_START_ARGS.",
       },
       {
         method: "POST", path: "/api/gradv/proc/stop", auth: true,
