@@ -2295,7 +2295,16 @@ function B2BImgTab({ setTab }) {
               {bot.status === "error" && bot.error}
             </div>
             {bot.img && (
-              <img style={imgStyles.botImg} src={bot.img} alt={"Bot " + (bot.id + 1)} />
+              <>
+                <img style={imgStyles.botImg} src={bot.img} alt={"Bot " + (bot.id + 1)} />
+                <a
+                  style={{ ...imgStyles.miniBtn, display: "inline-block", marginTop: 8, textDecoration: "none" }}
+                  href={bot.img}
+                  download={`b2b-bot-${bot.id + 1}.png`}
+                >
+                  ↓ Scarica PNG
+                </a>
+              </>
             )}
             <div style={{ marginTop: 10 }}>
               <button
