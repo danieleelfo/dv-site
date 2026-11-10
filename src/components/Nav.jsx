@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import lelesLogo from '../assets/leles-logo.png'
 import { Link, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -15,6 +15,20 @@ export default function Nav() {
   const [logoImgOk, setLogoImgOk] = useState(true)
   const [adminOpen, setAdminOpen] = useState(false)
   const [labOpen, setLabOpen] = useState(false)
+
+  // Chiude i menu SOLO al click fuori: il vecchio onBlur+setTimeout(150)
+  // smontava il menu mentre il click era in corso (blur bolle in React),
+  // e le voci risultavano cliccabili ma il click andava nel vuoto.
+  const adminRef = useRef(null)
+  const labRef = useRef(null)
+  useEffect(() => {
+    function onDocMouseDown(e) {
+      if (adminRef.current && !adminRef.current.contains(e.target)) setAdminOpen(false)
+      if (labRef.current && !labRef.current.contains(e.target)) setLabOpen(false)
+    }
+    document.addEventListener('mousedown', onDocMouseDown)
+    return () => document.removeEventListener('mousedown', onDocMouseDown)
+  }, [])
 
   return (
     <header style={styles.header}>
@@ -87,10 +101,7 @@ export default function Nav() {
             <Link to={"/" + l + "/console"} style={styles.link}>{t('nav.trial')}</Link>
             <Link to={"/" + l + "/image-lab"} style={styles.link}>ImgLab</Link>
             {/* Menu admin Leles: apre tutte le pagine admin */}
-            <div
-              style={styles.menuWrap}
-              onBlur={() => setTimeout(() => setAdminOpen(false), 150)}
-            >
+            <div style={styles.menuWrap} ref={adminRef}>
               <button
                 type="button"
                 style={styles.menuBtn}
@@ -114,10 +125,7 @@ export default function Nav() {
               )}
             </div>
             {/* LabZone: AI Lab, B2B e pagine di test */}
-            <div
-              style={styles.menuWrap}
-              onBlur={() => setTimeout(() => setLabOpen(false), 150)}
-            >
+            <div style={styles.menuWrap} ref={labRef}>
               <button
                 type="button"
                 style={styles.menuBtn}
