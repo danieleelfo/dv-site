@@ -2426,39 +2426,56 @@ def _image_cleanup_jobs() -> None:
 
 def _image_resolution(width: int, height: int) -> tuple[str, str]:
     """
-    Traduce le dimensioni richieste nei due dropdown di GraDV.
+    Traduce le dimensioni richieste nel dropdown di GraDV.
 
-    Il primo dropdown seleziona la categoria 512/768/1024/1280.
-    Il secondo seleziona il rapporto d'aspetto.
+    Usa ESATTAMENTE le etichette di RESOLUTION_OPTIONS di GraDV (main.py):
+    una stringa fuori lista farebbe cadere il dropdown sul default
+    1024x1024 (1:1) sulle versioni di GraDV senza fallback regex — il bug
+    "seleziono 16:9 e esce sempre 1:1". Categoria = piu' vicina a
+    max(width, height); dentro la categoria vince la voce col rapporto
+    piu' vicino a quello richiesto.
     """
 
+    GRADV_RESOLUTIONS = {
+        "512": [
+            ("512x512 (1:1)", 512, 512), ("640x384 (5:3)", 640, 384),
+            ("384x640 (3:5)", 384, 640), ("512x384 (4:3)", 512, 384),
+            ("384x512 (3:4)", 384, 512), ("640x368 (16:9)", 640, 368),
+            ("368x640 (9:16)", 368, 640),
+        ],
+        "768": [
+            ("768x768 (1:1)", 768, 768), ("960x576 (5:3)", 960, 576),
+            ("576x960 (3:5)", 576, 960), ("768x576 (4:3)", 768, 576),
+            ("576x768 (3:4)", 576, 768), ("960x544 (16:9)", 960, 544),
+            ("544x960 (9:16)", 544, 960),
+        ],
+        "1024": [
+            ("1024x1024 (1:1)", 1024, 1024), ("1280x768 (5:3)", 1280, 768),
+            ("768x1280 (3:5)", 768, 1280), ("1024x768 (4:3)", 1024, 768),
+            ("768x1024 (3:4)", 768, 1024), ("1280x720 (16:9)", 1280, 720),
+            ("720x1280 (9:16)", 720, 1280), ("1024x576 (16:9)", 1024, 576),
+            ("576x1024 (9:16)", 576, 1024),
+        ],
+        "1280": [
+            ("1280x1280 (1:1)", 1280, 1280), ("1536x1024 (3:2)", 1536, 1024),
+            ("1024x1536 (2:3)", 1024, 1536), ("1536x864 (16:9)", 1536, 864),
+            ("864x1536 (9:16)", 864, 1536),
+        ],
+    }
+
     category = min(
-        (512, 768, 1024, 1280),
-        key=lambda value: abs(value - max(width, height)),
+        ("512", "768", "1024", "1280"),
+        key=lambda value: abs(int(value) - max(width, height)),
     )
 
     requested_ratio = width / height
 
-    # Rapporti disponibili nella UI GraDV, osservati in /config.
-    ratios = [
-        ("1:1", 1.0, lambda c: (c, c)),
-        ("5:3", 5 / 3, lambda c: (int(c * 1.25), int(c * 0.75))),
-        ("3:5", 3 / 5, lambda c: (int(c * 0.75), int(c * 1.25))),
-        ("4:3", 4 / 3, lambda c: (c, int(c * 0.75))),
-        ("3:4", 3 / 4, lambda c: (int(c * 0.75), c)),
-        ("16:9", 16 / 9, lambda c: (int(c * 1.25), int(c * 368 / 512))),
-        ("9:16", 9 / 16, lambda c: (int(c * 368 / 512), int(c * 1.25))),
-    ]
-
-    ratio_name, _, dimensions_fn = min(
-        ratios,
-        key=lambda item: abs(math.log(requested_ratio / item[1])),
+    label, _, _ = min(
+        GRADV_RESOLUTIONS[category],
+        key=lambda item: abs(math.log((item[1] / item[2]) / requested_ratio)),
     )
 
-    out_width, out_height = dimensions_fn(category)
-    resolution = f"{out_width}x{out_height} ({ratio_name})"
-
-    return str(category), resolution
+    return category, label
 
 
 async def _image_gradio_generate(
