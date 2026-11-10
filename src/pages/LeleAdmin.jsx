@@ -1789,7 +1789,7 @@ export default function LeleAdmin() {
                     </button>
                     <button
                       type="button"
-                      className="lc-btn lc-btn--xs lc-btn--rec"
+                      className="lc-btn lc-btn--xs lc-btn--gradv-stop"
                       onClick={() => gradvAction('stop')}
                       disabled={!!gradvBusy}
                     >
@@ -1797,7 +1797,7 @@ export default function LeleAdmin() {
                     </button>
                     <button
                       type="button"
-                      className="lc-btn lc-btn--xs lc-btn--rec"
+                      className="lc-btn lc-btn--xs lc-btn--gradv-restart"
                       onClick={() => gradvAction('restart')}
                       disabled={!!gradvBusy}
                     >
@@ -2371,6 +2371,8 @@ const css = `
 .lc-audio-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
 .lc-check{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-dim);cursor:pointer}
 .lc-btn--rec{background:rgba(248,113,113,.2);border-color:var(--bad);color:#fecaca}
+.lc-btn--gradv-stop{background:rgba(251,146,60,.2);border-color:#fb923c;color:#fed7aa}
+.lc-btn--gradv-restart{background:rgba(250,204,21,.2);border-color:#facc15;color:#fef08a}
 .lc-btn--xs{padding:2px 9px;font-size:10.5px;line-height:1.4;white-space:nowrap}
 .lc-pill--xs{padding:1px 7px;font-size:9.5px;gap:4px;flex:0 0 auto}
 .lc-stat-head--gradv{flex-wrap:nowrap;gap:5px}
