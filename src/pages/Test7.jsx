@@ -365,10 +365,11 @@ export default function Test7() {
       const d = field ? started : await waitJob(started.job_id, setJobNote);
       setDraft((prev) => ({ ...prev, ...d, content: d.content || {} }));
       setOkMsg(
-        field
+        (started.model ? "Modello Leles: " + started.model + " · " : "") +
+        (field
           ? LANG_LABELS[lang] + " · " + (field === "title" ? "titolo" : "dek") +
             " ritradotto dal master (" + LANG_LABELS[d.master || "en"] + ")"
-          : LANG_LABELS[lang] + " tradotto dal master (" + LANG_LABELS[d.master || "en"] + ")"
+          : LANG_LABELS[lang] + " tradotto dal master (" + LANG_LABELS[d.master || "en"] + ")")
       );
       setCheckReport(null);
     } catch (e) {
@@ -406,7 +407,7 @@ export default function Test7() {
     const master = draft.master || "en";
     if (
       !window.confirm(
-        "Tradurre dal master (" + LANG_LABELS[master] + ") in tutte le altre 5 lingue con Ollama?\nPuò metterci qualche minuto."
+        "Tradurre dal master (" + LANG_LABELS[master] + ") in tutte le altre 5 lingue usando il modello Leles attivo?\nPuò metterci qualche minuto."
       )
     )
       return;
@@ -428,7 +429,7 @@ export default function Test7() {
       const langs = Object.keys(d.content || {})
         .filter((l) => (d.content[l] || {}).body)
         .map((l) => LANG_FLAGS[l] + " " + l.toUpperCase());
-      setOkMsg("Tradotte tutte le lingue: " + langs.join(" "));
+      setOkMsg("Modello Leles: " + started.model + " · Tradotte tutte le lingue: " + langs.join(" "));
     } catch (e) {
       setError(e.message || String(e));
     } finally {
