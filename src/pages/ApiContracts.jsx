@@ -2,7 +2,7 @@
 // API CONTRACTS (contratti API del gateway)
 // Pagina statica di documentazione: nessuna chiamata al backend
 // oltre alla verifica del login Google. Nessuna modifica backend.
-// Dati allineati a gateway.py / git_admin.py / query_db.py / admin_routes.py / news_draft.py (7 novembre 2026).
+// Dati allineati a gateway.py / git_admin.py / query_db.py / admin_routes.py / news_draft.py / gradv_proc.py (10 novembre 2026).
 // ============================================================
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -362,8 +362,8 @@ const GROUPS = [
     ],
   },
   {
-    id: "gradv", label: "GraDV Archive", icon: "▧",
-    note: "Archivio immagini GraDV (history.db, sola lettura)",
+    id: "gradv", label: "GraDV", icon: "▧",
+    note: "Archivio immagini (history.db, sola lettura) + controllo processo GraDV: UI Gradio (7860) e model server (7999).",
     endpoints: [
       {
         method: "GET", path: "/api/gradv/archive", auth: true,
@@ -376,6 +376,32 @@ const GROUPS = [
         summary: "Recupera l’immagine originale o la miniatura",
         request: "?thumbnail=false (true restituisce JPEG, max 420×420)",
         response: "image/png oppure image/jpeg",
+      },
+      {
+        method: "GET", path: "/api/gradv/proc", auth: true,
+        summary: "Stato del processo GraDV (UI + model server)",
+        request: "—",
+        response: '{ "ui": { "running", "pid", "command", "ram_mb" }, "model_server": { ... }, "dir", "start_cmd" }',
+      },
+      {
+        method: "POST", path: "/api/gradv/proc/start", auth: true,
+        summary: "Avvia GraDV (conda env gradv, python main.py, detached)",
+        request: "—",
+        response: '{ "started": true, "log": ".../gradv_gateway.log", "detail" }',
+        notes: "409 se e' gia' in esecuzione. Attende fino a 90s che la UI apra la porta. Comando configurabile in gateway.env (GRADV_DIR / GRADV_START_CMD).",
+      },
+      {
+        method: "POST", path: "/api/gradv/proc/stop", auth: true,
+        summary: "Stoppa UI e model server (SIGTERM, poi SIGKILL)",
+        request: "—",
+        response: '{ "stopped": true, "killed": [pid, ...] }  |  { "stopped": false, "detail": "GraDV non era in esecuzione." }',
+        notes: "Idempotente. Uccide i listener di entrambe le porte piu' i figli diretti.",
+      },
+      {
+        method: "POST", path: "/api/gradv/proc/restart", auth: true,
+        summary: "Restart completo: stop + start",
+        request: "—",
+        response: '{ "stop": { ... }, "start": { ... } }',
       },
     ],
   },
@@ -425,6 +451,13 @@ const GROUPS = [
         notes: "Persistita in news_draft.json accanto a gateway.py.",
       },
       {
+        method: "POST", path: "/api/admin/news-draft/reset", auth: true,
+        summary: "Azzera la bozza (nuovo articolo)",
+        request: "—",
+        response: '{ "number": null, "slug": "", "date": "", "readTime": 2, "sources": "", "image": null, "content": {}, "master": null }',
+        notes: "Da chiamare dal selettore news# quando si passa a nuovo articolo: elimina ogni residuo della bozza precedente.",
+      },
+      {
         method: "GET", path: "/api/admin/news-draft/articles", auth: true,
         summary: "Lista articoli AI News per il selettore news#",
         request: "—",
@@ -442,20 +475,42 @@ const GROUPS = [
         summary: "Salva una lingua (diventa la master) e i metadati",
         request: '{ "lang": "en|it|es|fr|ca|nl", "content": { "title", "dek", "body" }, "number"?, "slug"?, "date"?, "readTime"?, "sources"?, "image"? }',
         response: "{ ...bozza aggiornata... }",
+        notes: "Salva per lingua isolato: sotto lock rilegge la bozza e tocca SOLO la lingua (e i meta passati). Non cambia la master.",
+      },
+      {
+        method: "POST", path: "/api/admin/news-draft/master", auth: true,
+        summary: "Imposta esplicitamente la lingua master (en/it/es)",
+        request: '{ "lang": "en|it|es", "number"?, "content"? }',
+        response: '{ "master": "it" }',
+        notes: "409 se la lingua scelta non ha body salvato. Serve per il confronto /check e come sorgente di translate.",
       },
       {
         method: "POST", path: "/api/admin/news-draft/translate", auth: true,
-        summary: "Traduce una lingua dal master con Ollama",
-        request: '{ "target_lang": "en|it|es|fr|ca|nl" }',
-        response: "{ ...bozza aggiornata... }",
-        notes: "Ollama locale (env NEWS_DRAFT_MODEL, default mistral:latest). Registro editoriale, caporali « » per it/es/fr/ca, nomi/sigle/URL non tradotti.",
+        summary: "Traduce una lingua dal master (job in background)",
+        request: '{ "target_lang": "en|it|es|fr|ca|nl", "master_lang"?, "content"?, "field"?: "title|dek" }',
+        response: '{ "job_id": "...", "model": "qwen2.5:latest" }',
+        notes: "Modello = quello attivo di Leles (comando modelli). Traduce blocco per blocco (~20 chiamate LLM, 10-20 min) con retry: polla GET /jobs/{job_id}. La lingua target viene SVUOTATA prima di tradurre. Con field traduce solo title/dek (chiamata sincrona). Registro editoriale, caporali « » per it/es/fr/ca, nomi/sigle/URL non tradotti.",
       },
       {
         method: "POST", path: "/api/admin/news-draft/translate-all", auth: true,
         summary: "Traduce dal master TUTTE le lingue non-master (5)",
+        request: '{ "master_lang"?, "content"?, "number"?, "slug"? }',
+        response: '{ "job_id": "...", "model": "qwen2.5:latest" }',
+        notes: "Job in background (~100 chiamate LLM): polla GET /jobs/{job_id}. Svuota ogni lingua prima di ritradurla e salva dopo ogni lingua; se nel frattempo la bozza cambia articolo, il risultato del job e' scartato (409).",
+      },
+      {
+        method: "GET", path: "/api/admin/news-draft/jobs/{job_id}", auth: true,
+        summary: "Stato di un job di traduzione (polling)",
         request: "—",
-        response: "{ ...bozza aggiornata con content completo... }",
-        notes: "Salva la bozza dopo ogni lingua: i progressi restano anche se la richiesta cade a metà.",
+        response: '{ "done": false, "error": null, "note": "Modello Leles ... · it: blocco 7/23" }',
+        notes: "A job finito include draft aggiornato (o error) e libera il job. 404 se sconosciuto o gateway riavviato.",
+      },
+      {
+        method: "POST", path: "/api/admin/news-draft/check", auth: true,
+        summary: "Controllo contenuti deterministico vs lingua master (nessun LLM)",
+        request: '{ "content": { en: { ... }, it: { ... }, ... }, "master"?: "en|it|es" }',
+        response: '{ "report": { "fr": ["title vuoto", "blocco 3 fuori misura: ...", ...] }, "ok": false, "master": "it" }',
+        notes: "Lingua per lingua: campi vuoti, blocchi/struttura diversa dal master, title/dek anomali o identici, marker di prompt leakati, sigle/nomi propri assenti nell'originale. master default = bozza corrente (o EN).",
       },
       {
         method: "POST", path: "/api/admin/news-draft/image", auth: true,
