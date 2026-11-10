@@ -739,6 +739,38 @@ async def tts_proxy(agent: str, filename: str):
 
 
 # --------------------------------------------------------------------------
+# ADMIN DICTATION — trascrizione e salvataggio nella cartella Dettatura di Leles
+# --------------------------------------------------------------------------
+@app.post("/api/admin/dettatura")
+async def admin_dictation(
+    audio: UploadFile = File(...),
+    language: str = Form("it"),
+    authorization: str | None = Header(None),
+):
+    verify_admin_token(authorization)
+    raw = await audio.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Audio vuoto.")
+    if len(raw) > 25 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Audio oltre 25 MB.")
+    try:
+        async with httpx.AsyncClient(timeout=300.0) as client:
+            response = await client.post(
+                "http://127.0.0.1:8082/dictation",
+                files={"audio": (audio.filename or "recording.webm", raw, audio.content_type or "audio/webm")},
+                data={"language": language},
+            )
+        if response.status_code >= 400:
+            detail = response.json().get("detail", response.text)
+            raise HTTPException(status_code=response.status_code, detail=detail)
+        return response.json()
+    except HTTPException:
+        raise
+    except httpx.RequestError as exc:
+        raise HTTPException(status_code=502, detail=f"Impossibile raggiungere Leles: {exc}")
+
+
+# --------------------------------------------------------------------------
 # ADMIN CHAT
 # --------------------------------------------------------------------------
 class AdminChatRequest(BaseModel):
