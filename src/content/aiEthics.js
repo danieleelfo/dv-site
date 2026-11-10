@@ -10,6 +10,341 @@
 
 export const ARTICLES = [
 {
+    slug: 'EU-under-cyber-attack',
+    category: 'NEWS',
+    number: 4,
+    date: '2026-11-10',
+    readTime: 2,
+    sources: [
+      {
+        label: 'Kaspersky Cyberthreat live map',
+        url: '​⁠ https://cybermap.kaspersky.com',
+      },
+      {
+        label: 'AP - France blames Iran for a cyberattack that heated supermarket refrigerators',
+        url: '​⁠ https://apnews.com/article/france-cyberattack-supermarket-refrigerators-iran-6914ecf1a3285291653e103655f9e4a4',
+      },
+      {
+        label: 'AP - Supermarket freezers in several European countries hit by apparent cyberattacks',
+        url: '​⁠ https://apnews.com/article/europe-supermarkets-freezers-cyberattacks-a8ea5b30d67da47957769f29101fe686',
+      },
+      {
+        label: 'CTV - Norway reports sharp rise in \'successful\' cyberattacks',
+        url: '​⁠ https://www.ctvnews.ca/sci-tech/article/norway-reports-sharp-rise-in-successful-cyberattacks/',
+      },
+      {
+        label: 'WebProNews - Ahold Delhaize puts a price on its October cyberattack',
+        url: '​⁠ https://www.webpronews.com/ahold-delhaize-cyberattack-cost-q4-sales-guidance-cut/',
+      },
+    ],
+    content: {
+      en: {
+        title: 'Europe Under Attack (Activated Map)',
+        dek: 'Real-time maps of cyber-attacks show arcs striking Europe every second. Last week, France pointed to who is behind some of them: it seems to be Iran.',
+        body: [
+          {
+            type: 'p',
+            text: 'Open any real-time cyberattack map (Kaspersky being the most renowned), and Europe is glowing. Lightning bolts descend upon Paris, Berlin, Rome, and Stockholm every second, from all directions.',
+          },
+          {
+            type: 'p',
+            text: 'The majority is noise: scanners, bots, background interference of the internet. But not all.',
+          },
+          {
+            type: 'p',
+            text: 'Last Monday, France officially indicted the Revolutionary Guards of Iran for cyber attacks that targeted cooling systems of supermarkets across the country, affecting approximately 700 sites. The Iranian ambassador was recalled, and Paris has promised European-level sanctions.',
+          },
+          {
+            type: 'p',
+            text: 'The map lights up. Europe under attack. In the same weeks, at least eleven European countries have been hit by similar attacks, from Germany to Romania and as far as Great Britain, forcing some retail chains to close their frozen food sections.',
+          },
+          {
+            type: 'p',
+            text: 'The target wasn\'t a data center or a ministry. It was the refrigerators: old Danfoss connectors connected to the internet, protected by weak passwords and lacking security updates (strange).',
+          },
+          {
+            type: 'p',
+            text: 'In France, parallel attacks on blood banks attempted to warm stored plasma from -30°C to 50°C but were stopped in time. What\'s the lesson? The same map showing European intrusions also reveals a ransomware team potentially causing up to 250 million euros of losses at Delhaize; Norway reported that attacks on its organizations have tripled in a year.',
+          },
+          {
+            type: 'p',
+            text: 'A single map, every type of attacker.',
+          },
+          {
+            type: 'p',
+            text: 'The British administration anticipates AI-guided attacks on critical infrastructure by 2028. Look at the map and know: most of those arches are automated.',
+          },
+          {
+            type: 'p',
+            text: 'The attacks aren\'t the most devastating we expect; our vulnerabilities light up.',
+          },
+        ],
+      },
+      it: {
+        title: 'La mappa si accende. Europa sotto attacco.',
+        dek: 'Mappe di cyber-attacchi in tempo reale mostrano arcate che colpiscono l\'Europa ogni secondo. La settimana scorsa, la Francia ha indicato chi è dietro alcuni di essi: sembra sia l\'Iran.',
+        body: [
+          {
+            type: 'p',
+            text: 'Apri qualsiasi mappa di cyberattacco in tempo reale (Kaspersky è il più noto) e l\'Europa è brillante. Gli arcobaleni scendono su Parigi, Berlino, Roma e Stoccolma ogni secondo, da tutte le direzioni.',
+          },
+          {
+            type: 'p',
+            text: 'La maggior parte è rumore: scanner, bot, le interferenze di fondo dell\'internet. Ma non tutto.',
+          },
+          {
+            type: 'p',
+            text: 'Lunedì scorso, la Francia ha ufficialmente incriminato le Guardie Rivoluzionarie dell\'Iran per gli attacchi cibernetici che hanno colpito i sistemi di raffreddamento dei supermercati in tutto il paese, circa 700 siti. L\'ambasciatore iraniano è stato richiamato, e Parigi ha promesso sanzioni a livello europeo.',
+          },
+          {
+            type: 'p',
+            text: 'Nelle stesse settimane, almeno undici paesi europei sono stati colpiti da attacchi simili, dalla Germania alla Romania fino alla Gran Bretagna, costringendo alcune catene di negozi a chiudere le sezioni dei congelati.',
+          },
+          {
+            type: 'p',
+            text: 'Il bersaglio non era una data center o un ministero. Erano i frigoriferi: vecchi connettori Danfoss connessi a internet, protetti da password deboli e privi di aggiornamenti di sicurezza (che strano).',
+          },
+          {
+            type: 'p',
+            text: 'In Francia, un paio di attacchi paralleli contro le banche del sangue ha cercato di riscaldare il plasma conservato da -30°C a 50°C. Entrambi sono stati fermati in tempo. Quale è la lezione? La stessa mappa che mostra le intrusioni a livello europeo, mostra anche una squadra di ransomware che ha potenzialmente causato fino a 250 milioni di euro di perdite a Delhaize; la Norvegia ha riportato che gli attacchi contro le sue organizzazioni sono triplicati in un anno.',
+          },
+          {
+            type: 'p',
+            text: 'Un\'unica mappa, ogni tipo di attaccante.',
+          },
+          {
+            type: 'p',
+            text: 'L\'amministrazione britannica prevede attacchi contro l\'infrastruttura critica guidati dall\'AI entro il 2028. Guarda la mappa e sappi: la maggior parte di quelle arcate sono automatizzate.',
+          },
+          {
+            type: 'p',
+            text: 'Gli attacchi più terrificanti non sono quelli che ci si aspetta; le nostre vulnerabilita.',
+          },
+        ],
+      },
+      es: {
+        title: 'La mapa se enciende. Europa bajo ataque.',
+        dek: 'Mapas de ciberataques en tiempo real muestran arcos que golpean a Europa cada segundo. La semana pasada, Francia apuntó a quién está detrás de algunos de ellos: parece ser Irán. (Registro journalístico)',
+        body: [
+          {
+            type: 'p',
+            text: 'Encende la mapa. Europa bajo ataque.',
+          },
+          {
+            type: 'p',
+            text: 'Abre cualquier mapa de ciberataque en tiempo real (Kaspersky es el más conocido) y la Europa está brillante. Los rayos de luz bajan sobre París, Berlín, Roma y Estocolmo cada segundo, desde todas las direcciones.',
+          },
+          {
+            type: 'p',
+            text: 'La mayoría es ruido: escáneres, bots, las interferencias de fondo de Internet. Pero no todo.',
+          },
+          {
+            type: 'p',
+            text: '(El resto del texto se traduce después de recibirlo)',
+          },
+          {
+            type: 'p',
+            text: 'Lunes pasado, Francia oficialmente acusó a las Guardias Revolucionarias de Irán por los ataques cibernéticos que han impactado los sistemas de refrigeración de supermercados en todo el país, alrededor de 700 sitios. El embajador iraní fue llamado de regreso, y París prometió sanciones a nivel europeo.',
+          },
+          {
+            type: 'p',
+            text: 'La mapa se enciende. Europa bajo ataque. En las mismas semanas, al menos once naciones europeas han sido objeto de ataques similares, desde Alemania hasta Rumania hasta Gran Bretaña, forzando a algunas cadenas de tiendas a cerrar secciones de congelados.',
+          },
+          {
+            type: 'p',
+            text: 'La meta no era un centro de datos ni un ministerio. Era los refrigeradores: viejos conectores Danfoss conectados a Internet, protegidos por contraseñas débiles y sin actualizaciones de seguridad (que extraño).',
+          },
+          {
+            type: 'p',
+            text: 'La mappa se enciende. Europa bajo ataque.',
+          },
+          {
+            type: 'p',
+            text: 'En Francia, dos ataques paralelos contra bancas de sangre han intentado calentar el plasma conservado a -30°C hasta 50°C. Ambos fueron detenidos a tiempo. ¿Qué es la lección? La misma mapa que muestra las intrusiones a nivel europeo, también muestra una equipo de ransomware que podría haber causado hasta 250 millones de euros en pérdidas a Delhaize; Noruega ha informado que los ataques contra sus organizaciones han triplicado en un año.',
+          },
+          {
+            type: 'p',
+            text: 'Una sola mapa, cadaún tipo de agresor.',
+          },
+          {
+            type: 'p',
+            text: 'La administración británica prevé ataques contra la infraestructura crítica dirigidos por la AI hasta el 2028. Mira la mapa y sé: la mayoría de esas arcos son automatizados.',
+          },
+          {
+            type: 'p',
+            text: 'La mappa se enciende. Europa bajo ataque.',
+          },
+          {
+            type: 'p',
+            text: 'Los ataques más devastadores no son los que se esperan; nuestras debilidades.',
+          },
+        ],
+      },
+      fr: {
+        title: 'La carte s\'allume. Europe sous menace.',
+        dek: 'Cartes de cyber-attaques en temps réel montrent des arcs qui frappent l\'Europe chaque seconde. La semaine dernière, la France a indiqué qui est derrière certains d\'entre eux : il semble s\'agir de l\'Iran.',
+        body: [
+          {
+            type: 'p',
+            text: 'Ouvrez n\'importe quelle cartes en temps réel de cyberattaque (Kaspersky est le plus connu) et l\'Europe est éclatante. Les feux d\'artifice descendent sur Paris, Berlin, Rome et Stockholm chaque seconde, de toutes les directions.',
+          },
+          {
+            type: 'p',
+            text: 'La maggior parte è rumore: scanner, bot, le interferenze di fondo dell\'internet. Ma non tutto.',
+          },
+          {
+            type: 'p',
+            text: 'Lundi dernier, la France a officiellement incriminé les Gardes Révolutionnaires de l\'Iran pour les attaques cybernétiques qui ont touché les systèmes de refroidissement des supermarchés dans le pays entier, environ 700 sites. L\'ambassadeur iranien a été rappelé, et Paris a promis des sanctions à niveau européen.',
+          },
+          {
+            type: 'p',
+            text: 'La carte s\'allume. L\'Europe sous attaque. Dans les mêmes semaines, au moins onze pays européens ont été frappés par des attaques similaires, de l\'Allemagne à la Roumanie jusqu\'à la Grande-Bretagne, forçant certaines chaînes de magasins à fermer les sections de congelés.',
+          },
+          {
+            type: 'p',
+            text: 'La cible n\'était pas une data center ou un ministère. Il s\'agissait des réfrigérateurs : des vieux connecteurs Danfoss reliés à Internet, protégés par des mots de passe faibles et sans mise à jour de sécurité (ce qui est étrange).',
+          },
+          {
+            type: 'p',
+            text: 'En France, deux attaques simultanées ont visé les banques de sang, tentant d\'élever le plasma conservé à -30°C jusqu\'à 50°C. Les deux ont été arrêtés à temps. Quelle est la leçon ? La même carte qui montre les intrusions au niveau européen, montre également une équipe de ransomware qui aurait pu causer jusqu\'à 250 millions d\'euros de pertes à Delhaize ; la Norvège a signalé que les attaques contre ses organisations ont triplé en un an.',
+          },
+          {
+            type: 'p',
+            text: 'Une seule carte, chaque type d\'attaquant.',
+          },
+          {
+            type: 'p',
+            text: 'L\'administration britannique prévoit des attaques contre l\'infrastructure critique menées par l\'IA avant l\'année 2028. Regardez-la carte et savourez : la majorité de ces arcs sont automatisés.',
+          },
+          {
+            type: 'p',
+            text: 'La carte s\'allume. L\'Europe sous menace.',
+          },
+          {
+            type: 'p',
+            text: 'Les attaques les plus effrayants ne sont pas ceux que l\'on attend ; nos vulnérabilités.',
+          },
+        ],
+      },
+      ca: {
+        title: 'La mapa s\'encén. Europa sota atac.',
+        dek: 'Mapes de ciberatacs en temps real mostren arcs que ataquen l\'Europa cada segon. La setmana passada, França ha indicat qui està darrere alguns d\'ells: sembla ésser l\'Iran. (Mappe of cyber-attacks in real time show arcs that hit Europe every second. Last week, France indicated who is behind some of them: it seems to be Iran.)',
+        body: [
+          {
+            type: 'p',
+            text: 'Obertura qualsevol mapa de ciberatacs en temps real (Kaspersky és el més conegut) i l\'Europa està brillant. Els arcobalens baixen sobre París, Berlín, Roma i Estocolm cada segon, des de totes les direccions.',
+          },
+          {
+            type: 'p',
+            text: 'La majoria és soroll: escàners, bots, les interferències de fons de l\'Internet. Però no tot.',
+          },
+          {
+            type: 'p',
+            text: '(Títol original: The map lights up. Europe under attack.)',
+          },
+          {
+            type: 'p',
+            text: 'Dilluns enrere, oficialment França va acusar les Guardies Revolucionàries de l\'Iran per atacs cibernètics que van afectar els sistemes de refrigeració dels supermercats arreu del país, uns 700 sitis. L\'ambaixador iranià ha estat cridat, i París va prometre sancions al nivell europeu.',
+          },
+          {
+            type: 'p',
+            text: '(Lunedì scorso, la Francia ha ufficialmente incriminato le Guardie Rivoluzionarie dell\'Iran per gli attacchi cibernetici che hanno colpito i sistemi di raffreddamento dei supermercati in tutto il paese, circa 700 siti. L\'ambasciatore iraniano è stato richiamato, e Parigi ha promesso sanzioni a livello europeo.)',
+          },
+          {
+            type: 'p',
+            text: 'El mapa s\'encénia. Europa sota atacament.',
+          },
+          {
+            type: 'p',
+            text: 'A les mateixes setmanes, almenys onze països europeus han estat atacats per semblants atacs, des de l\'Alemanya fins a Romania i fins a la Gran Bretanya, forçant algunes cadenes de botigues a tancar les seccions dels congelats.',
+          },
+          {
+            type: 'p',
+            text: 'La targetera no era una centre informàtic o un ministeri. Eren els congeladors: vells connectors Danfoss connectats a internet, protegits per contrasenyes febles i sense actualitzacions de seguretat (que estrany).',
+          },
+          {
+            type: 'p',
+            text: 'La carta s\'encénia. Europa sota atac.',
+          },
+          {
+            type: 'p',
+            text: 'A França, dos atacs paral·lels contra les bancs de sang han intentat escalfar el plasma conservat des de -30°C a 50°C. Ambdós han estat detinguts a temps. Qual és la lliçó? La mateixa carta que mostra les intrusions al nivell europeu, mostra també una equip d\'extorsió de ransomware que ha potencialment causat fins a 250 milions d\'euros de pèrdues a Delhaize; Noruega ha informat que els atacs contra les seves organitzacions han triplicat-se en un any.',
+          },
+          {
+            type: 'p',
+            text: 'Una sola mapa, tothom tipus d\'atacant.',
+          },
+          {
+            type: 'p',
+            text: 'L\'administració britànica prevé atacs contra la infraestructura crítica dirigits per l\'AI abans del 2028. Mira la mapa i sabràs: la major part de les voltes són automatitzades.',
+          },
+          {
+            type: 'p',
+            text: 'La mapa s\'encén. Europa sota atac.',
+          },
+          {
+            type: 'p',
+            text: 'Els atacs més temibles no són els que es preveuen; les nostres vulnerabilitats.',
+          },
+        ],
+      },
+      nl: {
+        title: 'De kaart wordt aangestoken. Europa onder aanval.',
+        dek: 'Realtime maps van cyberaanvallen tonen boogjes die elke seconde Europa treffen. Laatste week heeft Frankrijk onthuld wie achter sommige van deze zijn: zou het Iran zijn. (NB: "cyberattacks" is een Engelse term en kan moeilijk letterlijk vertaald worden.)',
+        body: [
+          {
+            type: 'p',
+            text: 'Open de welke kyberaanval-kaart in realtime ook je wilt (Kaspersky is het meest bekend), dan ziet Europa helder uit. Bliksemschoten vallen op Parijs, Berlijn, Rome en Stockholm elk secondje, van alle richtingen.',
+          },
+          {
+            type: 'p',
+            text: 'De meeste delen zijn gewoon ruis: schermers, bots, de achtergrondstoot van het internet. Ma niet alles.',
+          },
+          {
+            type: 'p',
+            text: '(Note: In questo caso ho deciso di tradurre "La maggior parte è rumore" come "De meeste delen zijn gewoon ruis", poiché nella versione originale l\'autore ha scelto di usare un linguaggio più colloquiale, e "rumore" in inglese può essere tradotto sia con "ruis" che con "geruchten". Ho mantenuto la formattazione del blocco identica all\'originale.)',
+          },
+          {
+            type: 'p',
+            text: 'Maandag voorbij, officieel veroordeelde Frankrijk de Revolutionaire Wacht van Iran voor de cyberaanvallen die het koelingstelsystemen van supermarkten over heel het land getroffen hebben, ongeveer 700 websites. De Iraanse ambassadeur is teruggeroepen, en Parijs heeft beloofd Europese sancties toe te passen.',
+          },
+          {
+            type: 'p',
+            text: 'De Europese landen worden in dezelfde weken ten minste elf keer aangevallen door gelijkaardige aanvallen, van Duitsland tot Roemenië en tot het Verenigd Koninkrijk, waardoor sommige ketens van winkels hun vroefkoolsecties moesten sluiten.',
+          },
+          {
+            type: 'p',
+            text: 'De doelwit was geen datacenter of ministerie. Het waren koelkasten: oude Danfoss-verbindingen verbonden met internet, beschermd door zwakke wachtwoorden en zonder beveiligingsupdates (dat is wel iets op zich).',
+          },
+          {
+            type: 'p',
+            text: 'De Frankrijk zijn er twee tegelijkertijd parallelle aanvallen op bloedbanken geweest, die probeerden het bewaarderde plasma van -30°C op te warmen tot 50°C. Beide werden voortijdig gestopt. Welke les trekt men daar uit? Dezelfde kaart die de inbreuken op niveau Europese laat zien, toont ook een ransomware-team dat mogelijk tot 250 miljoen euro aan schade heeft aangericht bij Delhaize; Noorwegen melden dat er drie keer zo veel aanvallen op haar organisaties zijn gebeurd in het verleden jaar.',
+          },
+          {
+            type: 'p',
+            text: '(In Frankrijk zijn er twee tegelijkertijd parallelle aanvallen op bloedbanken geweest, die probeerden het bewaarderde plasma van -30°C op te warmen tot 50°C. Beide werden voortijdig gestopt. Welke les trekt men daaruit? Dezelfde kaart die de inbreuken op niveau Europese laat zien, toont ook een ransomware-team dat mogelijk tot 250 miljoen euro aan schade heeft aangericht bij Delhaize; Noorwegen melden dat er drie keer zo veel aanvallen op haar organisaties zijn gebeurd in het verleden jaar.)',
+          },
+          {
+            type: 'p',
+            text: 'Een enkele kaart, elk type aanvaller.',
+          },
+          {
+            type: 'p',
+            text: 'Het Britse bestuur voorspelt aanvallen op kritieke infrastructuur, geleid door kunstmatige intelligentie, voor het jaar 2028. Kijk naar de kaart en weet je: de meeste van die arcs zijn automatiseerd.',
+          },
+          {
+            type: 'p',
+            text: 'De acties zijn niet zoals verwacht; onze zwakte.',
+          },
+        ],
+      },
+    },
+    image: {
+      src: '/news/news-1794327141.jpg',
+      caption: '',
+    },
+  },
+{
     slug: 'ai-finds-the-flaws',
     category: 'NEWS',
     number: 3,
