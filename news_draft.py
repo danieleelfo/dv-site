@@ -203,7 +203,7 @@ def _active_leles_model():
             "Traduzione annullata: nessun modello alternativo verrà usato.",
         )
     answer = str(data.get("answer") or "")
-    match = re.search(r"(?im)^\\s*Leles\\s*→\\s*([^\\s]+)", answer)
+    match = re.search(r"(?im)^\s*Leles\s*→\s*([^\s]+)", answer)
     if not match:
         raise HTTPException(
             502,
