@@ -362,7 +362,7 @@ export default function Test7() {
         ...(field ? { field } : {}),
       };
       const started = await api("/api/admin/news-draft/translate", payload);
-      const d = field ? started : await waitJob(started.job_id, setJobNote);
+      const d = field ? started.draft : await waitJob(started.job_id, setJobNote);
       setDraft((prev) => ({ ...prev, ...d, content: d.content || {} }));
       setOkMsg(
         (started.model ? "Modello Leles: " + started.model + " · " : "") +
