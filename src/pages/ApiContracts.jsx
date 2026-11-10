@@ -474,6 +474,43 @@ const GROUPS = [
     ],
   },
   {
+    id: "users", label: "Utenti demo", icon: "👤",
+    note: "Registro utenti demo (users.json sul Mac). Ruoli: admin (lista in gateway.env), super (demo attivo con super=true: sblocca fumetti, multifoto e history immagini in ImageLab), demo (generazione base, OCR, img2img/B2BImg).",
+    endpoints: [
+      {
+        method: "GET", path: "/api/users", auth: true,
+        summary: "Elenca gli utenti demo",
+        request: "—",
+        response: '{ "users": [{ "id", "name", "email", "chat_id", "note", "active", "super", "created_at" }] }',
+      },
+      {
+        method: "POST", path: "/api/users", auth: true,
+        summary: "Crea un utente demo",
+        request: '{\n  "name": "...",\n  "email": "...",\n  "chat_id": 123,        // opzionale\n  "note": "...",         // opzionale\n  "super": false         // opzionale, default false\n}',
+        response: '{ "user": { ... } }',
+        notes: "201 creato; 409 se l'email esiste gia.",
+      },
+      {
+        method: "PATCH", path: "/api/users/{user_id}", auth: true,
+        summary: "Aggiorna attivo e/o super di un utente demo",
+        request: '{ "active": true, "super": true }   // entrambi i campi opzionali',
+        response: '{ "user": { ... } }',
+      },
+      {
+        method: "DELETE", path: "/api/users/{user_id}", auth: true,
+        summary: "Elimina un utente demo",
+        request: "—",
+        response: '{ "deleted": "<user_id>" }',
+      },
+      {
+        method: "GET", path: "/api/users/me", auth: true,
+        summary: "Ruolo del chiamante, per il gating della UI",
+        request: "—",
+        response: '{ "email": "...", "role": "admin|super|demo" }',
+      },
+    ],
+  },
+  {
     id: "git", label: "Git Admin", icon: "⑂",
     note: "api.note.git",
     endpoints: [
