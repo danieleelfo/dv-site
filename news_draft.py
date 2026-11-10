@@ -791,7 +791,7 @@ def build_news_draft_router(verify_admin_token):
                     body_in.field: t,
                 }
                 _write_draft(draft)
-                return draft
+                return {"draft": draft, "model": active_model}
             # Traduzione INTERA lingua: job in background (vedi _start_job),
             # il frontend polla /jobs/{id}. Il campo singolo (title/dek) è una
             # sola chiamata LLM e resta sincrono.
