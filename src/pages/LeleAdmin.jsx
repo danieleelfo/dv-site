@@ -1760,9 +1760,9 @@ export default function LeleAdmin() {
             )
         })}
 
-              {/* GRADV: stato processo + start/stop/restart */}
+              {/* GRADV: stato processo + start/stop/restart (ultimo box) */}
               <div className="lc-stat">
-                <div className="lc-stat-head">
+                <div className="lc-stat-head lc-stat-head--gradv">
                   <h3
                     className={
                       'lc-sys-name ' +
@@ -1775,9 +1775,38 @@ export default function LeleAdmin() {
                   >
                     GraDV
                   </h3>
+                  <div
+                    className="lc-row lc-row--tight"
+                    style={{ gap: 4, flexWrap: 'nowrap', marginLeft: 'auto' }}
+                  >
+                    <button
+                      type="button"
+                      className="lc-btn lc-btn--xs"
+                      onClick={() => gradvAction('start')}
+                      disabled={!!gradvBusy}
+                    >
+                      {gradvBusy === 'start' ? '…' : 'Start'}
+                    </button>
+                    <button
+                      type="button"
+                      className="lc-btn lc-btn--xs lc-btn--rec"
+                      onClick={() => gradvAction('stop')}
+                      disabled={!!gradvBusy}
+                    >
+                      {gradvBusy === 'stop' ? '…' : 'Stop'}
+                    </button>
+                    <button
+                      type="button"
+                      className="lc-btn lc-btn--xs lc-btn--rec"
+                      onClick={() => gradvAction('restart')}
+                      disabled={!!gradvBusy}
+                    >
+                      {gradvBusy === 'restart' ? '…' : 'Restart'}
+                    </button>
+                  </div>
                   <span
                     className={
-                      'lc-pill ' +
+                      'lc-pill lc-pill--xs ' +
                       (gradv.data?.process?.running
                         ? 'is-ok'
                         : gradv.err
@@ -1805,32 +1834,6 @@ export default function LeleAdmin() {
                                   (gradv.data.model_server?.ram_mb || 0)
                               ) + ' MB')}
                   </span>
-                  <div className="lc-row" style={{ gap: 4, flexWrap: 'nowrap' }}>
-                    <button
-                      type="button"
-                      className="lc-btn lc-btn--xs"
-                      onClick={() => gradvAction('start')}
-                      disabled={!!gradvBusy}
-                    >
-                      {gradvBusy === 'start' ? '…' : 'Start'}
-                    </button>
-                    <button
-                      type="button"
-                      className="lc-btn lc-btn--xs lc-btn--rec"
-                      onClick={() => gradvAction('stop')}
-                      disabled={!!gradvBusy}
-                    >
-                      {gradvBusy === 'stop' ? '…' : 'Stop'}
-                    </button>
-                    <button
-                      type="button"
-                      className="lc-btn lc-btn--xs lc-btn--rec"
-                      onClick={() => gradvAction('restart')}
-                      disabled={!!gradvBusy}
-                    >
-                      {gradvBusy === 'restart' ? '…' : 'Restart'}
-                    </button>
-                  </div>
                 </div>
                 {gradvBusy && (
                   <p className="lc-dim lc-small">GraDV: {gradvBusy} in corso…</p>
@@ -2369,6 +2372,9 @@ const css = `
 .lc-check{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-dim);cursor:pointer}
 .lc-btn--rec{background:rgba(248,113,113,.2);border-color:var(--bad);color:#fecaca}
 .lc-btn--xs{padding:2px 9px;font-size:10.5px;line-height:1.4;white-space:nowrap}
+.lc-pill--xs{padding:1px 7px;font-size:9.5px;gap:4px;flex:0 0 auto}
+.lc-stat-head--gradv{flex-wrap:nowrap;gap:5px}
+.lc-stat-head--gradv h3{font-size:12px}
 .lc-rec{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.2)}
 .lc-rec .lc-cmd-head{margin-bottom:8px}
 .lc-rec-audio{width:100%}
