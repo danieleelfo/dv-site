@@ -1784,41 +1784,53 @@ export default function LeleAdmin() {
                           ? 'is-bad'
                           : '')
                     }
+                    title="RAM totale dei processi GraDV (UI + model server)"
                   >
                     <span className="lc-dot" />
-                    {gradv.data
-                      ? 'UI ' +
-                        (gradv.data.process?.running ? 'on' : 'off') +
-                        ' · Model ' +
-                        (gradv.data.model_server?.running ? 'on' : 'off')
-                      : '…'}
+                    {!gradv.data
+                      ? '…'
+                      : !gradv.data.process?.running
+                        ? 'spento'
+                        : 'RAM ' +
+                          ((gradv.data.process?.ram_mb || 0) +
+                            (gradv.data.model_server?.ram_mb || 0) >=
+                            1024
+                            ? (
+                                ((gradv.data.process?.ram_mb || 0) +
+                                  (gradv.data.model_server?.ram_mb || 0)) /
+                                1024
+                              ).toFixed(1) + ' GB'
+                            : Math.round(
+                                (gradv.data.process?.ram_mb || 0) +
+                                  (gradv.data.model_server?.ram_mb || 0)
+                              ) + ' MB')}
                   </span>
-                </div>
-                <div className="lc-row" style={{ gap: 6, flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    className="lc-btn lc-btn--sm"
-                    onClick={() => gradvAction('start')}
-                    disabled={!!gradvBusy}
-                  >
-                    {gradvBusy === 'start' ? '…' : 'Start'}
-                  </button>
-                  <button
-                    type="button"
-                    className="lc-btn lc-btn--sm lc-btn--rec"
-                    onClick={() => gradvAction('stop')}
-                    disabled={!!gradvBusy}
-                  >
-                    {gradvBusy === 'stop' ? '…' : 'Stop'}
-                  </button>
-                  <button
-                    type="button"
-                    className="lc-btn lc-btn--sm lc-btn--rec"
-                    onClick={() => gradvAction('restart')}
-                    disabled={!!gradvBusy}
-                  >
-                    {gradvBusy === 'restart' ? '…' : 'Restart'}
-                  </button>
+                  <div className="lc-row" style={{ gap: 4, flexWrap: 'nowrap' }}>
+                    <button
+                      type="button"
+                      className="lc-btn lc-btn--xs"
+                      onClick={() => gradvAction('start')}
+                      disabled={!!gradvBusy}
+                    >
+                      {gradvBusy === 'start' ? '…' : 'Start'}
+                    </button>
+                    <button
+                      type="button"
+                      className="lc-btn lc-btn--xs lc-btn--rec"
+                      onClick={() => gradvAction('stop')}
+                      disabled={!!gradvBusy}
+                    >
+                      {gradvBusy === 'stop' ? '…' : 'Stop'}
+                    </button>
+                    <button
+                      type="button"
+                      className="lc-btn lc-btn--xs lc-btn--rec"
+                      onClick={() => gradvAction('restart')}
+                      disabled={!!gradvBusy}
+                    >
+                      {gradvBusy === 'restart' ? '…' : 'Restart'}
+                    </button>
+                  </div>
                 </div>
                 {gradvBusy && (
                   <p className="lc-dim lc-small">GraDV: {gradvBusy} in corso…</p>
@@ -2356,6 +2368,7 @@ const css = `
 .lc-audio-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
 .lc-check{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-dim);cursor:pointer}
 .lc-btn--rec{background:rgba(248,113,113,.2);border-color:var(--bad);color:#fecaca}
+.lc-btn--xs{padding:2px 9px;font-size:10.5px;line-height:1.4;white-space:nowrap}
 .lc-rec{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.2)}
 .lc-rec .lc-cmd-head{margin-bottom:8px}
 .lc-rec-audio{width:100%}
