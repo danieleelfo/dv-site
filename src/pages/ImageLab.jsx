@@ -147,7 +147,8 @@ export default function ImageLab({ initialTab = "genera" }) {
   const [email, setEmail] = useState("");
   // Ruolo dal gateway (admin | demo | none): i demo vedono solo GENERA.
   const [role, setRole] = useState("loading");
-  const isAdmin = role === "admin";
+  // Super user: stessi tab degli admin in ImageLab (fumetti, multifoto, history).
+  const isAdmin = role === "admin" || role === "super";
 
   const [prompt, setPrompt] = useState("");
   const [size, setSize] = useState(512);

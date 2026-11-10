@@ -894,6 +894,24 @@ export default function Improve() {
     }
   }
 
+  async function toggleSuper(u) {
+    setUsersBusy(true);
+    setUsersError("");
+    try {
+      const r = await fetch(API + "/api/users/" + u.id, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + idToken },
+        body: JSON.stringify({ super: !u.super }),
+      });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      await loadUsers();
+    } catch (e) {
+      setUsersError(e.message || String(e));
+    } finally {
+      setUsersBusy(false);
+    }
+  }
+
   async function removeUser(u) {
     if (!window.confirm("Eliminare " + u.name + "?")) return;
     setUsersBusy(true);
@@ -1227,6 +1245,10 @@ export default function Improve() {
                     <label className="imp-check">
                       <input type="checkbox" checked={!!u.active} disabled={usersBusy} onChange={() => toggleUser(u)} />
                       attivo
+                    </label>
+                    <label className="imp-check">
+                      <input type="checkbox" checked={!!u.super} disabled={usersBusy} onChange={() => toggleSuper(u)} />
+                      super
                     </label>
                     <button className="imp-btn imp-danger" disabled={usersBusy} onClick={() => removeUser(u)}>Elimina</button>
                   </div>

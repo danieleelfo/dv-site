@@ -164,6 +164,33 @@ def verify_user_token(authorization: str | None) -> str:
     )
 
 
+def verify_super_token(authorization: str | None) -> str:
+    """
+    Super user: admin (env) OPPURE utente demo attivo con flag super=True
+    in users.json. Sblocca le funzioni "quasi admin" (fumetti, multifoto,
+    history immagini) senza dare le chiavi admin complete.
+    """
+    email = _verified_email_or_raise(authorization)
+
+    if email in ADMIN_ALLOWED_EMAILS:
+        _log_login(email, "admin")
+        return email
+
+    for u in _load_demo_users():
+        if (
+            (u.get("email") or "").strip().lower() == email
+            and u.get("active")
+            and u.get("super")
+        ):
+            _log_login(email, "super")
+            return email
+
+    raise HTTPException(
+        status_code=403,
+        detail="Accesso non autorizzato.",
+    )
+
+
 def get_connection():
     return psycopg2.connect(
         host=os.environ.get("PGHOST", "localhost"),
@@ -254,7 +281,7 @@ app.include_router(
 
 # FUMETTI — tab Fumetti di ImageLab: 1 foto + fumetti disegnati con Pillow
 app.include_router(
-    build_bubbles_router(verify_admin_token)
+    build_bubbles_router(verify_super_token)
 )
 app.include_router(
     build_comic_page_router(verify_user_token)
@@ -3429,7 +3456,7 @@ async def image_history_list(
     Restituisce i metadati delle generazioni salvate,
     dalla più recente alla più vecchia.
     """
-    verify_admin_token(authorization)
+    verify_super_token(authorization)
 
     items = []
 
@@ -3478,7 +3505,7 @@ async def image_history_image(
     """
     Restituisce il PNG di una generazione salvata.
     """
-    verify_admin_token(authorization)
+    verify_super_token(authorization)
 
     if not re.fullmatch(r"[0-9a-f-]{36}", job_id):
         raise HTTPException(
@@ -4557,7 +4584,7 @@ async def image_compose(
                 d.line([(0, y), (w, y)], fill=int(255 * (y / (fh - 1))))
         return mask
 
-    verify_admin_token(authorization)
+    verify_super_token(authorization)
 
     if not images:
         raise HTTPException(status_code=400, detail="Nessuna immagine ricevuta.")
@@ -4868,10 +4895,12 @@ class DemoUserRequest(BaseModel):
     email: str = Field(..., min_length=3, max_length=200)
     chat_id: int | None = None
     note: str = Field(default="", max_length=500)
+    allow_super: bool | None = Field(None, alias="super")
 
 
 class DemoUserPatch(BaseModel):
-    active: bool
+    active: bool | None = None
+    allow_super: bool | None = Field(None, alias="super")
 
 
 @app.get("/api/users")
@@ -4897,6 +4926,7 @@ async def add_demo_user(req: DemoUserRequest, authorization: str | None = Header
         "chat_id": req.chat_id,
         "note": req.note.strip(),
         "active": True,
+        "super": bool(req.allow_super),
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
     }
     users.append(user)
@@ -4910,7 +4940,10 @@ async def patch_demo_user(user_id: str, req: DemoUserPatch, authorization: str |
     users = _load_demo_users()
     for u in users:
         if u.get("id") == user_id:
-            u["active"] = req.active
+            if req.active is not None:
+                u["active"] = req.active
+            if req.allow_super is not None:
+                u["super"] = req.allow_super
             _save_demo_users(users)
             return {"user": u}
     raise HTTPException(status_code=404, detail="Utente non trovato.")
@@ -4931,7 +4964,17 @@ async def delete_demo_user(user_id: str, authorization: str | None = Header(None
 async def who_am_i(authorization: str | None = Header(None)):
     """Chi sono: admin (env) o utente demo. Per il gating della UI."""
     email = verify_user_token(authorization)
-    role = "admin" if email in ADMIN_ALLOWED_EMAILS else "demo"
+    if email in ADMIN_ALLOWED_EMAILS:
+        role = "admin"
+    else:
+        role = (
+            "super"
+            if any(
+                (u.get("email") or "").strip().lower() == email and u.get("super")
+                for u in _load_demo_users()
+            )
+            else "demo"
+        )
     return {"email": email, "role": role}
 
 
