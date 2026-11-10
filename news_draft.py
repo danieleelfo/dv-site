@@ -214,9 +214,8 @@ def _active_leles_model():
 
 
 def _llm_translate(lang, text, context, model, field=None):
-    # Istruzioni specifiche per campo corto: senza queste, Mistral tende a
-    # "sproloquiare" (ripete il contesto, incolla istruzioni o l'articolo
-    # intero anche quando gli è stato dato solo il titolo).
+    # Istruzioni specifiche per campo corto: evitano che il modello ripeta
+    # il contesto o restituisca l'articolo intero al posto del solo titolo.
     field_hint = ""
     if field == "title":
         field_hint = (
@@ -778,11 +777,6 @@ def build_news_draft_router(verify_admin_token):
                     body_in.field, f"{body_in.field} ({target})", warns,
                     active_model,
                 )
-                if t is None:
-                    raise HTTPException(
-                        502, f"Traduzione fallita per {body_in.field} ({target}): "
-                             + "; ".join(warns[-2:])
-                    )
                 cur = draft["content"].get(target) or {}
                 draft["content"][target] = {
                     "title": cur.get("title", ""),
@@ -815,7 +809,7 @@ def build_news_draft_router(verify_admin_token):
             )
             _job_write_langs(d, [_target])
             if warns:
-                job["note"] = f"{_target}: {len(warns)} avvisi — " + "; ".join(warns[-4:])
+                job["note"] = f"Modello Leles {_model} · {_target}: {len(warns)} avvisi — " + "; ".join(warns[-4:])
             job["draft"] = d
 
         return {"job_id": _start_job(work), "model": active_model}
@@ -861,9 +855,9 @@ def build_news_draft_router(verify_admin_token):
                 _job_write_langs(d, [lang])  # salva dopo ogni lingua: i progressi restano
                 if warns:
                     all_warns.extend(f"{lang}: {w}" for w in warns)
-                    job["note"] = f"lingua {lang} completata con {len(warns)} avvisi"
+                    job["note"] = f"Modello Leles {_model} · lingua {lang} completata con {len(warns)} avvisi"
                 else:
-                    job["note"] = f"lingua completata: {lang}"
+                    job["note"] = f"Modello Leles {_model} · lingua completata: {lang}"
             if all_warns:
                 job["note"] = "avvisi: " + "; ".join(all_warns[-6:])
             job["draft"] = d
