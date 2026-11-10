@@ -840,6 +840,7 @@ export default function LeleAdmin() {
   const [audioAgent, setAudioAgent] = useState(AUDIO_AGENTS[0].value)
   const [audioPrompt, setAudioPrompt] = useState('')
   const [wantsTts, setWantsTts] = useState(false)
+  const [wantsDictation, setWantsDictation] = useState(false)
   const [audioReply, setAudioReply] = useState('')
   const [audioReplyFile, setAudioReplyFile] = useState(null)
   const [audioReplyAgent, setAudioReplyAgent] = useState('')
@@ -1206,6 +1207,15 @@ export default function LeleAdmin() {
     const isLeles = audioAgent === LELES_AGENT
 
     try {
+      if (isLeles && wantsDictation) {
+        const form = new FormData()
+        form.append('audio', blob, 'recording.webm')
+        form.append('language', AUDIO_LANGUAGE)
+        const data = await adminJson(idToken, '/api/admin/dettatura', { method: 'POST', body: form })
+        setAudioReply(data.content || '')
+        setAudioReplyAgent(audioAgent)
+        return
+      }
       const form = new FormData()
       form.append('audio', blob, 'recording.webm')
       if (!isLeles) form.append('agent', audioAgent)
@@ -1938,6 +1948,12 @@ export default function LeleAdmin() {
                     />
                     {t('lele.tts')}
                   </label>
+                  {audioAgent === LELES_AGENT && (
+                    <label className="lc-check" title="Trascrive e salva il testo nella cartella Dettatura">
+                      <input type="checkbox" checked={wantsDictation} disabled={isRecording || audioBusy} onChange={(e) => setWantsDictation(e.target.checked)} />
+                      Dettatura
+                    </label>
+                  )}
                   {(audioAgent === 'Story Whisper' || audioAgent === 'Night Story') && (
                     <div className="lc-check" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }} title={t('lele.story.boxTitle')}>
                       <label className="lc-check">
