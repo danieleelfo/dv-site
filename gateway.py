@@ -16,6 +16,7 @@ from query_db import build_query_db_router
 from image_bubbles import build_bubbles_router
 from comic_page import build_comic_page_router
 from gradv_archive import build_gradv_archive_router
+from gradv_proc import build_gradv_proc_router
 from personaggi import build_personaggi_router
 from news_draft import build_news_draft_router
 from i18n_admin import build_i18n_router
@@ -290,6 +291,11 @@ app.include_router(
 # GraDV Archive — catalogo read-only delle immagini in history.db
 app.include_router(
     build_gradv_archive_router(verify_admin_token)
+)
+
+# GraDV PROC — start/stop/restart del processo GraDV (UI + model server)
+app.include_router(
+    build_gradv_proc_router(verify_admin_token)
 )
 
 # PERSONAGGI — CRUD personaggi (nome, descrizione, foto) per le storie

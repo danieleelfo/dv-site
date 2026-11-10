@@ -401,6 +401,9 @@ export default function LeleAdmin() {
   const [ping, setPing] = useState({ ok: null, ms: null, agents: [], pillow: null })
   // GraDV (generatore immagini): risultato di /api/image/health.
   const [gradv, setGradv] = useState({})
+  // Controllo processo GraDV (start/stop/restart via /api/gradv/proc).
+  const [gradvBusy, setGradvBusy] = useState(null)
+  const [gradvMsg, setGradvMsg] = useState(null)
 
   const buttonRef = useRef(null)
   const textareaRef = useRef(null)
@@ -568,6 +571,31 @@ export default function LeleAdmin() {
     setStatusLoading(false)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idToken])
+
+  // GraDV: start/stop/restart del processo (UI + model server) direttamente
+  // dal gateway, POST /api/gradv/proc/<azione>. Poi riaggiorna lo stato.
+  const gradvAction = useCallback(async (action) => {
+    if (!idToken || gradvBusy) return
+    setGradvBusy(action)
+    setGradvMsg(null)
+    try {
+      const data = await adminJson(idToken, '/api/gradv/proc/' + action, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      })
+      setGradvMsg(data?.detail || action + ' ok')
+    } catch (err) {
+      if (err.status === 401 || err.status === 403) {
+        logout(err.message)
+        return
+      }
+      setGradvMsg(err.message || String(err))
+    } finally {
+      setGradvBusy(null)
+    }
+    refreshStatus()
+  }, [idToken, gradvBusy, logout, refreshStatus])
 
   useEffect(() => {
     refreshStatus()
@@ -1731,6 +1759,74 @@ export default function LeleAdmin() {
                 </div>
             )
         })}
+
+              {/* GRADV: stato processo + start/stop/restart */}
+              <div className="lc-stat">
+                <div className="lc-stat-head">
+                  <h3
+                    className={
+                      'lc-sys-name ' +
+                      (gradv.data?.process?.running
+                        ? 'is-ok'
+                        : gradv.err
+                          ? 'is-bad'
+                          : '')
+                    }
+                  >
+                    GraDV
+                  </h3>
+                  <span
+                    className={
+                      'lc-pill ' +
+                      (gradv.data?.process?.running
+                        ? 'is-ok'
+                        : gradv.err
+                          ? 'is-bad'
+                          : '')
+                    }
+                  >
+                    <span className="lc-dot" />
+                    {gradv.data
+                      ? 'UI ' +
+                        (gradv.data.process?.running ? 'on' : 'off') +
+                        ' · Model ' +
+                        (gradv.data.model_server?.running ? 'on' : 'off')
+                      : '…'}
+                  </span>
+                </div>
+                <div className="lc-row" style={{ gap: 6, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="lc-btn lc-btn--sm"
+                    onClick={() => gradvAction('start')}
+                    disabled={!!gradvBusy}
+                  >
+                    {gradvBusy === 'start' ? '…' : 'Start'}
+                  </button>
+                  <button
+                    type="button"
+                    className="lc-btn lc-btn--sm lc-btn--rec"
+                    onClick={() => gradvAction('stop')}
+                    disabled={!!gradvBusy}
+                  >
+                    {gradvBusy === 'stop' ? '…' : 'Stop'}
+                  </button>
+                  <button
+                    type="button"
+                    className="lc-btn lc-btn--sm lc-btn--rec"
+                    onClick={() => gradvAction('restart')}
+                    disabled={!!gradvBusy}
+                  >
+                    {gradvBusy === 'restart' ? '…' : 'Restart'}
+                  </button>
+                </div>
+                {gradvBusy && (
+                  <p className="lc-dim lc-small">GraDV: {gradvBusy} in corso…</p>
+                )}
+                {!gradvBusy && gradvMsg && (
+                  <p className="lc-dim lc-small">{gradvMsg}</p>
+                )}
+              </div>
             </section>
           </aside>
         </div>
