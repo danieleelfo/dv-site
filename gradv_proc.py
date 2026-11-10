@@ -6,14 +6,15 @@ GraDV gira sullo stesso Mac del gateway, due processi:
   - model server -> porta GRADV_MODEL_PORT (default 7999), e' lui che
                    tiene il modello in RAM e consuma risorse.
 
-Lo stop uccide ENTRAMBI (SIGTERM, poi SIGKILL se non escono entro il
-timeout). Lo start replica il piu' possibile il "python main.py" del
-terminale: cerca il python dell'env "gradv" nei posti tipici (venv
-dentro la cartella GraDV, ~/.venvs, ~/.virtualenvs, path conda) e lo
-lancia direttamente; se non lo trova, fallback su una shell zsh
-interattiva di login (che legge .zshrc, dove l'env viene attivato).
-Detached dal gateway, log su gradv_gateway.log. Config opzionale in
-gateway.env:
+Lo stop uccide ENTRAMBI (SIGTERM, poi SIGKILL). Il successo e' misurato
+sulle PORTE (lsof), non sui PID: un processo ucciso dal gateway resta
+per un attimo "zombie" (defunto, non in ascolto) e non va scambiato
+per un fallimento. Lo start replica il "python main.py" del terminale:
+cerca il python dell'env "gradv" nei posti tipici (venv nella cartella
+GraDV, ~/.venvs, ~/.virtualenvs, path conda) e lo lancia direttamente;
+se non lo trova, fallback su shell zsh interattiva di login (che legge
+.zshrc, dove l'env viene attivato). Detached dal gateway, log su
+gradv_gateway.log. Config opzionale in gateway.env:
 
   GRADV_DIR        (default ~/Desktop/Danny/GraDV)
   GRADV_PYTHON     (forza il python da usare, es. .../envs/gradv/bin/python)
@@ -165,23 +166,17 @@ def build_gradv_proc_router(verify_admin_token):
             "ram_mb": round(sum(_rss_mb(p) for p in pids), 1),
         }
 
-    def _pid_alive(pid):
-        try:
-            os.kill(pid, 0)
-            return True
-        except ProcessLookupError:
-            return False
-        except PermissionError:
-            return True
-        except Exception:
-            return False
-
     # ------------------------------------------------------------------
     # Azioni
     # ------------------------------------------------------------------
 
     def _do_stop():
-        """SIGTERM (poi SIGKILL) a UI e model server. Idempotente."""
+        """SIGTERM (poi SIGKILL) a UI e model server. Idempotente.
+
+        Il successo e' "le porte sono libere": un PID ucciso dal gateway
+        resta qualche istante come zombie (defunto, NON in ascolto) e
+        va ignorato, altrimenti falsi errori "ancora attivi".
+        """
         pids = set()
         for port in (ui_port(), model_port()):
             pids |= _pids_on_port(port)
@@ -195,6 +190,12 @@ def build_gradv_proc_router(verify_admin_token):
         if not pids:
             return {"stopped": False, "detail": "GraDV non era in esecuzione."}
 
+        def _listening():
+            out = set()
+            for port in (ui_port(), model_port()):
+                out |= _pids_on_port(port)
+            return out
+
         for pid in pids:
             try:
                 os.kill(pid, signal.SIGTERM)
@@ -203,22 +204,29 @@ def build_gradv_proc_router(verify_admin_token):
 
         deadline = time.time() + STOP_TIMEOUT
         while time.time() < deadline:
-            if not any(_pid_alive(p) for p in pids):
+            if not _listening():
                 break
             time.sleep(0.5)
-        else:
-            for pid in pids:
-                if _pid_alive(pid):
-                    try:
-                        os.kill(pid, signal.SIGKILL)
-                    except (ProcessLookupError, PermissionError):
-                        pass
 
-        remaining = [p for p in pids if _pid_alive(p)]
+        remaining = _listening()
         if remaining:
+            for pid in remaining:
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except (ProcessLookupError, PermissionError):
+                    pass
+            # Grace: il kernel puo' metterci un attimo a liberare le porte.
+            grace = time.time() + 3.0
+            while time.time() < grace:
+                if not _listening():
+                    break
+                time.sleep(0.3)
+
+        still = _listening()
+        if still:
             raise HTTPException(
                 status_code=500,
-                detail=f"Processi GraDV ancora attivi dopo SIGKILL: {remaining}",
+                detail=f"Porte GraDV ancora occupate dopo SIGKILL: {sorted(still)}",
             )
         return {"stopped": True, "killed": sorted(pids)}
 
