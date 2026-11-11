@@ -557,7 +557,6 @@ def build_query_db_router(
             except Exception:
                 pass
 
-    return router
     # ------------------------------------------------------------------
     # MEMORY SUMMARY — genera con Ollama, salva su approvazione
     # ------------------------------------------------------------------
@@ -687,3 +686,5 @@ def build_query_db_router(
                 conn.close()
             except Exception:
                 pass
+
+    return router

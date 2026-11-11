@@ -560,8 +560,6 @@ export default function QueryDb() {
         </div>
       </section>
 
-      {table && (
-
       <section className="panel summary-panel">
         <div className="section-heading">
           <div>
@@ -602,6 +600,8 @@ export default function QueryDb() {
           )}
         </div>
       </section>
+
+      {table && (
         <section className="panel preview-panel">
           <div className="section-heading">
             <div><p className="eyebrow">{t("qdb.previewEyebrow")}</p><h2><code>{table}</code> · {t("qdb.page", { n: page + 1 })}{tableData?.order ? <span className="order-badge" title={t("qdb.serverOrder")}>{tableData.order}</span> : null}</h2></div>
