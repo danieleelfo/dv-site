@@ -361,7 +361,7 @@
     "areaEmergence": "PostgreSQL · runs, roles, judge",
     "areaLeleNs": "PostgreSQL · Night Story",
     "areaLeleSw": "PostgreSQL · Story Whisper",
-    "areaDbt": "PostgreSQL · dbt bronze layer"
+    "areaDbt": "PostgreSQL · dbt bronze layer",
     "wait": "Please wait…",
     "refresh": "Refresh",
     "warning": "Warning",

@@ -360,7 +360,7 @@
     "areaEmergence": "PostgreSQL · runs, rols, judge",
     "areaLeleNs": "PostgreSQL · Night Story",
     "areaLeleSw": "PostgreSQL · Story Whisper",
-    "areaDbt": "PostgreSQL · capa dbt bronze"
+    "areaDbt": "PostgreSQL · capa dbt bronze",
     "wait": "Espera…",
     "refresh": "Actualitzar",
     "warning": "Atenció",
