@@ -26,6 +26,8 @@ import StoriesTab from "../components/StoriesTab.jsx";
 import MultifotoTab from "../components/MultifotoTab.jsx";
 import FumettiTab from "../components/FumettiTab.jsx";
 import ImgHist from "../components/ImgHist.jsx";
+import bgO from "../assets/multifotoO.png";
+import bgV from "../assets/multifotoV.png";
 
 const API = "https://api.danielevillanova.com";
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -178,10 +180,10 @@ export default function ImageLab({ initialTab = "genera" }) {
     }
   }, [tab]);
 
-  // Utenti demo: GENERA + OCR + Fumetti. Storico/Storie/Multifoto restano admin.
+  // Utenti demo: GENERA + OCR + Fumetti. Super: anche Storie/Multifoto.
+  // Solo lo Storico resta esclusivo degli admin.
   useEffect(() => {
-    const ADMIN_ONLY_TABS = ["storico", "storie", "multifoto"];
-    if (role !== "loading" && role !== "admin" && ADMIN_ONLY_TABS.includes(tab)) {
+    if (role !== "loading" && role !== "admin" && tab === "storico") {
       setTab("genera");
     }
   }, [role, tab]);
@@ -970,7 +972,7 @@ export default function ImageLab({ initialTab = "genera" }) {
           >
             {t("img.tabGenera")}
           </button>
-          {isAdmin && (
+          {role === "admin" && (
           <button
             type="button"
             className={"il-tab" + (tab === "storico" ? " il-tab-active" : "")}
@@ -1538,9 +1540,18 @@ const STYLES = `
 .il-page {
   min-height: 100vh;
   padding: 2rem 1.5rem 3rem;
-  background: var(--bg, #0b1015);
+  background-image: linear-gradient(180deg, rgba(11,16,21,.55) 0%, rgba(11,16,21,.75) 100%), url(${bgO});
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-color: var(--bg, #0b1015);
   color: var(--ink, #e7edf1);
   font-family: var(--sans, Inter, system-ui, sans-serif);
+}
+@media (orientation: portrait) {
+  .il-page {
+    background-image: linear-gradient(180deg, rgba(11,16,21,.55) 0%, rgba(11,16,21,.75) 100%), url(\${bgV});
+  }
 }
 .il-container {
   width: 100%;
