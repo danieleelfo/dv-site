@@ -1,0 +1,10 @@
+{
+  "name": "bn2-v2",
+  "private": true,
+  "type": "commonjs",
+  "description": "BN2 v2 - Battaglia navale multiplayer (node + socket.io, porta 3001)",
+  "dependencies": {
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1"
+  }
+}
