@@ -1550,7 +1550,7 @@ const STYLES = `
 }
 @media (orientation: portrait) {
   .il-page {
-    background-image: linear-gradient(180deg, rgba(11,16,21,.55) 0%, rgba(11,16,21,.75) 100%), url(\${bgV});
+    background-image: linear-gradient(180deg, rgba(11,16,21,.55) 0%, rgba(11,16,21,.75) 100%), url(${bgV});
   }
 }
 .il-container {
