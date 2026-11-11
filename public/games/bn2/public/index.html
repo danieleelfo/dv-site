@@ -242,7 +242,8 @@
       socket.on('message', m => { alert(m); location.reload(); });
 
       const GRID = 10;
-      const CELL = Math.min(Math.floor((Math.min(window.innerWidth,440)-40)/2/GRID), 32);
+      const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+      const CELL = Math.min(Math.floor((viewportWidth - 32) / GRID), 34);
       const SZ = GRID*CELL;
       const COLS = 'ABCDEFGHIJ'.split('');
 
@@ -664,3 +665,4 @@
     </script>
 </body>
 </html>
+
