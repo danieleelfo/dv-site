@@ -1823,26 +1823,31 @@ export default function LeleAdmin() {
                           ? 'is-bad'
                           : '')
                     }
-                    title="RAM totale dei processi GraDV (UI + model server)"
+                    title="Memoria unificata GraDV (model server: RAM + GPU Metal), come il box GraDV del pannello Sistema"
                   >
                     <span className="lc-dot" />
                     {!gradv.data
                       ? '…'
                       : !gradv.data.process?.running
                         ? 'spento'
-                        : 'RAM ' +
-                          ((gradv.data.process?.ram_mb || 0) +
-                            (gradv.data.model_server?.ram_mb || 0) >=
-                            1024
-                            ? (
-                                ((gradv.data.process?.ram_mb || 0) +
-                                  (gradv.data.model_server?.ram_mb || 0)) /
-                                1024
-                              ).toFixed(1) + ' GB'
-                            : Math.round(
-                                (gradv.data.process?.ram_mb || 0) +
-                                  (gradv.data.model_server?.ram_mb || 0)
-                              ) + ' MB')}
+                        : (() => {
+                            // Come il box GraDV di SystemPanel: RAM del
+                            // model server + memoria GPU/Metal (su Mac la
+                            // memoria e' unificata, il RSS dell'UI Gradio
+                            // non c'entra). Se il model server e' spento
+                            // (sleep) si vede l'RSS dell'UI.
+                            const ms = gradv.data.model_server
+                            const totMb = ms?.running
+                              ? (Number(ms.ram_mb) || 0) +
+                                (Number(ms.mps_driver_mb) || 0)
+                              : Number(gradv.data.process?.ram_mb) || 0
+                            return (
+                              'RAM ' +
+                              (totMb >= 1024
+                                ? (totMb / 1024).toFixed(1) + ' GB'
+                                : Math.round(totMb) + ' MB')
+                            )
+                          })()}
                   </span>
                 </div>
                 {gradvBusy && (
