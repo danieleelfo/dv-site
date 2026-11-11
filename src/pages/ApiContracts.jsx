@@ -164,9 +164,9 @@ const GROUPS = [
       {
         method: "POST", path: "/api/admin/dettatura", auth: true,
         summary: "Trascrive un audio e salva la dettatura in Leles",
-        request: "Content-Type: multipart/form-data\\n\\naudio: <file webm/ogg, max 25 MB>\\nlanguage: \\"it\\" (opzionale)",
+        request: "Content-Type: multipart/form-data\n\naudio: <file webm/ogg, max 25 MB>\nlanguage: \"it\" (opzionale)",
         response: '{ "ok": true, "filename": "... .txt", "transcript": "...", "content": "..." }',
-        notes: "L'audio deve iniziare con \\"dettatura\\"; usa \\"dettatura poesia, ...\\" per la formattazione poetica. File salvato in Dettatura/ nel repo Leles.",
+        notes: "L'audio deve iniziare con \"dettatura\"; usa \"dettatura poesia, ...\" per la formattazione poetica. File salvato in Dettatura/ nel repo Leles.",
       },
       {
         method: "POST", path: "/api/admin/llm", auth: true,
