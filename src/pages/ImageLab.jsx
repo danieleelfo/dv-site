@@ -256,6 +256,16 @@ export default function ImageLab({ initialTab = "genera" }) {
         return;
       }
 
+      // Un job molto vecchio (salvato giorni fa, mai concluso) e' morto:
+      // non riprendere, altrimenti resta "queued" per sempre.
+      if (
+        !Number.isFinite(saved.startedAt) ||
+        Date.now() - saved.startedAt > 30 * 60 * 1000
+      ) {
+        localStorage.removeItem(`${ACTIVE_IMAGE_JOB_KEY}:${userEmail}`);
+        return;
+      }
+
       setJobId(String(saved.jobId));
       setStatus("queued");
       setProgress(Number.isFinite(saved.progress) ? saved.progress : null);
@@ -494,6 +504,22 @@ export default function ImageLab({ initialTab = "genera" }) {
             signal: controller.signal,
           }
         );
+
+        if (response.status === 404 || response.status === 410) {
+          // Il job non esiste piu' sul gateway (restart, pulizia): non
+          // ripollare all'infinito, esci con errore e bottone di reset.
+          setStatus("error");
+          setError("Job non più disponibile (rimosso o scaduto). Avvia una nuova generazione.");
+          try {
+            const userEmail = parseJwt(idToken)?.email || "";
+            if (userEmail) {
+              localStorage.removeItem(`${ACTIVE_IMAGE_JOB_KEY}:${userEmail}`);
+            }
+          } catch {
+            // Nessuna azione necessaria.
+          }
+          return;
+        }
 
         const data = await readResponse(response);
 
