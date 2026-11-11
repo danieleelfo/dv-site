@@ -166,6 +166,11 @@
     transition:opacity 0.08s;
     z-index:50;
   }
+  #placement-controls{
+    display:none; flex-wrap:wrap; justify-content:center; gap:8px;
+    width:100%; margin:0 0 14px;
+  }
+  .btn:disabled{ opacity:0.4; cursor:not-allowed; }
 </style>
 </head>
 <body>
@@ -174,7 +179,12 @@
     <h1>⚓ BATTAGLIA NAVALE</h1>
     <p>MARINA REGIA · VS COMPUTER</p>
   </header>
-  <div id="status-bar">Premi START per schierare le flotte</div>
+  <div id="status-bar">Scegli come schierare la tua flotta</div>
+  <div id="placement-controls">
+    <button class="btn" id="rotateBtn" type="button">RUOTA: ORIZZONTALE</button>
+    <button class="btn" id="readyBtn" type="button" disabled>INIZIA PARTITA</button>
+    <button class="btn" id="cancelPlacementBtn" type="button">ANNULLA</button>
+  </div>
   <div class="grids">
     <div class="grid-wrap">
       <div class="grid-label">LA TUA FLOTTA · <span id="p-hits">0</span>/17 colpi subiti</div>
@@ -189,9 +199,10 @@
 </div>
 
 <div id="overlay">
-  <h2>⚓ BATTAGLIA NAVALE</h2>
-  <p>Le flotte vengono schierate automaticamente. Tocca la griglia nemica per aprire il fuoco. Affonda tutte le navi per vincere.</p>
-  <button class="btn" id="startBtn">SALPA !</button>
+  <h2 id="overlay-title">⚓ BATTAGLIA NAVALE</h2>
+  <p id="overlay-message">Scegli come schierare la flotta: in automatico oppure nave per nave.</p>
+  <button class="btn" id="randomBtn" type="button">🎲 RANDOM</button>
+  <button class="btn" id="manualBtn" type="button">✋ MANUALE</button>
 </div>
 
 <div id="hit-flash"></div>
@@ -212,7 +223,14 @@
 
   const statusBar = document.getElementById('status-bar');
   const overlay = document.getElementById('overlay');
-  const startBtn = document.getElementById('startBtn');
+  const randomBtn = document.getElementById('randomBtn');
+  const manualBtn = document.getElementById('manualBtn');
+  const rotateBtn = document.getElementById('rotateBtn');
+  const readyBtn = document.getElementById('readyBtn');
+  const cancelPlacementBtn = document.getElementById('cancelPlacementBtn');
+  const placementControls = document.getElementById('placement-controls');
+  const overlayTitle = document.getElementById('overlay-title');
+  const overlayMessage = document.getElementById('overlay-message');
   const pHitsEl = document.getElementById('p-hits');
   const eHitsEl = document.getElementById('e-hits');
   const legend = document.getElementById('legend');
@@ -232,6 +250,8 @@
   let playerHits, enemyHits;
   let running, playerTurn;
   let aiHuntMode, aiTargets, aiSunkCount;
+  let placementMode = false, nextShipIndex = 0, manualHorizontal = true;
+  let placementCursor = {r:0,c:0};
 
   function makeBoard(){ return Array.from({length:GRID},()=>Array(GRID).fill(0)); }
   function makeHits(){ return Array.from({length:GRID},()=>Array(GRID).fill(null)); }
@@ -364,8 +384,30 @@
     ctx.beginPath(); ctx.arc(cx,cy,C*0.18,0,Math.PI*2); ctx.stroke();
   }
 
+  function canPlaceShip(row,col,size,horizontal){
+    for(let i=0;i<size;i++){
+      const r=row+(horizontal?0:i), c=col+(horizontal?i:0);
+      if(r<0||r>=GRID||c<0||c>=GRID||playerBoard[r][c]!==0) return false;
+    }
+    return true;
+  }
+
+  function drawPlacementPreview(){
+    if(!placementMode||nextShipIndex>=SHIPS.length||!placementCursor) return;
+    const ship=SHIPS[nextShipIndex];
+    const r=placementCursor.r, c=placementCursor.c;
+    const valid=canPlaceShip(r,c,ship.size,manualHorizontal);
+    pCtx.fillStyle=valid?'rgba(93,173,226,0.62)':'rgba(224,90,68,0.62)';
+    for(let i=0;i<ship.size;i++){
+      const rr=r+(manualHorizontal?0:i), cc=c+(manualHorizontal?i:0);
+      if(rr>=0&&rr<GRID&&cc>=0&&cc<GRID)
+        pCtx.fillRect(cc*CELL+2,rr*CELL+2,CELL-4,CELL-4);
+    }
+  }
+
   function redraw(){
     drawBoard(pCtx, playerBoard, playerShips, playerHits, true);
+    drawPlacementPreview();
     drawBoard(eCtx, enemyBoard, enemyShips, enemyHits, false);
     pHitsEl.textContent = playerHits.flat().filter(x=>x==='hit').length;
     eHitsEl.textContent = enemyHits.flat().filter(x=>x==='hit').length;
@@ -392,14 +434,92 @@
 
   // ── GAME LOGIC ────────────────────────────────────────────
 
-  function startGame(){
+  function resetOverlay(){
+    overlayTitle.textContent='⚓ BATTAGLIA NAVALE';
+    overlayMessage.textContent='Scegli come schierare la flotta: in automatico oppure nave per nave.';
+  }
+
+  function updatePlacementStatus(){
+    if(nextShipIndex>=SHIPS.length){
+      statusBar.textContent='Flotta pronta! Premi INIZIA PARTITA.';
+      readyBtn.disabled=false;
+      return;
+    }
+    const ship=SHIPS[nextShipIndex];
+    const direction=manualHorizontal?'ORIZZONTALE':'VERTICALE';
+    statusBar.textContent='Posiziona '+ship.name+' ('+ship.size+') — '+direction+'. Tocca la tua griglia.';
+    readyBtn.disabled=true;
+  }
+
+  function beginBattle(){
+    placementMode=false;
+    running=true; playerTurn=true;
+    aiHuntMode=false; aiTargets=[]; aiSunkCount=0;
+    placementControls.style.display='none';
+    pCanvas.style.cursor='default';
+    statusBar.textContent='Il tuo turno — scegli un bersaglio!';
+    overlay.style.display='none';
+    redraw();
+  }
+
+  function startRandomGame(){
+    resetOverlay();
     playerBoard=makeBoard(); enemyBoard=makeBoard();
     playerShips=placeShips(playerBoard); enemyShips=placeShips(enemyBoard);
     playerHits=makeHits(); enemyHits=makeHits();
-    running=true; playerTurn=true;
-    aiHuntMode=false; aiTargets=[]; aiSunkCount=0;
-    statusBar.textContent='Il tuo turno — scegli un bersaglio!';
+    beginBattle();
+  }
+
+  function startManualPlacement(){
+    resetOverlay();
+    playerBoard=makeBoard(); enemyBoard=makeBoard();
+    playerShips=[]; enemyShips=placeShips(enemyBoard);
+    playerHits=makeHits(); enemyHits=makeHits();
+    running=false; playerTurn=false; placementMode=true;
+    nextShipIndex=0; manualHorizontal=true; placementCursor={r:0,c:0};
     overlay.style.display='none';
+    placementControls.style.display='flex';
+    pCanvas.style.cursor='crosshair';
+    rotateBtn.disabled=false;
+    rotateBtn.textContent='RUOTA: ORIZZONTALE';
+    updatePlacementStatus();
+    redraw();
+  }
+
+  function cancelManualPlacement(){
+    placementMode=false;
+    placementControls.style.display='none';
+    pCanvas.style.cursor='default';
+    playerBoard=makeBoard(); enemyBoard=makeBoard();
+    playerShips=[]; enemyShips=[];
+    playerHits=makeHits(); enemyHits=makeHits();
+    statusBar.textContent='Scegli come schierare la tua flotta';
+    resetOverlay();
+    overlay.style.display='flex';
+    redraw();
+  }
+
+  function tryPlaceManualShip(row,col){
+    if(!placementMode||nextShipIndex>=SHIPS.length) return;
+    const ship=SHIPS[nextShipIndex];
+    if(!canPlaceShip(row,col,ship.size,manualHorizontal)){
+      statusBar.textContent='Qui la nave non entra o si sovrappone. Prova un’altra casella.';
+      return;
+    }
+    const cells=[];
+    for(let i=0;i<ship.size;i++){
+      const r=row+(manualHorizontal?0:i), c=col+(manualHorizontal?i:0);
+      playerBoard[r][c]=1;
+      cells.push({r,c});
+    }
+    playerShips.push({...ship,cells,horiz:manualHorizontal,sunk:false});
+    nextShipIndex++;
+    placementCursor=null;
+    if(nextShipIndex===SHIPS.length){
+      rotateBtn.disabled=true;
+      readyBtn.disabled=false;
+    }
+    updatePlacementStatus();
     redraw();
   }
 
@@ -467,7 +587,7 @@
     ov.querySelector('p').textContent = won
       ? 'Hai affondato tutta la flotta nemica. La Marina Regia è fiera di te!'
       : 'La tua flotta è stata affondata. Il nemico ha vinto questa battaglia.';
-    startBtn.textContent='RIVINCITA';
+    placementControls.style.display='none';
     // reveal enemy ships
     drawBoard(eCtx, enemyBoard, enemyShips, enemyHits, true);
     setTimeout(()=>{ ov.style.display='flex'; },1200);
@@ -475,23 +595,68 @@
 
   // ── EVENTS ───────────────────────────────────────────────
 
-  function canvasClick(e){
-    if(!running||!playerTurn) return;
-    const rect=eCanvas.getBoundingClientRect();
+  function getCellFromEvent(canvas,e){
+    const rect=canvas.getBoundingClientRect();
     const scaleX=SZ/rect.width, scaleY=SZ/rect.height;
     const x=(e.clientX-rect.left)*scaleX;
     const y=(e.clientY-rect.top)*scaleY;
-    const c=Math.floor(x/CELL), r=Math.floor(y/CELL);
+    return {c:Math.floor(x/CELL),r:Math.floor(y/CELL)};
+  }
+
+  function handlePlayerCanvas(e){
+    if(!placementMode) return;
+    const {r,c}=getCellFromEvent(pCanvas,e);
+    if(r>=0&&r<GRID&&c>=0&&c<GRID) tryPlaceManualShip(r,c);
+  }
+
+  function handleEnemyCanvas(e){
+    if(!running||!playerTurn) return;
+    const {r,c}=getCellFromEvent(eCanvas,e);
     if(c>=0&&c<GRID&&r>=0&&r<GRID) playerShoot(r,c);
   }
-  eCanvas.addEventListener('click', canvasClick);
-  eCanvas.addEventListener('touchend', (e)=>{
+
+  pCanvas.addEventListener('mousemove',e=>{
+    if(!placementMode) return;
+    placementCursor=getCellFromEvent(pCanvas,e);
+    redraw();
+  });
+  pCanvas.addEventListener('mouseleave',()=>{
+    if(!placementMode) return;
+    placementCursor=null;
+    redraw();
+  });
+  pCanvas.addEventListener('click',handlePlayerCanvas);
+  pCanvas.addEventListener('touchend',e=>{
+    if(!placementMode) return;
     e.preventDefault();
     const t=e.changedTouches[0];
-    canvasClick({clientX:t.clientX,clientY:t.clientY});
+    handlePlayerCanvas({clientX:t.clientX,clientY:t.clientY});
   },{passive:false});
 
-  startBtn.addEventListener('click', startGame);
+  eCanvas.addEventListener('click',handleEnemyCanvas);
+  eCanvas.addEventListener('touchend',e=>{
+    e.preventDefault();
+    const t=e.changedTouches[0];
+    handleEnemyCanvas({clientX:t.clientX,clientY:t.clientY});
+  },{passive:false});
+
+  randomBtn.addEventListener('click',startRandomGame);
+  manualBtn.addEventListener('click',startManualPlacement);
+  rotateBtn.addEventListener('click',()=>{
+    if(!placementMode||nextShipIndex>=SHIPS.length) return;
+    manualHorizontal=!manualHorizontal;
+    rotateBtn.textContent='RUOTA: '+(manualHorizontal?'ORIZZONTALE':'VERTICALE');
+    placementCursor={r:0,c:0};
+    updatePlacementStatus();
+    redraw();
+  });
+  readyBtn.addEventListener('click',()=>{
+    if(placementMode&&nextShipIndex===SHIPS.length) beginBattle();
+  });
+  cancelPlacementBtn.addEventListener('click',cancelManualPlacement);
+  document.addEventListener('keydown',e=>{
+    if(placementMode&&(e.key==='r'||e.key==='R')) rotateBtn.click();
+  });
 
   // initial draw
   playerBoard=makeBoard(); enemyBoard=makeBoard();
