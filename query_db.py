@@ -184,6 +184,16 @@ def _summary_date(date: str):
 def _ensure_summary_cols(area: str, get_connection: Callable):
     """Allinea memory_summary: lele_ns/lele_sw hanno colonne in meno rispetto a leles."""
     stmts = (
+        "CREATE TABLE IF NOT EXISTS memory_summary ("
+        "id SERIAL PRIMARY KEY, "
+        "summary TEXT, "
+        "model TEXT, "
+        "n_messages INTEGER, "
+        "days INTEGER, "
+        "period_start DATE, "
+        "period_end DATE, "
+        "created_at TIMESTAMPTZ DEFAULT now()"
+        ")",
         "ALTER TABLE memory_summary ADD COLUMN IF NOT EXISTS model TEXT",
         "ALTER TABLE memory_summary ADD COLUMN IF NOT EXISTS n_messages INTEGER",
         "ALTER TABLE memory_summary ADD COLUMN IF NOT EXISTS days INTEGER",
