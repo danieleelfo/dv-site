@@ -82,8 +82,7 @@ TIME_HINTS = ("created_at", "updated_at", "timestamp", "time", "date", "when", "
 # Colonne candidato per il filtro/gruppo "utente", PER AREA:
 # si usa la prima colonna presente nella tabella.
 #   - leles: "role" e' generato dal codice Leles (non e' un utente del DB)
-#  
-   ma VALE come chiave di raggruppamento automatico del pannello utenti.
+#     ma VALE come chiave di raggruppamento automatico del pannello utenti.
 #   - emergence: "role" identifica il ruolo del messaggio (sempre
 #     "assistant") e agent_id/model_id sono FK alle tabelle agents/models:
 #     NON sono filtri utente e non compaiono qui.
@@ -143,8 +142,7 @@ def _tables(cur, schema: str) -> list[dict]:
     """Tabelle dello schema, con stima righe."""
     cur.execute(
         "SELECT c.relname AS name, GREATEST(c.reltuples::bigint, 0) AS approx_rows "
-        "FROM pg_class c JOIN pg_namespace n ON
- n.oid = c.relnamespace "
+        "FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
         "WHERE n.nspname = %s AND c.relkind = 'r' "
         "ORDER BY c.relname LIMIT %s",
         (schema, MAX_TABLES),
@@ -201,8 +199,7 @@ def _meta_col(cols: list[str]):
     return next((c for c in cols if c.lower() == META_COL), None)
 
 
-def _recent(cur, schema: str, tables: list[dict]) -> lis
-t[dict]:
+def _recent(cur, schema: str, tables: list[dict]) -> list[dict]:
     """Per ogni tabella con colonna temporale, l'ultimo valore registrato."""
     out = []
     for t in tables[:20]:
@@ -257,8 +254,7 @@ def build_query_db_router(
                 except Exception:
                     log.exception("db status recent")
                 return {
-                    "area": ar
-ea,
+                    "area": area,
                     "schema": schema,
                     "tables": tables,
                     "recent": recent,
@@ -312,8 +308,7 @@ ea,
                 # grandi senza indice puo' metterci minuti: meglio un errore
                 # netto che una richiesta appesa).
                 cur.execute("SET statement_timeout = 15000")
-                
-cols = _columns(cur, schema, table)
+                cols = _columns(cur, schema, table)
                 if not cols:
                     raise HTTPException(status_code=404, detail=f"Tabella non trovata: {table}")
 
@@ -353,8 +348,7 @@ cols = _columns(cur, schema, table)
                                 sql.SQL("CAST({} AS jsonb)->>'{}' = %s").format(
                                     sql.Identifier(mc), sql.SQL(json_key)
                                 )
-            
-                )
+                            )
                             params.append(val)
                 if tc:
                     if date_from:
@@ -408,8 +402,7 @@ cols = _columns(cur, schema, table)
     @router.get("/users")
     async def db_users(
         area: str = "leles",
-      
-  table: str = "",
+        table: str = "",
         facet: str = "",
         authorization: str | None = Header(None),
     ):
@@ -450,8 +443,7 @@ cols = _columns(cur, schema, table)
                         {"name": _jsonable(r["name"]), "count": int(r["n"])}
                         for r in cur.fetchall()
                     ]
-                    retur
-n {
+                    return {
                         "table": table,
                         "column": mc + "->>'" + facet + "'",
                         "users": facet_users,
