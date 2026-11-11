@@ -28,6 +28,44 @@ const AREAS = [
 
 const PAGE_SIZE = 50;
 
+// Pannello Memory Summary: aree con la tabella memory_summary (leles, NS, SW).
+// Testi locali (it/en, fallback en) per non toccare i 6 file locale i18n.
+const SUMMARY_AREA_IDS = ["leles", "lele_ns", "lele_sw"];
+const SUM_T = {
+  it: {
+    eyebrow: "MEMORY PIPELINE",
+    title: "Memory Summary",
+    sub: "Riassunto giornaliero della tabella memory, generato con Ollama. Controlla, modifica e salva: ogni salvataggio e' una nuova riga.",
+    generate: "✦ Genera summary",
+    save: "Salva in memory_summary",
+    saved: "Salvato in memory_summary (nuova riga).",
+    none: "Nessun summary salvato per questo giorno.",
+    msgs: "msg",
+    empty: "Genera il summary, rileggilo e salvalo se approvato.",
+    needGen: "Genera prima un summary.",
+    generating: "Ollama sta riassumendo...",
+    history: "Summary salvati · giorno scelto",
+  },
+  en: {
+    eyebrow: "MEMORY PIPELINE",
+    title: "Memory Summary",
+    sub: "Daily digest of the memory table, generated with Ollama. Review, edit and save: every save is a new row.",
+    generate: "✦ Generate summary",
+    save: "Save to memory_summary",
+    saved: "Saved to memory_summary (new row).",
+    none: "No summaries saved for this day yet.",
+    msgs: "msgs",
+    empty: "Generate the summary, review it and save it if approved.",
+    needGen: "Generate a summary first.",
+    generating: "Ollama is summarizing...",
+    history: "Saved summaries · selected day",
+  },
+};
+function sumT(key) {
+  const lang = (i18n.language || "en").slice(0, 2);
+  return (SUM_T[lang] && SUM_T[lang][key]) || SUM_T.en[key] || key;
+}
+
 // Gruppi del pannello UTENTI. Nelle tabelle leles la colonna "utente" e
 // "role" (valori generati dagli agenti: USER_ES, LELE_P_*_ES, IMP_*, ...):
 // prima valgono le regole role (regex, in ordine), poi il fallback storico
@@ -163,6 +201,13 @@ export default function QueryDb() {
   const [uSearch, setUSearch] = useState("");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const [sumArea, setSumArea] = useState("leles");
+  const [sumDate, setSumDate] = useState(new Date().toISOString().slice(0, 10));
+  const [sumDraft, setSumDraft] = useState("");
+  const [sumMeta, setSumMeta] = useState(null);
+  const [sumList, setSumList] = useState([]);
+  const [sumBusy, setSumBusy] = useState("");
+  const [sumMsg, setSumMsg] = useState(null);
 
   const areaInfo = useMemo(() => AREAS.find((a) => a.id === area) || AREAS[0], [area]);
 
@@ -176,6 +221,21 @@ export default function QueryDb() {
       if (response.status === 404) {
         throw new Error(i18n.t("qdb.err.endpoint"));
       }
+      const detail = typeof data.detail === "string" ? data.detail : data.message;
+      throw new Error(detail || i18n.t("qdb.err.http", { n: response.status }));
+    }
+    return data;
+  }, [auth.token]);
+
+  const apiPost = useCallback(async (path, body) => {
+    if (!auth.token) throw new Error(i18n.t("qdb.err.session"));
+    const response = await fetch(API + path, {
+      method: "POST",
+      headers: { Authorization: "Bearer " + auth.token, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
       const detail = typeof data.detail === "string" ? data.detail : data.message;
       throw new Error(detail || i18n.t("qdb.err.http", { n: response.status }));
     }
@@ -346,6 +406,65 @@ export default function QueryDb() {
     window.setTimeout(() => setCopyMsg(null), 2500);
   }
 
+  async function loadSummaries(selectedArea = sumArea, selectedDate = sumDate) {
+    setSumBusy("list");
+    setSumMsg(null);
+    try {
+      const data = await api("/api/db/summary?area=" + encodeURIComponent(selectedArea) + "&date=" + encodeURIComponent(selectedDate));
+      setSumList(data.rows || []);
+    } catch (e) {
+      setSumList([]);
+      setSumMsg({ kind: "err", text: e.message || String(e) });
+    } finally {
+      setSumBusy("");
+    }
+  }
+
+  async function generateSummary() {
+    setSumBusy("gen");
+    setSumMsg(null);
+    try {
+      const data = await apiPost("/api/db/summary/generate", { area: sumArea, date: sumDate });
+      setSumDraft(data.summary || "");
+      setSumMeta({ model: data.model, n_messages: data.n_messages });
+    } catch (e) {
+      setSumMsg({ kind: "err", text: e.message || String(e) });
+    } finally {
+      setSumBusy("");
+    }
+  }
+
+  async function saveSummary() {
+    if (!sumDraft.trim()) {
+      setSumMsg({ kind: "err", text: sumT("needGen") });
+      return;
+    }
+    setSumBusy("save");
+    setSumMsg(null);
+    try {
+      await apiPost("/api/db/summary/save", {
+        area: sumArea,
+        date: sumDate,
+        summary: sumDraft,
+        model: sumMeta?.model || "",
+        n_messages: sumMeta?.n_messages || 0,
+      });
+      setSumDraft("");
+      setSumMeta(null);
+      setSumMsg({ kind: "ok", text: sumT("saved") });
+      loadSummaries();
+    } catch (e) {
+      setSumMsg({ kind: "err", text: e.message || String(e) });
+    } finally {
+      setSumBusy("");
+    }
+  }
+
+  useEffect(() => {
+    if (auth.token && auth.allowed) loadSummaries(sumArea, sumDate);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth.token, auth.allowed, sumArea, sumDate]);
+
   if (!auth.token || !auth.allowed) {
     return (
       <main className="qdb-page">
@@ -442,6 +561,47 @@ export default function QueryDb() {
       </section>
 
       {table && (
+
+      <section className="panel summary-panel">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">{sumT("eyebrow")}</p>
+            <h2>{sumT("title")}{sumMeta ? <span className="order-badge">{sumMeta.model} · {sumMeta.n_messages} {sumT("msgs")}</span> : null}</h2>
+          </div>
+        </div>
+        <p className="muted small-copy">{sumT("sub")}</p>
+        <div className="summary-controls">
+          <select className="text-input" value={sumArea} onChange={(e) => setSumArea(e.target.value)}>
+            {AREAS.filter((a) => SUMMARY_AREA_IDS.includes(a.id)).map((a) => (
+              <option key={a.id} value={a.id}>{a.label}</option>
+            ))}
+          </select>
+          <input className="text-input" type="date" value={sumDate} onChange={(e) => setSumDate(e.target.value)} />
+          <button className="btn btn-primary" disabled={!!sumBusy} onClick={generateSummary}>
+            {sumBusy === "gen" ? sumT("generating") : sumT("generate")}
+          </button>
+          <button className="btn" disabled={!!sumBusy || !sumDraft.trim()} onClick={saveSummary}>
+            {sumT("save")}
+          </button>
+        </div>
+        {sumMsg && <p className={"small-copy " + (sumMsg.kind === "ok" ? "sum-ok" : "error-text")}>{sumMsg.text}</p>}
+        <textarea className="summary-text" value={sumDraft} onChange={(e) => setSumDraft(e.target.value)} placeholder={sumT("empty")} />
+        <div className="summary-history">
+          <div className="section-heading" style={{ marginTop: 18, marginBottom: 10 }}>
+            <div><p className="eyebrow">{sumT("history")}</p></div>
+          </div>
+          {(sumList || []).length === 0 ? (
+            <p className="muted small-copy">{sumT("none")}</p>
+          ) : (
+            (sumList || []).map((r) => (
+              <div className="sum-row" key={r.id}>
+                <div className="sum-meta">#{r.id} · {r.model || "?"} · {r.n_messages} {sumT("msgs")} · {r.created_at || ""}</div>
+                <div className="sum-body">{r.summary}</div>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
         <section className="panel preview-panel">
           <div className="section-heading">
             <div><p className="eyebrow">{t("qdb.previewEyebrow")}</p><h2><code>{table}</code> · {t("qdb.page", { n: page + 1 })}{tableData?.order ? <span className="order-badge" title={t("qdb.serverOrder")}>{tableData.order}</span> : null}</h2></div>
@@ -615,6 +775,14 @@ function QdbStyles() {
     .user-group-title{font-size:10px;font-weight:800;letter-spacing:.08em;color:#7fd4c8}
     .user-group-items{display:flex;flex-wrap:wrap;gap:6px}
     .uc-name{max-width:240px;overflow-wrap:anywhere}.uc-count{color:#74869a;font-size:10px}
+    .summary-panel{max-width:1500px;margin:0 auto 18px}
+    .summary-controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0}
+    .summary-text{width:100%;min-height:190px;background:#0a1119;color:var(--text);border:1px solid #304153;border-radius:8px;padding:11px 12px;outline:none;font-size:12px;line-height:1.6;resize:vertical;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+    .summary-text:focus{border-color:#3f9b8d}
+    .sum-ok{color:var(--teal)}
+    .sum-row{border:1px solid #273847;border-radius:9px;padding:10px 12px;margin-bottom:8px;background:#0b141d}
+    .sum-meta{color:#74869a;font-size:10.5px;margin-bottom:6px}
+    .sum-body{white-space:pre-wrap;color:#c3d0db;font-size:12px;line-height:1.6;max-height:220px;overflow:auto}
     .guard-panel{max-width:1500px;margin:0 auto;display:flex;gap:15px;align-items:flex-start}
     .guard-icon{font-size:28px;color:var(--teal);border:1px solid #2b5d57;background:#15312f;border-radius:10px;padding:7px 12px}
     .guard-panel h3{margin:2px 0 10px;font-size:14px}.guard-panel ul{padding-left:17px;margin:0;color:#91a1b1;font-size:11px;line-height:1.9}

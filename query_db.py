@@ -5,6 +5,9 @@ Endpoint (tutti con Google auth, stesso verify_admin_token del gateway):
     GET  /api/db/status?area=leles|emergence|lele_ns|lele_sw|dbt
     GET  /api/db/table?area=&table=&page=&user=&users=&date_from=&date_to=&agent=&model=
     GET  /api/db/users?area=&table=&facet=   (valori distinti colonna user + count)
+    GET  /api/db/summary?area=&date=          (righe memory_summary del giorno)
+    POST /api/db/summary/generate {area,date}  (riassunto del giorno via Ollama)
+    POST /api/db/summary/save {area,date,...}  (salva il riassunto: NUOVA riga)
 
 Novità v2:
   - aree = SCHEMI Postgres: "leles" -> schema public, "emergence" -> schema
@@ -27,7 +30,11 @@ PGUSER/PGPASSWORD in gateway.env).
 
 import logging
 import os
+from datetime import datetime
 from typing import Callable
+
+import httpx
+from pydantic import BaseModel
 
 import psycopg2
 from psycopg2 import sql
@@ -126,6 +133,79 @@ def _schema(area: str) -> str:
     if area not in AREAS:
         raise HTTPException(status_code=400, detail=f"Area non valida: {area}")
     return AREAS[area]
+
+
+# ---------------------------------------------------------------------------
+# MEMORY SUMMARY — generazione e salvataggio riassunti giornalieri
+# ---------------------------------------------------------------------------
+# Aree con la tabella memory_summary (stessa struttura: id, summary, model,
+# n_messages, days, period_start, period_end, created_at). Il summary viene
+# generato al volo con Ollama sul transcript del giorno (tabella memory) e,
+# se approvato dall'admin, salvato come NUOVA riga: mai update/overwrite.
+SUMMARY_AREAS = ("leles", "lele_ns", "lele_sw")
+OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434/api/generate")
+SUMMARY_MODEL = os.environ.get("QDB_SUMMARY_MODEL", "mistral")
+MAX_TRANSCRIPT_CHARS = 20000
+
+SUMMARY_SYSTEM_PROMPT = (
+    "Sei l'archivista della memoria degli agenti di Daniele. "
+    "Riassumi il transcript di conversazioni e attivita' del giorno. "
+    "Scrivi in italiano, in forma densa e fattuale: cosa e' stato chiesto, "
+    "cosa e' stato fatto/deciso, eventi notevoli. Massimo 400 parole. "
+    "Niente preamboli, solo il riassunto."
+)
+
+
+class SummaryGenerate(BaseModel):
+    area: str
+    date: str
+
+
+class SummarySave(BaseModel):
+    area: str
+    date: str
+    summary: str
+    model: str = ""
+    n_messages: int = 0
+
+
+def _check_summary_area(area: str) -> None:
+    if area not in SUMMARY_AREAS:
+        raise HTTPException(status_code=400, detail=f"Area non valida per il summary: {area}")
+
+
+def _summary_date(date: str):
+    try:
+        return datetime.strptime((date or "").strip()[:10], "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Data non valida: {date} (attesa YYYY-MM-DD)")
+
+
+async def _ollama_summary(transcript: str, model: str) -> str:
+    payload = {
+        "model": model,
+        "prompt": transcript,
+        "stream": False,
+        "system": SUMMARY_SYSTEM_PROMPT,
+        "options": {"num_ctx": 16384, "num_predict": 4096, "temperature": 0.7},
+    }
+    async with httpx.AsyncClient(timeout=httpx.Timeout(10.0, read=600.0)) as client:
+        response = await client.post(OLLAMA_URL, json=payload)
+        response.raise_for_status()
+        return (response.json() or {}).get("response", "").strip()
+
+
+def _build_transcript(rows) -> str:
+    lines = [
+        f"{r['created_at'].strftime('%m-%d %H:%M')} | {r['role']}: {r['content']}"
+        for r in rows
+    ]
+    transcript = "\n".join(lines)
+    if len(transcript) > MAX_TRANSCRIPT_CHARS:
+        cut = transcript[-MAX_TRANSCRIPT_CHARS:]
+        head = "[... troncato: prime voci del giorno omesse ...]\n"
+        transcript = head + cut[cut.find("\n") + 1:]
+    return transcript
 
 
 def _columns(cur, schema: str, table: str) -> list[str]:
@@ -478,3 +558,132 @@ def build_query_db_router(
                 pass
 
     return router
+    # ------------------------------------------------------------------
+    # MEMORY SUMMARY — genera con Ollama, salva su approvazione
+    # ------------------------------------------------------------------
+
+    @router.get("/summary")
+    async def db_summary_list(
+        area: str = "leles",
+        date: str = "",
+        authorization: str | None = Header(None),
+    ):
+        """Righe gia' salvate in memory_summary per il giorno scelto."""
+        verify_admin_token(authorization)
+        _check_summary_area(area)
+        day = _summary_date(date)
+        try:
+            conn = _readonly(area, get_connection)
+        except Exception as exc:
+            raise HTTPException(status_code=503, detail=f"PostgreSQL non raggiungibile: {exc}")
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SET statement_timeout = 5000")
+                cur.execute(
+                    "SELECT id, summary, model, n_messages, days, "
+                    "period_start, period_end, created_at "
+                    "FROM memory_summary WHERE period_start::date = %s ORDER BY id",
+                    (day,),
+                )
+                rows = [
+                    {k: _jsonable(v) for k, v in dict(r).items()} for r in cur.fetchall()
+                ]
+                return {"area": area, "date": str(day), "rows": rows}
+        except HTTPException:
+            raise
+        except Exception as exc:
+            log.exception("db summary list %s", area)
+            raise HTTPException(status_code=500, detail=f"Errore nella lettura di memory_summary: {exc}")
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+    @router.post("/summary/generate")
+    async def db_summary_generate(req: SummaryGenerate, authorization: str | None = Header(None)):
+        """Genera (senza salvare) il riassunto del giorno con Ollama."""
+        verify_admin_token(authorization)
+        _check_summary_area(req.area)
+        day = _summary_date(req.date)
+        try:
+            conn = _readonly(req.area, get_connection)
+        except Exception as exc:
+            raise HTTPException(status_code=503, detail=f"PostgreSQL non raggiungibile: {exc}")
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("SET statement_timeout = 15000")
+                cur.execute(
+                    "SELECT role, content, created_at FROM memory "
+                    "WHERE created_at::date = %s ORDER BY created_at",
+                    (day,),
+                )
+                rows = cur.fetchall()
+        except Exception as exc:
+            log.exception("db summary fetch %s", req.area)
+            raise HTTPException(status_code=500, detail=f"Errore nella lettura di memory: {exc}")
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+        if not rows:
+            raise HTTPException(status_code=404, detail=f"Nessun messaggio in memory il {day}.")
+        model = (SUMMARY_MODEL or "mistral").strip()
+        try:
+            summary = await _ollama_summary(_build_transcript(rows), model)
+        except Exception as exc:
+            log.exception("db summary ollama")
+            raise HTTPException(status_code=502, detail=f"Ollama non raggiungibile o in errore: {exc}")
+        if not summary.strip():
+            raise HTTPException(status_code=502, detail="Ollama ha restituito un riassunto vuoto.")
+        return {
+            "area": req.area,
+            "date": str(day),
+            "summary": summary,
+            "model": model,
+            "n_messages": len(rows),
+        }
+
+    @router.post("/summary/save")
+    async def db_summary_save(req: SummarySave, authorization: str | None = Header(None)):
+        """Salva il riassunto approvato come NUOVA riga di memory_summary."""
+        verify_admin_token(authorization)
+        _check_summary_area(req.area)
+        day = _summary_date(req.date)
+        text = (req.summary or "").strip()
+        if not text:
+            raise HTTPException(status_code=400, detail="Riassunto vuoto: niente da salvare.")
+        if len(text) > 100000:
+            raise HTTPException(status_code=400, detail="Riassunto troppo lungo.")
+        try:
+            conn = _connect_area(req.area, get_connection)  # connessione scrivibile
+        except Exception as exc:
+            raise HTTPException(status_code=503, detail=f"PostgreSQL non raggiungibile: {exc}")
+        try:
+            with conn:
+                with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                    cur.execute(
+                        "INSERT INTO memory_summary "
+                        "(summary, model, n_messages, days, period_start, period_end) "
+                        "VALUES (%s, %s, %s, 1, %s, %s::date + interval '1 day' - interval '1 second') "
+                        "RETURNING id",
+                        (
+                            text,
+                            (req.model or SUMMARY_MODEL).strip() or None,
+                            int(req.n_messages or 0),
+                            day,
+                            day,
+                        ),
+                    )
+                    new_id = cur.fetchone()["id"]
+            return {"saved": True, "id": new_id, "area": req.area, "date": str(day)}
+        except Exception as exc:
+            log.exception("db summary save %s", req.area)
+            raise HTTPException(status_code=500, detail=f"Errore nel salvataggio: {exc}")
+        finally:
+            try:
+                conn.close()
+            except Exception:
+                pass
