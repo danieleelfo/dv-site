@@ -39,7 +39,7 @@ export const ARTICLES = [
     ],
     content: {
       en: {
-        title: 'The map lights up. Europe under attack.)',
+        title: 'The map lights up. Europe under attack.',
         dek: 'Real-time maps of cyber-attacks show arcs striking Europe every second. Last week, France pointed to who is behind some of them: it seems to be Iran.',
         body: [
           {
