@@ -181,18 +181,26 @@ def _summary_date(date: str):
         raise HTTPException(status_code=400, detail=f"Data non valida: {date} (attesa YYYY-MM-DD)")
 
 
-def _ensure_model_col(area: str, get_connection: Callable):
-    """Allinea memory_summary: la colonna model manca in lele_ns/lele_sw."""
+def _ensure_summary_cols(area: str, get_connection: Callable):
+    """Allinea memory_summary: lele_ns/lele_sw hanno colonne in meno rispetto a leles."""
+    stmts = (
+        "ALTER TABLE memory_summary ADD COLUMN IF NOT EXISTS model TEXT",
+        "ALTER TABLE memory_summary ADD COLUMN IF NOT EXISTS n_messages INTEGER",
+        "ALTER TABLE memory_summary ADD COLUMN IF NOT EXISTS days INTEGER",
+        "ALTER TABLE memory_summary ADD COLUMN IF NOT EXISTS period_start DATE",
+        "ALTER TABLE memory_summary ADD COLUMN IF NOT EXISTS period_end DATE",
+    )
     try:
         conn = _connect_area(area, get_connection)
         try:
             with conn:
                 with conn.cursor() as cur:
-                    cur.execute("ALTER TABLE memory_summary ADD COLUMN IF NOT EXISTS model TEXT")
+                    for stmt in stmts:
+                        cur.execute(stmt)
         finally:
             conn.close()
     except Exception as exc:
-        log.warning("ensure model col %s: %s", area, exc)
+        log.warning("ensure summary cols %s: %s", area, exc)
 
 
 async def _ollama_summary(transcript: str, model: str) -> str:
@@ -585,7 +593,7 @@ def build_query_db_router(
         verify_admin_token(authorization)
         _check_summary_area(area)
         day = _summary_date(date)
-        _ensure_model_col(area, get_connection)
+        _ensure_summary_cols(area, get_connection)
         try:
             conn = _readonly(area, get_connection)
         except Exception as exc:
@@ -666,7 +674,7 @@ def build_query_db_router(
         verify_admin_token(authorization)
         _check_summary_area(req.area)
         day = _summary_date(req.date)
-        _ensure_model_col(req.area, get_connection)
+        _ensure_summary_cols(req.area, get_connection)
         text = (req.summary or "").strip()
         if not text:
             raise HTTPException(status_code=400, detail="Riassunto vuoto: niente da salvare.")
