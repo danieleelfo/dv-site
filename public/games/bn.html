@@ -77,7 +77,12 @@
   }
 
   .grids{
-    display:flex; gap:20px; flex-wrap:wrap; justify-content:center;
+    display:flex; flex-direction:column; gap:20px; align-items:center;
+    justify-content:center; width:100%;
+  }
+  /* Su schermi piccoli ogni flotta usa quasi tutta la larghezza disponibile. */
+  @media (min-width: 760px){
+    .grids{ flex-direction:row; flex-wrap:wrap; }
   }
 
   .grid-wrap{
@@ -194,7 +199,8 @@
 <script>
 (function(){
   const GRID = 10;
-  const CELL = Math.min(Math.floor((Math.min(window.innerWidth, 420) - 40) / 2 / GRID), 34);
+  const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+  const CELL = Math.min(Math.floor((viewportWidth - 32) / GRID), 34);
   const SZ = GRID * CELL;
 
   const pCanvas = document.getElementById('player-canvas');
