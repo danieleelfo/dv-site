@@ -2,7 +2,7 @@
 query_db.py — Backend "QueryDB" per QueryDb.jsx (read-only). v4
 
 Endpoint (tutti con Google auth, stesso verify_admin_token del gateway):
-    GET  /api/db/status?area=leles|emergence
+    GET  /api/db/status?area=leles|emergence|lele_ns|lele_sw|dbt
     GET  /api/db/table?area=&table=&page=&user=&users=&date_from=&date_to=&agent=&model=
     GET  /api/db/users?area=&table=&facet=   (valori distinti colonna user + count)
 
@@ -26,6 +26,7 @@ PGUSER/PGPASSWORD in gateway.env).
 """
 
 import logging
+import os
 from typing import Callable
 
 import psycopg2
@@ -40,10 +41,39 @@ PAGE_SIZE = 50
 MAX_TABLES = 200
 
 # Aree mostrate nel selettore di QueryDb.jsx: id -> schema Postgres.
+# NB: lele_ns e lele_sw sono DATABASE Postgres separati (schema public),
+# non schemi del db principale: la connessione e' dedicata (vedi sotto).
+# "dbt" e' lo schema bronze del db principale (layer bronze di dbt).
 AREAS = {
     "leles": "public",
     "emergence": "emergence",
+    "lele_ns": "public",
+    "lele_sw": "public",
+    "dbt": "bronze",
 }
+
+# Per queste aree la connessione punta a un database Postgres diverso da
+# quello del gateway: credenziali riusate dall'env del gateway (PGHOST/
+# PGPORT/PGUSER/PGPASSWORD), nome db overridabile via env dedicata.
+AREA_DB_ENV = {
+    "lele_ns": "QDB_DB_LELE_NS",
+    "lele_sw": "QDB_DB_LELE_SW",
+}
+
+
+def _connect_area(area: str, get_connection: Callable):
+    """Connessione per area: default = db del gateway, altrimenti db dedicato."""
+    env_name = AREA_DB_ENV.get(area)
+    if not env_name:
+        return get_connection()
+    dbname = os.environ.get(env_name) or area
+    return psycopg2.connect(
+        host=os.environ.get("PGHOST", "localhost"),
+        port=os.environ.get("PGPORT", "5432"),
+        dbname=dbname,
+        user=os.environ.get("PGUSER"),
+        password=os.environ.get("PGPASSWORD"),
+    )
 
 # Colonne "temporal" per ordinamento, attivita' recente e filtro date
 # (match sul suffisso).
@@ -52,7 +82,8 @@ TIME_HINTS = ("created_at", "updated_at", "timestamp", "time", "date", "when", "
 # Colonne candidato per il filtro/gruppo "utente", PER AREA:
 # si usa la prima colonna presente nella tabella.
 #   - leles: "role" e' generato dal codice Leles (non e' un utente del DB)
-#     ma VALE come chiave di raggruppamento automatico del pannello utenti.
+#  
+   ma VALE come chiave di raggruppamento automatico del pannello utenti.
 #   - emergence: "role" identifica il ruolo del messaggio (sempre
 #     "assistant") e agent_id/model_id sono FK alle tabelle agents/models:
 #     NON sono filtri utente e non compaiono qui.
@@ -60,12 +91,18 @@ GENERIC_USER_COLS = ("user", "username", "utente", "user_email", "email", "sende
 USER_COLS_BY_AREA = {
     "leles": GENERIC_USER_COLS + ("role",),
     "emergence": GENERIC_USER_COLS,
+    "lele_ns": GENERIC_USER_COLS,
+    "lele_sw": GENERIC_USER_COLS,
+    "dbt": GENERIC_USER_COLS,
 }
 # Override per singola tabella (area -> {tabella: colonne}) quando serve una
 # colonna di raggruppamento specifica, es. session_id su emergence.messages.
 TABLE_USER_COLS = {
     "leles": {},
     "emergence": {},
+    "lele_ns": {},
+    "lele_sw": {},
+    "dbt": {},
 }
 
 # Emergence: i metadati vivono in una colonna JSON ("metadata"), es.
@@ -76,9 +113,9 @@ META_COL = "metadata"
 META_FILTERS = {"agent": "agent_name", "model": "model_name"}
 
 
-def _readonly(get_connection: Callable):
+def _readonly(area: str, get_connection: Callable):
     """Apre una connessione in sola lettura (il DB rifiuta le scritture)."""
-    conn = get_connection()
+    conn = _connect_area(area, get_connection)
     try:
         conn.set_session(readonly=True, autocommit=True)
     except Exception:
@@ -106,7 +143,8 @@ def _tables(cur, schema: str) -> list[dict]:
     """Tabelle dello schema, con stima righe."""
     cur.execute(
         "SELECT c.relname AS name, GREATEST(c.reltuples::bigint, 0) AS approx_rows "
-        "FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
+        "FROM pg_class c JOIN pg_namespace n ON
+ n.oid = c.relnamespace "
         "WHERE n.nspname = %s AND c.relkind = 'r' "
         "ORDER BY c.relname LIMIT %s",
         (schema, MAX_TABLES),
@@ -163,7 +201,8 @@ def _meta_col(cols: list[str]):
     return next((c for c in cols if c.lower() == META_COL), None)
 
 
-def _recent(cur, schema: str, tables: list[dict]) -> list[dict]:
+def _recent(cur, schema: str, tables: list[dict]) -> lis
+t[dict]:
     """Per ogni tabella con colonna temporale, l'ultimo valore registrato."""
     out = []
     for t in tables[:20]:
@@ -204,7 +243,7 @@ def build_query_db_router(
         verify_admin_token(authorization)
         schema = _schema(area)
         try:
-            conn = _readonly(get_connection)
+            conn = _readonly(area, get_connection)
         except Exception as exc:
             raise HTTPException(status_code=503, detail=f"PostgreSQL non raggiungibile: {exc}")
         try:
@@ -218,7 +257,8 @@ def build_query_db_router(
                 except Exception:
                     log.exception("db status recent")
                 return {
-                    "area": area,
+                    "area": ar
+ea,
                     "schema": schema,
                     "tables": tables,
                     "recent": recent,
@@ -263,7 +303,7 @@ def build_query_db_router(
         model = (model or "").strip()[:200]
 
         try:
-            conn = _readonly(get_connection)
+            conn = _readonly(area, get_connection)
         except Exception as exc:
             raise HTTPException(status_code=503, detail=f"PostgreSQL non raggiungibile: {exc}")
         try:
@@ -272,7 +312,8 @@ def build_query_db_router(
                 # grandi senza indice puo' metterci minuti: meglio un errore
                 # netto che una richiesta appesa).
                 cur.execute("SET statement_timeout = 15000")
-                cols = _columns(cur, schema, table)
+                
+cols = _columns(cur, schema, table)
                 if not cols:
                     raise HTTPException(status_code=404, detail=f"Tabella non trovata: {table}")
 
@@ -312,7 +353,8 @@ def build_query_db_router(
                                 sql.SQL("CAST({} AS jsonb)->>'{}' = %s").format(
                                     sql.Identifier(mc), sql.SQL(json_key)
                                 )
-                            )
+            
+                )
                             params.append(val)
                 if tc:
                     if date_from:
@@ -366,7 +408,8 @@ def build_query_db_router(
     @router.get("/users")
     async def db_users(
         area: str = "leles",
-        table: str = "",
+      
+  table: str = "",
         facet: str = "",
         authorization: str | None = Header(None),
     ):
@@ -381,7 +424,7 @@ def build_query_db_router(
             raise HTTPException(status_code=400, detail="Nome tabella non valido.")
 
         try:
-            conn = _readonly(get_connection)
+            conn = _readonly(area, get_connection)
         except Exception as exc:
             raise HTTPException(status_code=503, detail=f"PostgreSQL non raggiungibile: {exc}")
         try:
@@ -407,7 +450,8 @@ def build_query_db_router(
                         {"name": _jsonable(r["name"]), "count": int(r["n"])}
                         for r in cur.fetchall()
                     ]
-                    return {
+                    retur
+n {
                         "table": table,
                         "column": mc + "->>'" + facet + "'",
                         "users": facet_users,

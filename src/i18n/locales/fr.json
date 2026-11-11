@@ -358,6 +358,9 @@
     "area": "Zone",
     "areaLeles": "PostgreSQL · mémoire et agents",
     "areaEmergence": "PostgreSQL · runs, rôles, judge",
+    "areaLeleNs": "PostgreSQL · Night Story",
+    "areaLeleSw": "PostgreSQL · Story Whisper",
+    "areaDbt": "PostgreSQL · couche dbt bronze"
     "wait": "Patientez…",
     "refresh": "Rafraîchir",
     "warning": "Attention",

@@ -19,8 +19,11 @@ const ALLOWED_EMAILS = [
 
 // Aree/browse disponibili. Il backend (query_db.py) decidera' l'elenco tabelle.
 const AREAS = [
-  { id: "leles", label: "Leles", detail: "qdb.area.leles" },
-  { id: "emergence", label: "Emergence", detail: "qdb.area.emergence" },
+  { id: "leles", label: "Leles", detail: "qdb.areaLeles" },
+  { id: "emergence", label: "Emergence", detail: "qdb.areaEmergence" },
+  { id: "lele_ns", label: "Night Story", detail: "qdb.areaLeleNs" },
+  { id: "lele_sw", label: "Story Whisper", detail: "qdb.areaLeleSw" },
+  { id: "dbt", label: "DBT (bronze)", detail: "qdb.areaDbt" },
 ];
 
 const PAGE_SIZE = 50;
