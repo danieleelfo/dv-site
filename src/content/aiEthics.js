@@ -39,7 +39,7 @@ export const ARTICLES = [
     ],
     content: {
       en: {
-        title: 'Europe Under Attack (Activated Map)',
+        title: 'The map lights up. Europe under attack.)',
         dek: 'Real-time maps of cyber-attacks show arcs striking Europe every second. Last week, France pointed to who is behind some of them: it seems to be Iran.',
         body: [
           {
@@ -56,7 +56,7 @@ export const ARTICLES = [
           },
           {
             type: 'p',
-            text: 'The map lights up. Europe under attack. In the same weeks, at least eleven European countries have been hit by similar attacks, from Germany to Romania and as far as Great Britain, forcing some retail chains to close their frozen food sections.',
+            text: 'In the same weeks, at least eleven European countries have been hit by similar attacks, from Germany to Romania and as far as Great Britain, forcing some retail chains to close their frozen food sections.',
           },
           {
             type: 'p',
@@ -124,12 +124,8 @@ export const ARTICLES = [
       },
       es: {
         title: 'La mapa se enciende. Europa bajo ataque.',
-        dek: 'Mapas de ciberataques en tiempo real muestran arcos que golpean a Europa cada segundo. La semana pasada, Francia apuntó a quién está detrás de algunos de ellos: parece ser Irán. (Registro journalístico)',
+        dek: 'Mapas de ciberataques en tiempo real muestran arcos que golpean a Europa cada segundo. La semana pasada, Francia apuntó a quién está detrás de algunos de ellos: parece ser Irán.',
         body: [
-          {
-            type: 'p',
-            text: 'Encende la mapa. Europa bajo ataque.',
-          },
           {
             type: 'p',
             text: 'Abre cualquier mapa de ciberataque en tiempo real (Kaspersky es el más conocido) y la Europa está brillante. Los rayos de luz bajan sobre París, Berlín, Roma y Estocolmo cada segundo, desde todas las direcciones.',
@@ -140,23 +136,15 @@ export const ARTICLES = [
           },
           {
             type: 'p',
-            text: '(El resto del texto se traduce después de recibirlo)',
-          },
-          {
-            type: 'p',
             text: 'Lunes pasado, Francia oficialmente acusó a las Guardias Revolucionarias de Irán por los ataques cibernéticos que han impactado los sistemas de refrigeración de supermercados en todo el país, alrededor de 700 sitios. El embajador iraní fue llamado de regreso, y París prometió sanciones a nivel europeo.',
           },
           {
             type: 'p',
-            text: 'La mapa se enciende. Europa bajo ataque. En las mismas semanas, al menos once naciones europeas han sido objeto de ataques similares, desde Alemania hasta Rumania hasta Gran Bretaña, forzando a algunas cadenas de tiendas a cerrar secciones de congelados.',
+            text: 'En las mismas semanas, al menos once naciones europeas han sido objeto de ataques similares, desde Alemania hasta Rumania hasta Gran Bretaña, forzando a algunas cadenas de tiendas a cerrar secciones de congelados.',
           },
           {
             type: 'p',
             text: 'La meta no era un centro de datos ni un ministerio. Era los refrigeradores: viejos conectores Danfoss conectados a Internet, protegidos por contraseñas débiles y sin actualizaciones de seguridad (que extraño).',
-          },
-          {
-            type: 'p',
-            text: 'La mappa se enciende. Europa bajo ataque.',
           },
           {
             type: 'p',
@@ -172,10 +160,6 @@ export const ARTICLES = [
           },
           {
             type: 'p',
-            text: 'La mappa se enciende. Europa bajo ataque.',
-          },
-          {
-            type: 'p',
             text: 'Los ataques más devastadores no son los que se esperan; nuestras debilidades.',
           },
         ],
@@ -186,27 +170,23 @@ export const ARTICLES = [
         body: [
           {
             type: 'p',
-            text: 'Ouvrez n\'importe quelle cartes en temps réel de cyberattaque (Kaspersky est le plus connu) et l\'Europe est éclatante. Les feux d\'artifice descendent sur Paris, Berlin, Rome et Stockholm chaque seconde, de toutes les directions.',
+            text: 'Ouvrez n\'importe quelle cartes en temps réel de cyber-attaques (Kaspersky est le plus connu) et l\'Europe est éclatante. Des feux d\'artifice descendent sur Paris, Berlin, Rome et Stockholm chaque seconde, de toutes les directions.',
           },
           {
             type: 'p',
-            text: 'La maggior parte è rumore: scanner, bot, le interferenze di fondo dell\'internet. Ma non tutto.',
+            text: 'Lundi dernier, la France a officiellement incriminé les Gardes Révolutionnaires de l\'Iran pour les attaques cybernétiques qui ont frappé les systèmes de refroidissement des supermarchés dans tout le pays, environ 700 sites. L\'ambassadeur iranien a été rappelé, et Paris a promis des sanctions à niveau européen.',
           },
           {
             type: 'p',
-            text: 'Lundi dernier, la France a officiellement incriminé les Gardes Révolutionnaires de l\'Iran pour les attaques cybernétiques qui ont touché les systèmes de refroidissement des supermarchés dans le pays entier, environ 700 sites. L\'ambassadeur iranien a été rappelé, et Paris a promis des sanctions à niveau européen.',
+            text: 'Dans les mêmes semaines, au moins onze pays européens ont été frappés par des attaques similaires, de l\'Allemagne à la Roumanie jusqu\'à la Grande-Bretagne, forçant certaines chaînes de magasins à fermer des sections de congelés.',
           },
           {
             type: 'p',
-            text: 'La carte s\'allume. L\'Europe sous attaque. Dans les mêmes semaines, au moins onze pays européens ont été frappés par des attaques similaires, de l\'Allemagne à la Roumanie jusqu\'à la Grande-Bretagne, forçant certaines chaînes de magasins à fermer les sections de congelés.',
+            text: 'La cible n\'était pas une data center ou un ministère. Il s\'agissait des réfrigérateurs : des vieux connecteurs Danfoss reliés à internet, protégés par des mots de passe faibles et dépourvus de mises à jour de sécurité (ce qui est bizarre).',
           },
           {
             type: 'p',
-            text: 'La cible n\'était pas une data center ou un ministère. Il s\'agissait des réfrigérateurs : des vieux connecteurs Danfoss reliés à Internet, protégés par des mots de passe faibles et sans mise à jour de sécurité (ce qui est étrange).',
-          },
-          {
-            type: 'p',
-            text: 'En France, deux attaques simultanées ont visé les banques de sang, tentant d\'élever le plasma conservé à -30°C jusqu\'à 50°C. Les deux ont été arrêtés à temps. Quelle est la leçon ? La même carte qui montre les intrusions au niveau européen, montre également une équipe de ransomware qui aurait pu causer jusqu\'à 250 millions d\'euros de pertes à Delhaize ; la Norvège a signalé que les attaques contre ses organisations ont triplé en un an.',
+            text: 'En France, deux attaques simultanées contre les banques du sang ont cherché à réchauffer le plasma conservé à -30°C jusqu\'à 50°C. Les deux ont été arrêtés à temps. Quelle est la leçon ? La même carte qui montre les intrusions au niveau européen, montre également une équipe de ransomware qui aurait potentiellement causé des pertes allant jusqu\'à 250 millions d\'euros à Delhaize; la Norvège a signalé que les attaques contre ses organisations ont triplé en un an.',
           },
           {
             type: 'p',
@@ -214,11 +194,7 @@ export const ARTICLES = [
           },
           {
             type: 'p',
-            text: 'L\'administration britannique prévoit des attaques contre l\'infrastructure critique menées par l\'IA avant l\'année 2028. Regardez-la carte et savourez : la majorité de ces arcs sont automatisés.',
-          },
-          {
-            type: 'p',
-            text: 'La carte s\'allume. L\'Europe sous menace.',
+            text: 'L\'administration britannique prévoit des attaques contre l\'infrastructure critique guidées par l\'IA avant l\'année 2028. Regardez-la carte et savourez: la plupart de ces arcs sont automatisés.',
           },
           {
             type: 'p',
@@ -228,7 +204,7 @@ export const ARTICLES = [
       },
       ca: {
         title: 'La mapa s\'encén. Europa sota atac.',
-        dek: 'Mapes de ciberatacs en temps real mostren arcs que ataquen l\'Europa cada segon. La setmana passada, França ha indicat qui està darrere alguns d\'ells: sembla ésser l\'Iran. (Mappe of cyber-attacks in real time show arcs that hit Europe every second. Last week, France indicated who is behind some of them: it seems to be Iran.)',
+        dek: 'Mapes de ciberatacs en temps real mostren arcs que ataquen l\'Europa cada segon. La setmana passada, França ha indicat qui està darrere alguns d\'ells: sembla ésser l\'Iran.',
         body: [
           {
             type: 'p',
@@ -240,19 +216,7 @@ export const ARTICLES = [
           },
           {
             type: 'p',
-            text: '(Títol original: The map lights up. Europe under attack.)',
-          },
-          {
-            type: 'p',
             text: 'Dilluns enrere, oficialment França va acusar les Guardies Revolucionàries de l\'Iran per atacs cibernètics que van afectar els sistemes de refrigeració dels supermercats arreu del país, uns 700 sitis. L\'ambaixador iranià ha estat cridat, i París va prometre sancions al nivell europeu.',
-          },
-          {
-            type: 'p',
-            text: '(Lunedì scorso, la Francia ha ufficialmente incriminato le Guardie Rivoluzionarie dell\'Iran per gli attacchi cibernetici che hanno colpito i sistemi di raffreddamento dei supermercati in tutto il paese, circa 700 siti. L\'ambasciatore iraniano è stato richiamato, e Parigi ha promesso sanzioni a livello europeo.)',
-          },
-          {
-            type: 'p',
-            text: 'El mapa s\'encénia. Europa sota atacament.',
           },
           {
             type: 'p',
@@ -280,17 +244,13 @@ export const ARTICLES = [
           },
           {
             type: 'p',
-            text: 'La mapa s\'encén. Europa sota atac.',
-          },
-          {
-            type: 'p',
             text: 'Els atacs més temibles no són els que es preveuen; les nostres vulnerabilitats.',
           },
         ],
       },
       nl: {
         title: 'De kaart wordt aangestoken. Europa onder aanval.',
-        dek: 'Realtime maps van cyberaanvallen tonen boogjes die elke seconde Europa treffen. Laatste week heeft Frankrijk onthuld wie achter sommige van deze zijn: zou het Iran zijn. (NB: "cyberattacks" is een Engelse term en kan moeilijk letterlijk vertaald worden.)',
+        dek: 'Realtime maps van cyberaanvallen tonen boogjes die elke seconde Europa treffen. Laatste week heeft Frankrijk onthuld wie achter sommige van deze zijn: zou het Iran zijn.',
         body: [
           {
             type: 'p',
@@ -299,10 +259,6 @@ export const ARTICLES = [
           {
             type: 'p',
             text: 'De meeste delen zijn gewoon ruis: schermers, bots, de achtergrondstoot van het internet. Ma niet alles.',
-          },
-          {
-            type: 'p',
-            text: '(Note: In questo caso ho deciso di tradurre "La maggior parte è rumore" come "De meeste delen zijn gewoon ruis", poiché nella versione originale l\'autore ha scelto di usare un linguaggio più colloquiale, e "rumore" in inglese può essere tradotto sia con "ruis" che con "geruchten". Ho mantenuto la formattazione del blocco identica all\'originale.)',
           },
           {
             type: 'p',
