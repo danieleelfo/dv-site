@@ -228,10 +228,6 @@ export const ARTICLES = [
           },
           {
             type: 'p',
-            text: 'La carta s\'encénia. Europa sota atac.',
-          },
-          {
-            type: 'p',
             text: 'A França, dos atacs paral·lels contra les bancs de sang han intentat escalfar el plasma conservat des de -30°C a 50°C. Ambdós han estat detinguts a temps. Qual és la lliçó? La mateixa carta que mostra les intrusions al nivell europeu, mostra també una equip d\'extorsió de ransomware que ha potencialment causat fins a 250 milions d\'euros de pèrdues a Delhaize; Noruega ha informat que els atacs contra les seves organitzacions han triplicat-se en un any.',
           },
           {
