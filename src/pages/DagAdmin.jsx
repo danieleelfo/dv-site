@@ -99,6 +99,18 @@ const DAGS = [
     ],
   },
   {
+    id: 'memory_summary_range_dag',
+    name: 'Memory Summary (range giorni)',
+    desc: "Genera e salva i riassunti giornalieri della tabella memory_summary (leles, Night Story, Story Whisper) per un intervallo di giorni, via Ollama. Ogni salvataggio e' una NUOVA riga; i giorni gia' presenti vengono saltati salvo force. NON e' Memory Summary (run emergence). Report su Telegram.",
+    params: [
+      { k: 'start', label: 'Start (YYYY-MM-DD)', type: 'str', def: '', hint: 'inizio intervallo inclusivo, vuoto = ieri' },
+      { k: 'end', label: 'End (YYYY-MM-DD)', type: 'str', def: '', hint: 'fine intervallo inclusiva, vuoto = ieri' },
+      { k: 'areas', label: 'Areas (sep. da virgola)', type: 'list', def: 'leles,lele_ns,lele_sw', hint: "sottoinsieme di: leles, lele_ns, lele_sw" },
+      { k: 'model', label: 'Model', type: 'str', def: 'mistral' },
+      { k: 'force', label: 'Force', type: 'bool', def: false, hint: 'true = rigenera anche i giorni gia’ presenti' },
+    ],
+  },
+  {
     id: 'improve_dag',
     name: 'Improve (refactoring)',
     desc: 'Refactoring/feature su un singolo file .py esistente, guidato da agenti multi-modello. Sintesi in AI_TMP.',
