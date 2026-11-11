@@ -9,6 +9,7 @@ const GAMES = [
 export default function Games() {
   const { t } = useTranslation()
   const [activeGame, setActiveGame] = useState('snelfa')
+  const [bnMode, setBnMode] = useState(null)
 
   return (
     <main className="games-page">
@@ -28,7 +29,7 @@ export default function Games() {
             key={game.id}
             type="button"
             className={'games-tab' + (activeGame === game.id ? ' active' : '')}
-            onClick={() => setActiveGame(game.id)}
+            onClick={() => { setActiveGame(game.id); setBnMode(null) }}
             aria-pressed={activeGame === game.id}
           >
             {game.label}
@@ -63,20 +64,43 @@ export default function Games() {
           <div className="games-card-header">
             <div>
               <h2 id="bn2-title">⚓ Battaglia Navale</h2>
-              <p>Sfida un altro giocatore da un telefono o da un computer.</p>
+              <p>{bnMode ? 'Partita in corso.' : 'Scegli come vuoi giocare.'}</p>
             </div>
-            <span className="games-badge games-badge-gold">2 PLAYERS</span>
+            <span className="games-badge games-badge-gold">
+              {bnMode === 'computer' ? '1 PLAYER' : bnMode === 'multiplayer' ? '2 PLAYERS' : 'SCEGLI MODALITÀ'}
+            </span>
           </div>
 
-          <div className="games-frame-wrap games-frame-wrap-ocean">
-            <iframe
-              className="games-frame games-frame-ocean"
-              src="https://bn2.danielevillanova.com/"
-              title="Battaglia Navale multiplayer"
-              loading="eager"
-              allow="autoplay"
-            />
-          </div>
+          {!bnMode ? (
+            <div className="bn-mode-choices" role="group" aria-label="Modalità Battaglia Navale">
+              <button type="button" className="bn-mode-button" onClick={() => setBnMode('computer')}>
+                <strong>🎯 Contro il computer</strong>
+                <span>Partita singola</span>
+              </button>
+              <button type="button" className="bn-mode-button" onClick={() => setBnMode('multiplayer')}>
+                <strong>⚓ Due giocatori</strong>
+                <span>Sfida un’altra persona online</span>
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="bn-mode-toolbar">
+                <button type="button" className="bn-mode-back" onClick={() => setBnMode(null)}>
+                  ← Cambia modalità
+                </button>
+                <span>{bnMode === 'computer' ? 'Contro il computer' : 'Due giocatori'}</span>
+              </div>
+              <div className="games-frame-wrap games-frame-wrap-ocean">
+                <iframe
+                  className="games-frame games-frame-ocean"
+                  src={bnMode === 'computer' ? '/games/bn.html' : 'https://bn2.danielevillanova.com/'}
+                  title={bnMode === 'computer' ? 'Battaglia Navale contro il computer' : 'Battaglia Navale multiplayer'}
+                  loading="eager"
+                  allow="autoplay"
+                />
+              </div>
+            </>
+          )}
         </section>
       )}
 
@@ -174,6 +198,54 @@ export default function Games() {
           color: #d4a843;
         }
 
+        .bn-mode-choices {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
+          padding: 24px;
+        }
+
+        .bn-mode-button {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          padding: 20px;
+          border: 1px solid var(--border, rgba(128,128,128,.4));
+          border-radius: 12px;
+          background: transparent;
+          color: inherit;
+          font: inherit;
+          text-align: left;
+          cursor: pointer;
+        }
+
+        .bn-mode-button:hover,
+        .bn-mode-button:focus-visible {
+          border-color: currentColor;
+        }
+
+        .bn-mode-button span {
+          opacity: 0.7;
+          font-size: 0.9rem;
+        }
+
+        .bn-mode-toolbar {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          padding: 12px 16px;
+        }
+
+        .bn-mode-back {
+          border: 1px solid var(--border, rgba(128,128,128,.4));
+          border-radius: 8px;
+          padding: 8px 12px;
+          background: transparent;
+          color: inherit;
+          font: inherit;
+          cursor: pointer;
+        }
+
         .games-frame-wrap {
           width: 100%;
           background: #06140a;
@@ -208,6 +280,11 @@ export default function Games() {
 
           .games-frame {
             height: 620px;
+          }
+
+          .bn-mode-choices {
+            grid-template-columns: 1fr;
+            padding: 16px;
           }
         }
       `}</style>
