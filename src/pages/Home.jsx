@@ -588,6 +588,8 @@ export default function Home() {
           className="section container home-section"
           id="expertise"
           style={{
+            maxWidth: 950,
+            margin: '0 auto',
             borderTop: '1px solid #1f2b35',
           }}
         >
@@ -628,6 +630,8 @@ export default function Home() {
           className="section container home-section"
           id="projects"
           style={{
+            maxWidth: 950,
+            margin: '0 auto',
             borderTop: '1px solid #1f2b35',
           }}
         >
@@ -681,6 +685,8 @@ export default function Home() {
           className="section container home-section"
           id="about"
           style={{
+            maxWidth: 950,
+            margin: '0 auto',
             borderTop: '1px solid #1f2b35',
           }}
         >
@@ -705,6 +711,8 @@ export default function Home() {
           className="section container home-section"
           id="contact"
           style={{
+            maxWidth: 950,
+            margin: '0 auto',
             borderTop: '1px solid #1f2b35',
           }}
         >
@@ -733,7 +741,7 @@ export default function Home() {
             ============================================================ */}
 
         <footer style={homeStyles.footer}>
-          <div className="container">
+          <div className="container" style={{ maxWidth: 950, margin: '0 auto' }}>
             © {new Date().getFullYear()} Daniele Villanova
           </div>
         </footer>
