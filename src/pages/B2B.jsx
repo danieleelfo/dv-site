@@ -1938,6 +1938,7 @@ function B2BImgTab({ setTab }) {
     Array.from({ length: 12 }, (_, i) => makeImgBot(i))
   );
   const [running, setRunning] = useState(false);
+  const [chainImages, setChainImages] = useState(false);
   const [notice, setNotice] = useState("");
   const stopRef = useRef(false);
 
@@ -1966,12 +1967,16 @@ function B2BImgTab({ setTab }) {
     setImgPreview(URL.createObjectURL(file));
   }
 
-  async function runBot(bot) {
+  async function runBot(bot, inputImage = imgFile) {
     setBot(bot.id, { status: "running", error: "" });
     const headers = { Authorization: "Bearer " + idToken };
     try {
       const fd = new FormData();
-      fd.append("image", imgFile);
+      fd.append(
+        "image",
+        inputImage,
+        inputImage.name || "b2b-input.png"
+      );
       fd.append(
         "prompt",
         bot.prompt.trim() || "enhance this image, keep the composition"
@@ -2022,13 +2027,16 @@ function B2BImgTab({ setTab }) {
         /^data:image\/png;base64,/i,
         ""
       );
-      setBot(bot.id, { status: "done", img: "data:image/png;base64," + b64 });
+      const outputImage = "data:image/png;base64," + b64;
+      setBot(bot.id, { status: "done", img: outputImage });
+      return outputImage;
     } catch (e) {
       if (String(e.message) === "__STOP__") {
         setBot(bot.id, { status: "idle" });
         throw e;
       }
       setBot(bot.id, { status: "error", error: e.message || String(e) });
+      return null;
     }
   }
 
@@ -2046,12 +2054,35 @@ function B2BImgTab({ setTab }) {
     setRunning(true);
     setNotice("");
     setBots((cur) => cur.map((b) => (b.on ? { ...b, status: "waiting" } : b)));
+    // Con "rimpalla foto" ogni bot parte dall'output del precedente.
+    // Se un bot fallisce, interrompiamo la catena: non passiamo avanti
+    // un'immagine vecchia spacciandola per il risultato del bot appena fallito.
+    let chainImage = imgFile;
     for (const bot of active) {
       if (stopRef.current) break;
       try {
-        await runBot(bot);
+        const outputImage = await runBot(
+          bot,
+          chainImages ? chainImage : imgFile
+        );
+        if (chainImages) {
+          if (!outputImage) break;
+          const blob = await fetch(outputImage).then((response) => {
+            if (!response.ok) throw new Error("Impossibile preparare l'immagine per il bot successivo.");
+            return response.blob();
+          });
+          chainImage = new File(
+            [blob],
+            "b2b-bot-" + (bot.id + 1) + ".png",
+            { type: "image/png" }
+          );
+        }
       } catch (e) {
         if (String(e.message) === "__STOP__") break;
+        if (chainImages) {
+          setNotice("Catena interrotta: " + (e.message || String(e)));
+          break;
+        }
       }
     }
     setRunning(false);
@@ -2149,6 +2180,15 @@ function B2BImgTab({ setTab }) {
           <img style={imgStyles.preview} src={imgPreview} alt="immagine di partenza" />
         )}
         <div style={imgStyles.resRow}>
+          <label style={{ display: "flex", gap: 7, alignItems: "center", fontSize: 12, color: "#b6c4ca" }}>
+            <input
+              type="checkbox"
+              checked={chainImages}
+              disabled={running}
+              onChange={(e) => setChainImages(e.target.checked)}
+            />
+            Rimpalla foto (output di ogni bot → input del successivo)
+          </label>
           <label>
             <div style={imgStyles.paramLabel}>RISOLUZIONE</div>
             <select
