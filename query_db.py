@@ -722,13 +722,15 @@ def build_query_db_router(
 
         transcript = _build_transcript([dict(r) for r in rows])
         parts = [
-            "Devi produrre SOLO un riassunto d'archivio, in italiano, denso e "
+            "COMPITO (non e' una domanda): RIASSUMI il transcript seguente.",
+            "Produci SOLO il riassunto d'archivio, in italiano, denso e "
             "fattuale (massimo 400 parole): cosa e' stato chiesto, fatto, "
             "deciso, eventi notevoli del giorno. Niente domande, niente "
-            "saluti, niente commenti extra: solo il testo del riassunto.",
+            "saluti, niente elenchi di capability o informazioni generali "
+            "sul sistema: solo il testo del riassunto del transcript.",
             "",
-            "CONTESTO: transcript delle conversazioni/attivita' del "
-            f"{day} (potrebbe essere troncato all'inizio):",
+            f"TRANSCRIPT delle conversazioni/attivita' del {day} "
+            "(potrebbe essere troncato all'inizio):",
             "",
             transcript,
         ]
@@ -751,7 +753,12 @@ def build_query_db_router(
             async with httpx.AsyncClient(timeout=600.0) as client:
                 response = await client.post(
                     leles_url,
-                    json={"message": message, "language": "it", "chat_id": chat_id},
+                    json={
+                        "message": message,
+                        "language": "it",
+                        "chat_id": chat_id,
+                        "arena_agent": "archivio",
+                    },
                 )
             if response.status_code >= 400:
                 raise HTTPException(
