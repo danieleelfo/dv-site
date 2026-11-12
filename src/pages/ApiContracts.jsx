@@ -647,7 +647,7 @@ const GROUPS = [
         summary: "Approfondimento con Leles (KB + memoria): genera senza salvare",
         request: '{ "area": "leles", "date": "YYYY-MM-DD" }',
         response: '{ "summary", "model": "leles", "n_messages" }',
-        notes: "Transcript del giorno + eventuale summary base come contesto, inviati a Leles su LELES_ASK_URL (default http://127.0.0.1:8082/ask) con chat_id da QDB_LELES_CHAT_ID (default 8733881519). Output puro da archivio, nella textarea per revisione.",
+        notes: "Transcript del giorno + eventuale summary base come contesto, inviati a Leles su LELES_ASK_URL (default http://127.0.0.1:8082/ask) con arena_agent=archivio: routing dedicato in lele_api.py che chiama gemma_agent SENZA blocco memoria di chat e SENZA save_memory (il fallback /ask normale rispondeva dalla memoria e inquinava la chat). chat_id da QDB_LELES_CHAT_ID (default 8733881519). Prompt imperativo: solo riassunto del transcript, vietati elenchi di capability. Output nella textarea per revisione.",
       },
       {
         method: "POST", path: "/api/db/summary/save", auth: true,
