@@ -56,7 +56,7 @@ AREAS = {
     "emergence": "emergence",
     "lele_ns": "public",
     "lele_sw": "public",
-    "dbt": "bronze",
+    "dbt": "leles_dbt_dev_bronze",
 }
 
 # Per queste aree la connessione punta a un database Postgres diverso da
