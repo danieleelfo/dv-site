@@ -2,7 +2,7 @@
 // API CONTRACTS (contratti API del gateway)
 // Pagina statica di documentazione: nessuna chiamata al backend
 // oltre alla verifica del login Google. Nessuna modifica backend.
-// Dati allineati a gateway.py / git_admin.py / query_db.py / admin_routes.py / news_draft.py / gradv_proc.py (10 novembre 2026).
+// Dati allineati a gateway.py / git_admin.py / query_db.py / admin_routes.py / news_draft.py / gradv_proc.py (12 novembre 2026: + Memory Summary).
 // ============================================================
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -627,6 +627,34 @@ const GROUPS = [
         request: "?area=leles|emergence&table=nome_tabella&facet=agent_name|model_name (facoltativo)",
         response: '{ "column": "user", "users": [{ "name": "airflow", "count": 123 }, ...] }',
         notes: "api.nt.dbUsers",
+      },
+      {
+        method: "GET", path: "/api/db/summary", auth: true,
+        summary: "Elenca i riassunti salvati di memory_summary per un giorno",
+        request: '?area=leles|lele_ns|lele_sw&date=YYYY-MM-DD',
+        response: '{ "area", "date", "items": [{ "id", "summary", "model", "n_messages", "days", "period_start", "period_end", "created_at" }] }',
+        notes: "Prima della lettura allinea la tabella (CREATE/ALTER ADD COLUMN IF NOT EXISTS): lele_ns e lele_sw partivano senza colonne o senza tabella.",
+      },
+      {
+        method: "POST", path: "/api/db/summary/generate", auth: true,
+        summary: "Genera (senza salvare) il riassunto del giorno con Ollama",
+        request: '{ "area": "leles", "date": "YYYY-MM-DD" }',
+        response: '{ "summary", "model", "n_messages" }',
+        notes: "Transcript della tabella memory del giorno, cappato a 20000 caratteri (coda). Ollama su OLLAMA_URL (default :11434/api/generate), modello da QDB_SUMMARY_MODEL (default mistral), read timeout 600s.",
+      },
+      {
+        method: "POST", path: "/api/db/summary/deep", auth: true,
+        summary: "Approfondimento con Leles (KB + memoria): genera senza salvare",
+        request: '{ "area": "leles", "date": "YYYY-MM-DD" }',
+        response: '{ "summary", "model": "leles", "n_messages" }',
+        notes: "Transcript del giorno + eventuale summary base come contesto, inviati a Leles su LELES_ASK_URL (default http://127.0.0.1:8082/ask) con chat_id da QDB_LELES_CHAT_ID (default 8733881519). Output puro da archivio, nella textarea per revisione.",
+      },
+      {
+        method: "POST", path: "/api/db/summary/save", auth: true,
+        summary: "Salva il riassunto approvato come NUOVA riga di memory_summary",
+        request: '{ "area": "leles", "date": "YYYY-MM-DD", "summary": "...", "model": "mistral|leles", "n_messages": 123 }',
+        response: '{ "id", "status": "ok" }',
+        notes: "Connessione scrivibile, INSERT con days=1 e period_start/end = giorno. Mai update/overwrite: stesso giorno = piu' righe (confronto mistral vs leles).",
       },
     ],
   },
