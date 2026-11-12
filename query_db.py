@@ -678,6 +678,105 @@ def build_query_db_router(
             "n_messages": len(rows),
         }
 
+
+    class SummaryDeep(BaseModel):
+        area: str
+        date: str
+
+    @router.post("/summary/deep")
+    async def db_summary_deep(req: SummaryDeep, authorization: str | None = Header(None)):
+        """Approfondimento con Leles (KB + persona): genera SENZA salvare.
+
+        Legge il transcript del giorno e l'eventuale summary gia' salvato
+        (contesto), li manda a Leles su /ask e restituisce il testo: l'admin
+        lo rilegge nella textarea e lo salva con /summary/save (nuova riga,
+        model=leles). Mai overwrite.
+        """
+        verify_admin_token(authorization)
+        _check_summary_area(req.area)
+        day = _summary_date(req.date)
+        try:
+            conn = _readonly(req.area, get_connection)
+        except Exception as exc:
+            raise HTTPException(status_code=503, detail=f"PostgreSQL non raggiungibile: {exc}")
+        try:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    "SELECT role, content, created_at FROM memory "
+                    "WHERE created_at::date = %s ORDER BY created_at",
+                    (day,),
+                )
+                rows = cur.fetchall()
+                cur.execute(
+                    "SELECT summary FROM memory_summary "
+                    "WHERE period_start::date = %s "
+                    "ORDER BY created_at DESC LIMIT 1",
+                    (day,),
+                )
+                prev = cur.fetchone()
+        finally:
+            conn.close()
+
+        if not rows:
+            raise HTTPException(status_code=404, detail="Nessun messaggio in memory per questo giorno.")
+
+        transcript = _build_transcript([dict(r) for r in rows])
+        parts = [
+            "Devi produrre SOLO un riassunto d'archivio, in italiano, denso e "
+            "fattuale (massimo 400 parole): cosa e' stato chiesto, fatto, "
+            "deciso, eventi notevoli del giorno. Niente domande, niente "
+            "saluti, niente commenti extra: solo il testo del riassunto.",
+            "",
+            "CONTESTO: transcript delle conversazioni/attivita' del "
+            f"{day} (potrebbe essere troncato all'inizio):",
+            "",
+            transcript,
+        ]
+        if prev and (prev.get("summary") or "").strip():
+            parts += [
+                "",
+                "Riassunto base gia' esistente per lo stesso giorno "
+                "(usalo come contesto, correggilo o approfondiscilo):",
+                "",
+                (prev.get("summary") or "").strip()[:4000],
+            ]
+        message = "\n".join(parts)
+
+        leles_url = os.environ.get("LELES_ASK_URL", "http://127.0.0.1:8082/ask")
+        try:
+            chat_id = int(os.environ.get("QDB_LELES_CHAT_ID", "8733881519"))
+        except ValueError:
+            chat_id = 8733881519
+        try:
+            async with httpx.AsyncClient(timeout=600.0) as client:
+                response = await client.post(
+                    leles_url,
+                    json={"message": message, "language": "it", "chat_id": chat_id},
+                )
+            if response.status_code >= 400:
+                raise HTTPException(
+                    status_code=502,
+                    detail=f"Leles ha risposto HTTP {response.status_code}: {response.text[:300]}",
+                )
+            data = response.json()
+        except HTTPException:
+            raise
+        except Exception as exc:
+            log.exception("db summary deep leles")
+            raise HTTPException(status_code=502, detail=f"Leles non raggiungibile: {exc}")
+
+        text = ""
+        if isinstance(data, dict):
+            for key in ("response", "reply", "answer", "text", "message", "output"):
+                val = data.get(key)
+                if isinstance(val, str) and val.strip():
+                    text = val.strip()
+                    break
+        if not text:
+            raise HTTPException(status_code=502, detail="Leles ha restituito una risposta vuota o non riconosciuta.")
+
+        return {"summary": text, "model": "leles", "n_messages": len(rows)}
+
     @router.post("/summary/save")
     async def db_summary_save(req: SummarySave, authorization: str | None = Header(None)):
         """Salva il riassunto approvato come NUOVA riga di memory_summary."""

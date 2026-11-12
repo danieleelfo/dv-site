@@ -44,6 +44,8 @@ const SUM_T = {
     empty: "Genera il summary, rileggilo e salvalo se approvato.",
     needGen: "Genera prima un summary.",
     generating: "Ollama sta riassumendo...",
+    deep: "Analizza con Leles",
+    deepBusy: "Leles sta analizzando (KB + memoria)...",
     history: "Summary salvati · giorno scelto",
   },
   en: {
@@ -58,6 +60,8 @@ const SUM_T = {
     empty: "Generate the summary, review it and save it if approved.",
     needGen: "Generate a summary first.",
     generating: "Ollama is summarizing...",
+    deep: "Analyze with Leles",
+    deepBusy: "Leles is analyzing (KB + memory)...",
     history: "Saved summaries · selected day",
   },
 };
@@ -434,6 +438,20 @@ export default function QueryDb() {
     }
   }
 
+  async function deepSummary() {
+    setSumBusy("deep");
+    setSumMsg(null);
+    try {
+      const data = await apiPost("/api/db/summary/deep", { area: sumArea, date: sumDate });
+      setSumDraft(data.summary || "");
+      setSumMeta({ model: data.model, n_messages: data.n_messages });
+    } catch (e) {
+      setSumMsg({ kind: "err", text: e.message || String(e) });
+    } finally {
+      setSumBusy("");
+    }
+  }
+
   async function saveSummary() {
     if (!sumDraft.trim()) {
       setSumMsg({ kind: "err", text: sumT("needGen") });
@@ -577,6 +595,9 @@ export default function QueryDb() {
           <input className="text-input" type="date" value={sumDate} onChange={(e) => setSumDate(e.target.value)} />
           <button className="btn btn-primary" disabled={!!sumBusy} onClick={generateSummary}>
             {sumBusy === "gen" ? sumT("generating") : sumT("generate")}
+          </button>
+          <button className="btn" disabled={!!sumBusy} onClick={deepSummary} title="Leles: KB + memoria, output da archivio">
+            {sumBusy === "deep" ? sumT("deepBusy") : "◆ " + sumT("deep")}
           </button>
           <button className="btn" disabled={!!sumBusy || !sumDraft.trim()} onClick={saveSummary}>
             {sumT("save")}
