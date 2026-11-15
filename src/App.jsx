@@ -32,6 +32,7 @@ import Test3 from './pages/Test3.jsx'
 import Test4 from './pages/Test4.jsx'
 import Test5 from './pages/Test5.jsx'
 import Test6 from './pages/Test6.jsx'
+import Test8 from './pages/Test8.jsx'
 import TestBarAI from './pages/TestBarAI.jsx'
 
 const SUPPORTED_LANGS = ['en', 'it', 'es', 'fr', 'ca', 'nl']
@@ -159,8 +160,12 @@ export default function App() {
         <Route path="/test5" element={<><Nav /><Test5 /></>} />
         <Route path="/:lang/test5" element={<><Nav /><LangWrapper><Test5 /></LangWrapper></>} />
 
-        {/* Test6 r element={<><Nav /><Test6 /></>} />
+        <Route path="/test6" element={<><Nav /><Test6 /></>} />
         <Route path="/:lang/test6" element={<><Nav /><LangWrapper><Test6 /></LangWrapper></>} />
+
+        {/* Test8: recupero della vecchia anteprima completa ImgLab + OCR di Test4. */}
+        <Route path="/test8" element={<><Nav /><Test8 /></>} />
+        <Route path="/:lang/test8" element={<><Nav /><LangWrapper><Test8 /></LangWrapper></>} />
 
         {/* Bar AI sandbox */}
         <Route path="/testbarai" element={<><Nav /><TestBarAI /></>} />
