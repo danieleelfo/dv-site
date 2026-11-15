@@ -8,26 +8,37 @@ const languages = [
   { code: 'it', flag: '🇮🇹', label: 'Italiano' },
   { code: 'es', flag: '🇪🇸', label: 'Español' },
   { code: 'fr', flag: '🇫🇷', label: 'Français' },
-  { code: 'ca', flag: '🟨🟥', label: 'Català' },
+  { code: 'ca', flag: null, label: 'Català' },
   { code: 'nl', flag: '🇳🇱', label: 'Nederlands' },
 ]
 
 const groups = [
   {
     id: 'explore', label: 'Explore',
-    links: [['Home', ''], ['Projects', '/projects'], ['B2B', '/b2b'], ['Games', '/games']],
+    links: [
+      ['Home', ''], ['Projects', '/projects'], ['Games', '/games'],
+    ],
   },
   {
-    id: 'ai', label: 'AI & Research',
-    links: [['AI Lab', '/ai-lab'], ['AI News', '/ai-ethics'], ['Console', '/console'], ['ImgLab', '/image-lab']],
-  },
-  {
-    id: 'leles', label: 'Leles',
-    links: [['Leles', '/leles'], ['Improve', '/improve'], ['QueryDB', '/querydb'], ['API Contracts', '/api-contracts']],
+    id: 'trial', label: 'AI & Trial',
+    links: [
+      ['AI Lab', '/ai-lab'], ['B2B', '/b2b'], ['AI News', '/ai-ethics'],
+      ['Console', '/console'], ['ImgLab', '/image-lab'],
+      ['Test', '/test'], ['Test2', '/test2'], ['Test3', '/test3'],
+      ['Test4 · Home nav', '/test4'], ['Test5', '/test5'], ['Test6', '/test6'],
+      ['Test7', '/test7'], ['TestBarAI', '/testbarai'],
+      ['ImgLab Test · OCR', '/test8'],
+    ],
   },
   {
     id: 'admin', label: 'Admin',
-    links: [['DAG Admin', '/dag-admin'], ['DagForge', '/dagforge'], ['Git Admin', '/git-admin'], ['Bar AI Admin', '/bar-ai-admin'], ['News Admin', '/news-admin'], ['I18n Admin', '/i18n-admin']],
+    links: [
+      ['Leles', '/leles'], ['Improve', '/improve'], ['QueryDB', '/querydb'],
+      ['API Contracts', '/api-contracts'], ['DAG Admin', '/dag-admin'],
+      ['DagForge', '/dagforge'], ['Git Admin', '/git-admin'],
+      ['Bar AI Admin', '/bar-ai-admin'], ['News Admin', '/news-admin'],
+      ['I18n Admin', '/i18n-admin'],
+    ],
   },
 ]
 
@@ -66,7 +77,7 @@ export default function NavTest4() {
                 <div className="nav4-panel">
                   {group.links.map(([label, path]) => (
                     <Link
-                      key={label}
+                      key={path}
                       to={'/' + activeLang + path}
                       onClick={() => setOpenGroup(null)}
                     >{label}</Link>
