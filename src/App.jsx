@@ -3,7 +3,6 @@ import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import Home from './pages/Home.jsx'
-import HomeTest4 from './pages/HomeTest4.jsx'
 import Games from './pages/Games.jsx'
 import Projects from './pages/Projects.jsx'
 import Console from './pages/Console.jsx'
@@ -58,9 +57,6 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/home-test4" element={<><NavTest4 /><HomeTest4 /></>} />
-        <Route path="/:lang/home-test4" element={<><NavTest4 /><LangWrapper><HomeTest4 /></LangWrapper></>} />
-
         <Route path="/" element={<><Nav /><Home /></>} />
 
         <Route
@@ -155,8 +151,8 @@ export default function App() {
         <Route path="/test3" element={<><Nav /><Test3 /></>} />
         <Route path="/:lang/test3" element={<><Nav /><LangWrapper><Test3 /></LangWrapper></>} />
 
-        <Route path="/test4" element={<><Nav /><Test4 /></>} />
-        <Route path="/:lang/test4" element={<><Nav /><LangWrapper><Test4 /></LangWrapper></>} />
+        <Route path="/test4" element={<><NavTest4 /><Test4 /></>} />
+        <Route path="/:lang/test4" element={<><NavTest4 /><LangWrapper><Test4 /></LangWrapper></>} />
 
 
         {/* Test6 resta dedicato agli endpoint admin futuri. */}
