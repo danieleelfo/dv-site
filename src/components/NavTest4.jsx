@@ -88,7 +88,12 @@ export default function NavTest4() {
             title={item.label}
             onClick={() => changeLanguage(item.code)}
           >
-            <span className={item.code === 'ca' ? 'nav4-senyera' : ''}>{item.flag}</span>
+            {item.code === 'ca' ? (
+              <svg className="nav4-senyera" viewBox="0 0 30 20" role="img" aria-label="Senyera catalana">
+                <rect width="30" height="20" fill="#FCDD09" />
+                {[2, 6, 10, 14].map(y => <rect key={y} y={y} width="30" height="2" fill="#DA121A" />)}
+              </svg>
+            ) : <span>{item.flag}</span>}
             <small>{item.code.toUpperCase()}</small>
           </button>
         ))}
