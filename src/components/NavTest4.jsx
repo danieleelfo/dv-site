@@ -23,11 +23,7 @@ const groups = [
     id: 'trial', label: 'AI & Trial',
     links: [
       ['AI Lab', '/ai-lab'], ['B2B', '/b2b'], ['AI News', '/ai-ethics'],
-      ['Console', '/console'], ['ImgLab', '/image-lab'],
-      ['Test', '/test'], ['Test2', '/test2'], ['Test3', '/test3'],
-      ['Test4 · Home nav', '/test4'], ['Test5', '/test5'], ['Test6', '/test6'],
-      ['Test7', '/test7'], ['TestBarAI', '/testbarai'],
-      ['ImgLab Test · OCR', '/test8'],
+      ['Trial', '/console'], ['ImgLab', '/image-lab'],
     ],
   },
   {
@@ -38,6 +34,10 @@ const groups = [
       ['DagForge', '/dagforge'], ['Git Admin', '/git-admin'],
       ['Bar AI Admin', '/bar-ai-admin'], ['News Admin', '/news-admin'],
       ['I18n Admin', '/i18n-admin'],
+      ['Test', '/test'], ['Test2', '/test2'], ['Test3', '/test3'],
+      ['Test4 · Home nav', '/test4'], ['Test5', '/test5'], ['Test6', '/test6'],
+      ['Test7', '/test7'], ['TestBarAI', '/testbarai'],
+      ['ImgLab Test · OCR (Test8)', '/test8'],
     ],
   },
 ]
@@ -76,11 +76,9 @@ export default function NavTest4() {
               {openGroup === group.id && (
                 <div className="nav4-panel">
                   {group.links.map(([label, path]) => (
-                    <Link
-                      key={path}
-                      to={'/' + activeLang + path}
-                      onClick={() => setOpenGroup(null)}
-                    >{label}</Link>
+                    <Link key={path} to={'/' + activeLang + path} onClick={() => setOpenGroup(null)}>
+                      {label}
+                    </Link>
                   ))}
                 </div>
               )}
