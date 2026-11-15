@@ -1,0 +1,98 @@
+import { useState } from 'react'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
+import './NavTest4.css'
+
+const languages = [
+  { code: 'en', flag: '🇬🇧', label: 'English' },
+  { code: 'it', flag: '🇮🇹', label: 'Italiano' },
+  { code: 'es', flag: '🇪🇸', label: 'Español' },
+  { code: 'fr', flag: '🇫🇷', label: 'Français' },
+  { code: 'ca', flag: '🟨🟥', label: 'Català' },
+  { code: 'nl', flag: '🇳🇱', label: 'Nederlands' },
+]
+
+const groups = [
+  {
+    id: 'explore', label: 'Explore',
+    links: [['Home', ''], ['Projects', '/projects'], ['B2B', '/b2b'], ['Games', '/games']],
+  },
+  {
+    id: 'ai', label: 'AI & Research',
+    links: [['AI Lab', '/ai-lab'], ['AI News', '/ai-ethics'], ['Console', '/console'], ['ImgLab', '/image-lab']],
+  },
+  {
+    id: 'leles', label: 'Leles',
+    links: [['Leles', '/leles'], ['Improve', '/improve'], ['QueryDB', '/querydb'], ['API Contracts', '/api-contracts']],
+  },
+  {
+    id: 'admin', label: 'Admin',
+    links: [['DAG Admin', '/dag-admin'], ['DagForge', '/dagforge'], ['Git Admin', '/git-admin'], ['Bar AI Admin', '/bar-ai-admin'], ['News Admin', '/news-admin'], ['I18n Admin', '/i18n-admin']],
+  },
+]
+
+export default function NavTest4() {
+  const { i18n } = useTranslation()
+  const { lang } = useParams()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const activeLang = lang || (i18n.language || 'en').slice(0, 2)
+  const [openGroup, setOpenGroup] = useState(null)
+
+  function changeLanguage(code) {
+    const parts = location.pathname.split('/').filter(Boolean)
+    const supported = languages.map(x => x.code)
+    if (parts.length && supported.includes(parts[0])) parts[0] = code
+    else parts.unshift(code)
+    navigate('/' + parts.join('/') + location.search + location.hash)
+  }
+
+  return (
+    <header className="nav4-header">
+      <div className="nav4-main">
+        <Link className="nav4-logo" to={'/' + activeLang} aria-label="Home">LELES<span> · DV</span></Link>
+        <nav className="nav4-groups" aria-label="Main navigation">
+          {groups.map(group => (
+            <div className="nav4-group" key={group.id}>
+              <button
+                type="button"
+                className={openGroup === group.id ? 'nav4-group-btn active' : 'nav4-group-btn'}
+                aria-expanded={openGroup === group.id}
+                onClick={() => setOpenGroup(openGroup === group.id ? null : group.id)}
+              >
+                {group.label}<span className="nav4-chevron">⌄</span>
+              </button>
+              {openGroup === group.id && (
+                <div className="nav4-panel">
+                  {group.links.map(([label, path]) => (
+                    <Link
+                      key={label}
+                      to={'/' + activeLang + path}
+                      onClick={() => setOpenGroup(null)}
+                    >{label}</Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </nav>
+      </div>
+      <div className="nav4-language-row" aria-label="Choose language">
+        {languages.map(item => (
+          <button
+            key={item.code}
+            type="button"
+            className={activeLang === item.code ? 'nav4-language active' : 'nav4-language'}
+            aria-label={item.label}
+            aria-pressed={activeLang === item.code}
+            title={item.label}
+            onClick={() => changeLanguage(item.code)}
+          >
+            <span className={item.code === 'ca' ? 'nav4-senyera' : ''}>{item.flag}</span>
+            <small>{item.code.toUpperCase()}</small>
+          </button>
+        ))}
+      </div>
+    </header>
+  )
+}
