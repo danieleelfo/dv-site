@@ -5,10 +5,10 @@ import './NavTest4.css'
 
 const languages = [
   { code: 'en', flag: '🇬🇧', label: 'English' },
-  { code: 'it', flag: '🇮🇹', label: 'Italiano' },
   { code: 'es', flag: '🇪🇸', label: 'Español' },
-  { code: 'fr', flag: '🇫🇷', label: 'Français' },
   { code: 'ca', flag: null, label: 'Català' },
+  { code: 'fr', flag: '🇫🇷', label: 'Français' },
+  { code: 'it', flag: '🇮🇹', label: 'Italiano' },
   { code: 'nl', flag: '🇳🇱', label: 'Nederlands' },
 ]
 
