@@ -3,7 +3,8 @@
     "group": {
       "explore": "Explorer",
       "trial": "IA et Essai",
-      "admin": "Admin"
+      "admin": "Admin",
+      "qa": "QA"
     },
     "games": "Jeux",
     "aiLab": "AI Lab",

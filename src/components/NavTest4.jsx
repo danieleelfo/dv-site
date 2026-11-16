@@ -27,6 +27,15 @@ const groups = [
     ],
   },
   {
+    id: 'qa', label: 'QA', key: 'nav.group.qa',
+    links: [
+      ['Test', '/test', 'nav.test'], ['Test2', '/test2', 'nav.test2'], ['Test3', '/test3', 'nav.test3'],
+      ['Test5', '/test5', 'nav.test5'], ['Test6', '/test6', 'nav.test6'],
+      ['Test7', '/test7', 'nav.test7'], ['TestBarAI', '/testbarai', 'nav.testBarAI'],
+      ['ImgLab Test · OCR (Test8)', '/test8', 'nav.imgLabTestOcr'],
+    ],
+  },
+  {
     id: 'admin', label: 'Admin', key: 'nav.group.admin',
     links: [
       ['Leles', '/leles', 'nav.leles'], ['Improve', '/improve', 'nav.improve'], ['QueryDB', '/querydb', 'nav.querydb'],
@@ -34,10 +43,6 @@ const groups = [
       ['DagForge', '/dagforge', 'nav.dagForge'], ['Git Admin', '/git-admin', 'nav.gitAdmin'],
       ['Bar AI Admin', '/bar-ai-admin', 'nav.barAiAdmin'], ['News Admin', '/news-admin', 'nav.newsAdmin'],
       ['I18n Admin', '/i18n-admin', 'nav.i18nAdmin'],
-      ['Test', '/test', 'nav.test'], ['Test2', '/test2', 'nav.test2'], ['Test3', '/test3', 'nav.test3'],
-      ['Test5', '/test5', 'nav.test5'], ['Test6', '/test6', 'nav.test6'],
-      ['Test7', '/test7', 'nav.test7'], ['TestBarAI', '/testbarai', 'nav.testBarAI'],
-      ['ImgLab Test · OCR (Test8)', '/test8', 'nav.imgLabTestOcr'],
     ],
   },
 ]
