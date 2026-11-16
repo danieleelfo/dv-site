@@ -85,6 +85,9 @@ export default function NavTest4() {
   return (
     <header className="nav4-header">
       <div className="nav4-language-row" aria-label="Choose language">
+        <Link to={'/' + activeLang} className="nav4-logo" aria-label="Home">
+          <img src={lelesLogo} alt="LELES" onError={e => { e.currentTarget.style.display = 'none' }} />
+        </Link>
         {languages.map(item => (
           <button
             key={item.code}
@@ -106,9 +109,6 @@ export default function NavTest4() {
         ))}
       </div>
       <div className="nav4-main">
-        <Link to={'/' + activeLang} className="nav4-logo" aria-label="Home">
-          <img src={lelesLogo} alt="LELES" onError={e => { e.currentTarget.style.display = 'none' }} />
-        </Link>
         <nav className="nav4-groups" aria-label="Main navigation" ref={groupsRef}>
           {groups.map(group => (
             <div className="nav4-group" key={group.id}>

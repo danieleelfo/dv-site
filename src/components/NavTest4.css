@@ -21,7 +21,10 @@
   gap: 18px;
 }
 .nav4-logo {
-  flex: 0 0 auto;
+  position: absolute;
+  left: clamp(8px, 2vw, 20px);
+  top: 50%;
+  transform: translateY(-50%);
   display: flex;
   align-items: center;
   text-decoration: none;
@@ -89,7 +92,6 @@
 }
 .nav4-panel a:hover { color: #3fd0c9; background: #18252d; }
 .nav4-language-row {
-  position: relative;
   min-height: 42px;
   width: 100%;
   display: flex;
@@ -135,7 +137,6 @@
     gap: 0;
     padding: 0 8px 5px;
   }
-  .nav4-logo { margin: 4px 0 2px; }
   .nav4-logo img { height: 34px; }
   .nav4-groups {
     width: 100%;
