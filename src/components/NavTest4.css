@@ -22,6 +22,16 @@
 }
 .nav4-logo {
   flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+}
+.nav4-logo img {
+  display: block;
+  height: 40px;
+  width: auto;
+}
+.nav4-logo {
   color: #3fd0c9;
   font-size: 1.05rem;
   font-weight: 800;
@@ -126,6 +136,8 @@
     gap: 0;
     padding: 0 8px 5px;
   }
+  .nav4-logo { margin: 6px 0 2px; }
+  .nav4-logo img { height: 30px; }
   .nav4-groups {
     width: 100%;
     display: grid;

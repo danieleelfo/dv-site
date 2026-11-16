@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import lelesLogo from '../assets/leles-logo.png'
 import './NavTest4.css'
 
 const languages = [
@@ -105,6 +106,9 @@ export default function NavTest4() {
         ))}
       </div>
       <div className="nav4-main">
+        <Link to={'/' + activeLang} className="nav4-logo" aria-label="Home">
+          <img src={lelesLogo} alt="LELES" onError={e => { e.currentTarget.style.display = 'none' }} />
+        </Link>
         <nav className="nav4-groups" aria-label="Main navigation" ref={groupsRef}>
           {groups.map(group => (
             <div className="nav4-group" key={group.id}>
