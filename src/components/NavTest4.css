@@ -21,22 +21,23 @@
   gap: 18px;
 }
 .nav4-logo {
-  flex: 0 0 auto;
+  position: absolute;
+  right: clamp(8px, 2vw, 20px);
+  top: 50%;
+  transform: translateY(-50%);
   display: flex;
   align-items: center;
   text-decoration: none;
-}
-.nav4-logo img {
-  display: block;
-  height: 40px;
-  width: auto;
-}
-.nav4-logo {
   color: #3fd0c9;
   font-size: 1.05rem;
   font-weight: 800;
   letter-spacing: .12em;
   white-space: nowrap;
+}
+.nav4-logo img {
+  display: block;
+  height: 40px;
+  width: auto;
 }
 .nav4-logo span {
   color: #8fa1ac;
@@ -91,6 +92,7 @@
 }
 .nav4-panel a:hover { color: #3fd0c9; background: #18252d; }
 .nav4-language-row {
+  position: relative;
   min-height: 42px;
   width: 100%;
   display: flex;
@@ -136,7 +138,6 @@
     gap: 0;
     padding: 0 8px 5px;
   }
-  .nav4-logo { margin: 6px 0 2px; }
   .nav4-logo img { height: 30px; }
   .nav4-groups {
     width: 100%;
