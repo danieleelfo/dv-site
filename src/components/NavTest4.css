@@ -125,11 +125,10 @@
     gap: 5px;
     padding: 7px 8px 5px;
   }
-  .nav4-logo { font-size: .94rem; padding: 2px 0; }
   .nav4-groups {
     width: 100%;
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 5px;
   }
   .nav4-group { min-width: 0; }
