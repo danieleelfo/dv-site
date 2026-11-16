@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import './NavTest4.css'
@@ -16,14 +16,14 @@ const groups = [
   {
     id: 'explore', label: 'Explore',
     links: [
-      ['Home', ''], ['Projects', '/projects'], ['Games', '/games'],
+      ['Home', '', 'nav.home'], ['Projects', '/projects', 'nav.projects'], ['Games', '/games'],
     ],
   },
   {
     id: 'trial', label: 'AI & Trial',
     links: [
       ['AI Lab', '/ai-lab'], ['B2B', '/b2b'], ['AI News', '/ai-ethics'],
-      ['Trial', '/console'], ['ImgLab', '/image-lab'],
+      ['Trial', '/console', 'nav.trial'], ['ImgLab', '/image-lab'],
     ],
   },
   {
@@ -35,7 +35,7 @@ const groups = [
       ['Bar AI Admin', '/bar-ai-admin'], ['News Admin', '/news-admin'],
       ['I18n Admin', '/i18n-admin'],
       ['Test', '/test'], ['Test2', '/test2'], ['Test3', '/test3'],
-      ['Test4 · Home nav', '/test4'], ['Test5', '/test5'], ['Test6', '/test6'],
+      ['Test5', '/test5'], ['Test6', '/test6'],
       ['Test7', '/test7'], ['TestBarAI', '/testbarai'],
       ['ImgLab Test · OCR (Test8)', '/test8'],
     ],
@@ -43,12 +43,30 @@ const groups = [
 ]
 
 export default function NavTest4() {
-  const { i18n } = useTranslation()
+  const { i18n, t } = useTranslation()
   const { lang } = useParams()
   const location = useLocation()
   const navigate = useNavigate()
   const activeLang = lang || (i18n.language || 'en').slice(0, 2)
   const [openGroup, setOpenGroup] = useState(null)
+  const groupsRef = useRef(null)
+
+  // Chiude il menu con un tap/click fuori o con Esc.
+  useEffect(() => {
+    if (!openGroup) return
+    function onPointerDown(e) {
+      if (groupsRef.current && !groupsRef.current.contains(e.target)) setOpenGroup(null)
+    }
+    function onKeyDown(e) {
+      if (e.key === 'Escape') setOpenGroup(null)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [openGroup])
 
   function changeLanguage(code) {
     const parts = location.pathname.split('/').filter(Boolean)
@@ -62,7 +80,7 @@ export default function NavTest4() {
     <header className="nav4-header">
       <div className="nav4-main">
         <Link className="nav4-logo" to={'/' + activeLang} aria-label="Home">LELES<span> · DV</span></Link>
-        <nav className="nav4-groups" aria-label="Main navigation">
+        <nav className="nav4-groups" aria-label="Main navigation" ref={groupsRef}>
           {groups.map(group => (
             <div className="nav4-group" key={group.id}>
               <button
@@ -75,9 +93,9 @@ export default function NavTest4() {
               </button>
               {openGroup === group.id && (
                 <div className="nav4-panel">
-                  {group.links.map(([label, path]) => (
+                  {group.links.map(([label, path, key]) => (
                     <Link key={path} to={'/' + activeLang + path} onClick={() => setOpenGroup(null)}>
-                      {label}
+                      {key ? t(key, label) : label}
                     </Link>
                   ))}
                 </div>
