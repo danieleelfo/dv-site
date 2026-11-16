@@ -129,8 +129,8 @@
   .nav4-groups {
     width: 100%;
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 5px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
   }
   .nav4-group { min-width: 0; }
   .nav4-group-btn {
