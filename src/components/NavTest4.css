@@ -111,9 +111,9 @@
 }
 .nav4-senyera {
   display: block;
-  width: 30px;
-  height: 20px;
-  flex: 0 0 30px;
+  width: 22px;
+  height: 15px;
+  flex: 0 0 22px;
   border-radius: 2px;
   overflow: hidden;
 }
@@ -122,8 +122,9 @@
     display: grid;
     grid-template-columns: 1fr;
     justify-items: center;
-    gap: 5px;
-    padding: 7px 8px 5px;
+    min-height: 0;
+    gap: 0;
+    padding: 0 8px 5px;
   }
   .nav4-groups {
     width: 100%;
