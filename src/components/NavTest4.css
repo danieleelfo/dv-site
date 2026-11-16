@@ -23,7 +23,7 @@
 .nav4-logo {
   position: absolute;
   left: clamp(8px, 2vw, 20px);
-  top: 50%;
+  top: 42%;
   transform: translateY(-50%);
   display: flex;
   align-items: center;
