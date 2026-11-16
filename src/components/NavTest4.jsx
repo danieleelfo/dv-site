@@ -14,30 +14,30 @@ const languages = [
 
 const groups = [
   {
-    id: 'explore', label: 'Explore',
+    id: 'explore', label: 'Explore', key: 'nav.group.explore',
     links: [
-      ['Home', '', 'nav.home'], ['Projects', '/projects', 'nav.projects'], ['Games', '/games'],
+      ['Home', '', 'nav.home'], ['Projects', '/projects', 'nav.projects'], ['Games', '/games', 'nav.games'],
     ],
   },
   {
-    id: 'trial', label: 'AI & Trial',
+    id: 'trial', label: 'AI & Trial', key: 'nav.group.trial',
     links: [
-      ['AI Lab', '/ai-lab'], ['B2B', '/b2b'], ['AI News', '/ai-ethics'],
-      ['Trial', '/console', 'nav.trial'], ['ImgLab', '/image-lab'],
+      ['AI Lab', '/ai-lab', 'nav.aiLab'], ['B2B', '/b2b', 'nav.b2b'], ['AI News', '/ai-ethics', 'nav.aiNews'],
+      ['Trial', '/console', 'nav.trial'], ['ImgLab', '/image-lab', 'nav.imgLab'],
     ],
   },
   {
-    id: 'admin', label: 'Admin',
+    id: 'admin', label: 'Admin', key: 'nav.group.admin',
     links: [
-      ['Leles', '/leles'], ['Improve', '/improve'], ['QueryDB', '/querydb'],
-      ['API Contracts', '/api-contracts'], ['DAG Admin', '/dag-admin'],
-      ['DagForge', '/dagforge'], ['Git Admin', '/git-admin'],
-      ['Bar AI Admin', '/bar-ai-admin'], ['News Admin', '/news-admin'],
-      ['I18n Admin', '/i18n-admin'],
-      ['Test', '/test'], ['Test2', '/test2'], ['Test3', '/test3'],
-      ['Test5', '/test5'], ['Test6', '/test6'],
-      ['Test7', '/test7'], ['TestBarAI', '/testbarai'],
-      ['ImgLab Test · OCR (Test8)', '/test8'],
+      ['Leles', '/leles', 'nav.leles'], ['Improve', '/improve', 'nav.improve'], ['QueryDB', '/querydb', 'nav.querydb'],
+      ['API Contracts', '/api-contracts', 'nav.apiContracts'], ['DAG Admin', '/dag-admin', 'nav.dagAdmin'],
+      ['DagForge', '/dagforge', 'nav.dagForge'], ['Git Admin', '/git-admin', 'nav.gitAdmin'],
+      ['Bar AI Admin', '/bar-ai-admin', 'nav.barAiAdmin'], ['News Admin', '/news-admin', 'nav.newsAdmin'],
+      ['I18n Admin', '/i18n-admin', 'nav.i18nAdmin'],
+      ['Test', '/test', 'nav.test'], ['Test2', '/test2', 'nav.test2'], ['Test3', '/test3', 'nav.test3'],
+      ['Test5', '/test5', 'nav.test5'], ['Test6', '/test6', 'nav.test6'],
+      ['Test7', '/test7', 'nav.test7'], ['TestBarAI', '/testbarai', 'nav.testBarAI'],
+      ['ImgLab Test · OCR (Test8)', '/test8', 'nav.imgLabTestOcr'],
     ],
   },
 ]
@@ -109,13 +109,13 @@ export default function NavTest4() {
                 aria-expanded={openGroup === group.id}
                 onClick={() => setOpenGroup(openGroup === group.id ? null : group.id)}
               >
-                {group.label}<span className="nav4-chevron">⌄</span>
+                {t(group.key, group.label)}<span className="nav4-chevron">⌄</span>
               </button>
               {openGroup === group.id && (
                 <div className="nav4-panel">
                   {group.links.map(([label, path, key]) => (
                     <Link key={path} to={'/' + activeLang + path} onClick={() => setOpenGroup(null)}>
-                      {key ? t(key, label) : label}
+                      {t(key, label)}
                     </Link>
                   ))}
                 </div>
