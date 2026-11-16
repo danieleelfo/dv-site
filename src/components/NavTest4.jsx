@@ -78,8 +78,28 @@ export default function NavTest4() {
 
   return (
     <header className="nav4-header">
+      <div className="nav4-language-row" aria-label="Choose language">
+        {languages.map(item => (
+          <button
+            key={item.code}
+            type="button"
+            className={activeLang === item.code ? 'nav4-language active' : 'nav4-language'}
+            aria-label={item.label}
+            aria-pressed={activeLang === item.code}
+            title={item.label}
+            onClick={() => changeLanguage(item.code)}
+          >
+            {item.code === 'ca' ? (
+              <svg className="nav4-senyera" viewBox="0 0 30 20" role="img" aria-label="Senyera catalana">
+                <rect width="30" height="20" fill="#FCDD09" />
+                {[2, 6, 10, 14].map(y => <rect key={y} y={y} width="30" height="2" fill="#DA121A" />)}
+              </svg>
+            ) : <span>{item.flag}</span>}
+            <small>{item.code.toUpperCase()}</small>
+          </button>
+        ))}
+      </div>
       <div className="nav4-main">
-        <Link className="nav4-logo" to={'/' + activeLang} aria-label="Home">LELES<span> · DV</span></Link>
         <nav className="nav4-groups" aria-label="Main navigation" ref={groupsRef}>
           {groups.map(group => (
             <div className="nav4-group" key={group.id}>
@@ -103,27 +123,6 @@ export default function NavTest4() {
             </div>
           ))}
         </nav>
-      </div>
-      <div className="nav4-language-row" aria-label="Choose language">
-        {languages.map(item => (
-          <button
-            key={item.code}
-            type="button"
-            className={activeLang === item.code ? 'nav4-language active' : 'nav4-language'}
-            aria-label={item.label}
-            aria-pressed={activeLang === item.code}
-            title={item.label}
-            onClick={() => changeLanguage(item.code)}
-          >
-            {item.code === 'ca' ? (
-              <svg className="nav4-senyera" viewBox="0 0 30 20" role="img" aria-label="Senyera catalana">
-                <rect width="30" height="20" fill="#FCDD09" />
-                {[2, 6, 10, 14].map(y => <rect key={y} y={y} width="30" height="2" fill="#DA121A" />)}
-              </svg>
-            ) : <span>{item.flag}</span>}
-            <small>{item.code.toUpperCase()}</small>
-          </button>
-        ))}
       </div>
     </header>
   )
