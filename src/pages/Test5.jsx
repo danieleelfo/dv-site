@@ -1,4 +1,3 @@
-==== BEGIN FILE: src/pages/Test5.jsx ====
 import { useEffect, useRef, useState } from "react";
 import { IMG_STEPS, IMG_STRENGTH } from "../lib/imageParams.js";
 import { useNavigate } from "react-router-dom";
