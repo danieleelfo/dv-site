@@ -7,7 +7,6 @@ import Games from './pages/Games.jsx'
 import Projects from './pages/Projects.jsx'
 import Console from './pages/Console.jsx'
 import Nav from './components/Nav.jsx'
-import NavTest4 from './components/NavTest4.jsx'
 
 // Pagine ufficiali
 import AI_Lab from './pages/AI_Lab.jsx'
@@ -30,6 +29,8 @@ import I18nAdmin from './pages/I18nAdmin.jsx'
 import BarAiAdmin from './pages/BarAiAdmin.jsx'
 import Test3 from './pages/Test3.jsx'
 import Test4 from './pages/Test4.jsx'
+import About from './pages/About.jsx'
+import Contact from './pages/Contact.jsx'
 import Test5 from './pages/Test5.jsx'
 import Test6 from './pages/Test6.jsx'
 import Test8 from './pages/Test8.jsx'
@@ -152,8 +153,12 @@ export default function App() {
         <Route path="/test3" element={<><Nav /><Test3 /></>} />
         <Route path="/:lang/test3" element={<><Nav /><LangWrapper><Test3 /></LangWrapper></>} />
 
-        <Route path="/test4" element={<><NavTest4 /><Test4 /></>} />
-        <Route path="/:lang/test4" element={<><NavTest4 /><LangWrapper><Test4 /></LangWrapper></>} />
+        <Route path="/test4" element={<><Nav /><Test4 /></>} />
+        <Route path="/:lang/test4" element={<><Nav /><LangWrapper><Test4 /></LangWrapper></>} />
+        <Route path="/about" element={<><Nav /><About /></>} />
+        <Route path="/:lang/about" element={<><Nav /><LangWrapper><About /></LangWrapper></>} />
+        <Route path="/contact" element={<><Nav /><Contact /></>} />
+        <Route path="/:lang/contact" element={<><Nav /><LangWrapper><Contact /></LangWrapper></>} />
 
 
         {/* Test6 resta dedicato agli endpoint admin futuri. */}
