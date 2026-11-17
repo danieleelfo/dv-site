@@ -659,6 +659,12 @@ const styles = {
     textAlign: 'left',
   },
 
+  heroIdentity: {
+    color: '#b7c5cc',
+    fontSize: '0.85rem',
+    marginBottom: '0.4rem',
+  },
+
   title: {
     fontSize: 'clamp(1.8rem, 4vw, 2.5rem)',
     fontFamily: 'var(--serif)',
