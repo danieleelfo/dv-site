@@ -1,4 +1,3 @@
-==== BEGIN FILE: src/components/MultifotoTab.jsx ====
 //multifoto tab, txt2img, img2img and pillow
 
 import { useEffect, useRef, useState } from "react";
