@@ -1,3 +1,4 @@
+==== BEGIN FILE: src/pages/LeleAdmin.jsx ====
 // ============================================================
 // 3 selettori modello (Super-Leles / Leles / Reviewer) sincronizzati
 // col server via comando "modelli"; nuovo ordine sezioni (Comandi, Sessione,
@@ -6,6 +7,7 @@
 // ============================================================
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { IMG_STEPS } from '../lib/imageParams.js'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import i18n from '../i18n/i18n'
@@ -995,8 +997,7 @@ export default function LeleAdmin() {
       // Pianificazione a lotti condivisa in src/lib/imageJobs.js
       // (planStoryScenes): lotti di 3, retry + repair JSON, fallback in
       // cascata mistral → qwen2.5, modello visibile negli status.
-      const scenes = await planStoryScenes({
-        idToken,
+      const scenes = await planStoryScenes({        idToken,
         storyText,
         imageCount,
         artDirection: artDirection + stripClause(storyStrip),
@@ -1050,7 +1051,7 @@ export default function LeleAdmin() {
           // gateway via preset, oltre che dal prompt del planner.
           const scenePreset = kidsMode ? 'sw_kids' : (genre ? 'ns_free' : '')
           const [fmtWidth, fmtHeight] = String(storyImageFormat || '1024x768').split('x').map(Number)
-          const sceneSteps = Math.max(1, Math.min(100, Number(storyImageSteps) || 8))
+          const sceneSteps = Math.max(1, Math.min(15, Number(storyImageSteps) || 8))
           const jobId = await createImageJob(idToken, scene.prompt, {
             preset: scenePreset,
             width: fmtWidth,
@@ -1995,8 +1996,7 @@ export default function LeleAdmin() {
                         onChange={(e) => setStoryImageSteps(Number(e.target.value))}
                         style={{ padding: '4px 8px', borderRadius: 8, background: 'var(--surface, #fff)', color: 'inherit', border: '1px solid var(--line, #ccc)' }}
                       >
-                        {[1, 3, 4, 5, 6, 7, 8, 9, 12, 15].map((s) => <option key={s} value={s}>{s} step</option>)}
-                      </select>
+                        {IMG_STEPS.map((s) => <option key={s} value={s}>{s} step</option>)}                      </select>
                       <select
                         aria-label="Pannelli fumetto per immagine"
                         value={storyStrip}
