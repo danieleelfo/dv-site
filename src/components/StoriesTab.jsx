@@ -1,3 +1,4 @@
+==== BEGIN FILE: src/components/StoriesTab.jsx ====
 // src/components/StoriesTab.jsx
 // TAB STORIES — aggiornato con le funzionalita LeleAdmin: titoli di tutte
 // le scene in griglia subito dopo la pianificazione, stato per card
@@ -17,6 +18,7 @@
 // Le immagini delle scene restano in /api/image/history/{job_id}/image.
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { IMG_STEPS, IMG_STRENGTH } from "../lib/imageParams.js";
 import {
   API,
   apiJson,
@@ -995,8 +997,7 @@ export default function StoriesTab({ idToken }) {
             prompt,
             chat_id: newChatId(),
             language: lang,
-          }),
-        });
+          }),        });
         if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
         return await res.json();
       } finally {
@@ -1280,19 +1281,19 @@ export default function StoriesTab({ idToken }) {
               ))}
             </select>
             {storyPersId && (
-              <label title="Quanto ogni scena deve assomigliare alla foto del personaggio (img2img)">
+              <label title="Forza modifica sulla foto del personaggio (img2img): basso = più fedele, alto = più trasformata">
                 <input
                   type="range"
-                  min="0.2"
-                  max="0.9"
-                  step="0.05"
+                  min={IMG_STRENGTH.min}
+                  max={IMG_STRENGTH.max}
+                  step={IMG_STRENGTH.step}
                   value={persStrength}
                   onChange={(event) => setPersStrength(Number(event.target.value))}
                   disabled={busy}
                   style={{ verticalAlign: "middle" }}
                 />{" "}
                 <span style={{ fontSize: ".8rem", color: "var(--ink-dim, #8fa1ac)" }}>
-                  🎭 Somiglianza {Math.round(persStrength * 100)}%
+                  🎭 Forza modifica {persStrength.toFixed(2)}
                 </span>
               </label>
             )}
@@ -1356,7 +1357,7 @@ export default function StoriesTab({ idToken }) {
                 onChange={(event) => setImageSteps(Number(event.target.value))}
                 disabled={busy}
               >
-                {[1, 3, 4, 5, 6, 7, 8, 9, 12, 15].map((s) => (
+                {IMG_STEPS.map((s) => (
                   <option key={s} value={s}>
                     {s} step
                   </option>
@@ -1511,7 +1512,7 @@ export default function StoriesTab({ idToken }) {
                   aria-label="Step di generazione per la nuova versione"
                   disabled={busy}
                 >
-                  {[1, 3, 4, 5, 6, 7, 8, 9, 12, 15].map((s) => (
+                  {IMG_STEPS.map((s) => (
                     <option key={s} value={s}>{s} step</option>
                   ))}
                 </select>
@@ -1897,5 +1898,3 @@ export default function StoriesTab({ idToken }) {
     </div>
   );
 }
-
-
