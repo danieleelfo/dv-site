@@ -2167,5 +2167,3 @@ const STYLES = `
 }
 `;
 
-
-==== END FILE: src/pages/ImageLab.jsx ====
