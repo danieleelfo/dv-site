@@ -1,4 +1,3 @@
-==== BEGIN FILE: src/pages/LeleAdmin.jsx ====
 // ============================================================
 // 3 selettori modello (Super-Leles / Leles / Reviewer) sincronizzati
 // col server via comando "modelli"; nuovo ordine sezioni (Comandi, Sessione,
