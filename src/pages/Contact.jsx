@@ -1,0 +1,39 @@
+// ============================================================
+// Contact (spostato dalla Home)
+// ============================================================
+
+import React from 'react'
+import { useTranslation } from 'react-i18next'
+import bgImage from '../assets/hero.png'
+
+export default function Contact() {
+  const { t } = useTranslation()
+  return (
+    <div style={pageStyles.page}>
+      <img src={bgImage} alt="" style={pageStyles.background} />
+      <div style={pageStyles.backgroundOverlay} />
+      <div style={pageStyles.content}>
+        <section className="section container home-section" id="contact" style={{ maxWidth: 950, margin: '0 auto' }}>
+          <p className="section-label">{t('contact.label')}</p>
+          <h2 className="section-title">{t('contact.title')}</h2>
+          <p style={homeStyles.aboutText}>{t('contact.text')}</p>
+          <a href="mailto:daniele@danielevillanova.com" style={homeStyles.btnPrimary}>
+            daniele@danielevillanova.com
+          </a>
+        </section>
+      </div>
+    </div>
+  )
+}
+
+const pageStyles = {
+  page: { position: 'relative', minHeight: '100vh', background: '#0b1015', overflow: 'hidden' },
+  background: { position: 'fixed', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center 35%', zIndex: 0 },
+  backgroundOverlay: { position: 'fixed', inset: 0, background: 'linear-gradient(180deg, rgba(11,16,21,0.45) 0%, rgba(11,16,21,0.60) 45%, rgba(11,16,21,0.78) 100%)', zIndex: 1 },
+  content: { position: 'relative', zIndex: 2 },
+}
+
+const homeStyles = {
+  aboutText: { color: '#b7c5cc', fontSize: '1.05rem', maxWidth: 720 },
+  btnPrimary: { background: '#3fd0c9', color: '#0b1015', padding: '0.65rem 0.8rem', borderRadius: 6, fontWeight: 600, fontSize: '0.8rem', display: 'inline-block' },
+}
