@@ -20,6 +20,7 @@
 // ============================================================
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { IMG_STEPS, IMG_STRENGTH, nearestStep } from "../lib/imageParams.js";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import StoriesTab from "../components/StoriesTab.jsx";
@@ -433,7 +434,7 @@ export default function ImageLab({ initialTab = "genera" }) {
       setRandomSeed(false);
     }
 
-    if (Number.isFinite(item.steps)) setSteps(item.steps);
+    if (Number.isFinite(item.steps)) setSteps(nearestStep(item.steps));
 
     for (const [cat, list] of Object.entries(GRADIO_FORMATS)) {
       const idx = list.findIndex(
@@ -996,8 +997,7 @@ export default function ImageLab({ initialTab = "genera" }) {
             onClick={() => setTab("storie")}
           >
             {t("img.tabStorie")}
-          </button>
-          <button
+          </button>          <button
             type="button"
             className={"il-tab" + (tab === "multifoto" ? " il-tab-active" : "")}
             onClick={() => setTab("multifoto")}
@@ -1071,31 +1071,39 @@ export default function ImageLab({ initialTab = "genera" }) {
                   </div>
                 </div>
 
-                {initFile && (
-                  <div className="il-strength">
-                    <label className="il-label" htmlFor="il-strength">
-                      {t("img.strengthLabel")} {strength.toFixed(2)} ·{" "}
-                      {strength < 0.35
-                        ? t("img.strengthMore")
-                        : strength > 0.7
-                          ? t("img.strengthLess")
-                          : t("img.strengthBalanced")}
-                    </label>
-                    <input
-                      id="il-strength"
-                      className="il-range"
-                      type="range"
-                      min="0.15"
-                      max="0.95"
-                      step="0.05"
-                      value={strength}
-                      onChange={(event) =>
-                        setStrength(Number(event.target.value))
-                      }
-                      disabled={busy}
-                    />
-                  </div>
-                )}
+                <div
+                  className="il-strength"
+                  style={initFile ? undefined : { opacity: 0.5 }}
+                >
+                  <label className="il-label" htmlFor="il-strength">
+                    {t("img.strengthLabel")} {strength.toFixed(2)} ·{" "}
+                    {strength < 0.35
+                      ? t("img.strengthMore")
+                      : strength > 0.7
+                        ? t("img.strengthLess")
+                        : t("img.strengthBalanced")}
+                  </label>
+                  <input
+                    id="il-strength"
+                    className="il-range"
+                    type="range"
+                    min={IMG_STRENGTH.min}
+                    max={IMG_STRENGTH.max}
+                    step={IMG_STRENGTH.step}
+                    value={strength}
+                    onChange={(event) =>
+                      setStrength(Number(event.target.value))
+                    }
+                    disabled={busy || !initFile}
+                  />
+                  {!initFile && (
+                    <small className="il-hint">
+                      {t("img.strengthNeedsPhoto", {
+                        defaultValue: "Available when you upload a photo",
+                      })}
+                    </small>
+                  )}
+                </div>
 
                 <label className="il-label" htmlFor="il-prompt">
                   {initFile ? t("img.editPromptLabel") : t("img.promptLabel")}
@@ -1180,9 +1188,17 @@ export default function ImageLab({ initialTab = "genera" }) {
                       }
                       disabled={busy}
                     >
-                      <option value={4}>{t("img.stepFast")}</option>
-                      <option value={8}>{t("img.stepStandard")}</option>
-                      <option value={9}>{t("img.stepExperimental")}</option>
+                      {IMG_STEPS.map((s) => (
+                        <option key={s} value={s}>
+                          {s === 4
+                            ? t("img.stepFast")
+                            : s === 8
+                              ? t("img.stepStandard")
+                              : s === 9
+                                ? t("img.stepExperimental")
+                                : s}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -1980,8 +1996,7 @@ const STYLES = `
 .il-jcs-result {
   border-left: 3px solid var(--accent, #6fe3dd);
   padding-left: .8rem;
-}
-.il-footer {
+}.il-footer {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -2153,3 +2168,4 @@ const STYLES = `
 `;
 
 
+==== END FILE: src/pages/ImageLab.jsx ====
