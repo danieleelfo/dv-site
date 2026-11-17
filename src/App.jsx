@@ -7,7 +7,6 @@ import Games from './pages/Games.jsx'
 import Projects from './pages/Projects.jsx'
 import Console from './pages/Console.jsx'
 import Nav from './components/Nav.jsx'
-import NavTest4 from './components/NavTest4.jsx'
 
 // Pagine ufficiali
 import AI_Lab from './pages/AI_Lab.jsx'
@@ -152,7 +151,7 @@ export default function App() {
         <Route path="/test3" element={<><Nav /><Test3 /></>} />
         <Route path="/:lang/test3" element={<><Nav /><LangWrapper><Test3 /></LangWrapper></>} />
 
-        <Route path="/test4" element={<><NavTest4 /><Test4 /></>} />
+        <Route path="/test4" element={<><Nav /><Test4 /></>} />
         <Route path="/:lang/test4" element={<><NavTest4 /><LangWrapper><Test4 /></LangWrapper></>} />
 
 
