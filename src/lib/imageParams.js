@@ -17,4 +17,3 @@ export function nearestStep(value, fallback = 8) {
 // "Forza modifica" (strength img2img): stesso range in tutte le interfacce.
 // Basso = più fedele alla foto di partenza, alto = più trasformata.
 export const IMG_STRENGTH = { min: 0.15, max: 0.95, step: 0.05, default: 0.65 };
-==== END FILE: src/lib/imageParams.js ====
