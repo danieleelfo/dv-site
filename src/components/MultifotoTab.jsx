@@ -1,6 +1,8 @@
+==== BEGIN FILE: src/components/MultifotoTab.jsx ====
 //multifoto tab, txt2img, img2img and pillow
 
 import { useEffect, useRef, useState } from "react";
+import { IMG_STEPS, IMG_STRENGTH } from "../lib/imageParams.js";
 import { useNavigate } from "react-router-dom";
 
 const API = "https://api.danielevillanova.com";
@@ -268,10 +270,10 @@ export default function MultifotoTab({ embedded = true }) {
           </select>
         </div>
         <label className="i2i-label" htmlFor="i2i-prompt">Istruzioni per la modifica</label><textarea id="i2i-prompt" className="i2i-input i2i-prompt" value={prompt} onChange={e => setPrompt(e.target.value)} maxLength={3000} required={mode !== "compose"} disabled={busy} />
-        <div className="i2i-field"><label className="i2i-label" htmlFor="i2i-strength">Forza modifica: {strength.toFixed(2)}</label><input id="i2i-strength" type="range" min=".1" max="1" step=".05" value={strength} onChange={e => setStrength(Number(e.target.value))} disabled={busy} /><div className="i2i-range"><span>Più fedele</span><span>Più trasformata</span></div></div>
+        <div className="i2i-field"><label className="i2i-label" htmlFor="i2i-strength">Forza modifica: {strength.toFixed(2)}</label><input id="i2i-strength" type="range" min={IMG_STRENGTH.min} max={IMG_STRENGTH.max} step={IMG_STRENGTH.step} value={strength} onChange={e => setStrength(Number(e.target.value))} disabled={busy} /><div className="i2i-range"><span>Più fedele</span><span>Più trasformata</span></div></div>
         <label className="i2i-check"><input type="checkbox" checked={antiArtifact} onChange={e => setAntiArtifact(e.target.checked)} disabled={busy} /> Clausola anti-artefatti (no testo, no caratteri cinesi, no watermark)</label>
         <div className="i2i-fields"><label className="i2i-field"><span className="i2i-label">Categoria</span><select className="i2i-input" value={size} onChange={e => { setSize(Number(e.target.value)); setFormatIdx(0); }} disabled={busy}>{Object.keys(GRADIO_FORMATS).map(c => <option key={c} value={c}>{c}</option>)}</select></label><label className="i2i-field"><span className="i2i-label">Formato</span><select className="i2i-input" value={formatIdx} onChange={e => setFormatIdx(Number(e.target.value))} disabled={busy}>{formats.map((f, i) => <option key={f[0]} value={i}>{f[0]}</option>)}</select></label>
-        <label className="i2i-field"><span className="i2i-label">Steps</span><select className="i2i-input" value={steps} onChange={e => setSteps(e.target.value)} disabled={busy}><option>1</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option><option>12</option><option>15</option></select></label></div>
+        <label className="i2i-field"><span className="i2i-label">Steps</span><select className="i2i-input" value={steps} onChange={e => setSteps(e.target.value)} disabled={busy}>{IMG_STEPS.map(s => <option key={s} value={s}>{s}</option>)}</select></label></div>
         <label className="i2i-label" htmlFor="i2i-seed">Seed (facoltativo)</label><input id="i2i-seed" className="i2i-input" placeholder="Casuale" value={seed} onChange={e => setSeed(e.target.value.replace(/[^0-9-]/g, ""))} disabled={busy} />
         <div className="i2i-actions"><button className="i2i-btn i2i-primary" type="submit" disabled={!files.length || (mode !== "compose" && !prompt.trim()) || busy}>{busy ? "Elaborazione…" : "✦ Modifica immagine"}</button><button className="i2i-btn" type="button" onClick={reset} disabled={busy}>Reset risultato</button></div>
       </section>
