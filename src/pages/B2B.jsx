@@ -1,3 +1,4 @@
+==== BEGIN FILE: src/pages/B2B.jsx ====
 // ============================================================
 // PROJECT TEST — Agent Arena / Bot to Bot
 // Layout ispirato a Emergence Lab.
@@ -31,6 +32,7 @@
 // ============================================================
 
 import { useState, useEffect, useRef } from "react";
+import { IMG_STEPS, IMG_STRENGTH } from "../lib/imageParams.js";
 import bgImage from "../assets/B2B.jpeg";
 import { useTranslation } from "react-i18next";
 
@@ -995,8 +997,7 @@ function ArenaTab({ setTab }) {
                     <strong>{t("b2b.error")}</strong>
                     <div>
                       {data.error ||
-                        t("b2b.gatewayLogs")}
-                    </div>
+                        t("b2b.gatewayLogs")}                    </div>
                   </div>
                 )}
                 {!running && data.status === "COMPLETED" && (
@@ -1899,7 +1900,6 @@ const styles = {
 //   GET  /api/image/jobs/{id}/result -> { image_base64, seed }
 // ============================================================
 
-const IMG_STEPS = [1, 3, 4, 5, 6, 7, 8, 9, 12, 15];
 
 // Stessa griglia di GRADIO_FORMATS (ImageLab / app Gradio).
 const IMG_FORMATS = {
@@ -1996,8 +1996,7 @@ function B2BImgTab({ setTab }) {
       if (!res.ok) {
         const detail =
           typeof data.detail === "string"
-            ? data.detail
-            : data.detail
+            ? data.detail            : data.detail
               ? JSON.stringify(data.detail)
               : "HTTP " + res.status;
         throw new Error(detail);
@@ -2155,7 +2154,7 @@ function B2BImgTab({ setTab }) {
         </div>
         <p style={imgStyles.imgSub}>
           Un'immagine di partenza, 12 bot: ognuno produce la sua variante con il
-          proprio prompt di modifica, steps e temperatura (strength). Il run è
+          proprio prompt di modifica, steps e forza modifica (strength). Il run è
           sequenziale, un job per volta sul Mac. Risoluzione uguale per tutti.
         </p>
       </div>
@@ -2270,12 +2269,17 @@ function B2BImgTab({ setTab }) {
               onChange={(e) => setBot(bot.id, { prompt: e.target.value })}
             />
             <div style={imgStyles.paramRow}>
-              <span style={imgStyles.paramLabel}>TEMP</span>
+              <span
+                style={imgStyles.paramLabel}
+                title="Forza modifica: basso = più fedele alla foto, alto = più trasformata"
+              >
+                MODIFICA
+              </span>
               <input
                 type="range"
-                min="0.15"
-                max="0.95"
-                step="0.05"
+                min={IMG_STRENGTH.min}
+                max={IMG_STRENGTH.max}
+                step={IMG_STRENGTH.step}
                 value={bot.temp}
                 style={imgStyles.range}
                 disabled={running}
