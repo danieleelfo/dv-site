@@ -1,4 +1,3 @@
-==== BEGIN FILE: src/pages/B2B.jsx ====
 // ============================================================
 // PROJECT TEST — Agent Arena / Bot to Bot
 // Layout ispirato a Emergence Lab.
