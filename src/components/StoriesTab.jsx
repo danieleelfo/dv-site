@@ -1,4 +1,3 @@
-==== BEGIN FILE: src/components/StoriesTab.jsx ====
 // src/components/StoriesTab.jsx
 // TAB STORIES — aggiornato con le funzionalita LeleAdmin: titoli di tutte
 // le scene in griglia subito dopo la pianificazione, stato per card
