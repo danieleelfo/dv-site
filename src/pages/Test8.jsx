@@ -26,6 +26,7 @@
 // ============================================================
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { IMG_STEPS, IMG_STRENGTH, nearestStep } from "../lib/imageParams.js";
 import { useNavigate } from "react-router-dom";
 
 import StoriesTab from "../components/StoriesTab";
@@ -458,7 +459,7 @@ export default function ImageLab() {
       setRandomSeed(false);
     }
 
-    if (Number.isFinite(item.steps)) setSteps(item.steps);
+    if (Number.isFinite(item.steps)) setSteps(nearestStep(item.steps));
 
     for (const [cat, list] of Object.entries(GRADIO_FORMATS)) {
       const idx = list.findIndex(
@@ -958,31 +959,37 @@ export default function ImageLab() {
                   </div>
                 </div>
 
-                {initFile && (
-                  <div className="il-strength">
-                    <label className="il-label" htmlFor="il-strength">
-                      Forza modifica: {strength.toFixed(2)} ·{" "}
-                      {strength < 0.35
-                        ? "più fedele"
-                        : strength > 0.7
-                          ? "più trasformata"
-                          : "equilibrata"}
-                    </label>
-                    <input
-                      id="il-strength"
-                      className="il-range"
-                      type="range"
-                      min="0.15"
-                      max="0.95"
-                      step="0.05"
-                      value={strength}
-                      onChange={(event) =>
-                        setStrength(Number(event.target.value))
-                      }
-                      disabled={busy}
-                    />
-                  </div>
-                )}
+                <div
+                  className="il-strength"
+                  style={initFile ? undefined : { opacity: 0.5 }}
+                >
+                  <label className="il-label" htmlFor="il-strength">
+                    Forza modifica: {strength.toFixed(2)} ·{" "}
+                    {strength < 0.35
+                      ? "più fedele"
+                      : strength > 0.7
+                        ? "più trasformata"
+                        : "equilibrata"}
+                  </label>
+                  <input
+                    id="il-strength"
+                    className="il-range"
+                    type="range"
+                    min={IMG_STRENGTH.min}
+                    max={IMG_STRENGTH.max}
+                    step={IMG_STRENGTH.step}
+                    value={strength}
+                    onChange={(event) =>
+                      setStrength(Number(event.target.value))
+                    }
+                    disabled={busy || !initFile}
+                  />
+                  {!initFile && (
+                    <small className="il-hint">
+                      Si attiva quando carichi una foto
+                    </small>
+                  )}
+                </div>
 
                 <label className="il-label" htmlFor="il-prompt">
                   {initFile ? "Istruzioni per la modifica" : "Descrizione"}
@@ -990,8 +997,7 @@ export default function ImageLab() {
 
                 <textarea
                   id="il-prompt"
-                  className="il-input il-prompt"
-                  placeholder={
+                  className="il-input il-prompt"                  placeholder={
                     initFile
                       ? "Es. Keep the main subject and composition, add a pirate in the sea swimming…"
                       : "Es. Un faro sulla costa mediterranea al tramonto, mare mosso, luce cinematografica, fotografia realistica…"
@@ -1067,9 +1073,17 @@ export default function ImageLab() {
                       }
                       disabled={busy}
                     >
-                      <option value={4}>4 · Test rapido</option>
-                      <option value={8}>8 · Standard</option>
-                      <option value={9}>9 · Sperimentale</option>
+                      {IMG_STEPS.map((s) => (
+                        <option key={s} value={s}>
+                          {s === 4
+                            ? "4 · Test rapido"
+                            : s === 8
+                              ? "8 · Standard"
+                              : s === 9
+                                ? "9 · Sperimentale"
+                                : s}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -1518,7 +1532,8 @@ export default function ImageLab() {
                 maxLength={2000}
                 value={ocrPrompt}
                 disabled={ocrStatus === "running"}
-                placeholder="Es. Estrai solo i totali di questa fattura"
+                placeholder="Es. Estrai solo i totali di questa fattura
+"
                 onChange={(e) => setOcrPrompt(e.target.value)}
                 style={{
                   width: "100%",
@@ -1981,8 +1996,7 @@ const STYLES = `
   color: var(--ink, #e7edf1);
   font-size: .8rem;
   line-height: 1.5;
-  overflow-wrap: anywhere;
-}
+  overflow-wrap: anywhere;}
 .il-history-meta {
   display: flex;
   flex-wrap: wrap;
@@ -2225,4 +2239,3 @@ const STYLES = `
   }
 }
 `;
-
