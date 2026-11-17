@@ -1,7 +1,7 @@
 // Parametri GraDV condivisi da tutte le interfacce di generazione immagini
 // (ImageLab, B2B, Multifoto, Stories, LeleAdmin e le pagine di test).
 // Un solo posto dove cambiare i valori ammessi per gli steps.
-export const IMG_STEPS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 15];
+export const IMG_STEPS = [4, 5, 6, 7, 8, 9, 12, 15];
 
 // Porta un valore qualsiasi (es. da un elemento dell'archivio) allo step
 // ammesso più vicino, così il menu non resta su un valore che non esiste.
