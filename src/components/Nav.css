@@ -81,8 +81,9 @@
   padding: 7px;
   border: 1px solid #1f2b35;
   border-radius: 10px;
-  background: #101820;
+  background: rgba(16, 24, 32, .6);
   box-shadow: 0 12px 32px rgba(0,0,0,.4);
+  backdrop-filter: blur(10px);
 }
 .nav4-panel a {
   display: block;
@@ -174,6 +175,7 @@
     top: auto;
     left: 8px;
     right: 8px;
+    width: auto;
     margin-top: 4px;
     min-width: 0;
     max-height: min(55vh, 360px);
