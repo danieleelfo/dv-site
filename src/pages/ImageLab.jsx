@@ -46,30 +46,12 @@ const GRADIO_FORMATS = {
   1280: [["1280 × 1280 (1:1)", 1280, 1280], ["1536 × 1024 (3:2)", 1536, 1024], ["1024 × 1536 (2:3)", 1024, 1536], ["1536 × 864 (16:9)", 1536, 864], ["864 × 1536 (9:16)", 864, 1536]],
 };
 
-// Preset di prompt per il tab OCR: clic = inserisce il testo
-// nell'area, dove resta modificabile prima dell'invio. I prompt restano in
-// italiano: sono istruzioni per il modello di visione.
+// Preset OCR tradotti nella lingua attiva dell'interfaccia.
 const OCR_PROMPT_PRESETS = [
-  {
-    labelKey: "ocrPresetAll",
-    prompt:
-      "Estrai tutto il testo presente in questa immagine. Riproduci fedelmente, mantenendo l'ordine di lettura. Se è una tabella, usa una riga per persona con i valori separati da |.",
-  },
-  {
-    labelKey: "ocrPresetTimesheet",
-    prompt:
-      "Estrai il testo di questo foglio presenze. Per ogni persona riporta il nome seguito dalle lettere di stato di ogni giorno, separate da spazi. Una riga per persona,una colonna per ora del giorno, formato: NOME | lettere | . SUM(ore lavorate)",
-  },
-  {
-    labelKey: "ocrPresetDigits",
-    prompt:
-      "Estrai da questa immagine solo numeri e date. Riportali come elenco, uno per riga, senza testo descrittivo.",
-  },
-  {
-    labelKey: "ocrPresetInvoice",
-    prompt:
-      "Estrai da questo documento i dati principali: mittente, destinatario, numero documento, data, totali e voci (descrizione, quantità, importo). Formatta come elenco.",
-  },
+  { labelKey: "ocrPresetAll", promptKey: "all" },
+  { labelKey: "ocrPresetTimesheet", promptKey: "timesheet" },
+  { labelKey: "ocrPresetDigits", promptKey: "digits" },
+  { labelKey: "ocrPresetInvoice", promptKey: "invoice" },
 ];
 
 function parseJwt(token) {
@@ -151,7 +133,7 @@ async function readResponse(response) {
 
 export default function ImageLab({ initialTab = "genera" }) {
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const loginButtonRef = useRef(null);
   const pollControllerRef = useRef(null);
   const startedAtRef = useRef(null);
@@ -218,8 +200,17 @@ export default function ImageLab({ initialTab = "genera" }) {
   const [ocrStatus, setOcrStatus] = useState("idle");
   const [ocrText, setOcrText] = useState("");
   const [ocrError, setOcrError] = useState("");
-  const [ocrPrompt, setOcrPrompt] = useState(OCR_PROMPT_PRESETS[0].prompt);
+  const [ocrPreset, setOcrPreset] = useState("all");
+  const [ocrPromptEdited, setOcrPromptEdited] = useState(false);
+  const [ocrPrompt, setOcrPrompt] = useState(() => t("img.ocrPrompts.all"));
   const [jcsInterpretation, setJcsInterpretation] = useState("");
+
+  // Aggiorna il preset al cambio lingua, ma non sovrascrive modifiche manuali.
+  useEffect(() => {
+    if (!ocrPromptEdited) {
+      setOcrPrompt(t(`img.ocrPrompts.${ocrPreset}`));
+    }
+  }, [i18n.language, ocrPreset, ocrPromptEdited, t]);
 
   // ----------------------------------------------------------
   // Google login condiviso
@@ -389,7 +380,7 @@ export default function ImageLab({ initialTab = "genera" }) {
     }
 
     setOcrImage(file);
-  }, []);
+  }, [t]);
 
   async function runOcr(event) {
     event.preventDefault();
@@ -417,7 +408,7 @@ export default function ImageLab({ initialTab = "genera" }) {
         },
         body: JSON.stringify({
             image_base64: base64,
-            prompt: ocrPrompt.trim() || OCR_PROMPT_PRESETS[0].prompt,
+            prompt: ocrPrompt.trim() || t("img.ocrPrompts.all"),
           }),
       });
 
@@ -1434,7 +1425,10 @@ export default function ImageLab({ initialTab = "genera" }) {
                 value={ocrPrompt}
                 disabled={ocrStatus === "running"}
                 placeholder={t("img.ocrPromptPlaceholder")}
-                onChange={(e) => setOcrPrompt(e.target.value)}
+                onChange={(e) => {
+                  setOcrPromptEdited(true);
+                  setOcrPrompt(e.target.value);
+                }}
                 style={{
                   width: "100%",
                   boxSizing: "border-box",
@@ -1467,8 +1461,12 @@ export default function ImageLab({ initialTab = "genera" }) {
                     type="button"
                     className="il-button"
                     disabled={ocrStatus === "running"}
-                    onClick={() => setOcrPrompt(p.prompt)}
-                    title={p.prompt}
+                    onClick={() => {
+                      setOcrPreset(p.promptKey);
+                      setOcrPromptEdited(false);
+                      setOcrPrompt(t(`img.ocrPrompts.${p.promptKey}`));
+                    }}
+                    title={t(`img.ocrPrompts.${p.promptKey}`)}
                     style={{ fontSize: ".72rem", padding: ".3rem .6rem" }}
                   >
                     {t("img." + p.labelKey)}
