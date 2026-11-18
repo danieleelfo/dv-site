@@ -458,7 +458,7 @@ export default function FumettiTab({ embedded = false } = {}) {
             <div className="fb-fields">
               <div className="fb-field"><label className="fb-label">{t("img.comics.textSize")}</label><input className="fb-input" type="number" min="12" max="200" value={selectedBubble.fontSize} onChange={e => patchBubble(selectedBubble.id, { fontSize: Number(e.target.value) || 44 })} /></div>
               <div className="fb-field"><label className="fb-label">{t("img.comics.background")}</label><input className="fb-input fb-color" type="color" value={selectedBubble.fill} onChange={e => patchBubble(selectedBubble.id, { fill: e.target.value })} /></div>
-              <div className="fb-field"><label className="fb-label">Testo</label><input className="fb-input fb-color" type="color" value={selectedBubble.color} onChange={e => patchBubble(selectedBubble.id, { color: e.target.value })} /></div>
+              <div className="fb-field"><label className="fb-label">{t("img.comics.textColor")}</label><input className="fb-input fb-color" type="color" value={selectedBubble.color} onChange={e => patchBubble(selectedBubble.id, { color: e.target.value })} /></div>
             </div>
           </div>}
         </section>
@@ -488,7 +488,7 @@ const STYLES = `
 .fb-panel{min-width:0;padding:1.1rem;border:1px solid var(--border,#1f2b35);border-radius:12px;background:var(--panel,#121a22);color:var(--ink,#e7edf1)}
 .fb-panel h2{font-size:1.08rem;margin:0 0 .9rem}.fb-panel h2 small{color:var(--ink-dim,#8fa1ac);font-weight:400}
 .fb-upload,.fb-actions,.fb-order{display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;margin:.6rem 0}
-.fb-upload input[type=file]{max-width:220px;font-size:.75rem}
+.fb-upload input[type=file]{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
 .fb-btn{padding:.58rem .8rem;border:1px solid var(--border,#33414c);border-radius:7px;background:transparent;color:inherit;font:inherit;font-size:.78rem;cursor:pointer}
 .fb-btn:disabled{opacity:.4;cursor:not-allowed}.fb-primary{background:var(--accent,#3fd0c9);border-color:var(--accent,#3fd0c9);color:#071212;font-weight:700}
 .fb-danger{color:#fca5a5}.fb-mini{position:relative;overflow:hidden}.fb-mini input{position:absolute;inset:0;opacity:0;width:100%;cursor:pointer}
