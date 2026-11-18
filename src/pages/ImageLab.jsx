@@ -1,5 +1,5 @@
 // src/pages/ImageLab.jsx
-// AI IMAGE LAB — fusione di Test4 (txt2img + history + OCR), Multifoto (img2img multifoto) +
+// AI IMAGE LAB  (txt2img + history + OCR), Multifoto (img2img multifoto)
 // ============================================================
 // AI IMAGE LAB — Z-Image-Turbo
 //
@@ -16,7 +16,6 @@
 //   GET /api/image/jobs/{job_id}/result
 //       -> { image_base64, seed, width, height }
 //
-// AUTH: stesso login Google di Improve.jsx.
 // ============================================================
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -47,9 +46,9 @@ const GRADIO_FORMATS = {
   1280: [["1280 × 1280 (1:1)", 1280, 1280], ["1536 × 1024 (3:2)", 1536, 1024], ["1024 × 1536 (2:3)", 1024, 1536], ["1536 × 864 (16:9)", 1536, 864], ["864 × 1536 (9:16)", 864, 1536]],
 };
 
-// Preset di prompt per il tab OCR (da Test4): clic = inserisce il testo
+// Preset di prompt per il tab OCR: clic = inserisce il testo
 // nell'area, dove resta modificabile prima dell'invio. I prompt restano in
-// italiano: sono istruzioni per il modello di visione, gia' testate su Test4.
+// italiano: sono istruzioni per il modello di visione.
 const OCR_PROMPT_PRESETS = [
   {
     labelKey: "ocrPresetAll",
@@ -59,7 +58,7 @@ const OCR_PROMPT_PRESETS = [
   {
     labelKey: "ocrPresetTimesheet",
     prompt:
-      "Estrai il testo di questo foglio presenze. Per ogni persona riporta il nome seguito dalle lettere di stato di ogni giorno, separate da spazi. Una riga per persona, formato: NOME | lettere.",
+      "Estrai il testo di questo foglio presenze. Per ogni persona riporta il nome seguito dalle lettere di stato di ogni giorno, separate da spazi. Una riga per persona,una colonna per ora del giorno, formato: NOME | lettere | . SUM(ore lavorate)",
   },
   {
     labelKey: "ocrPresetDigits",

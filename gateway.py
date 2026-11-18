@@ -4098,6 +4098,9 @@ async def vision_ocr(
         "prompt": req.prompt,
         "images": [image_b64],
         "stream": False,
+        "options": {
+            "num_ctx": 8192,
+        },
     }
 
     timeout = httpx.Timeout(
