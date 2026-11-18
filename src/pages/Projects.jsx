@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Link } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import bgImage from '../assets/Project.jpg'
 import { projectSlugs, projectNames } from '../data/projects.js'
 
@@ -23,6 +23,7 @@ const isExternal = (href) => /^https?:\/\//.test(href)
 
 export default function Projects() {
   const { t } = useTranslation()
+  const { lang } = useParams()
 
   return (
     <div>
@@ -82,11 +83,26 @@ export default function Projects() {
           })}
         </div>
       </section>
+
+      <section className="container" style={styles.heroActions}>
+        <Link to={lang ? `/${lang}` : '/'} style={styles.btnGhost}>
+          {t('nav.home')}
+        </Link>
+        <Link to={lang ? `/${lang}/about` : '/about'} style={styles.btnGhost}>
+          {t('nav.expertise')}
+        </Link>
+        <Link to={lang ? `/${lang}/contact` : '/contact'} style={styles.btnPrimary}>
+          {t('hero.contact')}
+        </Link>
+      </section>
     </div>
   )
 }
 
 const styles = {
+  heroActions: { display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', paddingTop: '0.5rem', paddingBottom: '4rem' },
+  btnPrimary: { background: '#3fd0c9', color: '#0b1015', padding: '0.65rem 0.8rem', borderRadius: 6, fontWeight: 600, fontSize: '0.8rem', display: 'inline-block', textDecoration: 'none' },
+  btnGhost: { border: '1px solid #3fd0c9', color: '#3fd0c9', padding: '0.65rem 0.8rem', borderRadius: 6, fontWeight: 600, fontSize: '0.8rem', display: 'inline-block', textDecoration: 'none' },
   wrap: {
     position: 'relative',
     height: '40vh', // Immagine più piccola
