@@ -24,7 +24,8 @@ export default function Contact() {
           </a>
         </section>
 
-        <div className="container" style={homeStyles.heroActions}>
+        <div className="container" style={homeStyles.signatureRow}>
+          <div style={homeStyles.heroActions}>
           <Link to={lang ? `/${lang}` : '/'} style={homeStyles.btnGhost}>
             {t('nav.home')}
           </Link>
@@ -34,6 +35,7 @@ export default function Contact() {
           <Link to={lang ? `/${lang}/about` : '/about'} style={homeStyles.btnPrimary}>
             {t('nav.expertise')}
           </Link>
+          </div>
         </div>
       </div>
     </div>
@@ -48,8 +50,40 @@ const pageStyles = {
 }
 
 const homeStyles = {
-  heroActions: { maxWidth: 950, margin: '0 auto', padding: '0 1rem 4rem', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' },
+  signatureRow: {
+    marginTop: '1rem',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '1rem',
+    flexWrap: 'wrap',
+  },
+  heroActions: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: '0.6rem',
+    flexWrap: 'wrap',
+  },
+  btnPrimary: {
+    background: '#3fd0c9',
+    color: '#0b1015',
+    padding: '0.65rem 0.8rem',
+    borderRadius: 6,
+    fontWeight: 600,
+    fontSize: '0.8rem',
+    display: 'inline-block',
+    textDecoration: 'none',
+  },
+  btnGhost: {
+    border: '1px solid #3fd0c9',
+    color: '#3fd0c9',
+    padding: '0.65rem 0.8rem',
+    borderRadius: 6,
+    fontWeight: 600,
+    fontSize: '0.8rem',
+    display: 'inline-block',
+    textDecoration: 'none',
+  },
   aboutText: { color: '#b7c5cc', fontSize: '1.05rem', maxWidth: 720 },
-  btnPrimary: { background: '#3fd0c9', color: '#0b1015', padding: '0.65rem 0.8rem', borderRadius: 6, fontWeight: 600, fontSize: '0.8rem', display: 'inline-block' },
-  btnGhost: { border: '1px solid #3fd0c9', color: '#3fd0c9', padding: '0.65rem 0.8rem', borderRadius: 6, fontWeight: 600, fontSize: '0.8rem', display: 'inline-block' },
 }
