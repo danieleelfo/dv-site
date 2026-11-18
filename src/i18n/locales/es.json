@@ -826,7 +826,7 @@
     "clientIdMissing": "VITE_GOOGLE_CLIENT_ID no está configurado.",
     "subtitle": "Generación local con Z-Image-Turbo",
     "logout": "Cerrar sesión",
-    "notice": "Motor local ⚓ · Procesado M5 · Cola asíncrona",
+    "notice": "Motor local ⚓ · Procesado M5 · Async",
     "tabGenera": "✦ Generar",
     "tabStorico": "🖼 Historial",
     "editTitle": "Edita una imagen",
