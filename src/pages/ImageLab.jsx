@@ -121,6 +121,17 @@ function normalizeStatus(value) {
   return String(value || "").toLowerCase();
 }
 
+/** Prefer already-translated frontend messages; otherwise use i18n fallback. */
+function friendlyError(err, fallbackKey, t) {
+  const msg = err?.message;
+  if (typeof msg === "string" && msg.length > 0 && msg.length < 180) {
+    if (!msg.includes("\n") && !msg.startsWith("Error:")) {
+      return msg;
+    }
+  }
+  return t(fallbackKey);
+}
+
 async function readResponse(response) {
   const data = await response.json().catch(() => ({}));
 
@@ -415,7 +426,8 @@ export default function ImageLab({ initialTab = "genera" }) {
       setJcsInterpretation(data.is_jcs ? data.jcs || "" : "");
       setOcrStatus("done");
     } catch (err) {
-      setOcrError(err.message || String(err));
+      console.warn("[ImageLab OCR]", err);
+      setOcrError(friendlyError(err, "img.errorFallback", t));
       setOcrStatus("error");
     }
   }
@@ -511,7 +523,7 @@ export default function ImageLab({ initialTab = "genera" }) {
           // Il job non esiste piu' sul gateway (restart, pulizia): non
           // ripollare all'infinito, esci con errore e bottone di reset.
           setStatus("error");
-          setError("Job non più disponibile (rimosso o scaduto). Avvia una nuova generazione.");
+          setError(t("img.jobGone"));
           try {
             const userEmail = parseJwt(idToken)?.email || "";
             if (userEmail) {
@@ -536,7 +548,8 @@ export default function ImageLab({ initialTab = "genera" }) {
         );
 
         if (data.error) {
-          setError(String(data.error));
+          console.warn("[ImageLab job error]", data.error);
+          setError(t("img.genFailed"));
         }
 
         if (
@@ -845,7 +858,8 @@ export default function ImageLab({ initialTab = "genera" }) {
       setJobId(newJobId);
     } catch (err) {
       setStatus("error");
-      setError(err.message || String(err));
+      console.warn("[ImageLab generate]", err);
+      setError(friendlyError(err, "img.errorFallback", t));
     }
   }
 
