@@ -912,7 +912,8 @@
       "timesheet": "Extrayez le texte de cette feuille de présence. Pour chaque personne, indiquez le nom suivi des lettres de statut de chaque jour, séparées par des espaces. Une ligne par personne et une colonne par jour. Format : NOM | lettres | SOMME(heures travaillées).",
       "digits": "Extrayez uniquement les nombres et les dates de cette image. Présentez-les sous forme de liste, un élément par ligne, sans texte descriptif.",
       "invoice": "Extrayez les principales données de ce document : expéditeur, destinataire, numéro du document, date, totaux et lignes (description, quantité, montant). Présentez le résultat sous forme de liste."
-    }
+    },
+    "chooseFile": "Choisir un fichier"
   },
   "dga": {
     "unauthorized": "Accès non autorisé pour ce compte Google.",
