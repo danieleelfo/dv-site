@@ -37,9 +37,15 @@ export default function About() {
           </div>
         </section>
 
-        <div className="container" style={{ maxWidth: 950, margin: '0 auto', paddingBottom: '4rem' }}>
+        <div className="container" style={homeStyles.heroActions}>
+          <Link to={lang ? `/${lang}` : '/'} style={homeStyles.btnGhost}>
+            {t('nav.home')}
+          </Link>
+          <Link to={lang ? `/${lang}/projects` : '/projects'} style={homeStyles.btnGhost}>
+            {t('hero.viewProjects')}
+          </Link>
           <Link to={lang ? `/${lang}/contact` : '/contact'} style={homeStyles.btnPrimary}>
-            {t('hero.contact')} →
+            {t('hero.contact')}
           </Link>
         </div>
       </div>
@@ -55,10 +61,12 @@ const pageStyles = {
 }
 
 const homeStyles = {
+  heroActions: { maxWidth: 950, margin: '0 auto', padding: '0 1rem 4rem', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' },
   aboutText: { color: '#b7c5cc', fontSize: '1.05rem', maxWidth: 720 },
   expertiseGrid: { display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '0.75rem' },
   expertiseCard: { background: 'rgba(18, 26, 34, 0.85)', border: '1px solid #1f2b35', borderRadius: 10, padding: '1.5rem' },
   expertiseTitle: { fontSize: '1rem', marginBottom: '0.6rem', color: '#3fd0c9' },
   expertiseText: { color: '#8fa1ac', fontSize: '0.9rem' },
   btnPrimary: { background: '#3fd0c9', color: '#0b1015', padding: '0.65rem 0.8rem', borderRadius: 6, fontWeight: 600, fontSize: '0.8rem', display: 'inline-block' },
+  btnGhost: { border: '1px solid #3fd0c9', color: '#3fd0c9', padding: '0.65rem 0.8rem', borderRadius: 6, fontWeight: 600, fontSize: '0.8rem', display: 'inline-block' },
 }
