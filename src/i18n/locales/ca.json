@@ -826,7 +826,7 @@
     "clientIdMissing": "VITE_GOOGLE_CLIENT_ID no està configurat.",
     "subtitle": "Generació local amb Z-Image-Turbo",
     "logout": "Tanca la sessió",
-    "notice": "Motor local ⚓ · Processament al Mac · Cua asíncrona",
+    "notice": "Motor local ⚓ · Processament M5 · Cua asíncrona",
     "tabGenera": "✦ Genera",
     "tabStorico": "🖼 Historial",
     "editTitle": "Edita una imatge",

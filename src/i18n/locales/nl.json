@@ -825,7 +825,7 @@
     "clientIdMissing": "VITE_GOOGLE_CLIENT_ID is niet geconfigureerd.",
     "subtitle": "Lokale generatie met Z-Image-Turbo",
     "logout": "Uitloggen",
-    "notice": "Lokale engine ⚓ · Verwerking op de Mac · Asynchrone wachtrij",
+    "notice": "Lokale engine ⚓ · Verwerking M5 · Asynchrone wachtrij",
     "tabGenera": "✦ Genereren",
     "tabStorico": "🖼 Historie",
     "editTitle": "Bewerk een afbeelding",
