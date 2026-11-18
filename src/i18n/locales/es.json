@@ -913,7 +913,8 @@
       "timesheet": "Extrae el texto de esta hoja de asistencia. Para cada persona, indica el nombre seguido de las letras de estado de cada día, separadas por espacios. Una fila por persona y una columna por día. Formato: NOMBRE | letras | SUMA(horas trabajadas).",
       "digits": "Extrae solo números y fechas de esta imagen. Devuélvelos en una lista, uno por línea, sin texto descriptivo.",
       "invoice": "Extrae los datos principales de este documento: emisor, destinatario, número de documento, fecha, totales y conceptos (descripción, cantidad e importe). Formatea la respuesta como una lista."
-    }
+    },
+    "chooseFile": "Elegir archivo"
   },
   "dga": {
     "unauthorized": "Acceso no autorizado para esta cuenta de Google.",
