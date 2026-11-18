@@ -1056,7 +1056,8 @@
       "invalidJson": "Respuesta no JSON del gateway (HTTP {{status}}): {{body}}",
       "emptyBody": "cuerpo vacío",
       "httpError": "HTTP {{status}}"
-    }
+    },
+    "ocrTabSubtitle": "Extraer texto"
   },
   "dga": {
     "unauthorized": "Acceso no autorizado para esta cuenta de Google.",
