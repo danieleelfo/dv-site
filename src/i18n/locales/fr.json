@@ -960,7 +960,10 @@
       "photoVariant": "Variante de la photo {{index}}",
       "downloadPhoto": "↓ Télécharger la photo {{index}}",
       "testFailed": "Test non terminé",
-      "retry": "Réessayer"
+      "retry": "Réessayer",
+      "endpointMissing": "Cet endpoint n'est pas encore disponible dans la passerelle (404). La page est prête pour le test ; le backend reste à ajouter.",
+      "noJobOrImage": "Le serveur n'a renvoyé ni job_id ni image.",
+      "jobNoImage": "Le travail est terminé, mais le serveur n'a renvoyé aucune image."
     },
     "comics": {
       "title": "Éditeur de BD",
@@ -1020,7 +1023,34 @@
       "preview": "Aperçu de la BD complète",
       "completedPageAlt": "Page de BD complète",
       "downloadPng": "Télécharger PNG",
-      "footer": "Éditeur de BD · Pillow sur Mac · jusqu’à {{max}} cases"
+      "footer": "Éditeur de BD · Pillow sur Mac · jusqu’à {{max}} cases",
+      "textColor": "Texte"
+    },
+    "archive": {
+      "kicker": "GRADV · ARCHIVE PRINCIPALE",
+      "title": "Depuis l’archive",
+      "subtitle": "{{count}} images · sélectionne une photo pour ta BD",
+      "selectPhoto": "Sélectionner une photo dans l’archive GraDV",
+      "searchPlaceholder": "Rechercher dans le prompt…",
+      "searchLabel": "Rechercher dans le prompt",
+      "search": "Rechercher",
+      "reset": "Réinitialiser",
+      "perPage": "{{count}} par page",
+      "downloadingMany": "Téléchargement de {{count}} images…",
+      "downloadingOriginal": "Téléchargement de l’original #{{id}}…",
+      "loading": "Chargement de l’archive…",
+      "noImages": "Aucune image trouvée.",
+      "imageNumber": "Image #{{id}}",
+      "gradvNumber": "GraDV #{{id}}",
+      "noPrompt": "Prompt indisponible",
+      "selected": "{{count}} sélectionnées",
+      "downloading": "Téléchargement…",
+      "addSelected": "Ajouter la sélection",
+      "pagination": "Pagination de l’archive",
+      "previous": "← Précédente",
+      "pageOf": "Page {{page}} sur {{pages}}",
+      "next": "Suivante →",
+      "noneSelected": "Aucune image sélectionnée n’est disponible."
     }
   },
   "dga": {
