@@ -144,23 +144,23 @@ export default function StoriesTab({ idToken }) {
   const [wantsTts, setWantsTts] = useState(true);
   // Lingua della storia e dell'audio (selettore bandierina accanto al TTS).
   const [storyLang, setStoryLang] = useState("es");
-  const [storyKids, setStoryKids] = useState(true);
+  const [storyKids, setStoryKids] = useState(false);
   const [storyGenre, setStoryGenre] = useState("Random");
   const [storyStyle, setStoryStyle] = useState("");
-  const [storyModel, setStoryModel] = useState("qwen2.5");
+  const [storyModel, setStoryModel] = useState("gemma4");
   // Fumettatura deliberata: 2 pannelli affiancati, 3 in colonna,
   // 4 in griglia 2x2 (nata dal "bug figo" di mistral).
   const [storyStrip, setStoryStrip] = useState("");
   // Nuovo contesto: se attivo, ogni storia parte con un chat_id nuovo
   // (l'agente non vede le storie precedenti e non ricicla i personaggi).
   // Se spento, usa il chat_id fisso salvato: l'agente ricorda tutto.
-  const [freshStory, setFreshStory] = useState(true);
+  const [freshStory, setFreshStory] = useState(false);
   // Personaggio fisso della creazione (fase 2/3): nome+descrizione entrano
   // nel prompt dell'agente e del planner, la foto guida le scene via img2img.
   const [storyPersId, setStoryPersId] = useState("");
-  const [persStrength, setPersStrength] = useState(0.55);
+  const [persStrength, setPersStrength] = useState(0.35);
   // Rigenerazione illustrazioni come nuova versione della stessa storia.
-  const [regModel, setRegModel] = useState("qwen2.5");
+  const [regModel, setRegModel] = useState("mistral");
   const [regStyle, setRegStyle] = useState("");
   // regCount = "" significa "come la versione esistente" (default).
   const [regCount, setRegCount] = useState("");
@@ -556,9 +556,9 @@ export default function StoriesTab({ idToken }) {
         model: storyModel,
         onStatus: (s) => {
           if (s.kind === "batch") {
-            setStage("🧠 Ollama seleziona le scene " + s.from + "-" + s.to + " di " + s.total + "… (" + s.model + ")");
+            setStage("🧠 Ollama seleziona le scene 👨🏽‍🎨" + s.from + "-" + s.to + " di " + s.total + "… (" + s.model + ")");
           } else if (s.kind === "repair") {
-            setStage("🧠 Correzione del formato JSON… (" + s.model + ")");
+            setStage("🧠 Correzione del formato JSON… ⏳ (" + s.model + ")");
           }
         },
       });
@@ -673,8 +673,8 @@ export default function StoriesTab({ idToken }) {
           );
 
           if (index < scenes.length - 1) {
-            setStage("⏳ Pausa 12s prima dell'immagine successiva (libero la RAM del Mac)…");
-            await sleep(12000);
+            setStage("⏳ Pausa 7s prima dell'immagine successiva (libero la RAM del Mac)…");
+            await sleep(7000);
           }
         } catch (err) {
           setImgStart(null);
@@ -685,12 +685,12 @@ export default function StoriesTab({ idToken }) {
           }
           if (!sceneRetried.has(sceneNumber)) {
             sceneRetried.add(sceneNumber);
-            setStage("🔄 Errore di rete sull'immagine " + sceneNumber + "/" + scenes.length + " — attendo 60s e riprovo la scena…");
+            setStage("🔄 Errore di rete sull'immagine " + sceneNumber + "/" + scenes.length + " — attendo 30s e riprovo la scena…");
             setCurrent((c) =>
               c ? { ...c, scenes: (c.scenes || []).map((s, i) =>
                 i === index ? { ...s, status: "Riprovo…" } : s) } : c
             );
-            await sleep(60000);
+            await sleep(30000);
             index -= 1;
             continue;
           }
@@ -887,8 +887,8 @@ export default function StoriesTab({ idToken }) {
                 : s) } : c
           );
           if (index < scenes.length - 1) {
-            setStage("⏳ Pausa 12s prima dell'immagine successiva (libero la RAM del Mac)…");
-            await sleep(12000);
+            setStage("⏳ Pausa di 7s prima dell'immagine successiva…");
+            await sleep(7000);
           }
         } catch (err) {
           setImgStart(null);
@@ -899,13 +899,13 @@ export default function StoriesTab({ idToken }) {
           }
           if (!sceneRetried.has(sceneNumber)) {
             sceneRetried.add(sceneNumber);
-            setStage("🔄 Errore di rete sull'immagine " + sceneNumber + "/" + scenes.length + " — attendo 60s e riprovo la scena…");
+            setStage("🔄 Errore di rete sull'immagine " + sceneNumber + "/" + scenes.length + " — attendo 30s e riprovo la scena…");
             setCurrent((c) =>
               c ? { ...c, scenes: (c.scenes || []).map((s) =>
                 (Number(s?.version) || 1) === nextVersion && s.regIndex === index
                   ? { ...s, status: "Riprovo…" } : s) } : c
             );
-            await sleep(60000);
+            await sleep(30000);
             index -= 1;
             continue;
           }
@@ -1159,7 +1159,7 @@ export default function StoriesTab({ idToken }) {
           <textarea
             id="story-prompt"
             className="il-input il-prompt"
-            placeholder="Es. Un cane con un cappello da pirata che rincorre una palla per i bar di Barcellona…"
+            placeholder="Es. Un cane con un cappello da pirata che rincorre una palla per i bar di Barcelloneta…"
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
             rows={5}
@@ -1179,8 +1179,9 @@ export default function StoriesTab({ idToken }) {
               aria-label="Agente della storia"
               disabled={busy}
             >
-              <option value="Story Whisper">🌈 Story Whisper</option>
               <option value="Night Story">🌙 Night Story</option>
+              <option value="Story Whisper">🌈 Story Whisper</option>
+
             </select>
             <label style={{ display: "flex", alignItems: "center", gap: ".35rem", fontSize: ".8rem", color: "var(--ink-dim, #8fa1ac)" }}>
               <input
