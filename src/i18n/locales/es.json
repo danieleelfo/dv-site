@@ -961,7 +961,10 @@
       "photoVariant": "Variante de foto {{index}}",
       "downloadPhoto": "↓ Descargar foto {{index}}",
       "testFailed": "Prueba no completada",
-      "retry": "Reintentar"
+      "retry": "Reintentar",
+      "endpointMissing": "Este endpoint aún no está disponible en el gateway (404). La página está lista para probar; falta añadir el backend.",
+      "noJobOrImage": "El servidor no devolvió un job_id ni una imagen.",
+      "jobNoImage": "El trabajo terminó, pero el servidor no devolvió ninguna imagen."
     },
     "comics": {
       "title": "Editor de cómics",
@@ -1021,7 +1024,34 @@
       "preview": "Vista previa del cómic completo",
       "completedPageAlt": "Página de cómic completa",
       "downloadPng": "Descargar PNG",
-      "footer": "Editor de cómics · Pillow en el Mac · hasta {{max}} viñetas"
+      "footer": "Editor de cómics · Pillow en el Mac · hasta {{max}} viñetas",
+      "textColor": "Texto"
+    },
+    "archive": {
+      "kicker": "GRADV · ARCHIVO PRINCIPAL",
+      "title": "Desde el archivo",
+      "subtitle": "{{count}} imágenes · selecciona una foto para usarla en el cómic",
+      "selectPhoto": "Selecciona una foto del archivo GraDV",
+      "searchPlaceholder": "Buscar en el prompt…",
+      "searchLabel": "Buscar en el prompt",
+      "search": "Buscar",
+      "reset": "Restablecer",
+      "perPage": "{{count}} por página",
+      "downloadingMany": "Descargando {{count}} imágenes…",
+      "downloadingOriginal": "Descargando el original #{{id}}…",
+      "loading": "Cargando archivo…",
+      "noImages": "No se encontraron imágenes.",
+      "imageNumber": "Imagen #{{id}}",
+      "gradvNumber": "GraDV #{{id}}",
+      "noPrompt": "Prompt no disponible",
+      "selected": "{{count}} seleccionadas",
+      "downloading": "Descargando…",
+      "addSelected": "Añadir seleccionadas",
+      "pagination": "Paginación del archivo",
+      "previous": "← Anterior",
+      "pageOf": "Página {{page}} de {{pages}}",
+      "next": "Siguiente →",
+      "noneSelected": "No hay ninguna imagen seleccionada disponible."
     }
   },
   "dga": {
