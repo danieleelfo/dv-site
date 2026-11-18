@@ -84,45 +84,25 @@ export default function Nav() {
 
   return (
     <header className="nav4-header">
-      <div className="nav4-language-row" aria-label="Choose language">
-        <Link to={'/' + activeLang} className="nav4-logo" aria-label="Home">
-          <img src={lelesLogo} alt="LELES" onError={e => { e.currentTarget.style.display = 'none' }} />
-        </Link>
-        {languages.map(item => (
-          <button
-            key={item.code}
-            type="button"
-            className={activeLang === item.code ? 'nav4-language active' : 'nav4-language'}
-            aria-label={item.label}
-            aria-pressed={activeLang === item.code}
-            title={item.label}
-            onClick={() => changeLanguage(item.code)}
-          >
-            {item.code === 'ca' ? (
-              <svg className="nav4-senyera" viewBox="0 0 30 20" role="img" aria-label="Senyera catalana">
-                <rect width="30" height="20" fill="#FCDD09" />
-                {[2, 6, 10, 14].map(y => <rect key={y} y={y} width="30" height="2" fill="#DA121A" />)}
-              </svg>
-            ) : <span>{item.flag}</span>}
-            <small>{item.code.toUpperCase()}</small>
-          </button>
-        ))}
-      </div>
       <div className="nav4-main">
+        <Link to={'/' + activeLang} className="nav4-logo" aria-label="Home">
+            <img src={lelesLogo} alt="LELES" onError={e => { e.currentTarget.style.display = 'none' }} />
+        </Link>
+
         <nav className="nav4-groups" aria-label="Main navigation" ref={groupsRef}>
-          {groups.map(group => (
-            <div className="nav4-group" key={group.id}>
-              <button
-                type="button"
-                className={openGroup === group.id ? 'nav4-group-btn active' : 'nav4-group-btn'}
-                aria-expanded={openGroup === group.id}
-                onClick={() => setOpenGroup(openGroup === group.id ? null : group.id)}
-              >
-                {t(group.key, group.label)}<span className="nav4-chevron">⌄</span>
-              </button>
-              {openGroup === group.id && (
-                <div className="nav4-panel">
-                  {group.links.map(([label, path, key]) => (
+            {groups.map(group => (
+                <div className="nav4-group" key={group.id}>
+                    <button
+                        type="button"
+                        className={openGroup === group.id ? 'nav4-group-btn active' : 'nav4-group-btn'}
+                        aria-expanded={openGroup === group.id}
+                        onClick={() => setOpenGroup(openGroup === group.id ? null : group.id)}
+          >
+            {t(group.key, group.label)}<span className="nav4-chevron">⌄</span>
+          </button>
+          {openGroup === group.id && (
+              <div className="nav4-panel">
+                {group.links.map(([label, path, key]) => (
                     <Link key={path} to={'/' + activeLang + path} onClick={() => setOpenGroup(null)}>
                       {t(key, label)}
                     </Link>
@@ -132,6 +112,28 @@ export default function Nav() {
             </div>
           ))}
         </nav>
+
+        <div className="nav4-language-row" aria-label="Choose language">
+          {languages.map(item => (
+            <button
+              key={item.code}
+              type="button"
+              className={activeLang === item.code ? 'nav4-language active' : 'nav4-language'}
+              aria-label={item.label}
+              aria-pressed={activeLang === item.code}
+              title={item.label}
+              onClick={() => changeLanguage(item.code)}
+            >
+              {item.code === 'ca' ? (
+                <svg className="nav4-senyera" viewBox="0 0 30 20" role="img" aria-label="Senyera catalana">
+                  <rect width="30" height="20" fill="#FCDD09" />
+                  {[2, 6, 10, 14].map(y => <rect key={y} y={y} width="30" height="2" fill="#DA121A" />)}
+                </svg>
+              ) : <span>{item.flag}</span>}
+              <small>{item.code.toUpperCase()}</small>
+            </button>
+          ))}
+        </div>
       </div>
     </header>
   )
