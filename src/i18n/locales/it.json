@@ -964,7 +964,8 @@
       "retry": "Riprova",
       "endpointMissing": "Endpoint non ancora presente nel gateway (404). La pagina è pronta per il test; il backend va aggiunto dopo.",
       "noJobOrImage": "Il server non ha restituito un job_id o un'immagine.",
-      "jobNoImage": "Il lavoro è terminato, ma il server non ha restituito un'immagine."
+      "jobNoImage": "Il lavoro è terminato, ma il server non ha restituito un'immagine.",
+      "photoAlt": "Foto {{index}} di {{count}}"
     },
     "comics": {
       "title": "Editor fumetti",
