@@ -24,31 +24,18 @@ import {
   waitForImageResult,
 } from '../lib/imageJobs'
 
-// F2: adminJson ora vive nel modulo condiviso src/lib/imageJobs.js
-// (stessa firma di prima; migliora solo il messaggio d'errore HTTP
-// mostrando il detail del gateway quando presente).
 const adminJson = apiJson
 
 const LELE_API_URL = 'https://api.danielevillanova.com'
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
 const TOKEN_STORAGE_KEY = 'leles_admin_id_token'
 
-// --- TEST TEMPORANEO: whitelist email per accesso alla console -----------
-// TODO: rimuovere/estendere quando arriva il login Telegram con ADMIN_IDS.
 const ALLOWED_EMAILS = [
   'dannybydanny@hotmail.com',
   'salatinodenise@gmail.com',
 ]
-// Forza il chat_id a un ADMIN_IDS di Leles, così i comandi riservati
-// al "capitano" funzionano anche dalla console web.
 const FORCED_ADMIN_CHAT_ID = 8733881519
-// ---------------------------------------------------------------------------
 
-// --- AUDIO: TTS + registrazione + risposta audio ---------------------------
-// Story Whisper e Night Story: API audio complete (/api/chat e /api/chat/audio).
-// Leles: console admin (login Google). Testo e TTS passano da /api/admin/chat.
-// ATTENZIONE: le due route qui sotto per audio in ingresso e file TTS sono
-// ASSUNTE (speculari a quelle pubbliche): da verificare lato gateway.
 const LELES_AGENT = 'Leles'
 const STRIP_MODES = [
     ["", "—"],
@@ -57,8 +44,6 @@ const STRIP_MODES = [
     ["4", "4 · griglia 2x2"],
   ];
 
-  // Art direction per la fumettatura deliberata: 2 pannelli affiancati,
-  // 3 in colonna, 4 in griglia 2x2 (ordine di lettura orizzontale).
   const stripClause = (mode) =>
     mode === "2"
       ? "Each image must be rendered as a comic strip of exactly 2 side-by-side panels with clear panel borders, showing two consecutive micro-moments of this scene, read from left to right. "
@@ -77,12 +62,7 @@ const AUDIO_AGENTS = [
 const AUDIO_CHAT_ID_KEY = 'lele_chat_id'
 const AUDIO_LANGUAGE = 'it'
 const AUTO_SEND_RECORDING = true
-// ---------------------------------------------------------------------------
 
-// --- SUPER-LELES: selettore modello nel prompt ------------------------------
-// La lista combacia con SUPER_LELES_ALLOWED_MODELS del gateway (gateway.py).
-// Il cambio modello viene inviato come comando "modellosl <nome>", già
-// supportato dal backend: nessuna sintassi nuova.
 const SUPER_MODELS = [
   'mistral',
   'gemma4',
@@ -96,16 +76,12 @@ const SUPER_MODEL_KEY = 'lc_super_model'
 const SUPER_MEMORY_KEY = 'lc_super_use_memory'
 const SUPER_TEMPERATURE_KEY = 'lc_super_temperature'
 
-// Modelli permessi per gli agenti normali (ALLOWED_MODELS in gateway.py).
-// Usati sia dal selettore "modello" (Leles) sia dal "reviewer".
 const LELE_MODELS = ['mistral', 'gemma4', 'llama3', 'qwen2.5', 'deepseek-r1']
 const LELE_MODEL_KEY = 'lc_lele_model'
 const REVIEWER_MODEL_KEY = 'lc_reviewer_model'
 
-// Rescue bot su Telegram 
 const RESCUE_BOT_URL = 'https://t.me/Rescue_Leles_bot'
 
-// Pagine e console ufficiali del sito.
 const QUICK_LINKS = [
   { to: '/improve', label: 'Improve 🛠️', desc: 'lele.pages.improve', main: true },
   { to: '/api-contracts', label: 'API Contracts 📡', desc: 'lele.pages.apiContracts', main: true },
@@ -121,7 +97,6 @@ const QUICK_LINKS = [
   { href: RESCUE_BOT_URL, label: 'Rescue Bot 🛟', desc: 'Telegram: up, restart, status, logs' },
 ]
 
-// Pagine di test/laboratorio: in fondo, si validano da qui.
 const TEST_LINKS = [
   { to: '/test', label: 'Test 🕰️' },
   { to: '/test2', label: 'Test2 🏴‍☠️' },
@@ -133,7 +108,6 @@ const TEST_LINKS = [
   { to: '/testbarai', label: 'TestBarAI 🧪' },
 ]
 
-// Comandi mostrati nel pannello di destra (si aggiornano con "Aggiorna").
 const STATUS_CMDS = [
   ['sys', 'lele.status.sys', 'status sistema'],
   ['os', 'lele.status.os', 'status os'],
@@ -217,7 +191,6 @@ const COMMAND_GROUPS = [
   },
 ]
 
-// Comandi che cambiano lo stato del sistema: chiedono una seconda conferma.
 const DANGER = COMMAND_GROUPS.flatMap((g) =>
   g.commands.filter((x) => x.danger).map((x) => x.command.trim().toLowerCase())
 )
@@ -226,7 +199,6 @@ const isDanger = (text) => {
   return DANGER.some((d) => t.startsWith(d))
 }
 
-// chat_id anonimo e persistente per le API audio pubbliche.
 function getAudioChatId() {
   try {
     const stored = window.localStorage.getItem(AUDIO_CHAT_ID_KEY)
@@ -320,15 +292,12 @@ async function callAdmin(idToken, prompt, timeoutMs = 310000, superOptions = nul
   }
 }
 
-// adminJson: vedi import da src/lib/imageJobs.js (F2).
-
 const timeLabel = (ts) =>
   new Date(ts).toLocaleTimeString('it-IT', {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
   })
-
 
 export default function Test2() {
   const { t } = useTranslation()
@@ -401,16 +370,13 @@ export default function Test2() {
   const [statusLoading, setStatusLoading] = useState(false)
   const [rawSys, setRawSys] = useState(false)
   const [ping, setPing] = useState({ ok: null, ms: null, agents: [], pillow: null })
-  // GraDV (generatore immagini): risultato di /api/image/health.
   const [gradv, setGradv] = useState({})
-  // Controllo processo GraDV (start/stop/restart via /api/gradv/proc).
   const [gradvBusy, setGradvBusy] = useState(null)
   const [gradvMsg, setGradvMsg] = useState(null)
 
   const buttonRef = useRef(null)
   const textareaRef = useRef(null)
 
-  // Token salvato ma email non (più) in whitelist: fuori subito.
   useEffect(() => {
     if (!idToken) return
     const email = decodeJwtPayload(idToken)?.email?.toLowerCase()
@@ -420,7 +386,6 @@ export default function Test2() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Login Google (SDK caricato da index.html).
   useEffect(() => {
     if (idToken) return
     let cancelled = false
@@ -481,7 +446,6 @@ export default function Test2() {
       try {
         window.google?.accounts?.id?.disableAutoSelect()
       } catch (e) {
-        /* no-op */
       }
       return
     }
@@ -492,7 +456,6 @@ export default function Test2() {
     try {
       window.sessionStorage.setItem(TOKEN_STORAGE_KEY, token)
     } catch (e) {
-      /* no-op */
     }
   }
 
@@ -508,11 +471,9 @@ export default function Test2() {
       window.sessionStorage.removeItem(TOKEN_STORAGE_KEY)
       window.google?.accounts?.id?.disableAutoSelect()
     } catch (e) {
-      /* no-op */
     }
   }
 
-  // Stato del gateway: GET / è aperto, niente token.
   useEffect(() => {
     if (!idToken) return
     let stop = false
@@ -543,7 +504,6 @@ export default function Test2() {
     }
   }, [idToken])
 
-  // Status sistema/OS/RAM: un comando alla volta, via console admin.
   const refreshStatus = useCallback(async () => {
     if (!idToken) return
     setStatusLoading(true)
@@ -559,7 +519,6 @@ export default function Test2() {
         setStatus((s) => ({ ...s, [key]: { err: err.message } }))
       }
     }
-    // GraDV: health del generatore immagini (GET /api/image/health, token admin).
     try {
       const data = await adminJson(idToken, '/api/image/health')
       setGradv({ data })
@@ -574,8 +533,6 @@ export default function Test2() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idToken])
 
-  // GraDV: start/stop/restart del processo (UI + model server) direttamente
-  // dal gateway, POST /api/gradv/proc/<azione>. Poi riaggiorna lo stato.
   const gradvAction = useCallback(async (action) => {
     if (!idToken || gradvBusy) return
     setGradvBusy(action)
@@ -615,13 +572,11 @@ export default function Test2() {
     }, 30)
   }
 
-  // Selettore modello Super-Leles: invia subito "modellosl <nome>".
   async function switchSuperModel(model) {
     setSuperModel(model)
     try {
       window.localStorage.setItem(SUPER_MODEL_KEY, model)
     } catch (e) {
-      /* no-op */
     }
     if (!idToken || modelSwitching) return
 
@@ -645,8 +600,6 @@ export default function Test2() {
     )
   }
 
-  // Selettore modello Leles / reviewer: invia "modello <nome>" o
-  // "reviewer <nome>" e logga la risposta in Sessione.
   async function switchModel(kind, model) {
     if (kind === 'lele') setLeleModel(model)
     else setReviewerModel(model)
@@ -656,7 +609,6 @@ export default function Test2() {
         model
       )
     } catch (e) {
-      /* no-op */
     }
     if (!idToken || modelSwitching) return
 
@@ -680,10 +632,6 @@ export default function Test2() {
     )
   }
 
-  // ----------------------------------------------------------
-  // SYNC MODELLI: all'apertura chiede "modelli" e allinea i 3
-  // selettori ai modelli ATTIVI (fallback: localStorage, poi default).
-  // ----------------------------------------------------------
   const modelsSyncedRef = useRef(false)
 
   useEffect(() => {
@@ -712,27 +660,23 @@ export default function Test2() {
         const lel = pick(LELE_MODELS, ['lele', 'modello', 'attiv'], ['super', 'sl ', 'reviewer'])
         if (sup && SUPER_MODELS.includes(sup)) {
           setSuperModel(sup)
-          try { window.localStorage.setItem(SUPER_MODEL_KEY, sup) } catch (e) { /* no-op */ }
+          try { window.localStorage.setItem(SUPER_MODEL_KEY, sup) } catch (e) { }
         }
         if (lel && LELE_MODELS.includes(lel)) {
           setLeleModel(lel)
-          try { window.localStorage.setItem(LELE_MODEL_KEY, lel) } catch (e) { /* no-op */ }
+          try { window.localStorage.setItem(LELE_MODEL_KEY, lel) } catch (e) { }
         }
         if (rev && LELE_MODELS.includes(rev)) {
           setReviewerModel(rev)
-          try { window.localStorage.setItem(REVIEWER_MODEL_KEY, rev) } catch (e) { /* no-op */ }
+          try { window.localStorage.setItem(REVIEWER_MODEL_KEY, rev) } catch (e) { }
         }
       } catch (e) {
-        /* silenzioso: si restano i valori locali */
       }
     })()
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idToken])
 
-  // IMMAGINI: prompt che inizia con "immagina ..." non passa da Leles:
-  // la console chiama direttamente il gateway (POST /api/image/jobs),
-  // fa polling e mostra il PNG in Sessione. Zero modifiche a lele_api.
   const [imageBusy, setImageBusy] = useState(false)
 
   async function runImage(imagePrompt) {
@@ -743,7 +687,6 @@ export default function Test2() {
     try {
       const jobId = await createImageJob(idToken, imagePrompt)
 
-      // Polling (max ~10 minuti) con lo stato mostrato nella entry.
       const result = await waitForImageResult(idToken, jobId, {
         onProgress: (status, elapsed) => {
           const label =
@@ -784,10 +727,7 @@ export default function Test2() {
 
   async function run(e) {
     e?.preventDefault()
-    // Super-Leles: se il toggle e' attivo, il prompt parte come 'super <domanda>'
-    // (a meno che non sia gia' un comando super/sl/modellosl).
     const raw = prompt.trim()
-    // "immagina <prompt>" → generazione immagini via gateway (no Leles).
     const imgMatch = raw.match(/^immagina\s+(.+)$/i)
     if (imgMatch) {
       if (!idToken || imageBusy) return
@@ -799,7 +739,6 @@ export default function Test2() {
     const cmd = superMode && !/^(super|super-leles|sl|modellosl)\b/i.test(raw) ? 'super ' + raw : raw
     if (!cmd || !idToken || isLoading) return
 
-    // Comandi sensibili: serve una seconda pressione.
     if (isDanger(cmd) && !armed) {
       setArmed(true)
       return
@@ -832,13 +771,9 @@ export default function Test2() {
     try {
       navigator.clipboard?.writeText(text)
     } catch (e) {
-      /* no-op */
     }
   }
 
-  // ----------------------------------------------------------
-  // AUDIO: TTS + registrazione + risposta audio
-  // ----------------------------------------------------------
   const [audioAgent, setAudioAgent] = useState(AUDIO_AGENTS[0].value)
   const [audioPrompt, setAudioPrompt] = useState('')
   const [wantsTts, setWantsTts] = useState(false)
@@ -849,12 +784,10 @@ export default function Test2() {
   const [audioError, setAudioError] = useState('')
   const [audioBusy, setAudioBusy] = useState(false)
   const [copiedAudioReply, setCopiedAudioReply] = useState(false)
-  // Illustrazione opzionale per Story Whisper; disattivata per default.
   const [wantsStoryImage, setWantsStoryImage] = useState(false)
   const [storyImageBusy, setStoryImageBusy] = useState(false)
   const [storyImages, setStoryImages] = useState([])
   const [storyImageCount, setStoryImageCount] = useState(3)
-  // F4-B/C: formato e step delle illustrazioni della storia.
   const [storyImageFormat, setStoryImageFormat] = useState('1024x768')
   const [storyImageSteps, setStoryImageSteps] = useState(8)
   const [storyImageStatus, setStoryImageStatus] = useState('')
@@ -862,7 +795,6 @@ export default function Test2() {
   const [storyKidsFilter, setStoryKidsFilter] = useState(true)
   const [storyStylePrompt, setStoryStylePrompt] = useState('')
   const [storyGenre, setStoryGenre] = useState('Random')
-  // Fumettatura deliberata: 2 affiancate, 3 in colonna, 4 griglia 2x2.
   const [storyStrip, setStoryStrip] = useState('')
 
   const [isSpeaking, setIsSpeaking] = useState(false)
@@ -926,10 +858,6 @@ export default function Test2() {
     setAudioDuration(0)
   }
 
-  // F5: salva la storia (testo + audio + scene con job_id) nella gallery
-  // condivisa di Test4 (POST /api/admin/stories -> STORY_HISTORY_DIR sul
-  // gateway). Così anche le storie lanciate da qui con NS/SW compaiono
-  // nel box 06/Gallery di Test4, con le illustrazioni collegate via job_id.
   async function saveStoryToGallery(storyText, agent, audioFile, scenes) {
     if (!idToken) return
     try {
@@ -946,7 +874,6 @@ export default function Test2() {
         }),
       })
     } catch (err) {
-      // Non blocca il flusso: la storia resta comunque visibile in Test2.
       console.error('Gallery: salvataggio storia non riuscito', err)
     }
   }
@@ -960,18 +887,15 @@ export default function Test2() {
     setStoryImages([])
     setStoryImageError('')
     setStoryImageStatus('')
-    // Parte in background: testo e audio SW sono già disponibili e non aspettano l'immagine.
     if ((agent === 'Story Whisper' || agent === 'Night Story') && replyText) {
       if (wantsStoryImage) {
         void generateStoryIllustration(replyText, agent, replyFile)
       } else {
-        // F5: senza illustrazioni la storia finisce subito in gallery.
         void saveStoryToGallery(replyText, agent, replyFile, [])
       }
     }
   }
 
-  // Formato min:ss per il timer di elaborazione (come StoriesTab).
   const formatSeconds = (s) => Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0')
 
   async function generateStoryIllustration(storyText, agent, audioFile) {
@@ -986,7 +910,6 @@ export default function Test2() {
         ? 'Every image prompt must follow an artistic illustration style that matches the story genre "' + genre + '" (mature audiences, never a children style). '
         : ''
     const styleExtra = extraStyle ? 'Additional art direction from the user to apply to every scene: ' + extraStyle + '. ' : ''
-    // F5: scene completate con il proprio job_id, per il salvataggio in gallery.
     const doneScenes = []
     setStoryImageBusy(true)
     setStoryImageError('')
@@ -994,9 +917,6 @@ export default function Test2() {
     setStoryImageStatus(t('lele.story.plan', { count: imageCount }) + ' (' + leleModel + ')')
     let imageStage = 'selezione delle scene con Ollama'
     try {
-      // Pianificazione a lotti condivisa in src/lib/imageJobs.js
-      // (planStoryScenes): lotti di 3, retry + repair JSON, fallback in
-      // cascata mistral → qwen2.5, modello visibile negli status.
       const scenes = await planStoryScenes({        idToken,
         storyText,
         imageCount,
@@ -1018,18 +938,12 @@ export default function Test2() {
         id: index + 1, title: scene.title, prompt: scene.prompt, src: '', status: t('lele.story.waiting'),
       })))
 
-      // Pianificazione completata: scarichiamo i modelli Ollama (keep_alive=0)
-      // per liberare RAM sul Mac prima del loop di immagini.
       try {
         setStoryImageStatus(t('lele.story.unload'))
         await unloadOllama(idToken)
       } catch {
-        // Non blocca le illustrazioni: è solo un'ottimizzazione di memoria.
       }
 
-      // Un solo job per volta: non si avvia la scena successiva finché la precedente non è pronta.
-      // Le richieste di stato possono fallire transitoriamente (rete/Cloudflare): ritentiamo
-      // senza creare un secondo job e senza perdere l'immagine già generata.
       const fetchJobStatusWithRetry = (jobId, sceneNumber) =>
         fetchJobStatusWithRetryShared(idToken, jobId, {
           onRetry: (attempt, attempts) =>
@@ -1047,8 +961,6 @@ export default function Test2() {
           item.id === sceneNumber ? { ...item, status: t('lele.story.queuedShort') } : item
         ))
         try {
-          // F3: il filtro stile (kids/genre) ora è applicato anche dal
-          // gateway via preset, oltre che dal prompt del planner.
           const scenePreset = kidsMode ? 'sw_kids' : (genre ? 'ns_free' : '')
           const [fmtWidth, fmtHeight] = String(storyImageFormat || '1024x768').split('x').map(Number)
           const sceneSteps = Math.max(1, Math.min(15, Number(storyImageSteps) || 8))
@@ -1125,14 +1037,10 @@ export default function Test2() {
       setStoryImageStatus('')
     } finally {
       setStoryImageBusy(false)
-      // F5: la storia finisce in gallery anche se alcune immagini
-      // (o tutte) non sono riuscite — si salvano testo, audio e le
-      // illustrazioni completate.
       void saveStoryToGallery(storyText, agent, audioFile, doneScenes)
     }
   }
 
-  // Testo -> Gateway (/api/chat)
   async function sendAudioText(e) {
     e?.preventDefault()
     const text = audioPrompt.trim()
@@ -1141,8 +1049,6 @@ export default function Test2() {
     resetAudioReply()
     setAudioBusy(true)
 
-    // Leles: console admin (con token). I comandi sensibili passano solo
-    // dal prompt principale, che chiede la conferma.
     if (audioAgent === LELES_AGENT) {
       if (isDanger(text)) {
         setAudioError(
@@ -1197,7 +1103,6 @@ export default function Test2() {
     }
   }
 
-  // Audio registrato -> Gateway (/api/chat/audio)
   async function sendRecording(blobOverride) {
     const blob = blobOverride || recBlobRef.current
     if (!blob) return
@@ -1270,8 +1175,6 @@ export default function Test2() {
         setRecUrl(URL.createObjectURL(blob))
         stream.getTracks().forEach((track) => track.stop())
 
-        // Invio automatico appena termina la registrazione.
-        // Con Leles (admin) niente invio automatico: si invia a mano.
         if (AUTO_SEND_RECORDING && audioAgent !== LELES_AGENT) sendRecording(blob)
       }
 
@@ -1299,7 +1202,6 @@ export default function Test2() {
     }
   }
 
-  // Audio TTS di Leles: richiede il token, quindi si scarica come blob.
   async function getLelesAudioUrl(file) {
     if (lelesAudioRef.current?.file === file) return lelesAudioRef.current.url
     const res = await fetch(
@@ -1313,7 +1215,6 @@ export default function Test2() {
     return url
   }
 
-  // Riproduzione audio generato dal backend
   async function togglePlayAudio() {
     const player = audioPlayerRef.current
     if (!audioReplyFile || !player) return
@@ -1384,9 +1285,6 @@ export default function Test2() {
     </>
   )
 
-  // ==========================================================
-  // LOGIN
-  // ==========================================================
   if (!idToken) {
     return (
       <div className="lc-page">
@@ -1407,9 +1305,6 @@ export default function Test2() {
     )
   }
 
-  // ==========================================================
-  // CONSOLE
-  // ==========================================================
   return (
     <div className="lc-page">
       <style>{css}</style>
@@ -1428,7 +1323,6 @@ export default function Test2() {
 
         <div className="lc-grid">
           <main className="lc-main">
-            {/* PROMPT */}
             <form className="lc-panel lc-prompt" onSubmit={run}>
               <label htmlFor="lc-input" className="lc-sr">
                 {t('lele.prompt.label')}
@@ -1470,7 +1364,7 @@ export default function Test2() {
                         onChange={(e) => {
                           const value = e.target.checked
                           setUseSuperMemory(value)
-                          try { window.localStorage.setItem(SUPER_MEMORY_KEY, String(value)) } catch (err) { /* no-op */ }
+                          try { window.localStorage.setItem(SUPER_MEMORY_KEY, String(value)) } catch (err) { }
                         }}
                       />
                       {t('lele.superMemory')}
@@ -1489,7 +1383,7 @@ export default function Test2() {
                           if (!Number.isFinite(value)) return
                           const safe = Math.max(0, Math.min(2, value))
                           setSuperTemperature(safe)
-                          try { window.localStorage.setItem(SUPER_TEMPERATURE_KEY, String(safe)) } catch (err) { /* no-op */ }
+                          try { window.localStorage.setItem(SUPER_TEMPERATURE_KEY, String(safe)) } catch (err) { }
                         }}
                         aria-label={t('lele.superTemperature')}
                         style={{ width: 66, padding: '5px 7px', borderRadius: 7, background: 'var(--surface, #fff)', color: 'inherit', border: '1px solid var(--line, #ccc)' }}
@@ -1547,7 +1441,6 @@ export default function Test2() {
               </div>
             </form>
 
-            {/* COMANDI */}
             <section className="lc-panel lc-pad" aria-label={t('lele.commands')}>
               <div className="lc-cmd-head">
                 <h2>{t('lele.commands')}</h2>
@@ -1657,7 +1550,6 @@ export default function Test2() {
               </div>
             </section>
 
-            {/* CRONOLOGIA */}
             <section className="lc-panel lc-pad" aria-label={t('lele.replies')}>
               <div className="lc-cmd-head">
                 <h2>{t('lele.session')}</h2>
@@ -1708,7 +1600,6 @@ export default function Test2() {
             </section>
           </main>
 
-          {/* DASHBOARD DESTRA: Sistema + OS + RAM + Gateway in un solo pannello */}
           <aside className="lc-side" aria-label={t('lele.statusTitle')}>
             <section className="lc-panel lc-pad lc-status">
               <div className="lc-cmd-head">
@@ -1771,7 +1662,6 @@ export default function Test2() {
             )
         })}
 
-              {/* GRADV: stato processo + start/stop/restart (ultimo box) */}
               <div className="lc-stat">
                 <div className="lc-stat-head lc-stat-head--gradv">
                   <h3
@@ -1832,11 +1722,6 @@ export default function Test2() {
                       : !gradv.data.process?.running
                         ? 'spento'
                         : (() => {
-                            // Come il box GraDV di SystemPanel: RAM del
-                            // model server + memoria GPU/Metal (su Mac la
-                            // memoria e' unificata, il RSS dell'UI Gradio
-                            // non c'entra). Se il model server e' spento
-                            // (sleep) si vede l'RSS dell'UI.
                             const ms = gradv.data.model_server
                             const totMb = ms?.running
                               ? (Number(ms.ram_mb) || 0) +
@@ -1862,7 +1747,6 @@ export default function Test2() {
           </aside>
         </div>
 
-        {/* PAGINE DEL SITO: link alle console esistenti */}
         <nav className="lc-pages" aria-label={t('lele.pagesNav')}>
           <div className="lc-pages-head">
             <h2>{t('lele.pagesTitle')}</h2>
@@ -1894,8 +1778,6 @@ export default function Test2() {
             )}
           </div>
 
-          {/* AUDIO: Story Whisper / Night Story (penultimo blocco) */}
-            {/* AUDIO: Story Whisper / Night Story */}
             <section className="lc-panel lc-pad lc-audio" aria-label={t('lele.audio')}>
               <audio
                 ref={audioPlayerRef}
@@ -2175,7 +2057,6 @@ export default function Test2() {
               )}
             </section>
 
-
           <div className="lc-pages-head lc-pages-head--sub">
             <h3>{t('lele.testTitle')}</h3>
             <span className="lc-dim lc-small">{t('lele.testSub')}</span>
@@ -2369,4 +2250,66 @@ const css = `
 .lc-pill.is-bad{color:var(--bad);border-color:rgba(248,113,113,.45)}
 .lc-dot{width:6px;height:6px;border-radius:50%;background:currentColor}
 .lc-pulse{animation:lc-pulse 2s ease-in-out infinite}
-@keyframes lc-pulse{0%,100%{bo
+@keyframes lc-pulse{0%,100%{box-shadow:0 0 0 0 rgba(74,222,128,.55)}50%{box-shadow:0 0 0 5px rgba(74,222,128,0)}}
+.lc-agent{padding:2px 8px;border-radius:6px;background:rgba(255,255,255,.06);border:1px solid var(--line);font-size:10.5px;font-family:var(--mono)}
+.lc-spin{width:12px;height:12px;border-radius:50%;border:2px solid rgba(7,32,31,.3);border-top-color:#07201f;animation:lc-rot .8s linear infinite}
+@keyframes lc-rot{to{transform:rotate(360deg)}}
+.lc-page :is(button,a,input,textarea):focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (max-width:980px){
+  .lc-grid{grid-template-columns:1fr}
+  .lc-side{position:static;max-height:none;overflow:visible}
+}
+@media (max-width:560px){
+  .lc-wrap{padding:20px 14px 56px}
+  .lc-entry header{flex-wrap:wrap}
+  .lc-chips{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (prefers-reduced-motion:reduce){.lc-pulse,.lc-spin{animation:none}}
+.lc-select{padding:6px 12px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--ink);font:inherit;font-size:13px}
+.lc-select option{color:#111}
+.lc-audio-form{display:flex;flex-direction:column;gap:10px}
+.lc-audio-ta{width:100%;box-sizing:border-box;resize:vertical;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--ink);font-family:var(--mono);font-size:14px;line-height:1.5}
+.lc-audio-ta:focus{outline:none;border-color:rgba(63,208,201,.5)}
+.lc-audio-foot{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.lc-check{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-dim);cursor:pointer}
+.lc-btn--rec{background:rgba(248,113,113,.2);border-color:var(--bad);color:#fecaca}
+.lc-btn--gradv-stop{background:rgba(251,146,60,.2);border-color:#fb923c;color:#fed7aa}
+.lc-btn--gradv-restart{background:rgba(250,204,21,.2);border-color:#facc15;color:#fef08a}
+.lc-btn--xs{padding:2px 9px;font-size:10.5px;line-height:1.4;white-space:nowrap}
+.lc-pill--xs{padding:1px 7px;font-size:9.5px;gap:4px;flex:0 0 auto}
+.lc-stat-head--gradv{flex-wrap:nowrap;gap:5px}
+.lc-stat-head--gradv h3{font-size:12px}
+.lc-rec{margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.2)}
+.lc-rec .lc-cmd-head{margin-bottom:8px}
+.lc-rec-audio{width:100%}
+.lc-audio .lc-err{margin-top:10px}
+.lc-audio-hint{margin-top:8px}
+.lc-audio-out{margin-top:14px;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.28);overflow:hidden}
+.lc-audio-out header{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;border-bottom:1px solid var(--line);font-size:13px;font-weight:600}
+.lc-player{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border-bottom:1px solid var(--line)}
+.lc-player-top{display:flex;align-items:center;gap:10px}
+.lc-time{font-family:var(--mono);font-size:11.5px;color:var(--ink-dim);white-space:nowrap}
+.lc-seek{flex:1;min-width:0;cursor:pointer;accent-color:var(--accent)}
+.lc-speed{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.lc-btn--sm.is-on{background:var(--accent);border-color:var(--accent);color:#07201f}
+.lc-play.is-on{background:var(--bad);border-color:var(--bad);color:#fff}
+@media (max-width:560px){.lc-player-top{flex-wrap:wrap}.lc-seek{flex-basis:100%}}
+@media (max-width:560px){
+  .lc-bg{opacity:.6}
+  .lc-shade{background:linear-gradient(180deg,rgba(11,16,21,.25) 0%,rgba(11,16,21,.85) 100%)}
+}
+@media (max-width:560px){
+  .lc-top{flex-wrap:nowrap;gap:8px;align-items:center}
+  .lc-title{font-size:18px;white-space:nowrap;flex:none}
+  .lc-session{gap:6px;padding:3px 3px 3px 10px;font-size:11px;min-width:0;flex:0 1 auto;max-width:60%}
+  .lc-session .lc-btn--sm{padding:3px 8px;font-size:10px;flex:none}
+  .lc-gbtn{min-height:0;margin-left:auto}
+  .lc-prompt{padding:10px 12px}
+  .lc-prompt-row{gap:8px}
+  .lc-anchor{font-size:16px;line-height:1.5}
+  .lc-prompt textarea{height:56px;font-size:13px}
+  .lc-prompt-foot{gap:6px;margin-top:6px;padding-top:8px}
+  .lc-prompt-foot .lc-btn{padding:6px 10px;font-size:12px}
+  .lc-hint-kbd{display:none}
+}
+`
