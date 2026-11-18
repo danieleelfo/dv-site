@@ -415,7 +415,7 @@ export default function FumettiTab({ embedded = false } = {}) {
           {panels.map((p, i) => <article key={p.id} className={"fb-panel-card" + (p.id === active?.id ? " is-active" : "")}>
             <button type="button" className="fb-panel-select" onClick={() => { setActiveId(p.id); setSelectedBubbleId(null); setTailMode(false); }}>
               <img src={p.preview} alt={t("img.comics.panelNumber", { index: i + 1 })} />
-              <span><b>Vignetta {i + 1}</b><small>{p.file.name}</small><small>{t("img.comics.bubbleCount", { count: p.bubbles.filter(b => b.text.trim()).length })}</small></span>
+              <span><b>{t("img.comics.panelNumber", { index: i + 1 })}</b><small>{p.file.name}</small><small>{t("img.comics.bubbleCount", { count: p.bubbles.filter(b => b.text.trim()).length })}</small></span>
             </button>
             <div className="fb-order">
               <button type="button" onClick={() => movePanel(i, -1)} disabled={i === 0} aria-label={t("img.comics.moveUp")}>↑</button>
