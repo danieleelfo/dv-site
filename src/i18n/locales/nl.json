@@ -1051,7 +1051,10 @@
       "previous": "← Vorige",
       "pageOf": "Pagina {{page}} van {{pages}}",
       "next": "Volgende →",
-      "noneSelected": "Er is geen geselecteerde afbeelding beschikbaar."
+      "noneSelected": "Er is geen geselecteerde afbeelding beschikbaar.",
+      "invalidJson": "Niet-JSON-antwoord van de gateway (HTTP {{status}}): {{body}}",
+      "emptyBody": "lege inhoud",
+      "httpError": "HTTP {{status}}"
     }
   },
   "dga": {
