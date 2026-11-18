@@ -10,7 +10,7 @@ import { useTranslation } from "react-i18next";
 const API = "https://api.danielevillanova.com";
 const PAGE_SIZE = 24;
 
-async function readJson(response) {
+async function readJson(response, t) {
   const text = await response.text().catch(() => "");
   let data;
 
@@ -18,10 +18,7 @@ async function readJson(response) {
     data = JSON.parse(text);
   } catch {
     throw new Error(
-      "Risposta non JSON dal gateway (HTTP " +
-        response.status +
-        "): " +
-        (text.slice(0, 120) || "corpo vuoto")
+      t("img.archive.invalidJson", { status: response.status, body: text.slice(0, 120) || t("img.archive.emptyBody") })
     );
   }
 
@@ -29,7 +26,7 @@ async function readJson(response) {
     throw new Error(
       typeof data.detail === "string"
         ? data.detail
-        : "HTTP " + response.status
+        : t("img.archive.httpError", { status: response.status })
     );
   }
 
@@ -106,7 +103,7 @@ export default function ArchivePicker({
           }
         );
 
-        const data = await readJson(response);
+        const data = await readJson(response, t);
         const rows = Array.isArray(data.items) ? data.items : [];
 
         setItems(rows);
