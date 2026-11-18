@@ -1404,12 +1404,35 @@ export default function ImageLab({ initialTab = "genera" }) {
 
             <form onSubmit={runOcr} className="il-ocr-form">
               <input
+                id="il-ocr-file"
                 type="file"
                 accept="image/*"
                 onChange={onOcrFile}
                 disabled={ocrStatus === "running"}
+                style={{
+                  position: "absolute",
+                  width: 1,
+                  height: 1,
+                  padding: 0,
+                  margin: -1,
+                  overflow: "hidden",
+                  clip: "rect(0, 0, 0, 0)",
+                  whiteSpace: "nowrap",
+                  border: 0,
+                }}
               />
-
+              <label
+                className="il-button"
+                htmlFor="il-ocr-file"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  cursor: ocrStatus === "running" ? "not-allowed" : "pointer",
+                  opacity: ocrStatus === "running" ? 0.55 : 1,
+                }}
+              >
+                {t("img.chooseFile")}
+              </label>
               {ocrImage && (
                 <p className="il-hint">
                   {ocrImage.name} ({Math.round(ocrImage.size / 1024)} KB)
