@@ -1056,7 +1056,8 @@
       "invalidJson": "Resposta no JSON del gateway (HTTP {{status}}): {{body}}",
       "emptyBody": "cos buit",
       "httpError": "HTTP {{status}}"
-    }
+    },
+    "ocrTabSubtitle": "Extreu el text"
   },
   "dga": {
     "unauthorized": "Accés no autoritzat per a aquest compte de Google.",
