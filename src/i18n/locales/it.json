@@ -961,7 +961,10 @@
       "photoVariant": "Variante foto {{index}}",
       "downloadPhoto": "↓ Scarica foto {{index}}",
       "testFailed": "Test non completato",
-      "retry": "Riprova"
+      "retry": "Riprova",
+      "endpointMissing": "Endpoint non ancora presente nel gateway (404). La pagina è pronta per il test; il backend va aggiunto dopo.",
+      "noJobOrImage": "Il server non ha restituito un job_id o un'immagine.",
+      "jobNoImage": "Il lavoro è terminato, ma il server non ha restituito un'immagine."
     },
     "comics": {
       "title": "Editor fumetti",
@@ -1021,7 +1024,34 @@
       "preview": "Anteprima fumetto completo",
       "completedPageAlt": "Pagina a fumetti completa",
       "downloadPng": "Scarica PNG",
-      "footer": "Editor fumetti · Pillow sul Mac · fino a {{max}} vignette"
+      "footer": "Editor fumetti · Pillow sul Mac · fino a {{max}} vignette",
+      "textColor": "Testo"
+    },
+    "archive": {
+      "kicker": "GRADV · ARCHIVIO PRINCIPALE",
+      "title": "Dall'archivio",
+      "subtitle": "{{count}} immagini · seleziona una foto per usarla nei fumetti",
+      "selectPhoto": "Seleziona una foto dall'archivio GraDV",
+      "searchPlaceholder": "Cerca nel prompt…",
+      "searchLabel": "Cerca nel prompt",
+      "search": "Cerca",
+      "reset": "Reset",
+      "perPage": "{{count}} per pagina",
+      "downloadingMany": "Scarico {{count}} immagini…",
+      "downloadingOriginal": "Scarico l'originale #{{id}}…",
+      "loading": "Caricamento archivio…",
+      "noImages": "Nessuna immagine trovata.",
+      "imageNumber": "Immagine #{{id}}",
+      "gradvNumber": "GraDV #{{id}}",
+      "noPrompt": "Prompt non disponibile",
+      "selected": "{{count}} selezionate",
+      "downloading": "Scarico…",
+      "addSelected": "Aggiungi selezionate",
+      "pagination": "Paginazione archivio",
+      "previous": "← Precedente",
+      "pageOf": "Pagina {{page}} di {{pages}}",
+      "next": "Successiva →",
+      "noneSelected": "Nessuna immagine selezionata disponibile."
     }
   },
   "dga": {
