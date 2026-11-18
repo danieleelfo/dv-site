@@ -906,32 +906,14 @@ export default function ImageLab({ initialTab = "genera" }) {
       <main className="il-page">
         <div className="il-container">
           <header className="il-header">
-            <div>
-              <p className="il-eyebrow">D. VILLANOVA · AI SYSTEMS</p>
-              <h1>AI Image Lab</h1>
+            <h1>AI Image Lab</h1>
+            <div className="il-account">
+              <div ref={loginButtonRef} />
             </div>
-            <button
-              className="il-button"
-              onClick={() => navigate("/improve")}
-            >
-              ← Improve
-            </button>
           </header>
-
-          <section className="il-panel il-login">
-            <h2>{t("img.loginTitle")}</h2>
-            <p>
-              {t("img.loginHint")}
-            </p>
-
-            {!GOOGLE_CLIENT_ID && (
-              <p className="il-error">
-                {t("img.clientIdMissing")}
-              </p>
-            )}
-
-            <div ref={loginButtonRef} />
-          </section>
+          {!GOOGLE_CLIENT_ID && (
+            <p className="il-error">{t("img.clientIdMissing")}</p>
+          )}
         </div>
 
         <style>{STYLES}</style>
@@ -947,26 +929,9 @@ export default function ImageLab({ initialTab = "genera" }) {
     <main className="il-page">
       <div className="il-container">
         <header className="il-header">
-          <div>
-            <p className="il-eyebrow">D. VILLANOVA · AI SYSTEMS</p>
-            <h1>AI Image Lab</h1>
-            <p className="il-subtitle">
-              {t("img.subtitle")}
-            </p>
-          </div>
-
+          <h1>AI Image Lab</h1>
           <div className="il-account">
             <span title={email}>{email}</span>
-
-            {isAdmin && (
-            <button
-              className="il-button"
-              onClick={() => navigate("/improve")}
-            >
-              Improve ↗
-            </button>
-            )}
-
             <button className="il-button" onClick={logout}>
               {t("img.logout")}
             </button>
@@ -1568,7 +1533,7 @@ export default function ImageLab({ initialTab = "genera" }) {
 const STYLES = `
 .il-page {
   min-height: 100vh;
-  padding: 2rem 1.5rem 3rem;
+  padding: 1.25rem 1.5rem 2rem;
   background-image: linear-gradient(180deg, rgba(11,16,21,.55) 0%, rgba(11,16,21,.75) 100%), url(${bgO});
   background-size: cover;
   background-position: center;
@@ -1592,13 +1557,13 @@ const STYLES = `
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 1.25rem;
-  padding-bottom: 1.5rem;
+  gap: .75rem;
+  padding-bottom: .9rem;
   border-bottom: 1px solid var(--border, #1f2b35);
 }
 .il-header h1 {
   font-family: var(--serif, Georgia, serif);
-  font-size: clamp(2rem, 4vw, 3rem);
+  font-size: clamp(1.65rem, 3.5vw, 2.35rem);
   font-weight: 400;
   letter-spacing: -.035em;
 }
@@ -1618,13 +1583,13 @@ const STYLES = `
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: .6rem;
+  flex-wrap: nowrap;
+  gap: .5rem;
 }
 .il-account > span {
   color: var(--ink-dim, #8fa1ac);
   font-size: .8rem;
-  max-width: 220px;
+  max-width: min(220px, 32vw);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
