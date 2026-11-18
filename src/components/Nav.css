@@ -12,7 +12,7 @@
 .nav4-main {
   width: 100%;
   max-width: 1280px;
-  min-height: 62px;
+  min-height: 50px;
   margin: 0 auto;
   padding: 8px clamp(10px, 2vw, 24px);
   display: grid;
