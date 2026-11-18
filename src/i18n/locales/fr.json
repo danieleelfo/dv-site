@@ -1055,7 +1055,8 @@
       "invalidJson": "Réponse non JSON de la passerelle (HTTP {{status}}) : {{body}}",
       "emptyBody": "corps vide",
       "httpError": "HTTP {{status}}"
-    }
+    },
+    "ocrTabSubtitle": "Extraire le texte"
   },
   "dga": {
     "unauthorized": "Accès non autorisé pour ce compte Google.",
