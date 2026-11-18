@@ -1401,6 +1401,7 @@ export default function StoriesTab({ idToken }) {
                 ))}
               </select>
             </div>
+          </div>
             <div className="il-actions">
               <button
                 className="il-button il-primary"
