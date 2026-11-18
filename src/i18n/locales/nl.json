@@ -906,6 +906,12 @@
       "sideBySide": "naast elkaar",
       "vertical": "onder elkaar",
       "grid": "raster 2×2"
+    },
+    "ocrPrompts": {
+      "all": "Haal alle tekst uit deze afbeelding. Neem de tekst nauwkeurig over en behoud de leesvolgorde. Gebruik bij een tabel één rij per persoon en scheid de waarden met |.",
+      "timesheet": "Haal de tekst uit dit urenregistratieblad. Vermeld per persoon de naam, gevolgd door de statusletters van elke dag, gescheiden door spaties. Eén rij per persoon en één kolom per dag. Formaat: NAAM | letters | SOM(gewerkte uren).",
+      "digits": "Haal alleen getallen en datums uit deze afbeelding. Geef ze als lijst weer, één per regel, zonder beschrijvende tekst.",
+      "invoice": "Haal de belangrijkste gegevens uit dit document: afzender, ontvanger, documentnummer, datum, totalen en regelitems (omschrijving, aantal, bedrag). Geef het resultaat als lijst."
     }
   },
   "dga": {
