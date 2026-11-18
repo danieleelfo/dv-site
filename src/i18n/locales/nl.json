@@ -1055,7 +1055,8 @@
       "invalidJson": "Niet-JSON-antwoord van de gateway (HTTP {{status}}): {{body}}",
       "emptyBody": "lege inhoud",
       "httpError": "HTTP {{status}}"
-    }
+    },
+    "ocrTabSubtitle": "Tekst extraheren"
   },
   "dga": {
     "unauthorized": "Toegang niet toegestaan voor dit Google-account.",
