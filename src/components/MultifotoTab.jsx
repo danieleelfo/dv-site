@@ -88,7 +88,7 @@ async function runImg2Img(token, payload, name, opts) {
     await sleep(POLL_MS);
     const st = await request(`${API}/api/image/jobs/${encodeURIComponent(String(id))}`, token, {}, t);
     const sv = String(st.status || "").toLowerCase();
-    if (["failed", "error", "cancelled"].includes(sv)) throw new Error(st.error || st.detail || "Generazione fallita.");
+    if (["failed", "error", "cancelled"].includes(sv)) throw new Error(st.error || st.detail || t("img.genFailed"));
     if (["completed", "complete", "succeeded"].includes(sv)) {
       const out = await request(`${API}/api/image/jobs/${encodeURIComponent(String(id))}/result`, token, {}, t);
       const img = out.image_base64 || out.image || out.result_base64;
