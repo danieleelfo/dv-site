@@ -29,7 +29,7 @@ export default function Contact() {
           <Link to={lang ? `/${lang}` : '/'} style={homeStyles.btnGhost}>
             {t('nav.home')}
           </Link>
-          <Link to={lang ? `/${lang}/projects` : '/projects'} style={homeStyles.btnGhost}>
+          <Link to={lang ? `/${lang}/projects` : '/projects'} style={homeStyles.btnPrimary}>
             {t('hero.viewProjects')}
           </Link>
           <Link to={lang ? `/${lang}/about` : '/about'} style={homeStyles.btnPrimary}>
