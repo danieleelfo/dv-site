@@ -913,7 +913,8 @@
       "timesheet": "Extreu el text d'aquest full de presència. Per a cada persona, indica el nom seguit de les lletres d'estat de cada dia, separades per espais. Una fila per persona i una columna per dia. Format: NOM | lletres | SUMA(hores treballades).",
       "digits": "Extreu només números i dates d'aquesta imatge. Presenta'ls en una llista, un per línia, sense text descriptiu.",
       "invoice": "Extreu les dades principals d'aquest document: remitent, destinatari, número de document, data, totals i línies (descripció, quantitat i import). Dona el resultat en forma de llista."
-    }
+    },
+    "chooseFile": "Tria un fitxer"
   },
   "dga": {
     "unauthorized": "Accés no autoritzat per a aquest compte de Google.",
