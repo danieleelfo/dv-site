@@ -450,7 +450,7 @@ export default function FumettiTab({ embedded = false } = {}) {
           {!selectedBubble && <p className="fb-hint">{t("img.comics.selectBubbleHint")}</p>}
           {selectedBubble && <div className="fb-form">
             <label className="fb-label">{t("img.comics.type")}</label>
-            <select className="fb-input" value={selectedBubble.type} onChange={e => patchBubble(selectedBubble.id, { type: e.target.value })}>{TYPES.map(([v, key]) => <option key={v} value={t("img.comics.bubbleTypes." + key)}>{t("img.comics.bubbleTypes." + key)}</option>)}</select>
+            <select className="fb-input" value={selectedBubble.type} onChange={e => patchBubble(selectedBubble.id, { type: e.target.value })}>{TYPES.map(([v, key]) => <option key={v} value={v}>{t("img.comics.bubbleTypes." + key)}</option>)}</select>
             <label className="fb-label">{t("img.comics.text")}</label>
             <textarea className="fb-input fb-text" rows={3} maxLength={500} value={selectedBubble.text} placeholder={t("img.comics.writeText")} onChange={e => patchBubble(selectedBubble.id, { text: e.target.value })} />
             <label className="fb-label">{t("img.comics.width")}: {Math.round(selectedBubble.w * 100)}%</label>
