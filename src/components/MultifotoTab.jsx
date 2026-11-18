@@ -33,7 +33,7 @@ async function request(url, token, init = {}) {
   const res = await fetch(url, { ...init, headers: { ...(init.headers || {}), Authorization: `Bearer ${token}` } });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    if (res.status === 404) throw new Error("Endpoint non ancora presente nel gateway (404). La pagina è pronta per il test; il backend va aggiunto dopo.");
+    if (res.status === 404) throw new Error(t("img.puzzle.endpointMissing"));
     throw new Error(typeof data.detail === "string" ? data.detail : data.detail ? JSON.stringify(data.detail) : `HTTP ${res.status}`);
   }
   return data;
