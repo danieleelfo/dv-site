@@ -1556,10 +1556,15 @@ const STYLES = `
   display: flex;
   align-items: center;
   justify-content: space-between;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: .75rem;
   padding-bottom: .9rem;
   border-bottom: 1px solid var(--border, #1f2b35);
+  min-width: 0;
+}
+.il-header h1 {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 .il-header h1 {
   font-family: var(--serif, Georgia, serif);
@@ -1583,15 +1588,29 @@ const STYLES = `
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  flex: 0 1 auto;
   flex-wrap: nowrap;
-  gap: .5rem;
+  gap: .55rem;
+  min-width: 0;
+  max-width: 58%;
+  padding: 5px 5px 5px 12px;
+  border: 1px solid var(--border, #1f2b35);
+  border-radius: 999px;
+  background: var(--bg-alt, rgba(255,255,255,.04));
+  color: var(--ink-dim, #8fa1ac);
+  font-size: .78rem;
 }
 .il-account > span {
-  color: var(--ink-dim, #8fa1ac);
-  font-size: .8rem;
-  max-width: min(220px, 32vw);
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.il-account .il-button {
+  flex: 0 0 auto;
   white-space: nowrap;
 }
 .il-notice {
