@@ -3,11 +3,13 @@
 // ============================================================
 
 import React from 'react'
+import { Link, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import bgImage from '../assets/hero.png'
 
 export default function Contact() {
   const { t } = useTranslation()
+  const { lang } = useParams()
   return (
     <div style={pageStyles.page}>
       <img src={bgImage} alt="" style={pageStyles.background} />
@@ -21,6 +23,18 @@ export default function Contact() {
             daniele@danielevillanova.com
           </a>
         </section>
+
+        <div className="container" style={homeStyles.heroActions}>
+          <Link to={lang ? `/${lang}` : '/'} style={homeStyles.btnGhost}>
+            {t('nav.home')}
+          </Link>
+          <Link to={lang ? `/${lang}/projects` : '/projects'} style={homeStyles.btnGhost}>
+            {t('hero.viewProjects')}
+          </Link>
+          <Link to={lang ? `/${lang}/about` : '/about'} style={homeStyles.btnPrimary}>
+            {t('nav.expertise')}
+          </Link>
+        </div>
       </div>
     </div>
   )
@@ -34,6 +48,8 @@ const pageStyles = {
 }
 
 const homeStyles = {
+  heroActions: { maxWidth: 950, margin: '0 auto', padding: '0 1rem 4rem', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' },
   aboutText: { color: '#b7c5cc', fontSize: '1.05rem', maxWidth: 720 },
   btnPrimary: { background: '#3fd0c9', color: '#0b1015', padding: '0.65rem 0.8rem', borderRadius: 6, fontWeight: 600, fontSize: '0.8rem', display: 'inline-block' },
+  btnGhost: { border: '1px solid #3fd0c9', color: '#3fd0c9', padding: '0.65rem 0.8rem', borderRadius: 6, fontWeight: 600, fontSize: '0.8rem', display: 'inline-block' },
 }
