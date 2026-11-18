@@ -907,6 +907,12 @@
       "sideBySide": "side by side",
       "vertical": "stacked",
       "grid": "2×2 grid"
+    },
+    "ocrPrompts": {
+      "all": "Extract all text in this image. Reproduce it faithfully, preserving reading order. If it is a table, use one row per person with values separated by |.",
+      "timesheet": "Extract the text from this timesheet. For each person, provide the name followed by that person's daily status letters, separated by spaces. One row per person, one column per day. Format: NAME | letters | SUM(hours worked).",
+      "digits": "Extract only numbers and dates from this image. Return them as a list, one per line, without descriptive text.",
+      "invoice": "Extract the key information from this document: sender, recipient, document number, date, totals, and line items (description, quantity, amount). Format as a list."
     }
   },
   "dga": {
