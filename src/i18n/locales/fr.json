@@ -906,6 +906,12 @@
       "sideBySide": "côte à côte",
       "vertical": "en colonne",
       "grid": "grille 2×2"
+    },
+    "ocrPrompts": {
+      "all": "Extrayez tout le texte présent dans cette image. Reproduisez-le fidèlement en respectant l'ordre de lecture. S'il s'agit d'un tableau, utilisez une ligne par personne et séparez les valeurs par |.",
+      "timesheet": "Extrayez le texte de cette feuille de présence. Pour chaque personne, indiquez le nom suivi des lettres de statut de chaque jour, séparées par des espaces. Une ligne par personne et une colonne par jour. Format : NOM | lettres | SOMME(heures travaillées).",
+      "digits": "Extrayez uniquement les nombres et les dates de cette image. Présentez-les sous forme de liste, un élément par ligne, sans texte descriptif.",
+      "invoice": "Extrayez les principales données de ce document : expéditeur, destinataire, numéro du document, date, totaux et lignes (description, quantité, montant). Présentez le résultat sous forme de liste."
     }
   },
   "dga": {
