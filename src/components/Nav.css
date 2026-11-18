@@ -74,7 +74,8 @@
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  min-width: 190px;
+  min-width: 0;
+  width: max-content;
   display: grid;
   gap: 2px;
   padding: 7px;
@@ -87,12 +88,12 @@
   display: block;
   padding: 9px 11px;
   border-radius: 6px;
-  color: #3fd0c9;
+  color: #b7c5cc;
   font-size: .82rem;
   font-weight: 500;
   white-space: nowrap;
 }
-.nav4-panel a:hover { color: #8ff0ea; background: #18252d; }
+.nav4-panel a:hover { color:  #3fd0c9; background: #18252d; }
 .nav4-language-row {
     justify-self: end;
     display: flex;
