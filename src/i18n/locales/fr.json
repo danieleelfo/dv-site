@@ -1051,7 +1051,10 @@
       "previous": "← Précédente",
       "pageOf": "Page {{page}} sur {{pages}}",
       "next": "Suivante →",
-      "noneSelected": "Aucune image sélectionnée n’est disponible."
+      "noneSelected": "Aucune image sélectionnée n’est disponible.",
+      "invalidJson": "Réponse non JSON de la passerelle (HTTP {{status}}) : {{body}}",
+      "emptyBody": "corps vide",
+      "httpError": "HTTP {{status}}"
     }
   },
   "dga": {
