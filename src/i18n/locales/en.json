@@ -826,7 +826,7 @@
     "clientIdMissing": "VITE_GOOGLE_CLIENT_ID is not configured.",
     "subtitle": "Local Z-Image-TurboLento ⚓ ",
     "logout": "Logout",
-    "notice": "Local engine ⚓ · M5 processing · Async",
+    "notice": "Local engine ⚓ M5 processing ⌛ Async",
     "tabGenera": "✦ Generate",
     "tabStorico": "🖼 History",
     "editTitle": "Edit an image",
