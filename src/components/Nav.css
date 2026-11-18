@@ -12,9 +12,9 @@
 .nav4-main {
   width: 100%;
   max-width: 1280px;
-  min-height: 42px;
+  min-height: 36px;
   margin: 0 auto;
-  padding: 8px clamp(10px, 2vw, 24px);
+  padding: 3px clamp(10px, 2vw, 24px);
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: start;
@@ -35,7 +35,7 @@
 }
 .nav4-logo img {
   display: block;
-  height: 40px;
+  height: 36px;
   width: auto;
 }
 .nav4-logo span {
