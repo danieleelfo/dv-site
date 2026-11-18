@@ -29,11 +29,11 @@ function decodeJwt(token) {
 }
 function valid(token) { const p = token ? decodeJwt(token) : null; return !!p?.exp && p.exp * 1000 > Date.now() + 5000; }
 function readToken() { try { const t = localStorage.getItem(TOKEN_KEY); return valid(t) ? t : ""; } catch { return ""; } }
-async function request(url, token, init = {}) {
+async function request(url, token, init = {}, t) {
   const res = await fetch(url, { ...init, headers: { ...(init.headers || {}), Authorization: `Bearer ${token}` } });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    if (res.status === 404) throw new Error(t("img.puzzle.endpointMissing"));
+    if (res.status === 404) throw new Error(t ? t("img.puzzle.endpointMissing") : "Gateway endpoint not found (404).");
     throw new Error(typeof data.detail === "string" ? data.detail : data.detail ? JSON.stringify(data.detail) : `HTTP ${res.status}`);
   }
   return data;
@@ -71,30 +71,30 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 // Invia un'immagine all'img2img e fa polling inline del job fino al risultato.
 async function runImg2Img(token, payload, name, opts) {
-  const { prompt, antiArtifact, strength, outW, outH, steps, seed, onJobId } = opts;
+  const { prompt, antiArtifact, strength, outW, outH, steps, seed, onJobId, t } = opts;
   const body = new FormData();
   body.append("image", payload, name);
   body.append("prompt", antiArtifact ? prompt.trim() + ", seamless unified photo, no text, no Chinese characters, no watermark" : prompt.trim());
   body.append("strength", String(strength)); body.append("width", String(outW)); body.append("height", String(outH));
   body.append("steps", steps); body.append("seed", seed.trim() || "-1");
-  const data = await request(`${API}/api/image/img2img`, token, { method: "POST", body });
+  const data = await request(`${API}/api/image/img2img`, token, { method: "POST", body }, t);
   const id = data.job_id || data.id;
   if (!id) {
     if (data.image_base64) return data.image_base64.startsWith("data:") ? data.image_base64 : `data:image/png;base64,${data.image_base64}`;
-    throw new Error(t("img.puzzle.noJobOrImage"));
+    throw new Error(t ? t("img.puzzle.noJobOrImage") : "The server returned no job_id or image.");
   }
   onJobId(String(id));
   for (;;) {
     await sleep(POLL_MS);
-    const st = await request(`${API}/api/image/jobs/${encodeURIComponent(String(id))}`, token);
+    const st = await request(`${API}/api/image/jobs/${encodeURIComponent(String(id))}`, token, {}, t);
     const sv = String(st.status || "").toLowerCase();
     if (["failed", "error", "cancelled"].includes(sv)) throw new Error(st.error || st.detail || "Generazione fallita.");
     if (["completed", "complete", "succeeded"].includes(sv)) {
-      const out = await request(`${API}/api/image/jobs/${encodeURIComponent(String(id))}/result`, token);
+      const out = await request(`${API}/api/image/jobs/${encodeURIComponent(String(id))}/result`, token, {}, t);
       const img = out.image_base64 || out.image || out.result_base64;
       if (img) return img.startsWith("data:") ? img : `data:image/png;base64,${img}`;
       if (out.image_url) return out.image_url;
-      throw new Error(t("img.puzzle.jobNoImage"));
+      throw new Error(t ? t("img.puzzle.jobNoImage") : "The job finished without returning an image.");
     }
   }
 }
@@ -198,7 +198,7 @@ export default function MultifotoTab({ embedded = true }) {
     if (!files.length || !prompt.trim() || busy) return;
     setError(""); setResult(""); setResults([]); setJobId(""); setStatus("submitting");
     const now = Date.now(); setStarted(now); setElapsed(0);
-    const opts = { prompt, antiArtifact, strength, outW, outH, steps, seed, onJobId: id => setJobId(id) };
+    const opts = { prompt, antiArtifact, strength, outW, outH, steps, seed, t, onJobId: id => setJobId(id) };
     try {
       if (mode === "compose") {
         // Solo fusione Pillow: nessuna generazione AI.
