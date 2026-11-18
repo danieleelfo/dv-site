@@ -961,7 +961,10 @@
       "photoVariant": "Photo variation {{index}}",
       "downloadPhoto": "↓ Download photo {{index}}",
       "testFailed": "Test not completed",
-      "retry": "Try again"
+      "retry": "Try again",
+      "endpointMissing": "This endpoint is not available in the gateway yet (404). The page is ready for testing; the backend still needs to be added.",
+      "noJobOrImage": "The server did not return a job_id or an image.",
+      "jobNoImage": "The job finished, but the server did not return an image."
     },
     "comics": {
       "title": "Comics Editor",
@@ -1021,7 +1024,34 @@
       "preview": "Full comic preview",
       "completedPageAlt": "Completed comic page",
       "downloadPng": "Download PNG",
-      "footer": "Comics Editor · Pillow on Mac · up to {{max}} panels"
+      "footer": "Comics Editor · Pillow on Mac · up to {{max}} panels",
+      "textColor": "Text"
+    },
+    "archive": {
+      "kicker": "GRADV · MAIN ARCHIVE",
+      "title": "From archive",
+      "subtitle": "{{count}} images · select a photo to use in your comic",
+      "selectPhoto": "Select a photo from the GraDV archive",
+      "searchPlaceholder": "Search prompt…",
+      "searchLabel": "Search prompt",
+      "search": "Search",
+      "reset": "Reset",
+      "perPage": "{{count}} per page",
+      "downloadingMany": "Downloading {{count}} images…",
+      "downloadingOriginal": "Downloading original #{{id}}…",
+      "loading": "Loading archive…",
+      "noImages": "No images found.",
+      "imageNumber": "Image #{{id}}",
+      "gradvNumber": "GraDV #{{id}}",
+      "noPrompt": "Prompt unavailable",
+      "selected": "{{count}} selected",
+      "downloading": "Downloading…",
+      "addSelected": "Add selected",
+      "pagination": "Archive pagination",
+      "previous": "← Previous",
+      "pageOf": "Page {{page}} of {{pages}}",
+      "next": "Next →",
+      "noneSelected": "No selected image is available."
     }
   },
   "dga": {
