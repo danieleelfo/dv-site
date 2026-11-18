@@ -825,7 +825,7 @@
     "clientIdMissing": "VITE_GOOGLE_CLIENT_ID no està configurat.",
     "subtitle": "Generació local amb Z-Image-Turbo",
     "logout": "Tanca la sessió",
-    "notice": "Motor local · Processament al Mac · Cua asíncrona",
+    "notice": "Motor local ⚓ · Processament al Mac · Cua asíncrona",
     "tabGenera": "✦ Genera",
     "tabStorico": "🖼 Historial",
     "editTitle": "Edita una imatge",
@@ -899,7 +899,7 @@
     "ocrPresetInvoice": "Factura",
     "backToImprove": "Torna a Improve ↗",
     "tabStorie": "📚 Històries",
-    "tabMultiFoto": "🧠 Multifoto",
+    "tabMultiFoto": "🧠 Multifoto 🧩 ",
     "tabFumetti": "💬 Còmics",
     "layout": {
       "single": "una sola",
