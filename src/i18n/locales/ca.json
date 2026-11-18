@@ -964,7 +964,8 @@
       "retry": "Torna-ho a provar",
       "endpointMissing": "Aquest endpoint encara no és disponible al gateway (404). La pàgina està preparada per provar-la; falta afegir-hi el backend.",
       "noJobOrImage": "El servidor no ha retornat cap job_id ni cap imatge.",
-      "jobNoImage": "La feina ha acabat, però el servidor no ha retornat cap imatge."
+      "jobNoImage": "La feina ha acabat, però el servidor no ha retornat cap imatge.",
+      "photoAlt": "Foto {{index}} de {{count}}"
     },
     "comics": {
       "title": "Editor de còmics",
