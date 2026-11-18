@@ -907,6 +907,12 @@
       "sideBySide": "costat per costat",
       "vertical": "en columna",
       "grid": "quadrícula 2×2"
+    },
+    "ocrPrompts": {
+      "all": "Extreu tot el text present en aquesta imatge. Reprodueix-lo fidelment i mantén l'ordre de lectura. Si és una taula, fes servir una fila per persona i separa els valors amb |.",
+      "timesheet": "Extreu el text d'aquest full de presència. Per a cada persona, indica el nom seguit de les lletres d'estat de cada dia, separades per espais. Una fila per persona i una columna per dia. Format: NOM | lletres | SUMA(hores treballades).",
+      "digits": "Extreu només números i dates d'aquesta imatge. Presenta'ls en una llista, un per línia, sense text descriptiu.",
+      "invoice": "Extreu les dades principals d'aquest document: remitent, destinatari, número de document, data, totals i línies (descripció, quantitat i import). Dona el resultat en forma de llista."
     }
   },
   "dga": {
