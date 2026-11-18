@@ -913,7 +913,8 @@
       "timesheet": "Estrai il testo di questo foglio presenze. Per ogni persona riporta il nome seguito dalle lettere di stato di ogni giorno, separate da spazi. Una riga per persona, una colonna per giorno. Formato: NOME | lettere | SOMMA(ore lavorate).",
       "digits": "Estrai da questa immagine solo numeri e date. Riportali come elenco, uno per riga, senza testo descrittivo.",
       "invoice": "Estrai da questo documento i dati principali: mittente, destinatario, numero documento, data, totali e voci (descrizione, quantità, importo). Formatta come elenco."
-    }
+    },
+    "chooseFile": "Scegli file"
   },
   "dga": {
     "unauthorized": "Accesso non autorizzato per questo account Google.",
