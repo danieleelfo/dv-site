@@ -94,7 +94,7 @@ async function runImg2Img(token, payload, name, opts) {
       const img = out.image_base64 || out.image || out.result_base64;
       if (img) return img.startsWith("data:") ? img : `data:image/png;base64,${img}`;
       if (out.image_url) return out.image_url;
-      throw new Error("Job completato ma il server non ha restituito un'immagine.");
+      throw new Error(t("img.puzzle.jobNoImage"));
     }
   }
 }
