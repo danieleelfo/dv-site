@@ -2313,18 +2313,17 @@ const css = `
   .lc-hint-kbd{display:none}
 }
 @media (max-width:980px){
-  .lc-grid{grid-template-columns:minmax(0,1fr)}
-  .lc-main,.lc-side{display:contents}
-  .lc-prompt{order:0}
-  .lc-sec-session{order:1}
-  .lc-status{order:2}
-  .lc-sec-commands{order:3}
-}
-@media (max-width:560px){
-  .lc-prompt{order:0}
-  .lc-sec-session{order:1}
-  .lc-audio{order:2}
-  .lc-status{order:3}
-  .lc-sec-commands{order:4}
+  .lc-wrap{display:flex;flex-direction:column;gap:18px}
+  .lc-grid,.lc-main,.lc-side,.lc-pages{display:contents}
+  .lc-wrap .lc-panel{min-width:0}
+  .lc-prompt{order:1}
+  .lc-sec-session{order:2}
+  .lc-audio{order:3}
+  .lc-status{order:4}
+  .lc-sec-commands{order:5}
+  .lc-pages-head{order:6;margin:10px 0 -6px;padding-top:16px;border-top:1px solid var(--line)}
+  .lc-pages-grid{order:7}
+  .lc-pages-head--sub{order:8;margin:0 0 -8px;padding-top:0;border-top:0}
+  .lc-pages-grid--test{order:9}
 }
 `
