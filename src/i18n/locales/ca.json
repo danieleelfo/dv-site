@@ -934,7 +934,7 @@
       "layoutColumn": "Apilades en columna",
       "layoutBackground": "Primera foto com a fons",
       "blend": "Fusió entre les fotos: {{value}}%",
-      "sharpEdges": " vores nítides",
+      "sharpEdges": "Vores nítides",
       "blended": "Foses entre si",
       "mode": "Mode",
       "modeMix": "Mix — fusió Pillow + img2img",
@@ -961,7 +961,10 @@
       "photoVariant": "Variant de la foto {{index}}",
       "downloadPhoto": "↓ Descarrega la foto {{index}}",
       "testFailed": "Prova no completada",
-      "retry": "Torna-ho a provar"
+      "retry": "Torna-ho a provar",
+      "endpointMissing": "Aquest endpoint encara no és disponible al gateway (404). La pàgina està preparada per provar-la; falta afegir-hi el backend.",
+      "noJobOrImage": "El servidor no ha retornat cap job_id ni cap imatge.",
+      "jobNoImage": "La feina ha acabat, però el servidor no ha retornat cap imatge."
     },
     "comics": {
       "title": "Editor de còmics",
@@ -1021,7 +1024,34 @@
       "preview": "Previsualització del còmic complet",
       "completedPageAlt": "Pàgina de còmic completa",
       "downloadPng": "Descarrega PNG",
-      "footer": "Editor de còmics · Pillow al Mac · fins a {{max}} vinyetes"
+      "footer": "Editor de còmics · Pillow al Mac · fins a {{max}} vinyetes",
+      "textColor": "Text"
+    },
+    "archive": {
+      "kicker": "GRADV · ARXIU PRINCIPAL",
+      "title": "De l'arxiu",
+      "subtitle": "{{count}} imatges · selecciona una foto per fer-la servir al còmic",
+      "selectPhoto": "Selecciona una foto de l'arxiu GraDV",
+      "searchPlaceholder": "Cerca al prompt…",
+      "searchLabel": "Cerca al prompt",
+      "search": "Cerca",
+      "reset": "Reinicia",
+      "perPage": "{{count}} per pàgina",
+      "downloadingMany": "Descarregant {{count}} imatges…",
+      "downloadingOriginal": "Descarregant l'original #{{id}}…",
+      "loading": "Carregant l'arxiu…",
+      "noImages": "No s'han trobat imatges.",
+      "imageNumber": "Imatge #{{id}}",
+      "gradvNumber": "GraDV #{{id}}",
+      "noPrompt": "Prompt no disponible",
+      "selected": "{{count}} seleccionades",
+      "downloading": "Descarregant…",
+      "addSelected": "Afegeix les seleccionades",
+      "pagination": "Paginació de l'arxiu",
+      "previous": "← Anterior",
+      "pageOf": "Pàgina {{page}} de {{pages}}",
+      "next": "Següent →",
+      "noneSelected": "No hi ha cap imatge seleccionada disponible."
     }
   },
   "dga": {
