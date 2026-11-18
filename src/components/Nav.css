@@ -201,6 +201,6 @@
 }
 @media (max-width: 768px) {
   .nav4-groups {
-    transform: none;
+    transform: translateX(-2px);
   }
 }
