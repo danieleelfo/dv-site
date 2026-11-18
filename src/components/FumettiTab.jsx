@@ -1,5 +1,6 @@
 // Comics Editor: pagina multi-vignetta, balloon per foto, riordino mobile.
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import ArchivePicker from "./ArchivePicker.jsx";
 import { clearComicsDraft, loadComicsDraft, saveComicsDraft } from "../utils/comicsDraft.js";
 
@@ -7,10 +8,10 @@ const API = "https://api.danielevillanova.com";
 const TOKEN_KEY = "dv_google_id_token";
 const MAX_PANELS = 12;
 const TYPES = [
-  ["speech", "Balloon"],
-  ["rect", "Rettangolo"],
-  ["thought", "Pensiero"],
-  ["shout", "Urlo"],
+  ["speech", "speech"],
+  ["rect", "rectangle"],
+  ["thought", "thought"],
+  ["shout", "shout"],
 ];
 let nextPanelId = 1;
 let nextBubbleId = 1;
@@ -44,6 +45,7 @@ function makeBubble() {
 }
 
 export default function FumettiTab({ embedded = false } = {}) {
+  const { t } = useTranslation();
   const [token, setToken] = useState(readToken);
   const [panels, setPanels] = useState([]);
   const [activeId, setActiveId] = useState(null);
@@ -92,7 +94,7 @@ export default function FumettiTab({ embedded = false } = {}) {
         }
         if (saved.panels.some(item => item.archiveId) && !token) {
           preserveDraft = true;
-          setDraftMessage("Accedi con Google per recuperare le immagini GraDV della bozza.");
+          setDraftMessage(t("img.comics.draftLogin"));
           return;
         }
 
@@ -116,7 +118,7 @@ export default function FumettiTab({ embedded = false } = {}) {
           if (!blob) {
             restored.forEach(panel => URL.revokeObjectURL(panel.preview));
             preserveDraft = true;
-            setDraftMessage("Una foto della bozza non è recuperabile. La bozza originale è stata conservata senza sovrascriverla.");
+            setDraftMessage(t("img.comics.draftImageMissing"));
             return;
           }
 
@@ -141,7 +143,7 @@ export default function FumettiTab({ embedded = false } = {}) {
         nextPanelId = Math.max(nextPanelId, ...panelIds, 0) + 1;
         nextBubbleId = Math.max(nextBubbleId, ...bubbleIds, 0) + 1;
       } catch (err) {
-        setDraftMessage("Ripristino bozza non riuscito: " + (err.message || String(err)));
+        setDraftMessage(t("img.comics.draftRestoreError", { error: err.message || String(err) }));
       } finally {
         if (!cancelled && !preserveDraft) setDraftReady(true);
       }
@@ -177,9 +179,9 @@ export default function FumettiTab({ embedded = false } = {}) {
             bubbles: panel.bubbles,
           })),
         });
-        if (!cancelled) setDraftMessage("Bozza salvata automaticamente su questo dispositivo.");
+        if (!cancelled) setDraftMessage(t("img.comics.draftSaved"));
       } catch (err) {
-        if (!cancelled) setDraftMessage("Salvataggio locale non disponibile: " + (err.message || String(err)));
+        if (!cancelled) setDraftMessage(t("img.comics.draftSaveError", { error: err.message || String(err) }));
       }
     }
 
@@ -199,8 +201,8 @@ export default function FumettiTab({ embedded = false } = {}) {
     const rejected = incoming.length - validFiles.length;
     const room = MAX_PANELS - panels.length;
     const accepted = validFiles.slice(0, Math.max(0, room));
-    if (rejected) setError("Alcuni file non sono immagini o superano 15 MB.");
-    else if (validFiles.length > room) setError("Massimo " + MAX_PANELS + " vignette.");
+    if (rejected) setError(t("img.comics.invalidFiles"));
+    else if (validFiles.length > room) setError(t("img.comics.maxPanels", { max: MAX_PANELS }));
     else setError("");
     if (!accepted.length) return;
     const created = accepted.map((file, index) => makePanel(file, archiveItems[index] || null));
@@ -260,7 +262,7 @@ export default function FumettiTab({ embedded = false } = {}) {
   }
   function replacePanel(id, file) {
     if (!file || !file.type.startsWith("image/") || file.size > 15 * 1024 * 1024) {
-      setError("Scegli un'immagine valida fino a 15 MB.");
+      setError(t("img.comics.invalidReplacement"));
       return;
     }
     const preview = URL.createObjectURL(file);
@@ -395,31 +397,31 @@ export default function FumettiTab({ embedded = false } = {}) {
     document.body.appendChild(a); a.click(); a.remove();
   }
 
-  if (!token) return <section className="fb-panel"><h2>Comics Editor</h2><p>Accedi con Google dal tab Genera, poi torna qui.</p><style>{STYLES}</style></section>;
+  if (!token) return <section className="fb-panel"><h2>{t("img.comics.title")}</h2><p>{t("img.comics.loginHint")}</p><style>{STYLES}</style></section>;
 
   return (
     <div className="fb-wrap">
-      {!embedded && <header className="fb-header"><div><p className="fb-kicker">D. VILLANOVA · IMAGE LAB</p><h1>Comics Editor</h1><p className="fb-muted">Componi una pagina a fumetti con più foto, balloon e ordine personalizzato.</p></div></header>}
+      {!embedded && <header className="fb-header"><div><p className="fb-kicker">D. VILLANOVA · IMAGE LAB</p><h1>{t("img.comics.title")}</h1><p className="fb-muted">{t("img.comics.description")}</p></div></header>}
       <section className="fb-panel">
-        <h2>1 · Le tue vignette <small>({panels.length}/{MAX_PANELS})</small></h2>
+        <h2>{t("img.comics.panelsTitle")} <small>({panels.length}/{MAX_PANELS})</small></h2>
         {draftMessage && <p className="fb-hint" role="status">{draftMessage}</p>}
         <div className="fb-upload">
           <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={e => addFiles(e.target.files)} />
-          <button type="button" className="fb-btn" disabled={panels.length >= MAX_PANELS} onClick={() => fileInputRef.current?.click()}>+ Aggiungi foto</button>
-          <button type="button" className="fb-btn" disabled={panels.length >= MAX_PANELS} onClick={() => setShowArchive(true)}>Dall'archivio</button>
+          <button type="button" className="fb-btn" disabled={panels.length >= MAX_PANELS} onClick={() => fileInputRef.current?.click()}>{t("img.comics.addPhotos")}</button>
+          <button type="button" className="fb-btn" disabled={panels.length >= MAX_PANELS} onClick={() => setShowArchive(true)}>{t("img.comics.fromArchive")}</button>
         </div>
-        <p className="fb-hint">Puoi aggiungere foto in momenti diversi. Ordine di lettura da sinistra a destra e dall'alto in basso.</p>
+        <p className="fb-hint">{t("img.comics.readingOrderHint")}</p>
         {panels.length > 0 && <div className="fb-panel-list">
           {panels.map((p, i) => <article key={p.id} className={"fb-panel-card" + (p.id === active?.id ? " is-active" : "")}>
             <button type="button" className="fb-panel-select" onClick={() => { setActiveId(p.id); setSelectedBubbleId(null); setTailMode(false); }}>
-              <img src={p.preview} alt={"Vignetta " + (i + 1)} />
-              <span><b>Vignetta {i + 1}</b><small>{p.file.name}</small><small>{p.bubbles.filter(b => b.text.trim()).length} balloon</small></span>
+              <img src={p.preview} alt={t("img.comics.panelNumber", { index: i + 1 })} />
+              <span><b>Vignetta {i + 1}</b><small>{p.file.name}</small><small>{t("img.comics.bubbleCount", { count: p.bubbles.filter(b => b.text.trim()).length })}</small></span>
             </button>
             <div className="fb-order">
-              <button type="button" onClick={() => movePanel(i, -1)} disabled={i === 0} aria-label="Sposta su">↑</button>
-              <button type="button" onClick={() => movePanel(i, 1)} disabled={i === panels.length - 1} aria-label="Sposta giù">↓</button>
-              <label className="fb-btn fb-mini">Sostituisci<input type="file" accept="image/*" onChange={e => { replacePanel(p.id, e.target.files?.[0]); e.target.value = ""; }} /></label>
-              <button type="button" className="fb-btn fb-danger" onClick={() => removePanel(p.id)}>Elimina</button>
+              <button type="button" onClick={() => movePanel(i, -1)} disabled={i === 0} aria-label={t("img.comics.moveUp")}>↑</button>
+              <button type="button" onClick={() => movePanel(i, 1)} disabled={i === panels.length - 1} aria-label={t("img.comics.moveDown")}>↓</button>
+              <label className="fb-btn fb-mini">{t("img.comics.replace")}<input type="file" accept="image/*" onChange={e => { replacePanel(p.id, e.target.files?.[0]); e.target.value = ""; }} /></label>
+              <button type="button" className="fb-btn fb-danger" onClick={() => removePanel(p.id)}>{t("img.comics.delete")}</button>
             </div>
           </article>)}
         </div>}
@@ -427,35 +429,35 @@ export default function FumettiTab({ embedded = false } = {}) {
 
       {active && <div className="fb-grid">
         <section className="fb-panel">
-          <h2>2 · Modifica vignetta {panels.findIndex(p => p.id === active.id) + 1}</h2>
+          <h2>{t("img.comics.editPanel", { index: panels.findIndex(p => p.id === active.id) + 1 })}</h2>
           <div className="fb-canvas" ref={canvasRef} onClick={onCanvasClick}>
-            <img src={active.preview} alt="Vignetta selezionata" draggable={false} />
+            <img src={active.preview} alt={t("img.comics.selectedPanelAlt")} draggable={false} />
             <svg className="fb-tailsvg" aria-hidden="true">{bubbles.map(b => <line key={b.id}
               x1={(b.x * 100) + "%"} y1={(b.y * 100) + "%"} x2={(b.tailX * 100) + "%"} y2={(b.tailY * 100) + "%"}
               stroke={b.fill} strokeWidth="2.5" strokeLinecap="round" strokeDasharray={b.type === "thought" ? "0.1 8" : undefined} />)}</svg>
             {bubbles.map(b => <div key={b.id} style={bubbleStyle(b)} onPointerDown={e => startBubbleDrag(e, b)}
-              onClick={e => { e.stopPropagation(); setSelectedBubbleId(b.id); }}>{b.text || <span className="fb-empty">Testo…</span>}</div>)}
+              onClick={e => { e.stopPropagation(); setSelectedBubbleId(b.id); }}>{b.text || <span className="fb-empty">{t("img.comics.textPlaceholder")}</span>}</div>)}
           </div>
-          <p className="fb-hint">Seleziona un balloon e trascinalo sulla foto. Tocca "Posiziona coda" e poi la foto per indicare chi parla.</p>
+          <p className="fb-hint">{t("img.comics.bubbleHelp")}</p>
           <div className="fb-actions">
-            <button type="button" className="fb-btn" onClick={addBubble}>+ Balloon</button>
-            {selectedBubble && <button type="button" className={"fb-btn" + (tailMode ? " fb-btn-active" : "")} onClick={() => setTailMode(v => !v)}>{tailMode ? "Tocca la punta…" : "Posiziona coda"}</button>}
-            {selectedBubble && <button type="button" className="fb-btn fb-danger" onClick={() => removeBubble(selectedBubble.id)}>Elimina balloon</button>}
+            <button type="button" className="fb-btn" onClick={addBubble}>{t("img.comics.addBubble")}</button>
+            {selectedBubble && <button type="button" className={"fb-btn" + (tailMode ? " fb-btn-active" : "")} onClick={() => setTailMode(v => !v)}>{tailMode ? t("img.comics.tapTail") : t("img.comics.positionTail")}</button>}
+            {selectedBubble && <button type="button" className="fb-btn fb-danger" onClick={() => removeBubble(selectedBubble.id)}>{t("img.comics.deleteBubble")}</button>}
           </div>
         </section>
         <section className="fb-panel">
-          <h2>3 · Balloon selezionato</h2>
-          {!selectedBubble && <p className="fb-hint">Aggiungi un balloon o selezionane uno sulla foto.</p>}
+          <h2>{t("img.comics.selectedBubble")}</h2>
+          {!selectedBubble && <p className="fb-hint">{t("img.comics.selectBubbleHint")}</p>}
           {selectedBubble && <div className="fb-form">
-            <label className="fb-label">Tipo</label>
-            <select className="fb-input" value={selectedBubble.type} onChange={e => patchBubble(selectedBubble.id, { type: e.target.value })}>{TYPES.map(([v, label]) => <option key={v} value={v}>{label}</option>)}</select>
-            <label className="fb-label">Testo</label>
-            <textarea className="fb-input fb-text" rows={3} maxLength={500} value={selectedBubble.text} placeholder="Scrivi il testo…" onChange={e => patchBubble(selectedBubble.id, { text: e.target.value })} />
-            <label className="fb-label">Larghezza: {Math.round(selectedBubble.w * 100)}%</label>
+            <label className="fb-label">{t("img.comics.type")}</label>
+            <select className="fb-input" value={selectedBubble.type} onChange={e => patchBubble(selectedBubble.id, { type: e.target.value })}>{TYPES.map(([v, key]) => <option key={v} value={t("img.comics.bubbleTypes." + key)}>{t("img.comics.bubbleTypes." + key)}</option>)}</select>
+            <label className="fb-label">{t("img.comics.text")}</label>
+            <textarea className="fb-input fb-text" rows={3} maxLength={500} value={selectedBubble.text} placeholder={t("img.comics.writeText")} onChange={e => patchBubble(selectedBubble.id, { text: e.target.value })} />
+            <label className="fb-label">{t("img.comics.width")}: {Math.round(selectedBubble.w * 100)}%</label>
             <input type="range" min=".08" max=".9" step=".01" value={selectedBubble.w} onChange={e => patchBubble(selectedBubble.id, { w: Number(e.target.value) })} />
             <div className="fb-fields">
-              <div className="fb-field"><label className="fb-label">Dimensione testo</label><input className="fb-input" type="number" min="12" max="200" value={selectedBubble.fontSize} onChange={e => patchBubble(selectedBubble.id, { fontSize: Number(e.target.value) || 44 })} /></div>
-              <div className="fb-field"><label className="fb-label">Sfondo</label><input className="fb-input fb-color" type="color" value={selectedBubble.fill} onChange={e => patchBubble(selectedBubble.id, { fill: e.target.value })} /></div>
+              <div className="fb-field"><label className="fb-label">{t("img.comics.textSize")}</label><input className="fb-input" type="number" min="12" max="200" value={selectedBubble.fontSize} onChange={e => patchBubble(selectedBubble.id, { fontSize: Number(e.target.value) || 44 })} /></div>
+              <div className="fb-field"><label className="fb-label">{t("img.comics.background")}</label><input className="fb-input fb-color" type="color" value={selectedBubble.fill} onChange={e => patchBubble(selectedBubble.id, { fill: e.target.value })} /></div>
               <div className="fb-field"><label className="fb-label">Testo</label><input className="fb-input fb-color" type="color" value={selectedBubble.color} onChange={e => patchBubble(selectedBubble.id, { color: e.target.value })} /></div>
             </div>
           </div>}
@@ -463,12 +465,12 @@ export default function FumettiTab({ embedded = false } = {}) {
       </div>}
 
       <section className="fb-panel">
-        <h2>4 · Pagina finale</h2>
-        <div className="fb-layouts"><label>Impaginazione <select className="fb-input" value={layout} onChange={e => setLayout(e.target.value)}><option value="grid">Griglia (2 colonne)</option><option value="vertical">Verticale (una colonna)</option><option value="horizontal">Orizzontale (una riga)</option><option value="grid3">Griglia (3 colonne)</option><option value="single">Copertina (una vignetta)</option></select></label></div>
-        <button type="button" className="fb-btn fb-primary" disabled={!panels.length || status === "drawing" || pdfBusy} onClick={generate}>{status === "drawing" ? "Composizione…" : "Genera fumetto completo"}</button>{" "}<button type="button" className="fb-btn" disabled={!panels.length || status === "drawing" || pdfBusy} onClick={exportPdf}>{pdfBusy ? "Esportazione…" : "Esporta PDF"}</button>
+        <h2>{t("img.comics.finalPage")}</h2>
+        <div className="fb-layouts"><label>{t("img.comics.layout")} <select className="fb-input" value={layout} onChange={e => setLayout(e.target.value)}><option value="grid">{t("img.comics.layoutGrid2")}</option><option value="vertical">{t("img.comics.layoutVertical")}</option><option value="horizontal">{t("img.comics.layoutHorizontal")}</option><option value="grid3">{t("img.comics.layoutGrid3")}</option><option value="single">{t("img.comics.layoutCover")}</option></select></label></div>
+        <button type="button" className="fb-btn fb-primary" disabled={!panels.length || status === "drawing" || pdfBusy} onClick={generate}>{status === "drawing" ? t("img.comics.composing") : t("img.comics.generate")}</button>{" "}<button type="button" className="fb-btn" disabled={!panels.length || status === "drawing" || pdfBusy} onClick={exportPdf}>{pdfBusy ? t("img.comics.exporting") : t("img.comics.exportPdf")}</button>
         {error && <div className="fb-error" role="alert">{error}</div>}
-        {resultUrl && status === "done" && <div className="fb-result"><h3>Anteprima fumetto completo</h3><img src={resultUrl} alt="Pagina a fumetti completa" /><button type="button" className="fb-btn fb-primary" onClick={download}>Scarica PNG</button></div>}
-        <footer className="fb-footer">Comics Editor · Pillow sul Mac · fino a {MAX_PANELS} vignette</footer>
+        {resultUrl && status === "done" && <div className="fb-result"><h3>{t("img.comics.preview")}</h3><img src={resultUrl} alt={t("img.comics.completedPageAlt")} /><button type="button" className="fb-btn fb-primary" onClick={download}>{t("img.comics.downloadPng")}</button></div>}
+        <footer className="fb-footer">{t("img.comics.footer", { max: MAX_PANELS })}</footer>
       </section>
 
       {showArchive && <ArchivePicker idToken={token} multiSelect onSelect={onArchiveSelect} onClose={() => setShowArchive(false)} />}
