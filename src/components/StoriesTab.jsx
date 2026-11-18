@@ -16,6 +16,8 @@
 // Storico: GET /api/admin/stories (+ dettaglio, audio, DELETE).
 // Le immagini delle scene restano in /api/image/history/{job_id}/image.
 
+import { useTranslation } from "react-i18next";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { IMG_STEPS, IMG_STRENGTH } from "../lib/imageParams.js";
 import {
@@ -33,11 +35,11 @@ import {
 } from "../lib/imageJobs";
 const STORY_AGENT = "Story Whisper";
 const STRIP_MODES = [
-    ["", "1 singola"],
-    ["2", "2 · affiancate"],
-    ["3", "3 · in colonna"],
-    ["4", "4 · griglia 2x2"],
-  ];
+  { value: "",  n: 1, labelKey: "img.layout.single" },
+  { value: "2", n: 2, labelKey: "img.layout.sideBySide" },
+  { value: "3", n: 3, labelKey: "img.layout.vertical" },
+  { value: "4", n: 4, labelKey: "img.layout.grid" },
+];
 
   // Art direction per la fumettatura deliberata: 2 pannelli affiancati,
   // 3 in colonna, 4 in griglia 2x2 (ordine di lettura orizzontale).
@@ -135,12 +137,13 @@ function formatSeconds(seconds) {
 }
 
 export default function StoriesTab({ idToken }) {
+  const { t } = useTranslation();
   const [prompt, setPrompt] = useState("");
   const [imageCount, setImageCount] = useState(3);
   // Opzioni del box Audio di LeleAdmin, portate qui: agente (anche
   // Night Story), TTS opzionale, filtro kids, genere NS, stile extra
   // e modello planner della CREAZIONE (prima era fisso qwen2.5).
-  const [storyAgent, setStoryAgent] = useState(STORY_AGENT);
+  const [storyAgent, setStoryAgent] = useState(NS_AGENT);
   const [wantsTts, setWantsTts] = useState(true);
   // Lingua della storia e dell'audio (selettore bandierina accanto al TTS).
   const [storyLang, setStoryLang] = useState("es");
@@ -1263,8 +1266,8 @@ export default function StoriesTab({ idToken }) {
               aria-label="Pannelli fumetto per immagine"
               disabled={busy}
             >
-              {STRIP_MODES.map(([value, label]) => (
-                <option key={value} value={value}>📚 {label}</option>
+              {STRIP_MODES.map(({ value, n, labelKey }) => (
+                <option key={value} value={value}>📚 {n} · {t(labelKey)}</option>
               ))}
             </select>
             <select

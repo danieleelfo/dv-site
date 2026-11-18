@@ -1536,8 +1536,8 @@ export default function ImageLab({ initialTab = "genera" }) {
         )}
 
         <footer className="il-footer">
-          <span>Z-Image-Turbo</span>
-          <span>Local inference · Async jobs</span>
+          <span>Z-Image-TurboLento</span>
+          <span>100% Local ⚓️ </span>
           <button
             className="il-text-button"
             onClick={() => navigate("/improve")}

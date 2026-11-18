@@ -901,7 +901,13 @@
     "backToImprove": "Back to Improve ↗",
     "tabStorie": "📚 Stories",
     "tabMultiFoto": "🧠 Multi-photo",
-    "tabFumetti": "💬 Comics"
+    "tabFumetti": "💬 Comics",
+    "layout": {
+      "single": "single",
+      "sideBySide": "side by side",
+      "vertical": "stacked",
+      "grid": "2×2 grid"
+    }
   },
   "dga": {
     "unauthorized": "Access not authorized for this Google account.",
@@ -997,7 +1003,8 @@
     "fromProject": "— from project —",
     "tooBig": " · too large",
     "upload": "Upload file",
-    "pasteLeftPh": "Paste the original content here...",    "pasteRightPh": "Paste the modified content here...",
+    "pasteLeftPh": "Paste the original content here...",
+    "pasteRightPh": "Paste the modified content here...",
     "compare": "Compare",
     "clear": "Clear",
     "showAll": "Show all",

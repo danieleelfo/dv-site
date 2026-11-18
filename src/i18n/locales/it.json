@@ -467,7 +467,7 @@
     "footerSrc": "Fonte: gateway.py + git_admin.py + query_db.py · aggiornato 24 ottobre 2026",
     "footerStatic": "Pagina statica: nessuna dipendenza dal backend",
     "note": {
-    "stories": "Fumetto PDF delle storie, senza passare da Airflow/Telegram.",
+      "stories": "Fumetto PDF delle storie, senza passare da Airflow/Telegram.",
       "chat": "Dialogo con gli agenti pubblici. Nessuna autenticazione.",
       "barai": "Assistente ristorazione + proxy admin.",
       "admin": "Canale privato con Lele Admin.",
@@ -479,9 +479,9 @@
       "querydb": "Browse read-only dei database PostgreSQL (query_db.py)."
     },
     "ep": {
-    "imgCompose": "Composizione multifoto: fonde fino a 12 foto in un PNG (Pillow).",
-    "comicPdf": "Fumetto PDF on-demand della storia.",
-    "imgHealth": "process = UI Gradio (porta 7860), model_server = motore lite/full che tiene il modello in RAM (porta 7999, si spegne quando inattivo).",
+      "imgCompose": "Composizione multifoto: fonde fino a 12 foto in un PNG (Pillow).",
+      "comicPdf": "Fumetto PDF on-demand della storia.",
+      "imgHealth": "Stato della coda e del modello.",
       "chat": "Chat testuale con un agente pubblico.",
       "chatAudio": "Chat vocale (multipart): audio + agente.",
       "chatTts": "Scarica un audio TTS generato da un agente.",
@@ -494,7 +494,6 @@
       "arenaStop": "Ferma il run.",
       "arenaHand": "Pausa: mano alzata, attesa intervento umano (timeout 600s).",
       "arenaIntervene": "Intervento umano nel run.",
-      "imgHealth": "Stato della coda e del modello.",
       "imgJobs": "Txt2img: crea un job di generazione (202).",
       "imgJob": "Stato del job (polling).",
       "imgResult": "Risultato del job completato.",
@@ -516,8 +515,8 @@
       "ollamaUnload": "Scarica dalla RAM i modelli Ollama caricati (keep_alive=0)."
     },
     "nt": {
-    "imgCompose": "Layout griglia/fila/colonna/sfondo, dissolvenza 0-0.45. Il composito può poi andare all'img2img.",
-    "comicPdf": "Compone le illustrazioni con Pillow via leles/core/story_pdf_report. Richiede il repo leles aggiornato sul Mac.",
+      "imgCompose": "Layout griglia/fila/colonna/sfondo, dissolvenza 0-0.45. Il composito può poi andare all'img2img.",
+      "comicPdf": "Compone le illustrazioni con Pillow via leles/core/story_pdf_report. Richiede il repo leles aggiornato sul Mac.",
       "chat": "Il gateway inoltra su 127.0.0.1:{porta}/ask del rispettivo agente.",
       "chatAudio": "Solo Story Whisper (8088) e Night Story (8666) hanno input audio.",
       "barAsk": "Proxy verso Bar AI su porta 8081.",
@@ -902,7 +901,13 @@
     "backToImprove": "Torna a Improve ↗",
     "tabStorie": "📚 Storie",
     "tabMultiFoto": "🧠 Multi-foto",
-    "tabFumetti": "💬 Fumetti"
+    "tabFumetti": "💬 Fumetti",
+    "layout": {
+      "single": "singola",
+      "sideBySide": "affiancate",
+      "vertical": "in colonna",
+      "grid": "griglia 2×2"
+    }
   },
   "dga": {
     "unauthorized": "Accesso non autorizzato per questo account Google.",
@@ -997,7 +1002,8 @@
     "pickAriaB": "File esistente dal progetto (colonna B)",
     "fromProject": "— da progetto —",
     "tooBig": " · troppo grande",
-    "upload": "Carica file",    "pasteLeftPh": "Incolla qui il contenuto originale...",
+    "upload": "Carica file",
+    "pasteLeftPh": "Incolla qui il contenuto originale...",
     "pasteRightPh": "Incolla qui il contenuto modificato...",
     "compare": "Confronta",
     "clear": "Pulisci",
