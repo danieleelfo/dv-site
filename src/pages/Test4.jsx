@@ -548,10 +548,6 @@ export default function Test4() {
             {/* SIGNATURE + ACTIONS */}
             <div style={styles.signatureRow}>
 
-              <div style={styles.signature}>
-                designed and developed by Daniele Villanova
-              </div>
-
               <div style={homeStyles.heroActions}>
                 <Link
                   to={lang ? `/${lang}/projects` : '/projects'}
@@ -586,7 +582,7 @@ export default function Test4() {
 
         <footer style={homeStyles.footer}>
           <div className="container" style={{ maxWidth: 950, margin: '0 auto' }}>
-            © {new Date().getFullYear()} Daniele Villanova
+            Designed & Developed by Daniele Villanova © 2026
           </div>
         </footer>
 
