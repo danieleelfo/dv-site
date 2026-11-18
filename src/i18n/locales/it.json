@@ -1052,7 +1052,10 @@
       "previous": "← Precedente",
       "pageOf": "Pagina {{page}} di {{pages}}",
       "next": "Successiva →",
-      "noneSelected": "Nessuna immagine selezionata disponibile."
+      "noneSelected": "Nessuna immagine selezionata disponibile.",
+      "invalidJson": "Risposta non JSON dal gateway (HTTP {{status}}): {{body}}",
+      "emptyBody": "corpo vuoto",
+      "httpError": "HTTP {{status}}"
     }
   },
   "dga": {
