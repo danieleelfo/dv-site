@@ -1565,12 +1565,15 @@ const STYLES = `
 .il-header h1 {
   min-width: 0;
   flex: 1 1 auto;
-}
-.il-header h1 {
   font-family: var(--serif, Georgia, serif);
-  font-size: clamp(1.65rem, 3.5vw, 2.35rem);
-  font-weight: 400;
-  letter-spacing: -.035em;
+  font-size: clamp(1.35rem, 3.5vw, 2.1rem);
+  font-weight: 650;
+  letter-spacing: -.01em;
+  line-height: 1.15;
+  background: linear-gradient(92deg,#3fd0c9 0%,#6fe3dd 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 .il-eyebrow {
   color: var(--accent, #3fd0c9);
@@ -1587,18 +1590,16 @@ const STYLES = `
 .il-account {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
   flex: 0 1 auto;
-  flex-wrap: nowrap;
-  gap: .55rem;
+  gap: 10px;
   min-width: 0;
-  max-width: 58%;
-  padding: 5px 5px 5px 12px;
-  border: 1px solid var(--border, #1f2b35);
+  max-width: 100%;
+  padding: 5px 5px 5px 14px;
+  border: 1px solid var(--line, var(--border, #1f2b35));
   border-radius: 999px;
-  background: var(--bg-alt, rgba(255,255,255,.04));
+  background: var(--glass, rgba(255,255,255,.04));
+  font-size: 12px;
   color: var(--ink-dim, #8fa1ac);
-  font-size: .78rem;
 }
 .il-account > span {
   display: block;
@@ -1612,6 +1613,9 @@ const STYLES = `
 .il-account .il-button {
   flex: 0 0 auto;
   white-space: nowrap;
+  font-size: 12px;
+  line-height: 1.2;
+  padding: 6px 10px;
 }
 .il-notice {
   display: flex;
@@ -2154,12 +2158,28 @@ const STYLES = `
   .il-form-grid {
     grid-template-columns: 1fr;
   }
+  .il-header {
+    flex-wrap: nowrap;
+    gap: .5rem;
+  }
+  .il-header h1 {
+    flex: 1 1 auto;
+    font-size: clamp(1.15rem, 5vw, 1.5rem);
+  }
   .il-account {
-    justify-content: flex-start;
+    flex: 0 1 58%;
+    max-width: 58%;
+    gap: 6px;
+    padding: 4px 4px 4px 10px;
+    font-size: 12px;
   }
   .il-account > span {
-    width: 100%;
+    width: auto;
     max-width: none;
+  }
+  .il-account .il-button {
+    font-size: 12px;
+    padding: 5px 8px;
   }
 }
 `;
