@@ -158,7 +158,7 @@ export default function ArchivePicker({
         setLoading(false);
       }
     },
-    [idToken, revokeThumbs]
+    [idToken, revokeThumbs, t]
   );
 
   useEffect(() => {
