@@ -81,7 +81,7 @@ async function runImg2Img(token, payload, name, opts) {
   const id = data.job_id || data.id;
   if (!id) {
     if (data.image_base64) return data.image_base64.startsWith("data:") ? data.image_base64 : `data:image/png;base64,${data.image_base64}`;
-    throw new Error("Risposta senza job_id o immagine.");
+    throw new Error(t("img.puzzle.noJobOrImage"));
   }
   onJobId(String(id));
   for (;;) {
