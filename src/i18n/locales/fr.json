@@ -963,7 +963,8 @@
       "retry": "Réessayer",
       "endpointMissing": "Cet endpoint n'est pas encore disponible dans la passerelle (404). La page est prête pour le test ; le backend reste à ajouter.",
       "noJobOrImage": "Le serveur n'a renvoyé ni job_id ni image.",
-      "jobNoImage": "Le travail est terminé, mais le serveur n'a renvoyé aucune image."
+      "jobNoImage": "Le travail est terminé, mais le serveur n'a renvoyé aucune image.",
+      "photoAlt": "Photo {{index}} sur {{count}}"
     },
     "comics": {
       "title": "Éditeur de BD",
