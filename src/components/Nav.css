@@ -49,7 +49,7 @@
     justify-content: center;
     gap: 10px;
     min-width: 0;
-    transform: translateX(-50px);
+    transform: translateX(-80px);
 }
 .nav4-group { position: relative; }
 .nav4-group-btn {
