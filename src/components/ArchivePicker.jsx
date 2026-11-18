@@ -5,6 +5,7 @@
 // originale al componente chiamante. Non modifica mai il database.
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 const API = "https://api.danielevillanova.com";
 const PAGE_SIZE = 24;
@@ -54,6 +55,7 @@ export default function ArchivePicker({
   onClose,
   multiSelect = false,
 }) {
+  const { t } = useTranslation();
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [pages, setPages] = useState(1);
@@ -206,7 +208,7 @@ export default function ArchivePicker({
         .filter(Boolean);
 
       if (!selectedItems.length) {
-        throw new Error("Nessuna immagine selezionata disponibile.");
+        throw new Error(t("img.archive.noneSelected"));
       }
 
       const files = await Promise.all(
@@ -316,7 +318,7 @@ export default function ArchivePicker({
         className="ap-modal"
         role="dialog"
         aria-modal="true"
-        aria-label="Seleziona una foto dall'archivio GraDV"
+        aria-label={t("img.archive.selectPhoto")}
         onClick={(event) => event.stopPropagation()}
       >
         <header className="ap-header">
@@ -325,11 +327,10 @@ export default function ArchivePicker({
               GRADV · ARCHIVIO PRINCIPALE
             </p>
 
-            <h2>Dall'archivio</h2>
+            <h2>{t("img.archive.title")}</h2>
 
             <p className="ap-sub">
-              {total.toLocaleString()} immagini · seleziona una foto
-              per usarla nei fumetti
+              {t("img.archive.subtitle", { count: total.toLocaleString() })}
             </p>
           </div>
 
@@ -349,8 +350,8 @@ export default function ArchivePicker({
             onChange={(event) =>
               setSearchInput(event.target.value)
             }
-            placeholder="Cerca nel prompt…"
-            aria-label="Cerca nel prompt"
+            placeholder={t("img.archive.searchPlaceholder")}
+            aria-label={t("img.archive.searchLabel")}
           />
 
           <button
@@ -377,7 +378,7 @@ export default function ArchivePicker({
           )}
 
           <span className="ap-count">
-            {PAGE_SIZE} per pagina
+            {t("img.archive.perPage", { count: PAGE_SIZE })}
           </span>
         </form>
 
@@ -390,20 +391,20 @@ export default function ArchivePicker({
         {selectingId !== null && (
           <div className="ap-selecting">
             {selectingId === -1
-              ? `Scarico ${selectedIds.length} immagini…`
+              ? t("img.archive.downloadingMany", { count: selectedIds.length })
               : `Scarico l'originale #${selectingId}…`}
           </div>
         )}
 
         {loading && (
           <div className="ap-loading">
-            Caricamento archivio…
+            {t("img.archive.loading")}
           </div>
         )}
 
         {!loading && items.length === 0 && !error && (
           <p className="ap-empty">
-            Nessuna immagine trovata.
+            {t("img.archive.noImages")}
           </p>
         )}
 
@@ -425,13 +426,13 @@ export default function ArchivePicker({
                     : selectImage(item)
                 }
                 disabled={selectingId !== null}
-                title={item.prompt || "Immagine #" + item.id}
+                title={item.prompt || t("img.archive.imageNumber", { id: item.id })}
               >
                 <span className="ap-thumb">
                   {thumbs[item.id] ? (
                     <img
                       src={thumbs[item.id]}
-                      alt={item.prompt || "GraDV #" + item.id}
+                      alt={item.prompt || t("img.archive.gradvNumber", { id: item.id })}
                     />
                   ) : (
                     "…"
@@ -453,7 +454,7 @@ export default function ArchivePicker({
                 </span>
 
                 <span className="ap-prompt">
-                  {item.prompt || "Prompt non disponibile"}
+                  {item.prompt || t("img.archive.noPrompt")}
                 </span>
 
                 <small>
@@ -467,7 +468,7 @@ export default function ArchivePicker({
         {multiSelect && (
           <div className="ap-footer-actions">
             <span>
-              {selectedIds.length} selezionate
+              {t("img.archive.selected", { count: selectedIds.length })}
             </span>
 
             <button
@@ -479,8 +480,8 @@ export default function ArchivePicker({
               onClick={addSelected}
             >
               {selectingId === -1
-                ? "Scarico…"
-                : "Aggiungi selezionate"}
+                ? t("img.archive.downloading")
+                : t("img.archive.addSelected")}
             </button>
           </div>
         )}
@@ -488,7 +489,7 @@ export default function ArchivePicker({
         {pages > 1 && (
           <nav
             className="ap-pagination"
-            aria-label="Paginazione archivio"
+            aria-label={t("img.archive.pagination")}
           >
             <button
               type="button"
@@ -500,11 +501,11 @@ export default function ArchivePicker({
               }
               onClick={() => loadArchive(page - 1, query)}
             >
-              ← Precedente
+              {t("img.archive.previous")}
             </button>
 
             <span>
-              Pagina <b>{page}</b> di <b>{pages}</b>
+              {t("img.archive.pageOf", { page, pages })}
             </span>
 
             <button
@@ -517,7 +518,7 @@ export default function ArchivePicker({
               }
               onClick={() => loadArchive(page + 1, query)}
             >
-              Successiva →
+              {t("img.archive.next")}
             </button>
           </nav>
         )}
