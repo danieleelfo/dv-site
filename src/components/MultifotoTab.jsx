@@ -235,12 +235,12 @@ export default function MultifotoTab({ embedded = true }) {
     {!token && <section className="i2i-panel i2i-login"><h2>{t("img.puzzle.loginTitle")}</h2><p>{t("img.puzzle.loginHint")}</p>{!CLIENT_ID && <p className="i2i-error">{t("img.clientIdMissing")}</p>}</section>}
     {token && <form className="i2i-grid" onSubmit={generate}>
       <section className="i2i-panel"><p className="i2i-kicker">01 / SOURCE</p><h2>{t("img.puzzle.yourPhotos", { count: files.length, max: MAX_FILES })}</h2>
-        <label className="i2i-upload">{previews.length ? <img src={previews[0]} alt={"Foto 1 di " + files.length} /> : <span><b>＋ {t("img.puzzle.choosePhotos")}</b><small>{t("img.puzzle.uploadHint", { max: MAX_FILES })}</small></span>}<input type="file" accept="image/*" multiple onChange={e => pickFiles(e.target.files)} disabled={busy} /></label>
+        <label className="i2i-upload">{previews.length ? <img src={previews[0]} alt={t("img.puzzle.photoAlt", { index: 1, count: files.length })} /> : <span><b>＋ {t("img.puzzle.choosePhotos")}</b><small>{t("img.puzzle.uploadHint", { max: MAX_FILES })}</small></span>}<input type="file" accept="image/*" multiple onChange={e => pickFiles(e.target.files)} disabled={busy} /></label>
         {files.length > 0 && (
           <div style={{ display: "flex", gap: ".5rem", flexWrap: "wrap", marginBottom: ".8rem" }}>
             {files.map((f, i) => (
               <span key={i} style={{ position: "relative", width: 84, height: 84, flex: "0 0 auto" }}>
-                <img src={previews[i]} alt={"Foto " + (i + 1)} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 7, border: "1px solid rgba(255,255,255,.14)" }} />
+                <img src={previews[i]} alt={t("img.puzzle.photoAlt", { index: i + 1, count: files.length })} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 7, border: "1px solid rgba(255,255,255,.14)" }} />
                 <button type="button" onClick={() => removeAt(i)} disabled={busy} title={t("img.puzzle.removePhoto", { index: i + 1 })} style={{ position: "absolute", top: -7, right: -7, width: 22, height: 22, borderRadius: "50%", border: "1px solid #7f1d1d", background: "#7f1d1d", color: "#fff", fontSize: ".7rem", lineHeight: 1, cursor: "pointer" }}>✕</button>
                 <small style={{ position: "absolute", bottom: 3, left: 3, padding: "1px 4px", borderRadius: 4, background: "rgba(0,0,0,.55)", color: "#e7edf1", fontSize: ".62rem" }}>{i + 1}</small>
               </span>
@@ -290,7 +290,7 @@ export default function MultifotoTab({ embedded = true }) {
                 <figcaption className="i2i-actions"><span style={{ fontSize: ".72rem", color: "var(--ink-dim,#8fa1ac)" }}>{r.name}</span><a className="i2i-btn i2i-primary" href={r.src} download={"multifoto_" + (i + 1) + ".png"}>{t("img.puzzle.downloadPhoto", { index: i + 1 })}</a></figcaption>
               </figure>
             ))}
-            <div className="i2i-actions"><button className="i2i-btn" type="button" onClick={() => { clearPhotos(); reset(); }}>Nuove foto</button></div>
+            <div className="i2i-actions"><button className="i2i-btn" type="button" onClick={() => { clearPhotos(); reset(); }}>{t("img.puzzle.newPhotos")}</button></div>
           </div>
         )}
         {status === "error" && <div className="i2i-error"><h3>{t("img.puzzle.testFailed")}</h3><p>{error}</p><button className="i2i-btn" type="button" onClick={reset}>{t("img.puzzle.retry")}</button></div>}
