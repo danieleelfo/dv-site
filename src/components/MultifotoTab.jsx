@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { IMG_STEPS, IMG_STRENGTH } from "../lib/imageParams.js";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 const API = "https://api.danielevillanova.com";
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -100,6 +101,7 @@ async function runImg2Img(token, payload, name, opts) {
 
 export default function MultifotoTab({ embedded = true }) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const loginRef = useRef(null);
   const [token, setToken] = useState(readToken);
   const [email, setEmail] = useState("");
@@ -167,8 +169,8 @@ export default function MultifotoTab({ embedded = true }) {
     setError("");
     const accepted = [];
     for (const f of list) {
-      if (!f.type.startsWith("image/")) { setError("Seleziona solo file immagine."); continue; }
-      if (f.size > 15 * 1024 * 1024) { setError("Massimo 15 MB per foto."); continue; }
+      if (!f.type.startsWith("image/")) { setError(t("img.puzzle.onlyImages")); continue; }
+      if (f.size > 15 * 1024 * 1024) { setError(t("img.puzzle.maxPhotoSize")); continue; }
       accepted.push(f);
     }
     if (!accepted.length) return;
@@ -176,7 +178,7 @@ export default function MultifotoTab({ embedded = true }) {
       const room = Math.max(0, MAX_FILES - prev.length);
       const added = accepted.slice(0, room);
       setPreviews(p => [...p, ...added.map(f => URL.createObjectURL(f))]);
-      if (accepted.length > room) setError(`Massimo ${MAX_FILES} foto per composizione.`);
+      if (accepted.length > room) setError(t("img.puzzle.maxPhotos", { max: MAX_FILES }));
       return [...prev, ...added];
     });
     setResult(""); setStatus("idle");
@@ -200,7 +202,7 @@ export default function MultifotoTab({ embedded = true }) {
     try {
       if (mode === "compose") {
         // Solo fusione Pillow: nessuna generazione AI.
-        if (files.length < 2) throw new Error("Per la sola fusione servono almeno 2 foto.");
+        if (files.length < 2) throw new Error(t("img.puzzle.needTwoPhotos"));
         const blob = await composeServer(token, files, layout, blend, outW, outH);
         setResult(URL.createObjectURL(blob));
         setStatus("completed");
@@ -228,18 +230,18 @@ export default function MultifotoTab({ embedded = true }) {
   function logout() { try { localStorage.removeItem(TOKEN_KEY); window.google?.accounts?.id?.disableAutoSelect(); } catch {} setToken(""); setEmail(""); }
 
   return <main className="i2i-page"><div className="i2i-wrap">
-    {!embedded && (<header className="i2i-header"><div><p className="i2i-kicker">D. VILLANOVA · IMAGE LAB</p><h1>Multifoto</h1><p className="i2i-muted">Fondi fino a {MAX_FILES} foto in una sola (griglia, fila, colonna o sfondo) con dissolvenza Pillow sul Mac, poi trasformale con il prompt.</p></div>
-      <div className="i2i-account">{token ? <><span>{email}</span><button className="i2i-btn" onClick={logout}>Logout</button></> : <div ref={loginRef} />}</div></header>)}
-    {!token && <section className="i2i-panel i2i-login"><h2>Accedi con Google</h2><p>Usa lo stesso account abilitato per ImageLab.</p>{!CLIENT_ID && <p className="i2i-error">VITE_GOOGLE_CLIENT_ID mancante.</p>}</section>}
+    {!embedded && (<header className="i2i-header"><div><p className="i2i-kicker">D. VILLANOVA · IMAGE LAB</p><h1>{t("img.puzzle.title")}</h1><p className="i2i-muted">{t("img.puzzle.description", { max: MAX_FILES })}</p></div>
+      <div className="i2i-account">{token ? <><span>{email}</span><button className="i2i-btn" onClick={logout}>{t("img.logout")}</button></> : <div ref={loginRef} />}</div></header>)}
+    {!token && <section className="i2i-panel i2i-login"><h2>{t("img.puzzle.loginTitle")}</h2><p>{t("img.puzzle.loginHint")}</p>{!CLIENT_ID && <p className="i2i-error">{t("img.clientIdMissing")}</p>}</section>}
     {token && <form className="i2i-grid" onSubmit={generate}>
-      <section className="i2i-panel"><p className="i2i-kicker">01 / SOURCE</p><h2>Le tue foto ({files.length}/{MAX_FILES})</h2>
-        <label className="i2i-upload">{previews.length ? <img src={previews[0]} alt={"Foto 1 di " + files.length} /> : <span><b>＋ Scegli le foto</b><small>Da 1 a {MAX_FILES} · PNG, JPG, WebP · massimo 15 MB ciascuna</small></span>}<input type="file" accept="image/*" multiple onChange={e => pickFiles(e.target.files)} disabled={busy} /></label>
+      <section className="i2i-panel"><p className="i2i-kicker">01 / SOURCE</p><h2>{t("img.puzzle.yourPhotos", { count: files.length, max: MAX_FILES })}</h2>
+        <label className="i2i-upload">{previews.length ? <img src={previews[0]} alt={"Foto 1 di " + files.length} /> : <span><b>＋ {t("img.puzzle.choosePhotos")}</b><small>{t("img.puzzle.uploadHint", { max: MAX_FILES })}</small></span>}<input type="file" accept="image/*" multiple onChange={e => pickFiles(e.target.files)} disabled={busy} /></label>
         {files.length > 0 && (
           <div style={{ display: "flex", gap: ".5rem", flexWrap: "wrap", marginBottom: ".8rem" }}>
             {files.map((f, i) => (
               <span key={i} style={{ position: "relative", width: 84, height: 84, flex: "0 0 auto" }}>
                 <img src={previews[i]} alt={"Foto " + (i + 1)} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: 7, border: "1px solid rgba(255,255,255,.14)" }} />
-                <button type="button" onClick={() => removeAt(i)} disabled={busy} title={"Rimuovi foto " + (i + 1)} style={{ position: "absolute", top: -7, right: -7, width: 22, height: 22, borderRadius: "50%", border: "1px solid #7f1d1d", background: "#7f1d1d", color: "#fff", fontSize: ".7rem", lineHeight: 1, cursor: "pointer" }}>✕</button>
+                <button type="button" onClick={() => removeAt(i)} disabled={busy} title={t("img.puzzle.removePhoto", { index: i + 1 })} style={{ position: "absolute", top: -7, right: -7, width: 22, height: 22, borderRadius: "50%", border: "1px solid #7f1d1d", background: "#7f1d1d", color: "#fff", fontSize: ".7rem", lineHeight: 1, cursor: "pointer" }}>✕</button>
                 <small style={{ position: "absolute", bottom: 3, left: 3, padding: "1px 4px", borderRadius: 4, background: "rgba(0,0,0,.55)", color: "#e7edf1", fontSize: ".62rem" }}>{i + 1}</small>
               </span>
             ))}
@@ -247,51 +249,51 @@ export default function MultifotoTab({ embedded = true }) {
         )}
         {files.length > 1 && mode !== "split" && (
           <>
-            <div className="i2i-field"><span className="i2i-label">Composizione (Pillow sul Mac)</span>
+            <div className="i2i-field"><span className="i2i-label">{t("img.puzzle.composition")}</span>
               <select className="i2i-input" value={layout} onChange={e => setLayout(e.target.value)} disabled={busy}>
-                <option value="grid">Griglia automatica</option>
-                <option value="side">Affiancate in fila</option>
-                <option value="stack">Impilate in colonna</option>
-                <option value="bg">Prima foto come sfondo</option>
+                <option value="grid">{t("img.puzzle.layoutGrid")}</option>
+                <option value="side">{t("img.puzzle.layoutRow")}</option>
+                <option value="stack">{t("img.puzzle.layoutColumn")}</option>
+                <option value="bg">{t("img.puzzle.layoutBackground")}</option>
               </select>
             </div>
-            <div className="i2i-field"><label className="i2i-label" htmlFor="i2i-blend">Dissolvenza tra le foto: {Math.round(blend * 100)}%</label>
+            <div className="i2i-field"><label className="i2i-label" htmlFor="i2i-blend">{t("img.puzzle.blend", { value: Math.round(blend * 100) })}</label>
               <input id="i2i-blend" type="range" min="0" max="45" step="5" value={Math.round(blend * 100)} onChange={e => setBlend(Number(e.target.value) / 100)} disabled={busy} />
-              <div className="i2i-range"><span>Bordi netti</span><span>Fuse insieme</span></div>
+              <div className="i2i-range"><span>{t("img.puzzle.sharpEdges")}</span><span>{t("img.puzzle.blended")}</span></div>
             </div>
           </>
         )}
-        <div className="i2i-field"><span className="i2i-label">Modalità</span>
+        <div className="i2i-field"><span className="i2i-label">{t("img.puzzle.mode")}</span>
           <select className="i2i-input" value={mode} onChange={e => { setMode(e.target.value); setResults([]); setResult(""); setStatus("idle"); }} disabled={busy}>
-            <option value="mix">Mix — fusione Pillow + img2img</option>
-            <option value="compose">Solo fusione Pillow (no AI)</option>
-            <option value="split">Solo img2img — ogni foto separata</option>
+            <option value="mix">{t("img.puzzle.modeMix")}</option>
+            <option value="compose">{t("img.puzzle.modeCompose")}</option>
+            <option value="split">{t("img.puzzle.modeSplit")}</option>
           </select>
         </div>
-        <label className="i2i-label" htmlFor="i2i-prompt">Istruzioni per la modifica</label><textarea id="i2i-prompt" className="i2i-input i2i-prompt" value={prompt} onChange={e => setPrompt(e.target.value)} maxLength={3000} required={mode !== "compose"} disabled={busy} />
-        <div className="i2i-field"><label className="i2i-label" htmlFor="i2i-strength">Forza modifica: {strength.toFixed(2)}</label><input id="i2i-strength" type="range" min={IMG_STRENGTH.min} max={IMG_STRENGTH.max} step={IMG_STRENGTH.step} value={strength} onChange={e => setStrength(Number(e.target.value))} disabled={busy} /><div className="i2i-range"><span>Più fedele</span><span>Più trasformata</span></div></div>
-        <label className="i2i-check"><input type="checkbox" checked={antiArtifact} onChange={e => setAntiArtifact(e.target.checked)} disabled={busy} /> Clausola anti-artefatti (no testo, no caratteri cinesi, no watermark)</label>
-        <div className="i2i-fields"><label className="i2i-field"><span className="i2i-label">Categoria</span><select className="i2i-input" value={size} onChange={e => { setSize(Number(e.target.value)); setFormatIdx(0); }} disabled={busy}>{Object.keys(GRADIO_FORMATS).map(c => <option key={c} value={c}>{c}</option>)}</select></label><label className="i2i-field"><span className="i2i-label">Formato</span><select className="i2i-input" value={formatIdx} onChange={e => setFormatIdx(Number(e.target.value))} disabled={busy}>{formats.map((f, i) => <option key={f[0]} value={i}>{f[0]}</option>)}</select></label>
-        <label className="i2i-field"><span className="i2i-label">Steps</span><select className="i2i-input" value={steps} onChange={e => setSteps(e.target.value)} disabled={busy}>{IMG_STEPS.map(s => <option key={s} value={s}>{s}</option>)}</select></label></div>
-        <label className="i2i-label" htmlFor="i2i-seed">Seed (facoltativo)</label><input id="i2i-seed" className="i2i-input" placeholder="Casuale" value={seed} onChange={e => setSeed(e.target.value.replace(/[^0-9-]/g, ""))} disabled={busy} />
-        <div className="i2i-actions"><button className="i2i-btn i2i-primary" type="submit" disabled={!files.length || (mode !== "compose" && !prompt.trim()) || busy}>{busy ? "Elaborazione…" : "✦ Modifica immagine"}</button><button className="i2i-btn" type="button" onClick={reset} disabled={busy}>Reset risultato</button></div>
+        <label className="i2i-label" htmlFor="i2i-prompt">{t("img.puzzle.editInstructions")}</label><textarea id="i2i-prompt" className="i2i-input i2i-prompt" value={prompt} onChange={e => setPrompt(e.target.value)} maxLength={3000} required={mode !== "compose"} disabled={busy} />
+        <div className="i2i-field"><label className="i2i-label" htmlFor="i2i-strength">{t("img.strengthLabel")} {strength.toFixed(2)}</label><input id="i2i-strength" type="range" min={IMG_STRENGTH.min} max={IMG_STRENGTH.max} step={IMG_STRENGTH.step} value={strength} onChange={e => setStrength(Number(e.target.value))} disabled={busy} /><div className="i2i-range"><span>{t("img.strengthMore")}</span><span>{t("img.strengthLess")}</span></div></div>
+        <label className="i2i-check"><input type="checkbox" checked={antiArtifact} onChange={e => setAntiArtifact(e.target.checked)} disabled={busy} /> {t("img.puzzle.antiArtifacts")}</label>
+        <div className="i2i-fields"><label className="i2i-field"><span className="i2i-label">{t("img.category")}</span><select className="i2i-input" value={size} onChange={e => { setSize(Number(e.target.value)); setFormatIdx(0); }} disabled={busy}>{Object.keys(GRADIO_FORMATS).map(c => <option key={c} value={c}>{c}</option>)}</select></label><label className="i2i-field"><span className="i2i-label">{t("img.format")}</span><select className="i2i-input" value={formatIdx} onChange={e => setFormatIdx(Number(e.target.value))} disabled={busy}>{formats.map((f, i) => <option key={f[0]} value={i}>{f[0]}</option>)}</select></label>
+        <label className="i2i-field"><span className="i2i-label">{t("img.steps")}</span><select className="i2i-input" value={steps} onChange={e => setSteps(e.target.value)} disabled={busy}>{IMG_STEPS.map(s => <option key={s} value={s}>{s}</option>)}</select></label></div>
+        <label className="i2i-label" htmlFor="i2i-seed">{t("img.puzzle.seedOptional")}</label><input id="i2i-seed" className="i2i-input" placeholder={t("img.random")} value={seed} onChange={e => setSeed(e.target.value.replace(/[^0-9-]/g, ""))} disabled={busy} />
+        <div className="i2i-actions"><button className="i2i-btn i2i-primary" type="submit" disabled={!files.length || (mode !== "compose" && !prompt.trim()) || busy}>{busy ? t("img.puzzle.processing") : t("img.puzzle.editImage")}</button><button className="i2i-btn" type="button" onClick={reset} disabled={busy}>{t("img.puzzle.resetResult")}</button></div>
       </section>
-      <section className="i2i-panel i2i-result"><div className="i2i-result-head"><div><p className="i2i-kicker">02 / RESULT</p><h2>Risultato generato</h2></div><span>{busy ? "● IN CORSO" : status === "completed" ? "● COMPLETATO" : "● PRONTO"}</span></div>
-        {status === "idle" && <div className="i2i-empty"><span>✧</span><h3>La variante apparirà qui</h3><p>Carica una o più foto, scegli composizione e dissolvenza, descrivi la modifica e avvia.</p></div>}
-        {busy && <div className="i2i-empty"><div className="i2i-spinner" /><h3>{status === "submitting" ? (files.length > 1 ? "Composizione + invio richiesta" : "Invio richiesta") : status === "queued" ? "In coda" : "Generazione in corso"}</h3><p>Tempo trascorso: {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")}</p>{jobId && <small>Job ID: {jobId}</small>}{mode === "split" && <small>Foto elaborate: {results.length}/{files.length}</small>}</div>}
-        {status === "completed" && result && mode !== "split" && <div className="i2i-output"><img src={result} alt="Risultato image-to-image" /><div className="i2i-actions"><a className="i2i-btn i2i-primary" href={result} download="multifoto.png">↓ Scarica PNG</a><button className="i2i-btn" type="button" onClick={() => { clearPhotos(); reset(); }}>Nuove foto</button></div></div>}
+      <section className="i2i-panel i2i-result"><div className="i2i-result-head"><div><p className="i2i-kicker">02 / RESULT</p><h2>{t("img.puzzle.generatedResult")}</h2></div><span>{busy ? "● " + t("img.puzzle.inProgress") : status === "completed" ? "● " + t("img.puzzle.completed") : "● " + t("img.puzzle.ready")}</span></div>
+        {status === "idle" && <div className="i2i-empty"><span>✧</span><h3>{t("img.puzzle.variantHere")}</h3><p>{t("img.puzzle.emptyHint")}</p></div>}
+        {busy && <div className="i2i-empty"><div className="i2i-spinner" /><h3>{status === "submitting" ? (files.length > 1 ? t("img.puzzle.composingAndSending") : t("img.puzzle.sending")) : status === "queued" ? t("img.queued") : t("img.generating")}</h3><p>{t("img.puzzle.elapsed")}: {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")}</p>{jobId && <small>Job ID: {jobId}</small>}{mode === "split" && <small>{t("img.puzzle.photosProcessed")}: {results.length}/{files.length}</small>}</div>}
+        {status === "completed" && result && mode !== "split" && <div className="i2i-output"><img src={result} alt={t("img.puzzle.resultAlt")} /><div className="i2i-actions"><a className="i2i-btn i2i-primary" href={result} download="multifoto.png">{t("img.downloadPng")}</a><button className="i2i-btn" type="button" onClick={() => { clearPhotos(); reset(); }}>{t("img.puzzle.newPhotos")}</button></div></div>}
         {status === "completed" && mode === "split" && results.length > 0 && (
           <div className="i2i-output">
             {results.map((r, i) => (
               <figure key={i} style={{ margin: "0 0 1.2rem" }}>
-                <img src={r.src} alt={"Variante foto " + (i + 1)} style={{ marginBottom: ".45rem" }} />
-                <figcaption className="i2i-actions"><span style={{ fontSize: ".72rem", color: "var(--ink-dim,#8fa1ac)" }}>{r.name}</span><a className="i2i-btn i2i-primary" href={r.src} download={"multifoto_" + (i + 1) + ".png"}>↓ Scarica foto {i + 1}</a></figcaption>
+                <img src={r.src} alt={t("img.puzzle.photoVariant", { index: i + 1 })} style={{ marginBottom: ".45rem" }} />
+                <figcaption className="i2i-actions"><span style={{ fontSize: ".72rem", color: "var(--ink-dim,#8fa1ac)" }}>{r.name}</span><a className="i2i-btn i2i-primary" href={r.src} download={"multifoto_" + (i + 1) + ".png"}>{t("img.puzzle.downloadPhoto", { index: i + 1 })}</a></figcaption>
               </figure>
             ))}
             <div className="i2i-actions"><button className="i2i-btn" type="button" onClick={() => { clearPhotos(); reset(); }}>Nuove foto</button></div>
           </div>
         )}
-        {status === "error" && <div className="i2i-error"><h3>Test non completato</h3><p>{error}</p><button className="i2i-btn" type="button" onClick={reset}>Riprova</button></div>}
+        {status === "error" && <div className="i2i-error"><h3>{t("img.puzzle.testFailed")}</h3><p>{error}</p><button className="i2i-btn" type="button" onClick={reset}>{t("img.puzzle.retry")}</button></div>}
         {jobId && <p className="i2i-muted">Job ID: <code>{jobId}</code></p>}
       </section>
     </form>}
