@@ -199,3 +199,8 @@
   .nav4-language-row { gap: 2px; }
   .nav4-language { padding: 4px 3px; }
 }
+@media (max-width: 768px) {
+  .nav4-groups {
+    transform: none;
+  }
+}
