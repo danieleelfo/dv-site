@@ -151,7 +151,7 @@ export default function FumettiTab({ embedded = false } = {}) {
 
     restoreDraft();
     return () => { cancelled = true; };
-  }, [draftKey, token]);
+  }, [draftKey, token, t]);
 
   // Autosalvataggio: Blob delle foto locali + ID delle immagini GraDV,
   // ordine, balloon e layout. Non vengono salvati URL temporanei o PNG finali.
@@ -187,7 +187,7 @@ export default function FumettiTab({ embedded = false } = {}) {
 
     persistDraft();
     return () => { cancelled = true; };
-  }, [draftReady, draftKey, panels, activeId, layout]);
+  }, [draftReady, draftKey, panels, activeId, layout, t]);
 
   useEffect(() => () => {
     panels.forEach(p => { if (p.preview) URL.revokeObjectURL(p.preview); });
