@@ -2032,20 +2032,30 @@ const STYLES = `
   cursor: pointer;
 }
 .il-tabs {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: 2.85rem;
   gap: .5rem;
   margin-bottom: 1rem;
 }
 .il-tab {
-  padding: .55rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+  padding: .3rem .2rem;
   border: 1px solid var(--border, #1f2b35);
   border-radius: 8px;
   background: transparent;
   color: var(--ink-dim, #8fa1ac);
   font: inherit;
-  font-size: .82rem;
+  font-size: clamp(.68rem, 2.6vw, .82rem);
   font-weight: 600;
+  line-height: 1.1;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
   cursor: pointer;
   transition: border-color .15s ease, background .15s ease, color .15s ease;
 }
