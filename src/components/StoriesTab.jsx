@@ -1312,9 +1312,43 @@ export default function StoriesTab({ idToken }) {
             disabled={busy}
           />
 
-          <div className="il-form-grid">
-            <div>
-              <label className="il-label" htmlFor="story-count">
+          <style>{`
+            @media (min-width: 1100px) {
+              .il-story-control-row {
+                display: flex;
+                align-items: flex-end;
+                gap: .55rem;
+              }
+              .il-story-control-row .il-form-grid {
+                flex: 1 1 auto;
+                min-width: 0;
+                grid-template-columns: 1.15fr 1fr .7fr;
+                gap: .45rem;
+              }
+              .il-story-control-row .il-label {
+                margin-bottom: .2rem;
+                font-size: .75rem;
+              }
+              .il-story-control-row .il-input {
+                min-width: 0;
+                padding: .45rem .5rem;
+                font-size: .78rem;
+              }
+              .il-story-control-row .il-actions {
+                flex: 0 0 auto;
+                margin: 0;
+              }
+              .il-story-control-row .il-button {
+                white-space: nowrap;
+                padding: .5rem .65rem;
+                font-size: .8rem;
+              }
+            }
+          `}</style>
+          <div className="il-story-control-row">
+            <div className="il-form-grid">
+              <div>
+                <label className="il-label" htmlFor="story-count">
                 Illustrazioni
               </label>
               <select
@@ -1367,29 +1401,22 @@ export default function StoriesTab({ idToken }) {
                 ))}
               </select>
             </div>
+            <div className="il-actions">
+              <button
+                className="il-button il-primary"
+                type="submit"
+                disabled={busy || !prompt.trim()}
+              >
+                {busy ? "Elaborazione…" : "🌈 Crea storia + illustrazioni →"}
+              </button>
+            </div>
           </div>
-
-          <p className="il-hint">
-            Story Whisper scrive la storia e genera l'audio (TTS); le illustrazioni
-            vengono pianificate e generate sul Mac una alla volta, con pausa tra le
-            scene per liberare la RAM.
-          </p>
 
           {error && (
             <div className="il-error" role="alert">
               {error}
             </div>
           )}
-
-          <div className="il-actions">
-            <button
-              className="il-button il-primary"
-              type="submit"
-              disabled={busy || !prompt.trim()}
-            >
-              {busy ? "Elaborazione…" : "🌈 Crea storia + illustrazioni →"}
-            </button>
-          </div>
 
           {busy && stage && (
             <p className="il-hint" style={{ marginTop: ".6rem" }}>{stage}</p>
