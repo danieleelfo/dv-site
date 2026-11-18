@@ -1151,18 +1151,18 @@ export default function StoriesTab({ idToken }) {
         <div className="il-section-heading">
           <div>
             <p className="il-eyebrow">05 / STORIES</p>
-            <h2>Storia con testo, audio e illustrazioni</h2>
+            <h2>{t("storiesTab.sectionTitle")}</h2>
           </div>
         </div>
 
         <form onSubmit={generateStory}>
           <label className="il-label" htmlFor="story-prompt">
-            Idea della storia
+            {t("storiesTab.storyIdea")}
           </label>
           <textarea
             id="story-prompt"
             className="il-input il-prompt"
-            placeholder="Es. Un cane con un cappello da pirata che rincorre una palla per i bar di Barcelloneta…"
+            placeholder={t("storiesTab.promptPlaceholder")}
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
             rows={5}
@@ -1179,7 +1179,7 @@ export default function StoriesTab({ idToken }) {
               value={storyAgent}
               onChange={(event) => setStoryAgent(event.target.value)}
               style={{ flex: "0 0 auto", minWidth: "11rem" }}
-              aria-label="Agente della storia"
+              aria-label={t("storiesTab.agentLabel")}
               disabled={busy}
             >
               <option value="Night Story">🌙 Night Story</option>
@@ -1200,7 +1200,7 @@ export default function StoriesTab({ idToken }) {
               value={storyLang}
               onChange={(event) => setStoryLang(event.target.value)}
               style={{ flex: "0 0 auto", minWidth: "8.5rem" }}
-              aria-label="Lingua della storia e del TTS"
+              aria-label={t("storiesTab.storyLanguage")}
               disabled={busy}
             >
               {STORY_LANGS.map(([code, label]) => (
@@ -1210,7 +1210,7 @@ export default function StoriesTab({ idToken }) {
               {storyAgent === NS_AGENT && <option value="fi">🇫🇮 Suomi</option>}
               {storyAgent === STORY_AGENT && <option value="ru">🇷🇺 Русский</option>}
             </select>
-            <label title="Con un nuovo chat_id l'agente parte senza memoria: niente personaggi riciclati dalle storie precedenti">
+            <label title={t("storiesTab.freshContextTitle")}>
               <input
                 type="checkbox"
                 checked={freshStory}
@@ -1218,10 +1218,10 @@ export default function StoriesTab({ idToken }) {
                 disabled={busy}
                 style={{ verticalAlign: "middle" }}
               />{" "}
-              <span style={{ fontSize: ".8rem", color: "var(--ink-dim, #8fa1ac)" }}>🔄 Nuovo contesto</span>
+              <span style={{ fontSize: ".8rem", color: "var(--ink-dim, #8fa1ac)" }}>{t("storiesTab.freshContext")}</span>
             </label>
             {storyAgent === STORY_AGENT && (
-              <label title="Stile cartoon storybook per bambini (preset sw_kids)">
+              <label title={t("storiesTab.kidsTitle")}>
                 <input
                   type="checkbox"
                   checked={storyKids}
@@ -1229,7 +1229,7 @@ export default function StoriesTab({ idToken }) {
                   disabled={busy}
                   style={{ verticalAlign: "middle" }}
                 />{" "}
-                <span style={{ fontSize: ".8rem", color: "var(--ink-dim, #8fa1ac)" }}>🧒 Filtro kids</span>
+                <span style={{ fontSize: ".8rem", color: "var(--ink-dim, #8fa1ac)" }}>{t("storiesTab.kidsFilter")}</span>
               </label>
             )}
             {storyAgent === NS_AGENT && (
@@ -1238,7 +1238,7 @@ export default function StoriesTab({ idToken }) {
                 value={storyGenre}
                 onChange={(event) => setStoryGenre(event.target.value)}
                 style={{ flex: "0 0 auto", minWidth: "9rem" }}
-                aria-label="Genere (Night Story)"
+                aria-label={t("storiesTab.genre")}
                 disabled={busy}
               >
                 {["Random", "Amore", "Comico", "Culturale", "Drammatica", "Horror", "Osè", "Ricerca"].map((g) => (
@@ -1251,7 +1251,7 @@ export default function StoriesTab({ idToken }) {
               value={storyModel}
               onChange={(event) => setStoryModel(event.target.value)}
               style={{ flex: "0 0 auto", minWidth: "9rem" }}
-              aria-label="Modello Ollama per la pianificazione scene"
+              aria-label={t("storiesTab.plannerModel")}
               disabled={busy}
             >
               {["qwen2.5", "mistral", "llama3", "gemma4", "deepseek-r1"].map((m) => (
@@ -1263,7 +1263,7 @@ export default function StoriesTab({ idToken }) {
               value={storyStrip}
               onChange={(event) => setStoryStrip(event.target.value)}
               style={{ flex: "0 0 auto", minWidth: "10rem" }}
-              aria-label="Pannelli fumetto per immagine"
+              aria-label={t("storiesTab.comicPanels")}
               disabled={busy}
             >
               {STRIP_MODES.map(({ value, n, labelKey }) => (
@@ -1275,16 +1275,16 @@ export default function StoriesTab({ idToken }) {
               value={storyPersId}
               onChange={(event) => setStoryPersId(event.target.value)}
               style={{ flex: "0 0 auto", minWidth: "11rem" }}
-              aria-label="Personaggio della storia"
+              aria-label={t("storiesTab.characterSelect")}
               disabled={busy}
             >
-              <option value="">🎭 Nessun personaggio</option>
+              <option value="">{t("storiesTab.noCharacter")}</option>
               {personaggi.map((p) => (
                 <option key={p.id} value={p.id}>{p.nome}</option>
               ))}
             </select>
             {storyPersId && (
-              <label title="Forza modifica sulla foto del personaggio (img2img): basso = più fedele, alto = più trasformata">
+              <label title={t("storiesTab.characterStrengthTitle")}>
                 <input
                   type="range"
                   min={IMG_STRENGTH.min}
@@ -1296,7 +1296,7 @@ export default function StoriesTab({ idToken }) {
                   style={{ verticalAlign: "middle" }}
                 />{" "}
                 <span style={{ fontSize: ".8rem", color: "var(--ink-dim, #8fa1ac)" }}>
-                  🎭 Forza modifica {persStrength.toFixed(2)}
+                  {t("storiesTab.characterStrength")} {persStrength.toFixed(2)}
                 </span>
               </label>
             )}
@@ -1306,8 +1306,8 @@ export default function StoriesTab({ idToken }) {
             type="text"
             value={storyStyle}
             onChange={(event) => setStoryStyle(event.target.value)}
-            placeholder="Stile extra (opzionale): es. acquerello soft, matita colorata, cartoon manga…"
-            aria-label="Stile extra per la creazione"
+            placeholder={t("storiesTab.extraStyle")}
+            aria-label={t("storiesTab.extraStyleAria")}
             style={{ marginBottom: ".6rem" }}
             disabled={busy}
           />
@@ -1349,7 +1349,7 @@ export default function StoriesTab({ idToken }) {
             <div className="il-form-grid">
               <div>
                 <label className="il-label" htmlFor="story-count">
-                Illustrazioni
+                {t("storiesTab.illustrations")}
               </label>
               <select
                 id="story-count"
@@ -1360,14 +1360,14 @@ export default function StoriesTab({ idToken }) {
               >
                 {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => (
                   <option key={n} value={n}>
-                    {n} {n === 1 ? "immagine" : "immagini"}
+                    {n} {n === 1 ? t("storiesTab.image") : t("storiesTab.images")}
                   </option>
                 ))}
               </select>
             </div>
             <div>
               <label className="il-label" htmlFor="story-format">
-                Formato
+                {t("storiesTab.format")}
               </label>
               <select
                 id="story-format"
@@ -1385,7 +1385,7 @@ export default function StoriesTab({ idToken }) {
             </div>
             <div>
               <label className="il-label" htmlFor="story-steps">
-                Step
+                {t("storiesTab.steps")}
               </label>
               <select
                 id="story-steps"
@@ -1396,7 +1396,7 @@ export default function StoriesTab({ idToken }) {
               >
                 {IMG_STEPS.map((s) => (
                   <option key={s} value={s}>
-                    {s} step
+                    {s} {t("storiesTab.step")}
                   </option>
                 ))}
               </select>
@@ -1408,7 +1408,7 @@ export default function StoriesTab({ idToken }) {
                 type="submit"
                 disabled={busy || !prompt.trim()}
               >
-                {busy ? "Elaborazione…" : "🌈 Crea storia + illustrazioni →"}
+                {busy ? t("storiesTab.processing") : t("storiesTab.createStory")}
               </button>
             </div>
           </div>
@@ -1424,7 +1424,7 @@ export default function StoriesTab({ idToken }) {
           )}
 
           {busy && imgStart != null && (
-            <p className="il-hint" style={{ marginTop: ".35rem" }}>⏱ Elaborazione immagine: {formatSeconds(imgElapsed)}</p>
+            <p className="il-hint" style={{ marginTop: ".35rem" }}>{t("storiesTab.imageProcessing")} {formatSeconds(imgElapsed)}</p>
           )}
         </form>
       </section>
@@ -1520,7 +1520,7 @@ export default function StoriesTab({ idToken }) {
                 >
                   <option value="">Come V{shownVersion} ({sceneCount})</option>
                   {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => (
-                    <option key={n} value={n}>{n} {n === 1 ? "immagine" : "immagini"}</option>
+                    <option key={n} value={n}>{n} {n === 1 ? t("storiesTab.image") : t("storiesTab.images")}</option>
                   ))}
                 </select>
                 <select
@@ -1544,7 +1544,7 @@ export default function StoriesTab({ idToken }) {
                   disabled={busy}
                 >
                   {IMG_STEPS.map((s) => (
-                    <option key={s} value={s}>{s} step</option>
+                    <option key={s} value={s}>{s} {t("storiesTab.step")}</option>
                   ))}
                 </select>
                 <button className="il-button" type="submit" disabled={busy || !current.text}>
@@ -1764,18 +1764,16 @@ export default function StoriesTab({ idToken }) {
       <section className="il-panel il-history-panel">
         <div className="il-section-heading">
           <div>
-            <p className="il-eyebrow">07 / PERSONAGGI</p>
-            <h2>Personaggi</h2>
+            <p className="il-eyebrow">{t("storiesTab.charactersEyebrow")}</p>
+            <h2>{t("storiesTab.charactersTitle")}</h2>
           </div>
           <button className="il-button" onClick={loadPersonaggi} disabled={persLoading}>
-            {persLoading ? "Carico…" : "↻ Aggiorna"}
+            {persLoading ? t("storiesTab.loading") : t("storiesTab.refresh")}
           </button>
         </div>
 
         <p className="il-hint">
-          Carica una foto con nome e descrizione. Nella creazione storia seleziona
-          il personaggio nel selettore: nome e descrizione entrano nella storia e
-          la foto guida ogni illustrazione (img2img).
+          {t("storiesTab.charactersHelp")}
         </p>
 
         {persError && (
@@ -1787,33 +1785,33 @@ export default function StoriesTab({ idToken }) {
           style={{ marginBottom: "1rem", display: "flex", flexWrap: "wrap", gap: ".6rem", alignItems: "flex-end" }}
         >
           <div style={{ flex: "1 1 10rem" }}>
-            <label className="il-label" htmlFor="pers-name">Nome</label>
+            <label className="il-label" htmlFor="pers-name">{t("storiesTab.name")}</label>
             <input
               id="pers-name"
               className="il-input"
               type="text"
               value={persName}
               onChange={(event) => setPersName(event.target.value)}
-              placeholder="Es. Elfa"
+              placeholder={t("storiesTab.namePlaceholder")}
               maxLength={200}
               disabled={persBusy}
             />
           </div>
           <div style={{ flex: "2 1 14rem" }}>
-            <label className="il-label" htmlFor="pers-desc">Descrizione</label>
+            <label className="il-label" htmlFor="pers-desc">{t("storiesTab.description")}</label>
             <input
               id="pers-desc"
               className="il-input"
               type="text"
               value={persDesc}
               onChange={(event) => setPersDesc(event.target.value)}
-              placeholder="Es. cagnolina pazza che ama le noci di cocco"
+              placeholder={t("storiesTab.descriptionPlaceholder")}
               maxLength={4000}
               disabled={persBusy}
             />
           </div>
           <div style={{ flex: "1 1 12rem" }}>
-            <label className="il-label" htmlFor="pers-file">Foto</label>
+            <label className="il-label" htmlFor="pers-file">{t("storiesTab.photo")}</label>
             <input
               id="pers-file"
               ref={persFileRef}
@@ -1825,7 +1823,7 @@ export default function StoriesTab({ idToken }) {
             />
           </div>
           <button className="il-button il-primary" type="submit" disabled={persBusy || !persName.trim() || !persFile}>
-            {persBusy ? "Carico…" : "＋ Crea personaggio"}
+            {persBusy ? t("storiesTab.loading") : t("storiesTab.createCharacter")}
           </button>
         </form>
 
@@ -1852,7 +1850,7 @@ export default function StoriesTab({ idToken }) {
                 <button
                   className="il-button"
                   onClick={(event) => deletePersonaggio(p, event)}
-                  title="Elimina il personaggio"
+                  title={t("storiesTab.deleteCharacter")}
                 >
                   ✕
                 </button>
@@ -1862,22 +1860,22 @@ export default function StoriesTab({ idToken }) {
         </div>
 
         {!persLoading && personaggi.length === 0 && !persError && (
-          <p className="il-hint">Nessun personaggio. Creane uno con la foto dal telefono.</p>
+          <p className="il-hint">{t("storiesTab.noCharacters")}</p>
         )}
       </section>
 
       <section className="il-panel il-history-panel">
         <div className="il-section-heading">
           <div>
-            <p className="il-eyebrow">06 / GALLERY</p>
-            <h2>Storico storie</h2>
+            <p className="il-eyebrow">{t("storiesTab.galleryEyebrow")}</p>
+            <h2>{t("storiesTab.galleryTitle")}</h2>
           </div>
           <button
             className="il-button"
             onClick={loadStories}
             disabled={listLoading}
           >
-            {listLoading ? "Carico…" : "↻ Aggiorna"}
+            {listLoading ? t("storiesTab.loading") : t("storiesTab.refresh")}
           </button>
         </div>
 
@@ -1889,8 +1887,7 @@ export default function StoriesTab({ idToken }) {
 
         {!listLoading && stories.length === 0 && !listError && (
           <p className="il-hint">
-            Nessuna storia salvata. Le storie completate vengono conservate qui
-            (testo, audio e illustrazioni).
+            {t("storiesTab.noStories")}
           </p>
         )}
 
@@ -1910,10 +1907,10 @@ export default function StoriesTab({ idToken }) {
               <div className="il-history-meta">
                 <span>{new Date((item.created_at || 0) * 1000).toLocaleString("it-IT")}</span>
                 {item.has_audio && <span>🎧 audio</span>}
-                <span>{item.scene_count} illustraz.</span>
+                <span>{item.scene_count} {t("storiesTab.illustrationCount")}</span>
               </div>
               <div className="il-history-actions">
-                <button className="il-button">Apri</button>
+                <button className="il-button">{t("storiesTab.open")}</button>
                 <button
                   className="il-button"
                   onClick={(event) => deleteStory(item, event)}
