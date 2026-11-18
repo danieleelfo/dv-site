@@ -324,7 +324,7 @@ export default function ArchivePicker({
         <header className="ap-header">
           <div>
             <p className="ap-eyebrow">
-              GRADV · ARCHIVIO PRINCIPALE
+              {t("img.archive.kicker")}
             </p>
 
             <h2>{t("img.archive.title")}</h2>
@@ -359,7 +359,7 @@ export default function ArchivePicker({
             type="submit"
             disabled={loading || selectingId !== null}
           >
-            Cerca
+            {t("img.archive.search")}
           </button>
 
           {query && (
@@ -373,7 +373,7 @@ export default function ArchivePicker({
                 loadArchive(1, "");
               }}
             >
-              Reset
+              {t("img.archive.reset")}
             </button>
           )}
 
@@ -392,7 +392,7 @@ export default function ArchivePicker({
           <div className="ap-selecting">
             {selectingId === -1
               ? t("img.archive.downloadingMany", { count: selectedIds.length })
-              : `Scarico l'originale #${selectingId}…`}
+              : t("img.archive.downloadingOriginal", { id: selectingId })}
           </div>
         )}
 
