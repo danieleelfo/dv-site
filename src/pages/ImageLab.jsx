@@ -956,8 +956,7 @@ export default function ImageLab({ initialTab = "genera" }) {
             className={"il-tab" + (tab === "ocr" ? " il-tab-active" : "")}
             onClick={() => setTab("ocr")}
           >
-            <span className="il-tab-label">📄 OCR</span>
-            <span className="il-tab-subtitle">{t("img.ocrTabSubtitle")}</span>
+            <span className="il-tab-ocr-text">📄 OCR · {t("img.ocrTabSubtitle", { defaultValue: "Extract text" })}</span>
           </button>
           {isAdmin && (
           <>
@@ -2038,6 +2037,14 @@ const STYLES = `
   grid-auto-rows: 2.85rem;
   gap: .5rem;
   margin-bottom: 1rem;
+}
+.il-tab-ocr-text {
+  display: block;
+  width: 100%;
+  white-space: nowrap;
+  text-align: center;
+  font-size: clamp(.56rem, 2.15vw, .74rem);
+  letter-spacing: -.02em;
 }
 .il-tab {
   display: flex;
