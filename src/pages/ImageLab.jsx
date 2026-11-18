@@ -956,7 +956,8 @@ export default function ImageLab({ initialTab = "genera" }) {
             className={"il-tab" + (tab === "ocr" ? " il-tab-active" : "")}
             onClick={() => setTab("ocr")}
           >
-            📄 OCR
+            <span className="il-tab-label">📄 OCR</span>
+            <span className="il-tab-subtitle">{t("img.ocrTabSubtitle")}</span>
           </button>
           {isAdmin && (
           <>
