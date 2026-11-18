@@ -2320,4 +2320,11 @@ const css = `
   .lc-status{order:2}
   .lc-sec-commands{order:3}
 }
+@media (max-width:560px){
+  .lc-sec-session{order:1}
+  .lc-audio{order:2}
+  .lc-prompt{order:3}
+  .lc-status{order:4}
+  .lc-sec-commands{order:5}
+}
 `
