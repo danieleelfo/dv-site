@@ -963,7 +963,8 @@
       "retry": "Opnieuw proberen",
       "endpointMissing": "Dit endpoint is nog niet beschikbaar in de gateway (404). De pagina is klaar om te testen; de backend moet nog worden toegevoegd.",
       "noJobOrImage": "De server heeft geen job_id of afbeelding teruggestuurd.",
-      "jobNoImage": "De taak is voltooid, maar de server heeft geen afbeelding teruggestuurd."
+      "jobNoImage": "De taak is voltooid, maar de server heeft geen afbeelding teruggestuurd.",
+      "photoAlt": "Foto {{index}} van {{count}}"
     },
     "comics": {
       "title": "Stripeditor",
