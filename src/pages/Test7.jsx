@@ -38,7 +38,7 @@ const FORCED_ADMIN_CHAT_ID = 8733881519
 
 const LELES_AGENT = 'Leles'
 const STRIP_MODES = [
-    ["", "—"],
+    ["", "1 singola"],
     ["2", "2 · affiancate"],
     ["3", "3 · in colonna"],
     ["4", "4 · griglia 2x2"],

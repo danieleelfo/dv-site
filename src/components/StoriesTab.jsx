@@ -33,7 +33,7 @@ import {
 } from "../lib/imageJobs";
 const STORY_AGENT = "Story Whisper";
 const STRIP_MODES = [
-    ["", "—"],
+    ["", "1 singola"],
     ["2", "2 · affiancate"],
     ["3", "3 · in colonna"],
     ["4", "4 · griglia 2x2"],
