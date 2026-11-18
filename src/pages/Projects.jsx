@@ -84,7 +84,8 @@ export default function Projects() {
         </div>
       </section>
 
-      <section className="container" style={styles.heroActions}>
+      <section className="container" style={styles.signatureRow}>
+        <div style={styles.heroActions}>
         <Link to={lang ? `/${lang}` : '/'} style={styles.btnGhost}>
           {t('nav.home')}
         </Link>
@@ -94,15 +95,48 @@ export default function Projects() {
         <Link to={lang ? `/${lang}/contact` : '/contact'} style={styles.btnPrimary}>
           {t('hero.contact')}
         </Link>
+          </div>
       </section>
     </div>
   )
 }
 
 const styles = {
-  heroActions: { display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', paddingTop: '0.5rem', paddingBottom: '4rem' },
-  btnPrimary: { background: '#3fd0c9', color: '#0b1015', padding: '0.65rem 0.8rem', borderRadius: 6, fontWeight: 600, fontSize: '0.8rem', display: 'inline-block', textDecoration: 'none' },
-  btnGhost: { border: '1px solid #3fd0c9', color: '#3fd0c9', padding: '0.65rem 0.8rem', borderRadius: 6, fontWeight: 600, fontSize: '0.8rem', display: 'inline-block', textDecoration: 'none' },
+  signatureRow: {
+    marginTop: '1rem',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '1rem',
+    flexWrap: 'wrap',
+  },
+  heroActions: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+    gap: '0.6rem',
+    flexWrap: 'wrap',
+  },
+  btnPrimary: {
+    background: '#3fd0c9',
+    color: '#0b1015',
+    padding: '0.65rem 0.8rem',
+    borderRadius: 6,
+    fontWeight: 600,
+    fontSize: '0.8rem',
+    display: 'inline-block',
+    textDecoration: 'none',
+  },
+  btnGhost: {
+    border: '1px solid #3fd0c9',
+    color: '#3fd0c9',
+    padding: '0.65rem 0.8rem',
+    borderRadius: 6,
+    fontWeight: 600,
+    fontSize: '0.8rem',
+    display: 'inline-block',
+    textDecoration: 'none',
+  },
   wrap: {
     position: 'relative',
     height: '40vh', // Immagine più piccola
