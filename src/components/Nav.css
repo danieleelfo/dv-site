@@ -49,7 +49,7 @@
     justify-content: center;
     gap: 10px;
     min-width: 0;
-    transform: translateX(-30px);
+    transform: translateX(-50px);
 }
 .nav4-group { position: relative; }
 .nav4-group-btn {
@@ -84,6 +84,7 @@
   background: rgba(16, 24, 32, .6);
   box-shadow: 0 12px 32px rgba(0,0,0,.4);
   backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 .nav4-panel a {
   display: block;
@@ -94,7 +95,7 @@
   font-weight: 500;
   white-space: nowrap;
 }
-.nav4-panel a:hover { color:  #3fd0c9; background: #18252d; }
+.nav4-panel a:hover { color: #3fd0c9; background: #18252d; }
 .nav4-language-row {
     justify-self: end;
     display: flex;
@@ -143,14 +144,13 @@
       gap: 0;
       padding: 0 8px 5px;
   }
-  
-  
+
   .nav4-logo {
     grid-area: logo;
     position: static;
     justify-self: start;
   }
-  
+
   .nav4-logo img { height: 40px; }
   .nav4-groups {
       grid-area: groups;
@@ -165,32 +165,40 @@
     min-height: 38px;
     padding: 7px 3px;
     border-color: #1f2b35;
-    font-size: clamp(.62rem, 2.5vw, .74rem);
+    font-size: clamp(.7rem, 3.1vw, .84rem);   /* era clamp(.62rem, 2.5vw, .74rem) */
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .nav4-chevron { margin-left: 3px; }
-  .nav4-panel {
-    position: fixed;
-    top: auto;
-    left: 8px;
-    right: 8px;
-    width: auto;
-    margin-top: 4px;
-    min-width:  100%;
+
+  /* Pannello mobile: ancorato al suo tab, sfondo quasi pieno */
+  .nav4-groups .nav4-panel {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: auto;
+    width: max-content;
+    min-width: 100%;
+    max-width: 70vw;
     max-height: 70vh;
     overflow-y: auto;
+    margin-top: 0;
     grid-template-columns: 1fr;
+    background: rgba(16, 24, 32, .97) !important;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
-  .nav4-group:nth-child(n+3) .nav4-panel {
+  /* QA e Admin si aprono verso sinistra, per non uscire dallo schermo */
+  .nav4-groups .nav4-group:nth-child(n+3) .nav4-panel {
     left: auto;
-    right: 0;                        
+    right: 0;
   }
-  .nav4-panel a {
+  .nav4-groups .nav4-panel a {
     min-width: 0;
     white-space: normal;
     font-size: .88rem;
   }
+
   .nav4-language-row {
       grid-area: languages;
       min-height: 39px;
