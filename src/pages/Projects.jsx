@@ -92,7 +92,7 @@ export default function Projects() {
         <Link to={lang ? `/${lang}/about` : '/about'} style={styles.btnGhost}>
           {t('nav.expertise')}
         </Link>
-        <Link to={lang ? `/${lang}/contact` : '/contact'} style={styles.btnPrimary}>
+        <Link to={lang ? `/${lang}/contact` : '/contact'} style={styles.btnGhost}>
           {t('hero.contact')}
         </Link>
           </div>
