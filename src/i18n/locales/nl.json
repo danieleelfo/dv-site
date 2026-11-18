@@ -960,7 +960,10 @@
       "photoVariant": "Fotovariant {{index}}",
       "downloadPhoto": "↓ Foto {{index}} downloaden",
       "testFailed": "Test niet voltooid",
-      "retry": "Opnieuw proberen"
+      "retry": "Opnieuw proberen",
+      "endpointMissing": "Dit endpoint is nog niet beschikbaar in de gateway (404). De pagina is klaar om te testen; de backend moet nog worden toegevoegd.",
+      "noJobOrImage": "De server heeft geen job_id of afbeelding teruggestuurd.",
+      "jobNoImage": "De taak is voltooid, maar de server heeft geen afbeelding teruggestuurd."
     },
     "comics": {
       "title": "Stripeditor",
@@ -1020,7 +1023,34 @@
       "preview": "Voorbeeld van de volledige strip",
       "completedPageAlt": "Volledige strip-pagina",
       "downloadPng": "PNG downloaden",
-      "footer": "Stripeditor · Pillow op de Mac · maximaal {{max}} panelen"
+      "footer": "Stripeditor · Pillow op de Mac · maximaal {{max}} panelen",
+      "textColor": "Tekst"
+    },
+    "archive": {
+      "kicker": "GRADV · HOOFDARCHIEF",
+      "title": "Uit archief",
+      "subtitle": "{{count}} afbeeldingen · selecteer een foto voor je strip",
+      "selectPhoto": "Selecteer een foto uit het GraDV-archief",
+      "searchPlaceholder": "Zoek in de prompt…",
+      "searchLabel": "Zoek in de prompt",
+      "search": "Zoeken",
+      "reset": "Resetten",
+      "perPage": "{{count}} per pagina",
+      "downloadingMany": "{{count}} afbeeldingen downloaden…",
+      "downloadingOriginal": "Origineel #{{id}} downloaden…",
+      "loading": "Archief laden…",
+      "noImages": "Geen afbeeldingen gevonden.",
+      "imageNumber": "Afbeelding #{{id}}",
+      "gradvNumber": "GraDV #{{id}}",
+      "noPrompt": "Prompt niet beschikbaar",
+      "selected": "{{count}} geselecteerd",
+      "downloading": "Downloaden…",
+      "addSelected": "Selectie toevoegen",
+      "pagination": "Archiefpaginering",
+      "previous": "← Vorige",
+      "pageOf": "Pagina {{page}} van {{pages}}",
+      "next": "Volgende →",
+      "noneSelected": "Er is geen geselecteerde afbeelding beschikbaar."
     }
   },
   "dga": {
