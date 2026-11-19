@@ -148,6 +148,10 @@ export default function FumettiTab({ embedded = false } = {}) {
       setPanels(restored);
       setActiveId(restored.some(panel => panel.id === saved.activeId) ? saved.activeId : (restored[0]?.id ?? null));
       setLayout(saved.layout || "grid");
+      pendingStorySettingsRef.current = saved.storyId ? {
+        storyId: saved.storyId, storyVersion: saved.storyVersion, storyScenes: saved.storyScenes,
+        storyPdfMode: saved.storyPdfMode, storyPdfLayout: saved.storyPdfLayout, storyPdfFormat: saved.storyPdfFormat,
+      } : null;
       setStoryId(saved.storyId || "");
       setStoryVersion(saved.storyVersion || "");
       setStoryScenes(saved.storyScenes || {});
