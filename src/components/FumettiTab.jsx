@@ -80,6 +80,7 @@ export default function FumettiTab({ embedded = false } = {}) {
   const [storyPdfBusy, setStoryPdfBusy] = useState(false);
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
+  const pendingStorySettingsRef = useRef(null);
 
   const active = panels.find(p => p.id === activeId) || panels[0] || null;
   const bubbles = active?.bubbles || [];
@@ -205,7 +206,18 @@ export default function FumettiTab({ embedded = false } = {}) {
         if (cancelled) return;
         setStory(data);
         const versions = [...new Set((data.scenes || []).map(scene => Number(scene.version) || 1))].sort((a,b) => a-b);
-        setStoryVersion(String(versions[versions.length - 1] || 1));
+        const latest = String(versions[versions.length - 1] || 1);
+        const pending = pendingStorySettingsRef.current;
+        if (pending?.storyId === storyId) {
+          setStoryVersion(pending.storyVersion || latest);
+          setStoryScenes(pending.storyScenes || {});
+          setStoryPdfMode(pending.storyPdfMode || "both");
+          setStoryPdfLayout(pending.storyPdfLayout || "pages");
+          setStoryPdfFormat(pending.storyPdfFormat || "landscape");
+          pendingStorySettingsRef.current = null;
+        } else {
+          setStoryVersion(latest);
+        }
       })
       .catch(err => { if (!cancelled) setError(err.message || String(err)); })
       .finally(() => { if (!cancelled) setStoryLoading(false); });
