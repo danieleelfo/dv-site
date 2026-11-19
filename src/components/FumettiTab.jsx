@@ -102,6 +102,20 @@ export default function FumettiTab({ embedded = false } = {}) {
   }, []);
 
 
+  // Ripristino delle impostazioni storia: usato sia dall'autosalvataggio sia dalle bozze nominate.
+  function applyStorySettings(saved) {
+    pendingStorySettingsRef.current = saved.storyId ? {
+      storyId: saved.storyId, storyVersion: saved.storyVersion, storyScenes: saved.storyScenes,
+      storyPdfMode: saved.storyPdfMode, storyPdfLayout: saved.storyPdfLayout, storyPdfFormat: saved.storyPdfFormat,
+    } : null;
+    setStoryId(saved.storyId || "");
+    setStoryVersion(saved.storyVersion || "");
+    setStoryScenes(saved.storyScenes || {});
+    setStoryPdfMode(saved.storyPdfMode || "both");
+    setStoryPdfLayout(saved.storyPdfLayout || "pages");
+    setStoryPdfFormat(saved.storyPdfFormat || "landscape");
+  }
+
   async function refreshNamedDrafts() {
     try { setNamedDrafts(await listComicsDrafts(namedDraftPrefix)); }
     catch (err) { setDraftMessage("Impossibile leggere le bozze: " + (err.message || String(err))); }
@@ -115,7 +129,7 @@ export default function FumettiTab({ embedded = false } = {}) {
         id: panel.id, name: panel.file.name, type: panel.file.type,
         lastModified: panel.file.lastModified,
         blob: panel.archiveId ? null : panel.file,
-        archiveId: panel.archiveId || null, bubbles: panel.bubbles,
+        archiveId: panel.archiveId || null, bubbles: panel.bubbles, caption: panel.caption || "",
       })),
       storyId, storyVersion, storyScenes, storyPdfMode, storyPdfLayout, storyPdfFormat,
       narrativeText, narrativeOriginal, narrativePosition, narrativeStoryId,
@@ -162,16 +176,7 @@ export default function FumettiTab({ embedded = false } = {}) {
       setPanels(restored);
       setActiveId(restored.some(panel => panel.id === saved.activeId) ? saved.activeId : (restored[0]?.id ?? null));
       setLayout(saved.layout || "grid");
-      pendingStorySettingsRef.current = saved.storyId ? {
-        storyId: saved.storyId, storyVersion: saved.storyVersion, storyScenes: saved.storyScenes,
-        storyPdfMode: saved.storyPdfMode, storyPdfLayout: saved.storyPdfLayout, storyPdfFormat: saved.storyPdfFormat,
-      } : null;
-      setStoryId(saved.storyId || "");
-      setStoryVersion(saved.storyVersion || "");
-      setStoryScenes(saved.storyScenes || {});
-      setStoryPdfMode(saved.storyPdfMode || "both");
-      setStoryPdfLayout(saved.storyPdfLayout || "pages");
-      setStoryPdfFormat(saved.storyPdfFormat || "landscape");
+      applyStorySettings(saved);
       setNarrativeText(saved.narrativeText || "");
       setNarrativeOriginal(saved.narrativeOriginal || "");
       setNarrativePosition(saved.narrativePosition || "start");
@@ -408,11 +413,15 @@ export default function FumettiTab({ embedded = false } = {}) {
 
     persistDraft();
     return () => { cancelled = true; };
-  }, [draftReady, draftKey, panels, activeId, layout, narrativeText, narrativeOriginal, narrativePosition, narrativeStoryId, t]);
+  }, [draftReady, draftKey, panels, activeId, layout, narrativeText, narrativeOriginal, narrativePosition, narrativeStoryId, storyId, storyVersion, storyScenes, storyPdfMode, storyPdfLayout, storyPdfFormat, t]);
 
+  // Con [] la funzione di cleanup vedrebbe solo lo stato iniziale: uso ref sempre aggiornati.
+  const latestUrlsRef = useRef({ panels: [], resultUrl: "" });
+  latestUrlsRef.current = { panels, resultUrl };
   useEffect(() => () => {
-    panels.forEach(p => { if (p.preview) URL.revokeObjectURL(p.preview); });
-    if (resultUrl) URL.revokeObjectURL(resultUrl);
+    const { panels: lastPanels, resultUrl: lastResult } = latestUrlsRef.current;
+    lastPanels.forEach(p => { if (p.preview) URL.revokeObjectURL(p.preview); });
+    if (lastResult) URL.revokeObjectURL(lastResult);
   }, []);
 
   function addFiles(fileList, archiveItems = []) {
