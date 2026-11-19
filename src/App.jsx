@@ -56,22 +56,20 @@ function LangWrapper({ children }) {
 }
 
 const SITE_PREVIEW_KEY = 'dv_site_layout_preview';
-const SITE_PREVIEW_ADMINS = ['dannybydanny@hotmail.com', 'salatinodenise@gmail.com'];
-
 function applySitePreview() {
-  let allowed = false;
+  let authenticated = false;
   try {
     const token = localStorage.getItem('dv_google_id_token');
     const payload = token ? JSON.parse(decodeURIComponent(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')).split('').map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''))) : null;
-    allowed = SITE_PREVIEW_ADMINS.includes(String(payload?.email || '').toLowerCase()) && payload?.exp * 1000 > Date.now();
+    authenticated = !!payload?.email && payload?.exp * 1000 > Date.now();
   } catch {
-    allowed = false;
+    authenticated = false;
   }
 
   let mode = 'auto';
   try {
-    mode = allowed ? sessionStorage.getItem(SITE_PREVIEW_KEY) || 'auto' : 'auto';
-    if (!allowed) sessionStorage.removeItem(SITE_PREVIEW_KEY);
+    mode = authenticated ? sessionStorage.getItem(SITE_PREVIEW_KEY) || 'auto' : 'auto';
+    if (!authenticated) sessionStorage.removeItem(SITE_PREVIEW_KEY);
   } catch {
     mode = 'auto';
   }
