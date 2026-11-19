@@ -916,6 +916,7 @@ export default function FumettiTab({ embedded = false } = {}) {
             <select id="fb-narrative-position" className="fb-input" value={narrativePosition} onChange={e => setNarrativePosition(e.target.value)}>
               <option value="start">All’inizio</option>
               <option value="end">Alla fine</option>
+              <option value="none">Non inserire storia</option>
             </select>
           </div>
         </div>}
