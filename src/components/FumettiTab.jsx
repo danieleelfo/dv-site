@@ -699,9 +699,26 @@ export default function FumettiTab({ embedded = false } = {}) {
 
   function download() {
     if (!resultUrl) return;
+    const now = new Date();
+    const pad = value => String(value).padStart(2, "0");
+    const timestamp = [
+      now.getFullYear(),
+      pad(now.getMonth() + 1),
+      pad(now.getDate()),
+    ].join("") + "_" + [
+      pad(now.getHours()),
+      pad(now.getMinutes()),
+      pad(now.getSeconds()),
+    ].join("");
+    const baseName = String(story?.title || story?.prompt || "fumetto")
+      .normalize("NFKD")
+      .replace(/[\\u0300-\\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 60) || "fumetto";
     const a = document.createElement("a");
     a.href = resultUrl;
-    a.download = "fumetto-completo.png";
+    a.download = baseName + "_" + timestamp + ".png";
     document.body.appendChild(a); a.click(); a.remove();
   }
 
