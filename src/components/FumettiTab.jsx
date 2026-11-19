@@ -31,8 +31,18 @@ function clamp(v) { return Math.max(0, Math.min(1, v)); }
 function splitSentences(text) {
   const clean = String(text || "").replace(/\r/g, "").trim();
   if (!clean) return [];
-  const parts = clean.match(/[^.!?…\n]+(?:[.!?…]+["”»')\]]*|$)\s*/g);
-  return (parts || [clean]).map(part => part.trim()).filter(Boolean);
+  const squash = value => value.replace(/\s+/g, "");
+  const out = [];
+  // Ogni riga è trattata a sé: un a capo chiude la frase anche senza punteggiatura.
+  for (const line of clean.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    const parts = trimmed.match(/[^.!?…]+(?:[.!?…]+["”»')\]]*|$)\s*/g) || [];
+    // Se la divisione perdesse dei caratteri (es. riga che inizia con "…"), tengo la riga intera.
+    if (squash(parts.join("")) !== squash(trimmed)) { out.push(trimmed); continue; }
+    parts.forEach(part => { const value = part.trim(); if (value) out.push(value); });
+  }
+  return out;
 }
 function splitNarrative(text, count) {
   const clean = String(text || "").replace(/\r/g, "").trim();
