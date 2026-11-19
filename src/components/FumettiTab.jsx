@@ -603,9 +603,26 @@ export default function FumettiTab({ embedded = false } = {}) {
       }
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
+      const now = new Date();
+      const pad = value => String(value).padStart(2, "0");
+      const timestamp = [
+        now.getFullYear(),
+        pad(now.getMonth() + 1),
+        pad(now.getDate()),
+      ].join("") + "_" + [
+        pad(now.getHours()),
+        pad(now.getMinutes()),
+        pad(now.getSeconds()),
+      ].join("");
+      const baseName = String(story?.title || story?.prompt || "fumetto")
+        .normalize("NFKD")
+        .replace(/[\\u0300-\\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 60) || "fumetto";
       const a = document.createElement("a");
       a.href = url;
-      a.download = "fumetto-completo.pdf";
+      a.download = baseName + "_" + timestamp + ".pdf";
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 10000);
     } catch (err) {
