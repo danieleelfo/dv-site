@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import ArchivePicker from "./ArchivePicker.jsx";
-import { clearComicsDraft, loadComicsDraft, saveComicsDraft } from "../utils/comicsDraft.js";
+import { clearComicsDraft, listComicsDrafts, loadComicsDraft, saveComicsDraft } from "../utils/comicsDraft.js";
 
 const API = "https://api.danielevillanova.com";
 const TOKEN_KEY = "dv_google_id_token";
@@ -52,10 +52,13 @@ export default function FumettiTab({ embedded = false } = {}) {
   const [layout, setLayout] = useState("grid");
   const [draftReady, setDraftReady] = useState(false);
   const [draftMessage, setDraftMessage] = useState("");
+  const [namedDrafts, setNamedDrafts] = useState([]);
+  const [namedDraftBusy, setNamedDraftBusy] = useState(false);
   const draftKey = (() => {
     const email = decodeJwt(token)?.email || "local";
     return "comics:" + email.toLowerCase();
   })();
+  const namedDraftPrefix = draftKey + ":named:";
   const [selectedBubbleId, setSelectedBubbleId] = useState(null);
   const [tailMode, setTailMode] = useState(false);
   const [showArchive, setShowArchive] = useState(false);
@@ -77,6 +80,7 @@ export default function FumettiTab({ embedded = false } = {}) {
   const [storyPdfBusy, setStoryPdfBusy] = useState(false);
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
+  const pendingStorySettingsRef = useRef(null);
 
   const active = panels.find(p => p.id === activeId) || panels[0] || null;
   const bubbles = active?.bubbles || [];
@@ -87,6 +91,88 @@ export default function FumettiTab({ embedded = false } = {}) {
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, []);
+
+
+  async function refreshNamedDrafts() {
+    try { setNamedDrafts(await listComicsDrafts(namedDraftPrefix)); }
+    catch (err) { setDraftMessage("Impossibile leggere le bozze: " + (err.message || String(err))); }
+  }
+  useEffect(() => { if (token) refreshNamedDrafts(); }, [token, namedDraftPrefix]);
+
+  function currentDraftData() {
+    return {
+      layout, activeId,
+      panels: panels.map(panel => ({
+        id: panel.id, name: panel.file.name, type: panel.file.type,
+        lastModified: panel.file.lastModified,
+        blob: panel.archiveId ? null : panel.file,
+        archiveId: panel.archiveId || null, bubbles: panel.bubbles,
+      })),
+      storyId, storyVersion, storyScenes, storyPdfMode, storyPdfLayout, storyPdfFormat,
+    };
+  }
+
+  async function saveNamedDraft() {
+    const title = window.prompt("Nome della bozza (es. fum1):");
+    if (!title || !title.trim()) return;
+    const key = namedDraftPrefix + title.trim().toLowerCase();
+    setNamedDraftBusy(true);
+    try {
+      await saveComicsDraft(key, { ...currentDraftData(), title: title.trim() });
+      await refreshNamedDrafts();
+      setDraftMessage("Bozza “" + title.trim() + "” salvata.");
+    } catch (err) { setDraftMessage("Salvataggio bozza fallito: " + (err.message || String(err))); }
+    finally { setNamedDraftBusy(false); }
+  }
+
+  async function openNamedDraft(saved) {
+    setNamedDraftBusy(true);
+    setError("");
+    const restored = [];
+    try {
+      for (const item of saved.panels || []) {
+        let blob = item.blob || null;
+        if (item.archiveId && token) {
+          const response = await fetch(API + "/api/gradv/archive/" + encodeURIComponent(item.archiveId) + "/image", {
+            headers: { Authorization: "Bearer " + token },
+          });
+          if (response.ok) blob = await response.blob();
+        }
+        if (!blob) throw new Error("Immagine non disponibile: " + (item.name || item.archiveId || "pannello"));
+        const file = new File([blob], item.name || "immagine.png", {
+          type: blob.type || item.type || "image/png", lastModified: item.lastModified || Date.now(),
+        });
+        restored.push(makePanel(file, { id: item.archiveId }, item));
+      }
+      panels.forEach(panel => panel.preview && URL.revokeObjectURL(panel.preview));
+      setPanels(restored);
+      setActiveId(restored.some(panel => panel.id === saved.activeId) ? saved.activeId : (restored[0]?.id ?? null));
+      setLayout(saved.layout || "grid");
+      pendingStorySettingsRef.current = saved.storyId ? {
+        storyId: saved.storyId, storyVersion: saved.storyVersion, storyScenes: saved.storyScenes,
+        storyPdfMode: saved.storyPdfMode, storyPdfLayout: saved.storyPdfLayout, storyPdfFormat: saved.storyPdfFormat,
+      } : null;
+      setStoryId(saved.storyId || "");
+      setStoryVersion(saved.storyVersion || "");
+      setStoryScenes(saved.storyScenes || {});
+      setStoryPdfMode(saved.storyPdfMode || "both");
+      setStoryPdfLayout(saved.storyPdfLayout || "pages");
+      setStoryPdfFormat(saved.storyPdfFormat || "landscape");
+      setSelectedBubbleId(null); setResultUrl(""); setStatus("idle");
+      setDraftMessage("Bozza “" + (saved.title || "senza nome") + "” caricata.");
+      nextPanelId = Math.max(nextPanelId, ...restored.map(panel => Number(panel.id) || 0), 0) + 1;
+      nextBubbleId = Math.max(nextBubbleId, ...restored.flatMap(panel => panel.bubbles || []).map(bubble => Number(bubble.id) || 0), 0) + 1;
+    } catch (err) {
+      restored.forEach(panel => panel.preview && URL.revokeObjectURL(panel.preview));
+      setDraftMessage("Ripristino bozza fallito: " + (err.message || String(err)));
+    } finally { setNamedDraftBusy(false); }
+  }
+
+  async function deleteNamedDraft(saved) {
+    if (!window.confirm("Eliminare la bozza “" + (saved.title || "senza nome") + "”?")) return;
+    try { await clearComicsDraft(saved.key); await refreshNamedDrafts(); }
+    catch (err) { setDraftMessage("Eliminazione bozza fallita: " + (err.message || String(err))); }
+  }
 
   // Carica l'elenco delle storie salvate da Story Whisper e Night Story.
   useEffect(() => {
@@ -124,7 +210,18 @@ export default function FumettiTab({ embedded = false } = {}) {
         if (cancelled) return;
         setStory(data);
         const versions = [...new Set((data.scenes || []).map(scene => Number(scene.version) || 1))].sort((a,b) => a-b);
-        setStoryVersion(String(versions[versions.length - 1] || 1));
+        const latest = String(versions[versions.length - 1] || 1);
+        const pending = pendingStorySettingsRef.current;
+        if (pending?.storyId === storyId) {
+          setStoryVersion(pending.storyVersion || latest);
+          setStoryScenes(pending.storyScenes || {});
+          setStoryPdfMode(pending.storyPdfMode || "both");
+          setStoryPdfLayout(pending.storyPdfLayout || "pages");
+          setStoryPdfFormat(pending.storyPdfFormat || "landscape");
+          pendingStorySettingsRef.current = null;
+        } else {
+          setStoryVersion(latest);
+        }
       })
       .catch(err => { if (!cancelled) setError(err.message || String(err)); })
       .finally(() => { if (!cancelled) setStoryLoading(false); });
@@ -582,6 +679,17 @@ export default function FumettiTab({ embedded = false } = {}) {
         </>}
       </section>
 
+      <section className="fb-panel fb-drafts-panel">
+        <div className="fb-story-heading"><div><h2>Bozze salvate</h2><p className="fb-hint">Salva più versioni indipendenti e riaprile quando vuoi.</p></div>
+          <button type="button" className="fb-btn fb-primary" onClick={saveNamedDraft} disabled={namedDraftBusy}>＋ Salva draft</button>
+        </div>
+        {namedDrafts.length > 0 ? <div className="fb-saved-drafts">{namedDrafts.map(item => <div className="fb-saved-draft" key={item.key}>
+          <span><b>{item.title || item.key.split(":").pop()}</b><small>{new Date(item.savedAt || Date.now()).toLocaleString()} · {(item.panels || []).length} foto</small></span>
+          <button type="button" className="fb-btn" disabled={namedDraftBusy} onClick={() => openNamedDraft(item)}>Apri</button>
+          <button type="button" className="fb-btn fb-danger" disabled={namedDraftBusy} onClick={() => deleteNamedDraft(item)}>×</button>
+        </div>)}</div> : <p className="fb-hint">Ancora nessuna bozza nominata.</p>}
+      </section>
+
       <section className="fb-panel">
         <h2>{t("img.comics.panelsTitle")} <small>({panels.length}/{MAX_PANELS})</small></h2>
         {draftMessage && <p className="fb-hint" role="status">{draftMessage}</p>}
@@ -660,7 +768,7 @@ export default function FumettiTab({ embedded = false } = {}) {
 }
 
 const STYLES = `
-.fb-story-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:.8rem}
+.fb-drafts-panel{display:grid;gap:.6rem}.fb-saved-drafts{display:grid;gap:.45rem}.fb-saved-draft{display:flex;align-items:center;gap:.5rem;padding:.55rem;border:1px solid var(--border,#26333e);border-radius:8px}.fb-saved-draft span{display:grid;gap:.15rem;min-width:0;flex:1}.fb-saved-draft small{color:var(--ink-dim,#8fa1ac);font-size:.68rem}.fb-story-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:.8rem}
 .fb-story-heading h2{margin-bottom:.3rem}.fb-story-meta{display:flex;gap:.7rem;flex-wrap:wrap;margin:.8rem 0;color:var(--ink-dim,#8fa1ac);font-size:.75rem}
 .fb-story-text{max-height:140px;overflow:auto;white-space:pre-wrap;font-size:.78rem;line-height:1.5;color:var(--ink,#e7edf1);padding:.7rem;background:var(--bg,#0b1015);border-radius:7px}
 .fb-story-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.7rem;margin:.8rem 0}

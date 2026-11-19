@@ -1390,7 +1390,7 @@ export default function ImageLab({ initialTab = "genera" }) {
         )}
 
         {tab === "storico" && (
-          <ImgHist idToken={idToken} onReuse={reuseHistoryParams} />
+          <ImgHist idToken={idToken} owner={email.toLowerCase()} onReuse={reuseHistoryParams} />
         )}
 
         {tab === "ocr" && (

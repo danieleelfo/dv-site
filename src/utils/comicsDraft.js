@@ -3,9 +3,10 @@
 // vengono ricostruite dall'ID archivio quando si riapre la bozza.
 
 const DB_NAME = "dv-image-lab";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const DRAFTS = "comics-drafts";
 const FILES = "comics-files";
+const UPLOADED = "uploaded-images";
 
 let dbPromise;
 
@@ -24,6 +25,9 @@ function openDb() {
       }
       if (!db.objectStoreNames.contains(FILES)) {
         db.createObjectStore(FILES, { keyPath: "key" });
+      }
+      if (!db.objectStoreNames.contains(UPLOADED)) {
+        db.createObjectStore(UPLOADED, { keyPath: "id" });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -126,5 +130,77 @@ export async function clearComicsDraft(key) {
     };
     tx.oncomplete = () => resolve(true);
     tx.onerror = () => reject(tx.error || new Error("Eliminazione bozza Comics fallita."));
+  });
+}
+
+
+// Libreria Uploaded: immagini locali, indipendenti dalle singole bozze.
+// La chiave include l'account: due utenti sullo stesso browser non condividono i file.
+export async function saveUploadedImage(owner, file) {
+  const db = await openDb();
+  const record = {
+    id: owner + ":uploaded:" + (globalThis.crypto?.randomUUID?.() || (Date.now() + "-" + Math.random().toString(36).slice(2))),
+    owner,
+    name: file.name || "image",
+    type: file.type || "image/*",
+    size: file.size || 0,
+    lastModified: file.lastModified || Date.now(),
+    createdAt: Date.now(),
+    blob: file,
+  };
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(UPLOADED, "readwrite");
+    tx.objectStore(UPLOADED).put(record);
+    tx.oncomplete = () => resolve({ ...record, blob: undefined });
+    tx.onerror = () => reject(tx.error || new Error("Salvataggio immagine Uploaded fallito."));
+  });
+}
+
+export async function listUploadedImages(owner) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(UPLOADED, "readonly");
+    const request = tx.objectStore(UPLOADED).getAll();
+    request.onsuccess = () => resolve((request.result || [])
+      .filter(item => item.owner === owner)
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .map(({ blob, ...item }) => item));
+    tx.onerror = () => reject(tx.error || new Error("Lettura immagini Uploaded fallita."));
+  });
+}
+
+export async function getUploadedImage(id, owner) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(UPLOADED, "readonly");
+    const request = tx.objectStore(UPLOADED).get(id);
+    request.onsuccess = () => resolve(request.result?.owner === owner ? request.result : null);
+    tx.onerror = () => reject(tx.error || new Error("Lettura immagine Uploaded fallita."));
+  });
+}
+
+export async function deleteUploadedImage(id, owner) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(UPLOADED, "readwrite");
+    const store = tx.objectStore(UPLOADED);
+    const request = store.get(id);
+    request.onsuccess = () => {
+      if (request.result?.owner === owner) store.delete(id);
+    };
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error || new Error("Eliminazione immagine Uploaded fallita."));
+  });
+}
+
+export async function listComicsDrafts(prefix) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(DRAFTS, "readonly");
+    const request = tx.objectStore(DRAFTS).getAll();
+    request.onsuccess = () => resolve((request.result || [])
+      .filter(item => item.key.startsWith(prefix))
+      .sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0)));
+    tx.onerror = () => reject(tx.error || new Error("Elenco bozze Comics fallito."));
   });
 }

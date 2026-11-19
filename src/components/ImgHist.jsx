@@ -5,6 +5,7 @@
 // API protette: GET /api/gradv/archive e GET /api/gradv/archive/{id}/image.
 
 import { useCallback, useEffect, useState } from "react";
+import { deleteUploadedImage, getUploadedImage, listUploadedImages, saveUploadedImage } from "../utils/comicsDraft.js";
 
 const API = "https://api.danielevillanova.com";
 const PAGE_SIZE = 24;
@@ -40,7 +41,12 @@ function formatDate(value) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }
 
-export default function ImgHist({ idToken, onReuse }) {
+export default function ImgHist({ idToken, owner = "", onReuse }) {
+  const [section, setSection] = useState("created");
+  const [uploaded, setUploaded] = useState([]);
+  const [uploadedUrls, setUploadedUrls] = useState({});
+  const [uploadBusy, setUploadBusy] = useState(false);
+  const [uploadError, setUploadError] = useState("");
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [pages, setPages] = useState(1);
@@ -53,6 +59,64 @@ export default function ImgHist({ idToken, onReuse }) {
   const [selected, setSelected] = useState(null);
   const [fullImage, setFullImage] = useState("");
   const [view, setView] = useState("thumbs");
+
+
+  const loadUploaded = useCallback(async () => {
+    if (!owner) return;
+    setUploadError("");
+    try {
+      const rows = await listUploadedImages(owner);
+      setUploaded(rows);
+      const next = {};
+      await Promise.all(rows.map(async item => {
+        try {
+          const record = await getUploadedImage(item.id, owner);
+          if (record?.blob) next[item.id] = URL.createObjectURL(record.blob);
+        } catch {}
+      }));
+      setUploadedUrls(old => {
+        Object.values(old).forEach(url => URL.revokeObjectURL(url));
+        return next;
+      });
+    } catch (err) {
+      setUploadError(err.message || String(err));
+    }
+  }, [owner]);
+
+  useEffect(() => {
+    if (section === "uploaded") loadUploaded();
+  }, [section, loadUploaded]);
+
+  useEffect(() => () => {
+    Object.values(uploadedUrls).forEach(url => URL.revokeObjectURL(url));
+  }, [uploadedUrls]);
+
+  async function importUploads(event) {
+    const files = Array.from(event.target.files || []);
+    event.target.value = "";
+    if (!files.length || !owner) return;
+    const accepted = files.filter(file => file.type.startsWith("image/") && file.size <= 15 * 1024 * 1024);
+    if (accepted.length !== files.length) setUploadError("Sono ammesse immagini fino a 15 MB ciascuna.");
+    setUploadBusy(true);
+    try {
+      for (const file of accepted) await saveUploadedImage(owner, file);
+      await loadUploaded();
+    } catch (err) {
+      setUploadError(err.message || String(err));
+    } finally {
+      setUploadBusy(false);
+    }
+  }
+
+  async function removeUploaded(item) {
+    if (!window.confirm("Eliminare questa immagine da Uploaded? Le bozze che la usano potrebbero non poterla più recuperare.")) return;
+    try {
+      await deleteUploadedImage(item.id, owner);
+      await loadUploaded();
+    } catch (err) {
+      setUploadError(err.message || String(err));
+    }
+  }
 
   const revokeThumbs = useCallback((map) => {
     Object.values(map || {}).forEach((url) => URL.revokeObjectURL(url));
@@ -162,6 +226,11 @@ export default function ImgHist({ idToken, onReuse }) {
     <section className="il-panel il-history-panel">
       <style>{IMGHIST_STYLES}</style>
 
+      <div className="ilh-tabs">
+        <button type="button" className={"ilh-toggle-btn" + (section === "created" ? " ilh-on" : "")} onClick={() => setSection("created")}>Created images</button>
+        <button type="button" className={"ilh-toggle-btn" + (section === "uploaded" ? " ilh-on" : "")} onClick={() => setSection("uploaded")}>Uploaded ({uploaded.length})</button>
+      </div>
+      {section === "created" && <>
       <div className="il-section-heading">
         <div>
           <p className="il-eyebrow">03 / ARCHIVIO</p>
@@ -379,12 +448,32 @@ export default function ImgHist({ idToken, onReuse }) {
           </div>
         </div>
       )}
+      </>}
+      {section === "uploaded" && (
+        <>
+          <div className="il-section-heading">
+            <div><p className="il-eyebrow">LOCAL · INDEXEDDB</p><h2>Uploaded images</h2></div>
+            <label className="il-button il-primary">{uploadBusy ? "Salvo…" : "＋ Carica immagini"}<input type="file" accept="image/*" multiple onChange={importUploads} disabled={uploadBusy} style={{display:"none"}} /></label>
+          </div>
+          <p className="il-hint">Immagini conservate su questo dispositivo e associate all'account attivo. Non vengono caricate sul server.</p>
+          {uploadError && <div className="il-error" role="alert">{uploadError}</div>}
+          {!uploaded.length && !uploadBusy && <p className="il-hint">Nessuna immagine caricata.</p>}
+          <div className="ilh-grid">
+            {uploaded.map(item => <article className="ilh-card" key={item.id}>
+              <span className="ilh-thumb">{uploadedUrls[item.id] ? <img src={uploadedUrls[item.id]} alt={item.name}/> : "…"}</span>
+              <span className="ilh-card-meta"><strong>{item.name}</strong><span>{Math.round(item.size/1024)} KB</span></span>
+              <small>{new Date(item.createdAt).toLocaleString()}</small>
+              <div className="il-actions"><button type="button" className="il-button" onClick={() => removeUploaded(item)}>Elimina</button></div>
+            </article>)}
+          </div>
+        </>
+      )}
     </section>
   );
 }
 
 const IMGHIST_STYLES = `
-.ilh-search{display:flex;align-items:center;flex-wrap:wrap;gap:.6rem;margin-bottom:1rem}
+.ilh-tabs{display:flex;gap:.5rem;margin-bottom:1rem}.ilh-search{display:flex;align-items:center;flex-wrap:wrap;gap:.6rem;margin-bottom:1rem}
 .ilh-search .il-input{max-width:320px}
 .ilh-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.8rem}
 .ilh-card{display:flex;flex-direction:column;min-width:0;padding:0;border:1px solid var(--border,#1f2b35);border-radius:9px;background:var(--bg-alt,#0f151c);color:inherit;text-align:left;cursor:pointer}
