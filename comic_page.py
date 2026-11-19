@@ -185,6 +185,12 @@ def build_comic_page_router(verify_admin_token):
             page_w = MARGIN * 2 + sum(cell_w) + gutters_x
             page_h = MARGIN * 2 + sum(cell_h) + gutters_y
 
+        if page_w > PAGE_MAX or page_h > PAGE_MAX:
+            raise HTTPException(
+                status_code=400,
+                detail=f"La pagina con le didascalie supera il limite di {PAGE_MAX}px. Riduci il testo o usa un layout diverso.",
+            )
+
         page = Image.new("RGB", (page_w, page_h), PAGE_BG)
         page_draw = ImageDraw.Draw(page)
 
