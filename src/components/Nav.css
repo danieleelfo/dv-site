@@ -49,7 +49,7 @@
     justify-content: center;
     gap: 10px;
     min-width: 0;
-    transform: translateX(-100px);
+    transform: translateX(-120px);
 }
 .nav4-group { position: relative; }
 .nav4-group-btn {
@@ -67,7 +67,7 @@
 .nav4-group-btn:hover, .nav4-group-btn.active {
   color: #3fd0c9;
   border-color: #234a48;
-  background: rgba(63,208,201,.62);
+  background: rgba(63,208,201,.80);
 }
 .nav4-chevron { margin-left: 7px; color: #3fd0c9; }
 .nav4-panel {
