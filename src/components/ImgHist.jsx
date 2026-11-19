@@ -226,6 +226,11 @@ export default function ImgHist({ idToken, owner = "", onReuse }) {
     <section className="il-panel il-history-panel">
       <style>{IMGHIST_STYLES}</style>
 
+      <div className="ilh-tabs">
+        <button type="button" className={"ilh-toggle-btn" + (section === "created" ? " ilh-on" : "")} onClick={() => setSection("created")}>Created images</button>
+        <button type="button" className={"ilh-toggle-btn" + (section === "uploaded" ? " ilh-on" : "")} onClick={() => setSection("uploaded")}>Uploaded ({uploaded.length})</button>
+      </div>
+      {section === "created" && <>
       <div className="il-section-heading">
         <div>
           <p className="il-eyebrow">03 / ARCHIVIO</p>
@@ -442,6 +447,26 @@ export default function ImgHist({ idToken, owner = "", onReuse }) {
             </div>
           </div>
         </div>
+      )}
+      </>}
+      {section === "uploaded" && (
+        <>
+          <div className="il-section-heading">
+            <div><p className="il-eyebrow">LOCAL · INDEXEDDB</p><h2>Uploaded images</h2></div>
+            <label className="il-button il-primary">{uploadBusy ? "Salvo…" : "＋ Carica immagini"}<input type="file" accept="image/*" multiple onChange={importUploads} disabled={uploadBusy} style={{display:"none"}} /></label>
+          </div>
+          <p className="il-hint">Immagini conservate su questo dispositivo e associate all'account attivo. Non vengono caricate sul server.</p>
+          {uploadError && <div className="il-error" role="alert">{uploadError}</div>}
+          {!uploaded.length && !uploadBusy && <p className="il-hint">Nessuna immagine caricata.</p>}
+          <div className="ilh-grid">
+            {uploaded.map(item => <article className="ilh-card" key={item.id}>
+              <span className="ilh-thumb">{uploadedUrls[item.id] ? <img src={uploadedUrls[item.id]} alt={item.name}/> : "…"}</span>
+              <span className="ilh-card-meta"><strong>{item.name}</strong><span>{Math.round(item.size/1024)} KB</span></span>
+              <small>{new Date(item.createdAt).toLocaleString()}</small>
+              <div className="il-actions"><button type="button" className="il-button" onClick={() => removeUploaded(item)}>Elimina</button></div>
+            </article>)}
+          </div>
+        </>
       )}
     </section>
   );
