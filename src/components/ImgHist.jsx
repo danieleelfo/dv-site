@@ -5,7 +5,7 @@
 // API protette: GET /api/gradv/archive e GET /api/gradv/archive/{id}/image.
 
 import { useCallback, useEffect, useState } from "react";
-import { deleteUploadedImage, listUploadedImages, saveUploadedImage } from "../utils/comicsDraft.js";
+import { deleteUploadedImage, getUploadedImage, listUploadedImages, saveUploadedImage } from "../utils/comicsDraft.js";
 
 const API = "https://api.danielevillanova.com";
 const PAGE_SIZE = 24;
@@ -70,7 +70,7 @@ export default function ImgHist({ idToken, owner = "", onReuse }) {
       const next = {};
       await Promise.all(rows.map(async item => {
         try {
-          const record = await import("../utils/comicsDraft.js").then(m => m.getUploadedImage(item.id, owner));
+          const record = await getUploadedImage(item.id, owner);
           if (record?.blob) next[item.id] = URL.createObjectURL(record.blob);
         } catch {}
       }));
