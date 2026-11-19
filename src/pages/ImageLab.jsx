@@ -140,6 +140,24 @@ export default function ImageLab({ initialTab = "genera" }) {
 
   const [idToken, setIdToken] = useState(readStoredToken);
   const [email, setEmail] = useState("");
+  const [sitePreview, setSitePreview] = useState(() => {
+    try {
+      return sessionStorage.getItem("dv_site_layout_preview") || "auto";
+    } catch {
+      return "auto";
+    }
+  });
+
+  const changeSitePreview = useCallback((nextMode) => {
+    setSitePreview(nextMode);
+    try {
+      if (nextMode === "auto") sessionStorage.removeItem("dv_site_layout_preview");
+      else sessionStorage.setItem("dv_site_layout_preview", nextMode);
+    } catch {
+      // Il selettore resta utilizzabile anche senza sessionStorage.
+    }
+    window.dispatchEvent(new Event("dv-site-preview-change"));
+  }, []);
   // Ruolo dal gateway (admin | demo | none): i demo vedono solo GENERA.
   const [role, setRole] = useState("loading");
   // Super user: stessi tab degli admin in ImageLab (fumetti, multifoto, history).
@@ -343,10 +361,12 @@ export default function ImageLab({ initialTab = "genera" }) {
   const logout = useCallback(() => {
     try {
       localStorage.removeItem(TOKEN_STORAGE_KEY);
+      sessionStorage.removeItem("dv_site_layout_preview");
       window.google?.accounts?.id?.disableAutoSelect?.();
     } catch {
       // Nessuna azione necessaria.
     }
+    window.dispatchEvent(new Event("dv-site-preview-change"));
 
     setIdToken(null);
   }, []);
@@ -1539,6 +1559,30 @@ export default function ImageLab({ initialTab = "genera" }) {
           <span>Z-Image-TurboLento</span>
           <span>100% Local ⚓️</span>
         </footer>
+
+        <section className="il-site-preview" aria-label="Site layout preview">
+          <span>Site layout preview</span>
+          <div className="il-site-preview-options" role="group" aria-label="Modalità layout sito">
+            {[
+              ["auto", "Auto"],
+              ["mobile", "Mobile"],
+              ["desktop", "Desktop ↔"],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                className={"il-button" + (sitePreview === value ? " il-site-preview-active" : "")}
+                aria-pressed={sitePreview === value}
+                onClick={() => changeSitePreview(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {sitePreview === "desktop" && (
+            <small>Ruota il telefono in orizzontale per controllare il layout desktop.</small>
+          )}
+        </section>
       </div>
 
       <style>{STYLES}</style>
@@ -1546,6 +1590,11 @@ export default function ImageLab({ initialTab = "genera" }) {
   );
 }
 const STYLES = `
+.il-site-preview { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; margin: 18px 0 8px; padding: 10px 0; border-top: 1px solid rgba(255,255,255,.08); color: #8fa1ac; font-size: 12px; }
+.il-site-preview-options { display: flex; gap: 6px; flex-wrap: wrap; }
+.il-site-preview .il-button { padding: 5px 10px; font-size: 11px; }
+.il-site-preview .il-site-preview-active { border-color: #3fd0c9; color: #3fd0c9; background: rgba(63,208,201,.1); }
+.il-site-preview small { flex-basis: 100%; text-align: right; }
 .il-page {
   min-height: 100vh;
   padding: 1.25rem 1.5rem 2rem;
