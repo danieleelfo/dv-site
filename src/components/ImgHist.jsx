@@ -109,7 +109,7 @@ export default function ImgHist({ idToken, owner = "", onReuse }) {
   }
 
   async function removeUploaded(item) {
-    if (!window.confirm("Eliminare questa immagine da Uploaded? Le bozze che la usano potrebbero non poterla più recuperare.")) return;
+    if (!window.confirm("Eliminare questa immagine da Uploaded? Le bozze già salvate non vengono toccate: hanno una propria copia.")) return;
     try {
       await deleteUploadedImage(item.id, owner);
       await loadUploaded();

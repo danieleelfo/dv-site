@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import ArchivePicker from "./ArchivePicker.jsx";
+import UploadedPicker from "./UploadedPicker.jsx";
 import { clearComicsDraft, listComicsDrafts, loadComicsDraft, saveComicsDraft } from "../utils/comicsDraft.js";
 
 const API = "https://api.danielevillanova.com";
@@ -59,9 +60,11 @@ export default function FumettiTab({ embedded = false } = {}) {
     return "comics:" + email.toLowerCase();
   })();
   const namedDraftPrefix = draftKey + ":named:";
+  const ownerEmail = (decodeJwt(token)?.email || "").toLowerCase();
   const [selectedBubbleId, setSelectedBubbleId] = useState(null);
   const [tailMode, setTailMode] = useState(false);
   const [showArchive, setShowArchive] = useState(false);
+  const [showUploaded, setShowUploaded] = useState(false);
   const [status, setStatus] = useState("idle");
   const [error, setError] = useState("");
   const [resultUrl, setResultUrl] = useState("");
@@ -116,6 +119,7 @@ export default function FumettiTab({ embedded = false } = {}) {
     const title = window.prompt("Nome della bozza (es. fum1):");
     if (!title || !title.trim()) return;
     const key = namedDraftPrefix + title.trim().toLowerCase();
+    if (namedDrafts.some(d => d.key === key) && !window.confirm("Esiste già una bozza “" + title.trim() + "”. Sovrascriverla?")) return;
     setNamedDraftBusy(true);
     try {
       await saveComicsDraft(key, { ...currentDraftData(), title: title.trim() });
@@ -125,11 +129,14 @@ export default function FumettiTab({ embedded = false } = {}) {
     finally { setNamedDraftBusy(false); }
   }
 
-  async function openNamedDraft(saved) {
+  async function openNamedDraft(listed) {
     setNamedDraftBusy(true);
     setError("");
     const restored = [];
     try {
+      // L'elenco non contiene le foto: le rileggo dallo store dei file.
+      const saved = await loadComicsDraft(listed.key);
+      if (!saved) throw new Error("Bozza non trovata.");
       for (const item of saved.panels || []) {
         let blob = item.blob || null;
         if (item.archiveId && token) {
@@ -166,6 +173,29 @@ export default function FumettiTab({ embedded = false } = {}) {
       restored.forEach(panel => panel.preview && URL.revokeObjectURL(panel.preview));
       setDraftMessage("Ripristino bozza fallito: " + (err.message || String(err)));
     } finally { setNamedDraftBusy(false); }
+  }
+
+  async function copyNamedDraft(listed, mode) {
+    const proposed = window.prompt(
+      mode === "rename" ? "Nuovo nome della bozza:" : "Nome della copia:",
+      mode === "rename" ? (listed.title || "") : ((listed.title || "bozza") + " copia")
+    );
+    const title = (proposed || "").trim();
+    if (!title) return;
+    const key = namedDraftPrefix + title.toLowerCase();
+    if (mode === "duplicate" && key === listed.key) { setDraftMessage("Scegli un nome diverso per la copia."); return; }
+    if (key !== listed.key && namedDrafts.some(d => d.key === key) && !window.confirm("Esiste già una bozza “" + title + "”. Sovrascriverla?")) return;
+    setNamedDraftBusy(true);
+    try {
+      const full = await loadComicsDraft(listed.key);
+      if (!full) throw new Error("Bozza non trovata.");
+      const { key: _oldKey, savedAt: _savedAt, ...data } = full;
+      await saveComicsDraft(key, { ...data, title });
+      if (mode === "rename" && key !== listed.key) await clearComicsDraft(listed.key);
+      await refreshNamedDrafts();
+      setDraftMessage(mode === "rename" ? "Bozza rinominata in “" + title + "”." : "Bozza duplicata come “" + title + "”.");
+    } catch (err) { setDraftMessage("Operazione sulla bozza fallita: " + (err.message || String(err))); }
+    finally { setNamedDraftBusy(false); }
   }
 
   async function deleteNamedDraft(saved) {
@@ -369,6 +399,11 @@ export default function FumettiTab({ embedded = false } = {}) {
   function onArchiveSelect(files, selectedItems = []) {
     addFiles(files, selectedItems);
     setShowArchive(false);
+  }
+
+  function onUploadedSelect(files) {
+    addFiles(files);
+    setShowUploaded(false);
   }
 
   function updateActive(updater) {
@@ -685,8 +720,12 @@ export default function FumettiTab({ embedded = false } = {}) {
         </div>
         {namedDrafts.length > 0 ? <div className="fb-saved-drafts">{namedDrafts.map(item => <div className="fb-saved-draft" key={item.key}>
           <span><b>{item.title || item.key.split(":").pop()}</b><small>{new Date(item.savedAt || Date.now()).toLocaleString()} · {(item.panels || []).length} foto</small></span>
-          <button type="button" className="fb-btn" disabled={namedDraftBusy} onClick={() => openNamedDraft(item)}>Apri</button>
-          <button type="button" className="fb-btn fb-danger" disabled={namedDraftBusy} onClick={() => deleteNamedDraft(item)}>×</button>
+          <div className="fb-saved-actions">
+            <button type="button" className="fb-btn" disabled={namedDraftBusy} onClick={() => openNamedDraft(item)}>Apri</button>
+            <button type="button" className="fb-btn" disabled={namedDraftBusy} onClick={() => copyNamedDraft(item, "rename")}>Rinomina</button>
+            <button type="button" className="fb-btn" disabled={namedDraftBusy} onClick={() => copyNamedDraft(item, "duplicate")}>Duplica</button>
+            <button type="button" className="fb-btn fb-danger" disabled={namedDraftBusy} onClick={() => deleteNamedDraft(item)}>×</button>
+          </div>
         </div>)}</div> : <p className="fb-hint">Ancora nessuna bozza nominata.</p>}
       </section>
 
@@ -697,6 +736,7 @@ export default function FumettiTab({ embedded = false } = {}) {
           <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={e => addFiles(e.target.files)} />
           <button type="button" className="fb-btn" disabled={panels.length >= MAX_PANELS} onClick={() => fileInputRef.current?.click()}>{t("img.comics.addPhotos")}</button>
           <button type="button" className="fb-btn" disabled={panels.length >= MAX_PANELS} onClick={() => setShowArchive(true)}>{t("img.comics.fromArchive")}</button>
+          <button type="button" className="fb-btn" disabled={panels.length >= MAX_PANELS || !ownerEmail} title={ownerEmail ? "" : "Serve il login Google"} onClick={() => setShowUploaded(true)}>Da Uploaded</button>
         </div>
         <p className="fb-hint">{t("img.comics.readingOrderHint")}</p>
         {panels.length > 0 && <div className="fb-panel-list">
@@ -761,6 +801,7 @@ export default function FumettiTab({ embedded = false } = {}) {
         <footer className="fb-footer">{t("img.comics.footer", { max: MAX_PANELS })}</footer>
       </section>
 
+      {showUploaded && <UploadedPicker owner={ownerEmail} maxSelect={MAX_PANELS - panels.length} onSelect={onUploadedSelect} onClose={() => setShowUploaded(false)} />}
       {showArchive && <ArchivePicker idToken={token} multiSelect onSelect={onArchiveSelect} onClose={() => setShowArchive(false)} />}
       <style>{STYLES}</style>
     </div>
@@ -768,7 +809,7 @@ export default function FumettiTab({ embedded = false } = {}) {
 }
 
 const STYLES = `
-.fb-drafts-panel{display:grid;gap:.6rem}.fb-saved-drafts{display:grid;gap:.45rem}.fb-saved-draft{display:flex;align-items:center;gap:.5rem;padding:.55rem;border:1px solid var(--border,#26333e);border-radius:8px}.fb-saved-draft span{display:grid;gap:.15rem;min-width:0;flex:1}.fb-saved-draft small{color:var(--ink-dim,#8fa1ac);font-size:.68rem}.fb-story-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:.8rem}
+.fb-drafts-panel{display:grid;gap:.6rem}.fb-saved-drafts{display:grid;gap:.45rem}.fb-saved-draft{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;padding:.55rem;border:1px solid var(--border,#26333e);border-radius:8px}.fb-saved-draft span{display:grid;gap:.15rem;min-width:0;flex:1 1 10rem}.fb-saved-actions{display:flex;flex-wrap:wrap;gap:.4rem}.fb-saved-draft small{color:var(--ink-dim,#8fa1ac);font-size:.68rem}.fb-story-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:.8rem}
 .fb-story-heading h2{margin-bottom:.3rem}.fb-story-meta{display:flex;gap:.7rem;flex-wrap:wrap;margin:.8rem 0;color:var(--ink-dim,#8fa1ac);font-size:.75rem}
 .fb-story-text{max-height:140px;overflow:auto;white-space:pre-wrap;font-size:.78rem;line-height:1.5;color:var(--ink,#e7edf1);padding:.7rem;background:var(--bg,#0b1015);border-radius:7px}
 .fb-story-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.7rem;margin:.8rem 0}
