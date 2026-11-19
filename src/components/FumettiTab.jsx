@@ -31,17 +31,17 @@ function clamp(v) { return Math.max(0, Math.min(1, v)); }
 function splitSentences(text) {
   const clean = String(text || "").replace(/\r/g, "").trim();
   if (!clean) return [];
-  const parts = clean.match(/[^.!?…\\n]+(?:[.!?…]+["”»')\\]]*|$)\\s*/g);
+  const parts = clean.match(/[^.!?…\n]+(?:[.!?…]+["”»')\]]*|$)\s*/g);
   return (parts || [clean]).map(part => part.trim()).filter(Boolean);
 }
 function splitNarrative(text, count) {
   const clean = String(text || "").replace(/\r/g, "").trim();
   if (count < 1) return [];
   if (!clean) return Array(count).fill("");
-  const paragraphs = clean.split(/\\n\\s*\\n+/).map(part => part.replace(/\\s*\\n\\s*/g, " ").trim()).filter(Boolean);
+  const paragraphs = clean.split(/\n\s*\n+/).map(part => part.replace(/\s*\n\s*/g, " ").trim()).filter(Boolean);
   const byParagraph = paragraphs.length >= count;
   const units = byParagraph ? paragraphs : splitSentences(clean);
-  const sep = byParagraph ? "\\n\\n" : " ";
+  const sep = byParagraph ? "\n\n" : " ";
   let rest = units.slice();
   let remaining = units.reduce((sum, unit) => sum + unit.length, 0);
   const groups = [];
@@ -62,7 +62,6 @@ function splitNarrative(text, count) {
   }
   return groups;
 }
-
 function makePanel(file, source = null, saved = null) {
   const preview = URL.createObjectURL(file);
   return {
