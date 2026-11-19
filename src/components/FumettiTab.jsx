@@ -79,6 +79,10 @@ export default function FumettiTab({ embedded = false } = {}) {
   const [storyScenes, setStoryScenes] = useState({});
   const [storyThumbs, setStoryThumbs] = useState({});
   const [storyImportBusy, setStoryImportBusy] = useState(false);
+  const [narrativeText, setNarrativeText] = useState("");
+  const [narrativeOriginal, setNarrativeOriginal] = useState("");
+  const [narrativePosition, setNarrativePosition] = useState("start");
+  const [narrativeStoryId, setNarrativeStoryId] = useState("");
   const [storyPdfMode, setStoryPdfMode] = useState("both");
   const [storyPdfLayout, setStoryPdfLayout] = useState("pages");
   const [storyPdfFormat, setStoryPdfFormat] = useState("landscape");
@@ -114,6 +118,7 @@ export default function FumettiTab({ embedded = false } = {}) {
         archiveId: panel.archiveId || null, bubbles: panel.bubbles,
       })),
       storyId, storyVersion, storyScenes, storyPdfMode, storyPdfLayout, storyPdfFormat,
+      narrativeText, narrativeOriginal, narrativePosition, narrativeStoryId,
     };
   }
 
@@ -167,6 +172,10 @@ export default function FumettiTab({ embedded = false } = {}) {
       setStoryPdfMode(saved.storyPdfMode || "both");
       setStoryPdfLayout(saved.storyPdfLayout || "pages");
       setStoryPdfFormat(saved.storyPdfFormat || "landscape");
+      setNarrativeText(saved.narrativeText || "");
+      setNarrativeOriginal(saved.narrativeOriginal || "");
+      setNarrativePosition(saved.narrativePosition || "start");
+      setNarrativeStoryId(saved.narrativeStoryId || "");
       setSelectedBubbleId(null); setResultUrl(""); setStatus("idle");
       setDraftMessage("Bozza “" + (saved.title || "senza nome") + "” caricata.");
       nextPanelId = Math.max(nextPanelId, ...restored.map(panel => Number(panel.id) || 0), 0) + 1;
@@ -345,6 +354,10 @@ export default function FumettiTab({ embedded = false } = {}) {
         setPanels(restored);
         setActiveId(restored.some(p => p.id === saved.activeId) ? saved.activeId : (restored[0]?.id ?? null));
         setLayout(saved.layout || "grid");
+        setNarrativeText(saved.narrativeText || "");
+        setNarrativeOriginal(saved.narrativeOriginal || "");
+        setNarrativePosition(saved.narrativePosition || "start");
+        setNarrativeStoryId(saved.narrativeStoryId || "");
         const panelIds = restored.map(p => Number(p.id) || 0);
         const bubbleIds = restored.flatMap(p => p.bubbles || []).map(b => Number(b.id) || 0);
         nextPanelId = Math.max(nextPanelId, ...panelIds, 0) + 1;
@@ -368,7 +381,7 @@ export default function FumettiTab({ embedded = false } = {}) {
 
     async function persistDraft() {
       try {
-        if (!panels.length) {
+        if (!panels.length && !narrativeText.trim()) {
           await clearComicsDraft(draftKey);
           if (!cancelled) setDraftMessage("");
           return;
@@ -376,6 +389,7 @@ export default function FumettiTab({ embedded = false } = {}) {
         await saveComicsDraft(draftKey, {
           layout,
           activeId,
+          narrativeText, narrativeOriginal, narrativePosition, narrativeStoryId,
           panels: panels.map(panel => ({
             id: panel.id,
             name: panel.file.name,
@@ -394,7 +408,7 @@ export default function FumettiTab({ embedded = false } = {}) {
 
     persistDraft();
     return () => { cancelled = true; };
-  }, [draftReady, draftKey, panels, activeId, layout, t]);
+  }, [draftReady, draftKey, panels, activeId, layout, narrativeText, narrativeOriginal, narrativePosition, narrativeStoryId, t]);
 
   useEffect(() => () => {
     panels.forEach(p => { if (p.preview) URL.revokeObjectURL(p.preview); });
@@ -624,6 +638,14 @@ export default function FumettiTab({ embedded = false } = {}) {
         }));
       }
       addFiles(files);
+      // Associa la narrazione alla bozza, senza sovrascrivere le correzioni
+      // se le immagini della stessa storia vengono importate di nuovo.
+      const sourceText = String(story.text || "").trim();
+      if (narrativeStoryId !== story.story_id || !narrativeText.trim()) {
+        setNarrativeOriginal(sourceText);
+        setNarrativeText(sourceText);
+        setNarrativeStoryId(story.story_id);
+      }
       if (selected.length > room) setError("Aggiunte " + files.length + " scene: limite massimo di " + MAX_PANELS + " vignette.");
     } catch (err) {
       setError(err.message || String(err));
@@ -772,6 +794,26 @@ export default function FumettiTab({ embedded = false } = {}) {
         </>}
       </section>
 
+      {narrativeStoryId && <section className="fb-panel fb-narrative-panel">
+        <div className="fb-story-heading"><div>
+          <h2>Narrazione della storia</h2>
+          <p className="fb-hint">Testo indipendente dalle vignette: puoi correggerlo liberamente. Le modifiche vengono salvate nella bozza Comics.</p>
+        </div></div>
+        <label className="fb-label" htmlFor="fb-narrative-position">Posizione nel fumetto</label>
+        <select id="fb-narrative-position" className="fb-input" value={narrativePosition} onChange={e => setNarrativePosition(e.target.value)}>
+          <option value="start">All’inizio</option>
+          <option value="end">Alla fine</option>
+        </select>
+        <label className="fb-label" htmlFor="fb-narrative-text">Testo narrativo modificabile</label>
+        <textarea id="fb-narrative-text" className="fb-input fb-narrative-text" rows={9} value={narrativeText} onChange={e => setNarrativeText(e.target.value)} placeholder="La narrazione della storia apparirà qui…" />
+        <div className="fb-narrative-actions">
+          <small>{narrativeText.length} caratteri · Originale conservato separatamente</small>
+          <button type="button" className="fb-btn" onClick={() => {
+            if (window.confirm("Ripristinare il testo narrativo originale? Le correzioni attuali saranno sostituite.")) setNarrativeText(narrativeOriginal);
+          }} disabled={!narrativeOriginal || narrativeText === narrativeOriginal}>Ripristina originale</button>
+        </div>
+      </section>}
+
       <section className="fb-panel fb-drafts-panel">
         <div className="fb-story-heading"><div><h2>Bozze salvate</h2><p className="fb-hint">Salva più versioni indipendenti e riaprile quando vuoi.</p></div>
           <button type="button" className="fb-btn fb-primary" onClick={saveNamedDraft} disabled={namedDraftBusy}>＋ Salva draft</button>
@@ -870,6 +912,7 @@ const STYLES = `
 .fb-drafts-panel{display:grid;gap:.6rem}.fb-saved-drafts{display:grid;gap:.45rem}.fb-saved-draft{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;padding:.55rem;border:1px solid var(--border,#26333e);border-radius:8px}.fb-saved-draft span{display:grid;gap:.15rem;min-width:0;flex:1 1 10rem}.fb-saved-actions{display:flex;flex-wrap:wrap;gap:.4rem}.fb-saved-draft small{color:var(--ink-dim,#8fa1ac);font-size:.68rem}.fb-story-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:.8rem}
 .fb-story-heading h2{margin-bottom:.3rem}.fb-story-meta{display:flex;gap:.7rem;flex-wrap:wrap;margin:.8rem 0;color:var(--ink-dim,#8fa1ac);font-size:.75rem}
 .fb-story-text{max-height:140px;overflow:auto;white-space:pre-wrap;font-size:.78rem;line-height:1.5;color:var(--ink,#e7edf1);padding:.7rem;background:var(--bg,#0b1015);border-radius:7px}
+.fb-narrative-text{min-height:180px;resize:vertical;line-height:1.6;white-space:pre-wrap}.fb-narrative-actions{display:flex;justify-content:space-between;align-items:center;gap:.6rem;flex-wrap:wrap;margin-top:.55rem}.fb-narrative-actions small{color:var(--ink-dim,#8fa1ac);font-size:.7rem}
 .fb-story-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.7rem;margin:.8rem 0}
 .fb-scene-select{display:grid;gap:.35rem;margin:.8rem 0}
 .fb-scene-select-head{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;font-size:.78rem}
