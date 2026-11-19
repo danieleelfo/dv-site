@@ -58,6 +58,7 @@ export default function FumettiTab({ embedded = false } = {}) {
     const email = decodeJwt(token)?.email || "local";
     return "comics:" + email.toLowerCase();
   })();
+  const namedDraftPrefix = draftKey + ":named:";
   const [selectedBubbleId, setSelectedBubbleId] = useState(null);
   const [tailMode, setTailMode] = useState(false);
   const [showArchive, setShowArchive] = useState(false);
