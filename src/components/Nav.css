@@ -165,10 +165,21 @@
     min-height: 38px;
     padding: 7px 3px;
     border-color: #1f2b35;
-    font-size: clamp(.7rem, 3.1vw, .84rem);   /* era clamp(.62rem, 2.5vw, .74rem) */
+    font-size: clamp(.7rem, 3.1vw, .84rem);
     overflow: hidden;
     text-overflow: ellipsis;
+
+    background: rgba(11,16,21,.96);
+    color: #3fd0c9;
   }
+
+  .nav4-group-btn:hover,
+  .nav4-group-btn.active {
+    background: rgba(63,208,201,.12);
+    color: #3fd0c9;
+    border-color: #234a48;
+  }
+
   .nav4-chevron { margin-left: 3px; }
 
   /* Pannello mobile: ancorato al suo tab, sfondo quasi pieno */
