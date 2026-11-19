@@ -794,26 +794,6 @@ export default function FumettiTab({ embedded = false } = {}) {
         </>}
       </section>
 
-      {narrativeStoryId && <section className="fb-panel fb-narrative-panel">
-        <div className="fb-story-heading"><div>
-          <h2>Narrazione della storia</h2>
-          <p className="fb-hint">Testo indipendente dalle vignette: puoi correggerlo liberamente. Le modifiche vengono salvate nella bozza Comics.</p>
-        </div></div>
-        <label className="fb-label" htmlFor="fb-narrative-position">Posizione nel fumetto</label>
-        <select id="fb-narrative-position" className="fb-input" value={narrativePosition} onChange={e => setNarrativePosition(e.target.value)}>
-          <option value="start">All’inizio</option>
-          <option value="end">Alla fine</option>
-        </select>
-        <label className="fb-label" htmlFor="fb-narrative-text">Testo narrativo modificabile</label>
-        <textarea id="fb-narrative-text" className="fb-input fb-narrative-text" rows={9} value={narrativeText} onChange={e => setNarrativeText(e.target.value)} placeholder="La narrazione della storia apparirà qui…" />
-        <div className="fb-narrative-actions">
-          <small>{narrativeText.length} caratteri · Originale conservato separatamente</small>
-          <button type="button" className="fb-btn" onClick={() => {
-            if (window.confirm("Ripristinare il testo narrativo originale? Le correzioni attuali saranno sostituite.")) setNarrativeText(narrativeOriginal);
-          }} disabled={!narrativeOriginal || narrativeText === narrativeOriginal}>Ripristina originale</button>
-        </div>
-      </section>}
-
       <section className="fb-panel fb-drafts-panel">
         <div className="fb-story-heading"><div><h2>Bozze salvate</h2><p className="fb-hint">Salva più versioni indipendenti e riaprile quando vuoi.</p></div>
           <button type="button" className="fb-btn fb-primary" onClick={saveNamedDraft} disabled={namedDraftBusy}>＋ Salva draft</button>
@@ -894,6 +874,34 @@ export default function FumettiTab({ embedded = false } = {}) {
 
       <section className="fb-panel">
         <h2>{t("img.comics.finalPage")}</h2>
+        {narrativeStoryId && <div className="fb-final-editor">
+          <div className="fb-final-images">
+            <h3>Immagini della storia</h3>
+            {panels.length ? <div className="fb-final-image-list">
+              {panels.map((panel, index) => <figure key={panel.id}>
+                <img src={panel.preview} alt={"Vignetta " + (index + 1)} />
+                <figcaption>Vignetta {index + 1}</figcaption>
+              </figure>)}
+            </div> : <p className="fb-hint">Importa le scene della storia per visualizzare qui le immagini.</p>}
+          </div>
+          <div className="fb-final-story">
+            <h3>Final Story · Testo modificabile</h3>
+            <p className="fb-hint">Questa è una copia indipendente della storia originale. Puoi modificarla liberamente; le modifiche vengono salvate nella bozza Comics.</p>
+            <label className="fb-label" htmlFor="fb-narrative-text">Testo della storia</label>
+            <textarea id="fb-narrative-text" className="fb-input fb-narrative-text" rows={16} value={narrativeText} onChange={e => setNarrativeText(e.target.value)} placeholder="La copia modificabile della storia apparirà qui…" />
+            <div className="fb-narrative-actions">
+              <small>{narrativeText.length} caratteri · Originale conservato separatamente</small>
+              <button type="button" className="fb-btn" onClick={() => {
+                if (window.confirm("Ripristinare il testo narrativo originale? Le correzioni attuali saranno sostituite.")) setNarrativeText(narrativeOriginal);
+              }} disabled={!narrativeOriginal || narrativeText === narrativeOriginal}>Ripristina originale</button>
+            </div>
+            <label className="fb-label" htmlFor="fb-narrative-position">Posizione nel fumetto</label>
+            <select id="fb-narrative-position" className="fb-input" value={narrativePosition} onChange={e => setNarrativePosition(e.target.value)}>
+              <option value="start">All’inizio</option>
+              <option value="end">Alla fine</option>
+            </select>
+          </div>
+        </div>}
         <div className="fb-layouts"><label>{t("img.comics.layout")} <select className="fb-input" value={layout} onChange={e => setLayout(e.target.value)}><option value="grid">{t("img.comics.layoutGrid2")}</option><option value="vertical">{t("img.comics.layoutVertical")}</option><option value="horizontal">{t("img.comics.layoutHorizontal")}</option><option value="grid3">{t("img.comics.layoutGrid3")}</option><option value="single">{t("img.comics.layoutCover")}</option></select></label></div>
         <button type="button" className="fb-btn fb-primary" disabled={!panels.length || status === "drawing" || pdfBusy} onClick={generate}>{status === "drawing" ? t("img.comics.composing") : t("img.comics.generate")}</button>{" "}<button type="button" className="fb-btn" disabled={!panels.length || status === "drawing" || pdfBusy} onClick={exportPdf}>{pdfBusy ? t("img.comics.exporting") : t("img.comics.exportPdf")}</button>
         {error && <div className="fb-error" role="alert">{error}</div>}
@@ -912,7 +920,7 @@ const STYLES = `
 .fb-drafts-panel{display:grid;gap:.6rem}.fb-saved-drafts{display:grid;gap:.45rem}.fb-saved-draft{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;padding:.55rem;border:1px solid var(--border,#26333e);border-radius:8px}.fb-saved-draft span{display:grid;gap:.15rem;min-width:0;flex:1 1 10rem}.fb-saved-actions{display:flex;flex-wrap:wrap;gap:.4rem}.fb-saved-draft small{color:var(--ink-dim,#8fa1ac);font-size:.68rem}.fb-story-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:.8rem}
 .fb-story-heading h2{margin-bottom:.3rem}.fb-story-meta{display:flex;gap:.7rem;flex-wrap:wrap;margin:.8rem 0;color:var(--ink-dim,#8fa1ac);font-size:.75rem}
 .fb-story-text{max-height:140px;overflow:auto;white-space:pre-wrap;font-size:.78rem;line-height:1.5;color:var(--ink,#e7edf1);padding:.7rem;background:var(--bg,#0b1015);border-radius:7px}
-.fb-narrative-text{min-height:180px;resize:vertical;line-height:1.6;white-space:pre-wrap}.fb-narrative-actions{display:flex;justify-content:space-between;align-items:center;gap:.6rem;flex-wrap:wrap;margin-top:.55rem}.fb-narrative-actions small{color:var(--ink-dim,#8fa1ac);font-size:.7rem}
+.fb-final-editor{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:1rem;align-items:start;margin:1rem 0 1.2rem}.fb-final-images,.fb-final-story{min-width:0}.fb-final-images h3,.fb-final-story h3{font-size:.9rem;margin:0 0 .65rem}.fb-final-image-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.55rem;max-height:620px;overflow:auto;padding-right:.2rem}.fb-final-image-list figure{margin:0;min-width:0;padding:.35rem;border:1px solid var(--border,#26333e);border-radius:8px;background:var(--bg,#0b1015)}.fb-final-image-list img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:5px}.fb-final-image-list figcaption{margin-top:.3rem;color:var(--ink-dim,#8fa1ac);font-size:.68rem}.fb-narrative-text{min-height:360px;resize:vertical;line-height:1.6;white-space:pre-wrap}.fb-narrative-actions{display:flex;justify-content:space-between;align-items:center;gap:.6rem;flex-wrap:wrap;margin-top:.55rem}.fb-narrative-actions small{color:var(--ink-dim,#8fa1ac);font-size:.7rem}
 .fb-story-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.7rem;margin:.8rem 0}
 .fb-scene-select{display:grid;gap:.35rem;margin:.8rem 0}
 .fb-scene-select-head{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;font-size:.78rem}
@@ -949,5 +957,5 @@ const STYLES = `
 .fb-result{display:grid;gap:.7rem;margin-top:1rem}.fb-result img{display:block;max-width:100%;max-height:75vh;object-fit:contain;border:1px solid var(--border,#33414c);border-radius:8px}
 .fb-error{margin:.8rem 0;padding:.7rem;border:1px solid #7f1d1d;border-radius:8px;background:#7f1d1d20;color:#fca5a5;font-size:.8rem;overflow-wrap:anywhere}
 .fb-footer{margin-top:1rem;color:var(--ink-dim,#8fa1ac);font-size:.68rem}.fb-layouts{max-width:320px;margin-bottom:.8rem}
-@media(max-width:700px){.fb-story-options{grid-template-columns:1fr}.fb-story-heading{align-items:center}.fb-grid{grid-template-columns:1fr}.fb-panel{padding:.8rem}.fb-panel-card{align-items:flex-start}.fb-order{gap:.3rem}.fb-order .fb-btn{padding:.48rem .55rem}.fb-fields{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:700px){.fb-final-editor{grid-template-columns:1fr}.fb-final-image-list{grid-template-columns:repeat(2,minmax(0,1fr));max-height:360px}.fb-narrative-text{min-height:260px}.fb-story-options{grid-template-columns:1fr}.fb-story-heading{align-items:center}.fb-grid{grid-template-columns:1fr}.fb-panel{padding:.8rem}.fb-panel-card{align-items:flex-start}.fb-order{gap:.3rem}.fb-order .fb-btn{padding:.48rem .55rem}.fb-fields{grid-template-columns:repeat(3,minmax(0,1fr))}}
 `;
