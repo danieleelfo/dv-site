@@ -30,6 +30,8 @@ import { useTranslation } from "react-i18next";
 const API = "https://api.danielevillanova.com";
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 const TOKEN_STORAGE_KEY = "dv_google_id_token";
+const SITE_PREVIEW_KEY = "dv_site_layout_preview";
+const SITE_PREVIEW_ADMINS = ["dannybydanny@hotmail.com", "salatinodenise@gmail.com"];
 
 // Ruoli Emergence (stessi di Test4.jsx / core/db_init_exp.py).
 const QE_ROLES = [
@@ -364,10 +366,12 @@ function useGoogleAuth() {
   const logout = () => {
     try {
       localStorage.removeItem(TOKEN_STORAGE_KEY);
+      sessionStorage.removeItem("dv_site_layout_preview");
       window.google?.accounts?.id?.disableAutoSelect?.();
     } catch {
       /* ignore */
     }
+    window.dispatchEvent(new Event("dv-site-preview-change"));
     setIdToken(null);
   };
 
@@ -382,6 +386,25 @@ export default function Improve() {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { idToken, email, buttonRef, logout } = useGoogleAuth();
+  const isLayoutAdmin = SITE_PREVIEW_ADMINS.includes(String(email || "").toLowerCase());
+  const [sitePreview, setSitePreview] = useState(() => {
+    try {
+      return sessionStorage.getItem(SITE_PREVIEW_KEY) || "auto";
+    } catch {
+      return "auto";
+    }
+  });
+
+  function changeSitePreview(nextMode) {
+    setSitePreview(nextMode);
+    try {
+      if (nextMode === "auto") sessionStorage.removeItem(SITE_PREVIEW_KEY);
+      else sessionStorage.setItem(SITE_PREVIEW_KEY, nextMode);
+    } catch {
+      // Preview limitata alla pagina corrente se lo storage non e' disponibile.
+    }
+    window.dispatchEvent(new Event("dv-site-preview-change"));
+  }
 
   const [files, setFiles] = useState([]);
   const [filesLoaded, setFilesLoaded] = useState(false);
@@ -955,6 +978,35 @@ export default function Improve() {
         </div>
       </div>
 
+      {isLayoutAdmin && (
+        <section className="imp-site-preview" aria-label="Site layout preview">
+          <div>
+            <strong>Site layout preview</strong>
+            <span> · Solo anteprima admin su questo dispositivo</span>
+          </div>
+          <div className="imp-site-preview-options" role="group" aria-label="Modalita layout sito">
+            {[
+              ["auto", "Auto"],
+              ["mobile", "Mobile"],
+              ["desktop", "Desktop ↔"],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                className={"imp-btn " + (sitePreview === value ? "imp-tab-active" : "")}
+                aria-pressed={sitePreview === value}
+                onClick={() => changeSitePreview(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {sitePreview === "desktop" && (
+            <small>Ruota il telefono in orizzontale per controllare il layout desktop.</small>
+          )}
+        </section>
+      )}
+
       <div className="imp-mode-tabs" role="tablist" aria-label={t("imp.modeAria")}>
         <button
           className={"imp-btn " + (mode === "improve" ? "imp-tab-active" : "")}
@@ -1468,6 +1520,10 @@ export default function Improve() {
       <style>{`
         .imp-page { max-width: 1200px; margin: 0 auto; padding: 24px; color: #e5e7eb; min-height: 100vh; background: #0b0e14; }
         .imp-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+        .imp-site-preview { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 0 0 18px; padding: 12px 14px; border: 1px solid rgba(63,208,201,.28); border-radius: 10px; background: rgba(63,208,201,.06); font-size: 13px; }
+        .imp-site-preview > div:first-child span, .imp-site-preview small { color: #9ca3af; }
+        .imp-site-preview-options { display: flex; gap: 6px; flex-wrap: wrap; }
+        .imp-site-preview small { flex-basis: 100%; }
         .imp-mode-tabs { display: flex; gap: 8px; margin: 0 0 18px; }
         .imp-roots { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
         .imp-tab-active { border-color: #10b981; background: rgba(16,185,129,.16); color: #6ee7b7; }
