@@ -5,6 +5,7 @@
 // API protette: GET /api/gradv/archive e GET /api/gradv/archive/{id}/image.
 
 import { useCallback, useEffect, useState } from "react";
+import { deleteUploadedImage, listUploadedImages, saveUploadedImage } from "../utils/comicsDraft.js";
 
 const API = "https://api.danielevillanova.com";
 const PAGE_SIZE = 24;
@@ -40,7 +41,12 @@ function formatDate(value) {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }
 
-export default function ImgHist({ idToken, onReuse }) {
+export default function ImgHist({ idToken, owner = "", onReuse }) {
+  const [section, setSection] = useState("created");
+  const [uploaded, setUploaded] = useState([]);
+  const [uploadedUrls, setUploadedUrls] = useState({});
+  const [uploadBusy, setUploadBusy] = useState(false);
+  const [uploadError, setUploadError] = useState("");
   const [items, setItems] = useState([]);
   const [total, setTotal] = useState(0);
   const [pages, setPages] = useState(1);
@@ -53,6 +59,64 @@ export default function ImgHist({ idToken, onReuse }) {
   const [selected, setSelected] = useState(null);
   const [fullImage, setFullImage] = useState("");
   const [view, setView] = useState("thumbs");
+
+
+  const loadUploaded = useCallback(async () => {
+    if (!owner) return;
+    setUploadError("");
+    try {
+      const rows = await listUploadedImages(owner);
+      setUploaded(rows);
+      const next = {};
+      await Promise.all(rows.map(async item => {
+        try {
+          const record = await import("../utils/comicsDraft.js").then(m => m.getUploadedImage(item.id, owner));
+          if (record?.blob) next[item.id] = URL.createObjectURL(record.blob);
+        } catch {}
+      }));
+      setUploadedUrls(old => {
+        Object.values(old).forEach(url => URL.revokeObjectURL(url));
+        return next;
+      });
+    } catch (err) {
+      setUploadError(err.message || String(err));
+    }
+  }, [owner]);
+
+  useEffect(() => {
+    if (section === "uploaded") loadUploaded();
+  }, [section, loadUploaded]);
+
+  useEffect(() => () => {
+    Object.values(uploadedUrls).forEach(url => URL.revokeObjectURL(url));
+  }, [uploadedUrls]);
+
+  async function importUploads(event) {
+    const files = Array.from(event.target.files || []);
+    event.target.value = "";
+    if (!files.length || !owner) return;
+    const accepted = files.filter(file => file.type.startsWith("image/") && file.size <= 15 * 1024 * 1024);
+    if (accepted.length !== files.length) setUploadError("Sono ammesse immagini fino a 15 MB ciascuna.");
+    setUploadBusy(true);
+    try {
+      for (const file of accepted) await saveUploadedImage(owner, file);
+      await loadUploaded();
+    } catch (err) {
+      setUploadError(err.message || String(err));
+    } finally {
+      setUploadBusy(false);
+    }
+  }
+
+  async function removeUploaded(item) {
+    if (!window.confirm("Eliminare questa immagine da Uploaded? Le bozze che la usano potrebbero non poterla più recuperare.")) return;
+    try {
+      await deleteUploadedImage(item.id, owner);
+      await loadUploaded();
+    } catch (err) {
+      setUploadError(err.message || String(err));
+    }
+  }
 
   const revokeThumbs = useCallback((map) => {
     Object.values(map || {}).forEach((url) => URL.revokeObjectURL(url));
@@ -384,7 +448,7 @@ export default function ImgHist({ idToken, onReuse }) {
 }
 
 const IMGHIST_STYLES = `
-.ilh-search{display:flex;align-items:center;flex-wrap:wrap;gap:.6rem;margin-bottom:1rem}
+.ilh-tabs{display:flex;gap:.5rem;margin-bottom:1rem}.ilh-search{display:flex;align-items:center;flex-wrap:wrap;gap:.6rem;margin-bottom:1rem}
 .ilh-search .il-input{max-width:320px}
 .ilh-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.8rem}
 .ilh-card{display:flex;flex-direction:column;min-width:0;padding:0;border:1px solid var(--border,#1f2b35);border-radius:9px;background:var(--bg-alt,#0f151c);color:inherit;text-align:left;cursor:pointer}
