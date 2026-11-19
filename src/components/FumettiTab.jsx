@@ -77,6 +77,8 @@ export default function FumettiTab({ embedded = false } = {}) {
   const [storyLoading, setStoryLoading] = useState(false);
   const [storyVersion, setStoryVersion] = useState("");
   const [storyScenes, setStoryScenes] = useState({});
+  const [storyThumbs, setStoryThumbs] = useState({});
+  const [storyImportBusy, setStoryImportBusy] = useState(false);
   const [storyPdfMode, setStoryPdfMode] = useState("both");
   const [storyPdfLayout, setStoryPdfLayout] = useState("pages");
   const [storyPdfFormat, setStoryPdfFormat] = useState("landscape");
@@ -576,6 +578,35 @@ export default function FumettiTab({ embedded = false } = {}) {
     }
   }
 
+  async function importStoryScenes() {
+    if (!story || !token || storyImportBusy) return;
+    const scenes = (story.scenes || []).filter(scene => (Number(scene.version) || 1) === Number(storyVersion || 1));
+    const selected = scenes.filter((scene, index) => storyScenes[index] !== false && scene.job_id);
+    if (!selected.length) { setError("Seleziona almeno una scena con immagine."); return; }
+    const room = MAX_PANELS - panels.length;
+    if (room <= 0) { setError(t("img.comics.maxPanels", { max: MAX_PANELS })); return; }
+    setStoryImportBusy(true);
+    setError("");
+    try {
+      const files = [];
+      for (const scene of selected.slice(0, room)) {
+        const response = await fetch(API + "/api/image/history/" + encodeURIComponent(scene.job_id) + "/image", {
+          headers: { Authorization: "Bearer " + token },
+        });
+        if (!response.ok) throw new Error("Immagine non disponibile per: " + (scene.title || scene.job_id));
+        const blob = await response.blob();
+        const ext = (blob.type.split("/")[1] || "png").replace("jpeg", "jpg");
+        files.push(new File([blob], (scene.title || "scena").replace(/[^a-z0-9_-]+/gi, "-") + "." + ext, {
+          type: blob.type || "image/png", lastModified: Date.now(),
+        }));
+      }
+      addFiles(files);
+      if (selected.length > room) setError("Aggiunte " + files.length + " scene: limite massimo di " + MAX_PANELS + " vignette.");
+    } catch (err) {
+      setError(err.message || String(err));
+    } finally { setStoryImportBusy(false); }
+  }
+
   async function exportStoryPdf() {
     if (!story?.story_id || !token || storyPdfBusy) return;
     setStoryPdfBusy(true);
@@ -702,13 +733,17 @@ export default function FumettiTab({ embedded = false } = {}) {
               }}>{t("img.comics.selectNone", { defaultValue: "Nessuna" })}</button>
             </div>
             {(story.scenes || []).filter(scene => (Number(scene.version) || 1) === Number(storyVersion || 1)).map((scene, index) => (
-              <label className="fb-scene-row" key={(scene.job_id || "scene") + "-" + index}>
+              <label className="fb-scene-row" key={(scene.job_id || "scene") + "-" + index} style={{ alignItems: "center" }}>
                 <input type="checkbox" checked={storyScenes[index] !== false} onChange={e => setStoryScenes(old => ({ ...old, [index]: e.target.checked }))} />
+                {storyThumbs[index] ? <img src={storyThumbs[index]} alt={scene.title || "Scena " + (index + 1)} loading="lazy" style={{ width: 88, height: 66, objectFit: "cover", borderRadius: 6, border: "1px solid var(--border, #1f2b35)" }} /> : <span style={{ width: 88, height: 66, display: "grid", placeItems: "center", border: "1px dashed var(--border, #1f2b35)", borderRadius: 6, fontSize: ".7rem" }}>Anteprima…</span>}
                 <span><b>{index + 1}. {scene.title || "Scena " + (index + 1)}</b><small>{scene.job_id ? "job " + scene.job_id.slice(0, 8) : t("img.comics.noImage", { defaultValue: "Nessuna immagine associata" })}</small></span>
               </label>
             ))}
           </div>
-          <button type="button" className="fb-btn fb-primary" disabled={storyPdfBusy || !(story.scenes || []).some(scene => (Number(scene.version) || 1) === Number(storyVersion || 1))} onClick={exportStoryPdf}>
+          <button type="button" className="fb-btn fb-primary" disabled={storyImportBusy || !(story.scenes || []).some((scene, index) => (Number(scene.version) || 1) === Number(storyVersion || 1) && scene.job_id && storyScenes[index] !== false)} onClick={importStoryScenes}>
+            {storyImportBusy ? "Importo scene…" : "＋ Aggiungi selezionate allo storyboard"}
+          </button>
+          <button type="button" className="fb-btn" style={{ marginTop: ".5rem" }} disabled={storyPdfBusy || !(story.scenes || []).some(scene => (Number(scene.version) || 1) === Number(storyVersion || 1))} onClick={exportStoryPdf}>
             {storyPdfBusy ? t("img.comics.exporting") : t("img.comics.generateStoryPdf", { defaultValue: "Genera PDF della storia" })}
           </button>
         </>}
