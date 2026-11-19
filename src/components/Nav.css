@@ -67,7 +67,7 @@
 .nav4-group-btn:hover, .nav4-group-btn.active {
   color: #3fd0c9;
   border-color: #234a48;
-  background: rgba(63,208,201,.12);
+  background: rgba(63,208,201,.62);
 }
 .nav4-chevron { margin-left: 7px; color: #3fd0c9; }
 .nav4-panel {
