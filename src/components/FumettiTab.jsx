@@ -63,6 +63,18 @@ export default function FumettiTab({ embedded = false } = {}) {
   const [error, setError] = useState("");
   const [resultUrl, setResultUrl] = useState("");
   const [pdfBusy, setPdfBusy] = useState(false);
+  // Archivio storie SW / NS: il PDF riutilizza l'endpoint già usato da StoriesTab.
+  const [stories, setStories] = useState([]);
+  const [storiesLoading, setStoriesLoading] = useState(false);
+  const [storyId, setStoryId] = useState("");
+  const [story, setStory] = useState(null);
+  const [storyLoading, setStoryLoading] = useState(false);
+  const [storyVersion, setStoryVersion] = useState("");
+  const [storyScenes, setStoryScenes] = useState({});
+  const [storyPdfMode, setStoryPdfMode] = useState("both");
+  const [storyPdfLayout, setStoryPdfLayout] = useState("pages");
+  const [storyPdfFormat, setStoryPdfFormat] = useState("landscape");
+  const [storyPdfBusy, setStoryPdfBusy] = useState(false);
   const canvasRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -75,6 +87,49 @@ export default function FumettiTab({ embedded = false } = {}) {
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, []);
+
+  // Carica l'elenco delle storie salvate da Story Whisper e Night Story.
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    setStoriesLoading(true);
+    fetch(API + "/api/admin/stories", { headers: { Authorization: "Bearer " + token } })
+      .then(async response => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.detail || "Impossibile caricare lo storico storie.");
+        return data;
+      })
+      .then(data => { if (!cancelled) setStories(Array.isArray(data.items) ? data.items : []); })
+      .catch(err => { if (!cancelled) setError(err.message || String(err)); })
+      .finally(() => { if (!cancelled) setStoriesLoading(false); });
+    return () => { cancelled = true; };
+  }, [token]);
+
+  // Apre il dettaglio della storia scelta: testo, scene e versioni.
+  useEffect(() => {
+    if (!storyId || !token) { setStory(null); setStoryVersion(""); return; }
+    let cancelled = false;
+    setStoryLoading(true);
+    setStory(null);
+    setStoryScenes({});
+    fetch(API + "/api/admin/stories/" + encodeURIComponent(storyId), {
+      headers: { Authorization: "Bearer " + token },
+    })
+      .then(async response => {
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.detail || "Impossibile aprire la storia.");
+        return data;
+      })
+      .then(data => {
+        if (cancelled) return;
+        setStory(data);
+        const versions = [...new Set((data.scenes || []).map(scene => Number(scene.version) || 1))].sort((a,b) => a-b);
+        setStoryVersion(String(versions[versions.length - 1] || 1));
+      })
+      .catch(err => { if (!cancelled) setError(err.message || String(err)); })
+      .finally(() => { if (!cancelled) setStoryLoading(false); });
+    return () => { cancelled = true; };
+  }, [storyId, token]);
 
   // Ripristina la bozza dopo refresh: gli originali GraDV vengono
   // scaricati nuovamente tramite ID; le foto locali arrivano da IndexedDB.
@@ -389,6 +444,51 @@ export default function FumettiTab({ embedded = false } = {}) {
     }
   }
 
+  async function exportStoryPdf() {
+    if (!story?.story_id || !token || storyPdfBusy) return;
+    setStoryPdfBusy(true);
+    setError("");
+    try {
+      const scenes = (story.scenes || []).filter(scene => (Number(scene.version) || 1) === Number(storyVersion || 1));
+      const selected = scenes.map((scene, index) => index).filter(index => storyScenes[index] !== false);
+      if (!selected.length) throw new Error("Seleziona almeno una scena.");
+      const modes = storyPdfMode === "comic"
+        ? { captions: true, narration: false }
+        : storyPdfMode === "narrative"
+          ? { captions: false, narration: true }
+          : { captions: true, narration: true };
+      const response = await fetch(API + "/api/admin/stories/" + encodeURIComponent(story.story_id) + "/comic_pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + token },
+        body: JSON.stringify({
+          scene_indexes: selected,
+          captions: modes.captions,
+          narration: modes.narration,
+          layout: storyPdfLayout,
+          page_format: storyPdfFormat,
+          version: Number(storyVersion || 1),
+        }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(typeof data.detail === "string" ? data.detail : "PDF non generabile (HTTP " + response.status + ").");
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = (story.agent || "storia").toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-" + story.story_id + "-V" + storyVersion + ".pdf";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (err) {
+      setError(err.message || String(err));
+    } finally {
+      setStoryPdfBusy(false);
+    }
+  }
+
   function download() {
     if (!resultUrl) return;
     const a = document.createElement("a");
@@ -402,6 +502,86 @@ export default function FumettiTab({ embedded = false } = {}) {
   return (
     <div className="fb-wrap">
       {!embedded && <header className="fb-header"><div><p className="fb-kicker">D. VILLANOVA · IMAGE LAB</p><h1>{t("img.comics.title")}</h1><p className="fb-muted">{t("img.comics.description")}</p></div></header>}
+      <section className="fb-panel fb-story-source">
+        <div className="fb-story-heading">
+          <div>
+            <h2>{t("img.comics.storyPdfTitle", { defaultValue: "Crea PDF da una storia SW / NS" })}</h2>
+            <p className="fb-hint">{t("img.comics.storyPdfHint", { defaultValue: "Scegli una storia già salvata e genera un PDF senza rigenerare le immagini." })}</p>
+          </div>
+          <button type="button" className="fb-btn" onClick={() => {
+            setStoriesLoading(true);
+            fetch(API + "/api/admin/stories", { headers: { Authorization: "Bearer " + token } })
+              .then(async r => { const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.detail || "Errore"); return d; })
+              .then(d => setStories(Array.isArray(d.items) ? d.items : []))
+              .catch(e => setError(e.message || String(e)))
+              .finally(() => setStoriesLoading(false));
+          }} disabled={storiesLoading}>{storiesLoading ? "…" : t("img.comics.refreshStories", { defaultValue: "Aggiorna" })}</button>
+        </div>
+        <label className="fb-label" htmlFor="fb-story-select">{t("img.comics.chooseStory", { defaultValue: "Storia" })}</label>
+        <select id="fb-story-select" className="fb-input" value={storyId} onChange={e => { setStoryId(e.target.value); setError(""); }}>
+          <option value="">{t("img.comics.chooseStoryPlaceholder", { defaultValue: "Seleziona una storia…" })}</option>
+          {stories.map(item => <option key={item.story_id} value={item.story_id}>
+            {(item.agent || "Story") + " · " + (item.prompt || item.story_id).slice(0, 90)}
+          </option>)}
+        </select>
+        {storiesLoading && <p className="fb-hint">{t("img.comics.loadingStories", { defaultValue: "Caricamento archivio storie…" })}</p>}
+        {storyLoading && <p className="fb-hint">{t("img.comics.loadingStory", { defaultValue: "Apro la storia…" })}</p>}
+        {story && !storyLoading && <>
+          <div className="fb-story-meta">
+            <b>{story.agent || "Story"}</b>
+            <span>{story.language || "—"}</span>
+            <span>{(story.scenes || []).length} {t("img.comics.scenes", { defaultValue: "scene" })}</span>
+          </div>
+          <p className="fb-story-text">{String(story.text || "").slice(0, 650)}{String(story.text || "").length > 650 ? "…" : ""}</p>
+          <div className="fb-story-options">
+            <label className="fb-label">{t("img.comics.version", { defaultValue: "Versione immagini" })}
+              <select className="fb-input" value={storyVersion} onChange={e => { setStoryVersion(e.target.value); setStoryScenes({}); }}>
+                {[...new Set((story.scenes || []).map(scene => Number(scene.version) || 1))].sort((a,b) => a-b).map(v => <option key={v} value={v}>V{v}</option>)}
+              </select>
+            </label>
+            <label className="fb-label">{t("img.comics.pdfMode", { defaultValue: "Contenuto PDF" })}
+              <select className="fb-input" value={storyPdfMode} onChange={e => setStoryPdfMode(e.target.value)}>
+                <option value="comic">{t("img.comics.modeComic", { defaultValue: "Fumetto" })}</option>
+                <option value="narrative">{t("img.comics.modeNarrative", { defaultValue: "Narrazione illustrata" })}</option>
+                <option value="both">{t("img.comics.modeBoth", { defaultValue: "Entrambi" })}</option>
+              </select>
+            </label>
+            <label className="fb-label">{t("img.comics.pdfLayout", { defaultValue: "Impaginazione" })}
+              <select className="fb-input" value={storyPdfLayout} onChange={e => setStoryPdfLayout(e.target.value)}>
+                <option value="pages">{t("img.comics.layoutPages", { defaultValue: "Una scena per pagina" })}</option>
+                <option value="collage">{t("img.comics.layoutCollage", { defaultValue: "Griglia 2×2" })}</option>
+                <option value="strip">{t("img.comics.layoutStrip", { defaultValue: "Striscia verticale" })}</option>
+              </select>
+            </label>
+            <label className="fb-label">{t("img.comics.pageFormat", { defaultValue: "Formato pagina" })}
+              <select className="fb-input" value={storyPdfFormat} onChange={e => setStoryPdfFormat(e.target.value)}>
+                <option value="landscape">A4 landscape</option>
+                <option value="portrait">A4 portrait</option>
+              </select>
+            </label>
+          </div>
+          <div className="fb-scene-select">
+            <div className="fb-scene-select-head">
+              <b>{t("img.comics.includeScenes", { defaultValue: "Scene da includere" })}</b>
+              <button type="button" className="fb-link" onClick={() => setStoryScenes({})}>{t("img.comics.selectAll", { defaultValue: "Tutte" })}</button>
+              <button type="button" className="fb-link" onClick={() => {
+                const visible = (story.scenes || []).filter(scene => (Number(scene.version) || 1) === Number(storyVersion || 1));
+                setStoryScenes(Object.fromEntries(visible.map((_, i) => [i, false])));
+              }}>{t("img.comics.selectNone", { defaultValue: "Nessuna" })}</button>
+            </div>
+            {(story.scenes || []).filter(scene => (Number(scene.version) || 1) === Number(storyVersion || 1)).map((scene, index) => (
+              <label className="fb-scene-row" key={(scene.job_id || "scene") + "-" + index}>
+                <input type="checkbox" checked={storyScenes[index] !== false} onChange={e => setStoryScenes(old => ({ ...old, [index]: e.target.checked }))} />
+                <span><b>{index + 1}. {scene.title || "Scena " + (index + 1)}</b><small>{scene.job_id ? "job " + scene.job_id.slice(0, 8) : t("img.comics.noImage", { defaultValue: "Nessuna immagine associata" })}</small></span>
+              </label>
+            ))}
+          </div>
+          <button type="button" className="fb-btn fb-primary" disabled={storyPdfBusy || !(story.scenes || []).some(scene => (Number(scene.version) || 1) === Number(storyVersion || 1))} onClick={exportStoryPdf}>
+            {storyPdfBusy ? t("img.comics.exporting") : t("img.comics.generateStoryPdf", { defaultValue: "Genera PDF della storia" })}
+          </button>
+        </>}
+      </section>
+
       <section className="fb-panel">
         <h2>{t("img.comics.panelsTitle")} <small>({panels.length}/{MAX_PANELS})</small></h2>
         {draftMessage && <p className="fb-hint" role="status">{draftMessage}</p>}
@@ -480,6 +660,15 @@ export default function FumettiTab({ embedded = false } = {}) {
 }
 
 const STYLES = `
+.fb-story-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:.8rem}
+.fb-story-heading h2{margin-bottom:.3rem}.fb-story-meta{display:flex;gap:.7rem;flex-wrap:wrap;margin:.8rem 0;color:var(--ink-dim,#8fa1ac);font-size:.75rem}
+.fb-story-text{max-height:140px;overflow:auto;white-space:pre-wrap;font-size:.78rem;line-height:1.5;color:var(--ink,#e7edf1);padding:.7rem;background:var(--bg,#0b1015);border-radius:7px}
+.fb-story-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.7rem;margin:.8rem 0}
+.fb-scene-select{display:grid;gap:.35rem;margin:.8rem 0}
+.fb-scene-select-head{display:flex;align-items:center;gap:.8rem;flex-wrap:wrap;font-size:.78rem}
+.fb-link{border:0;background:none;color:var(--accent,#3fd0c9);font:inherit;cursor:pointer;padding:.2rem}
+.fb-scene-row{display:flex;align-items:center;gap:.6rem;padding:.45rem .55rem;border:1px solid var(--border,#26333e);border-radius:7px;font-size:.78rem}
+.fb-scene-row span{display:grid;gap:.1rem;min-width:0}.fb-scene-row small{color:var(--ink-dim,#8fa1ac);overflow-wrap:anywhere}
 .fb-wrap{max-width:1180px;margin:auto;display:grid;gap:1rem}
 .fb-header{padding-bottom:1rem;border-bottom:1px solid var(--border,#1f2b35)}
 .fb-header h1{font:400 clamp(2rem,4vw,3rem)/1.15 var(--serif,Georgia,serif);margin:.25rem 0}
@@ -510,5 +699,5 @@ const STYLES = `
 .fb-result{display:grid;gap:.7rem;margin-top:1rem}.fb-result img{display:block;max-width:100%;max-height:75vh;object-fit:contain;border:1px solid var(--border,#33414c);border-radius:8px}
 .fb-error{margin:.8rem 0;padding:.7rem;border:1px solid #7f1d1d;border-radius:8px;background:#7f1d1d20;color:#fca5a5;font-size:.8rem;overflow-wrap:anywhere}
 .fb-footer{margin-top:1rem;color:var(--ink-dim,#8fa1ac);font-size:.68rem}.fb-layouts{max-width:320px;margin-bottom:.8rem}
-@media(max-width:700px){.fb-grid{grid-template-columns:1fr}.fb-panel{padding:.8rem}.fb-panel-card{align-items:flex-start}.fb-order{gap:.3rem}.fb-order .fb-btn{padding:.48rem .55rem}.fb-fields{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:700px){.fb-story-options{grid-template-columns:1fr}.fb-story-heading{align-items:center}.fb-grid{grid-template-columns:1fr}.fb-panel{padding:.8rem}.fb-panel-card{align-items:flex-start}.fb-order{gap:.3rem}.fb-order .fb-btn{padding:.48rem .55rem}.fb-fields{grid-template-columns:repeat(3,minmax(0,1fr))}}
 `;
