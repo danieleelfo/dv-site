@@ -6,7 +6,6 @@ import React, { useState, useEffect } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import bgImage from '../assets/hero.png'
-import { projectSlugs, projectNames } from '../data/projects.js'
 
 export default function Home() {
   const { t } = useTranslation()
@@ -135,8 +134,6 @@ export default function Home() {
     },
   }
 
-  const expertiseItems = t('expertise.items', { returnObjects: true }) || []
-
   return (
     <div style={pageStyles.page}>
 
@@ -164,6 +161,9 @@ export default function Home() {
             <header style={styles.header}>
               <p style={styles.systemBadge}>
                 Human -🏴‍☠️- AI Agent -🧜🏻‍♀️- Data
+              </p>
+              <p style={styles.heroIdentity}>
+                Daniele Villanova · {t('hero.label')}
               </p>
             </header>
 
@@ -548,10 +548,6 @@ export default function Home() {
             {/* SIGNATURE + ACTIONS */}
             <div style={styles.signatureRow}>
 
-              <div style={styles.signature}>
-                designed and developed by Daniele Villanova
-              </div>
-
               <div style={homeStyles.heroActions}>
                 <Link
                   to={lang ? `/${lang}/projects` : '/projects'}
@@ -561,18 +557,18 @@ export default function Home() {
                 </Link>
 
                 <Link
-                  to={lang ? `/${lang}#expertise` : '/#expertise'}
+                  to={lang ? `/${lang}/about` : '/about'}
                   style={homeStyles.btnGhost}
                 >
                   {t('nav.expertise')}
                 </Link>
 
-                <a
-                  href="#contact"
+                <Link
+                  to={lang ? `/${lang}/contact` : '/contact'}
                   style={homeStyles.btnGhost}
                 >
                   {t('hero.contact')}
-                </a>
+                </Link>
               </div>
 
             </div>
@@ -581,168 +577,12 @@ export default function Home() {
         </div>
 
         {/* ============================================================
-            EXPERTISE
-            ============================================================ */}
-
-        <section
-          className="section container home-section"
-          id="expertise"
-          style={{
-            maxWidth: 950,
-            margin: '0 auto',
-            borderTop: '1px solid #1f2b35',
-          }}
-        >
-          <p className="section-label">
-            {t('expertise.label')}
-          </p>
-
-          <h2 className="section-title">
-            {t('expertise.title')}
-          </h2>
-
-          <div
-            className="home-expertise-grid"
-            style={homeStyles.expertiseGrid}
-          >
-            {Array.isArray(expertiseItems) && expertiseItems.map((e, i) => (
-              <div
-                key={i}
-                style={homeStyles.expertiseCard}
-              >
-                <h3 style={homeStyles.expertiseTitle}>
-                  {e.title}
-                </h3>
-
-                <p style={homeStyles.expertiseText}>
-                  {e.text}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* ============================================================
-            SELECTED PROJECTS
-            ============================================================ */}
-
-        <section
-          className="section container home-section"
-          id="projects"
-          style={{
-            maxWidth: 950,
-            margin: '0 auto',
-            borderTop: '1px solid #1f2b35',
-          }}
-        >
-          <p className="section-label">
-            {t('projects.label')}
-          </p>
-
-          <h2 className="section-title">
-            {t('projects.title')}
-          </h2>
-
-          <div
-            className="home-projects-grid"
-            style={homeStyles.projectsGrid}
-          >
-            {projectSlugs.map((slug) => (
-              <div
-                key={slug}
-                style={homeStyles.projectCard}
-              >
-                <h3 style={homeStyles.projectTitle}>
-                  {projectNames[slug]}
-                </h3>
-
-                <p style={homeStyles.projectTag}>
-                  {t(`projectsData.${slug}.tag`)}
-                </p>
-
-                <p style={homeStyles.projectText}>
-                  {t(`projectsData.${slug}.summary`)}
-                </p>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ marginTop: '2.5rem' }}>
-            <Link
-              to={lang ? `/${lang}/projects` : '/projects'}
-              style={homeStyles.btnGhost}
-            >
-              {t('projects.viewAll')} →
-            </Link>
-          </div>
-        </section>
-
-        {/* ============================================================
-            ABOUT ME
-            ============================================================ */}
-
-        <section
-          className="section container home-section"
-          id="about"
-          style={{
-            maxWidth: 950,
-            margin: '0 auto',
-            borderTop: '1px solid #1f2b35',
-          }}
-        >
-          <p className="section-label">
-            {t('about.label')}
-          </p>
-
-          <h2 className="section-title">
-            {t('about.title')}
-          </h2>
-
-          <p style={homeStyles.aboutText}>
-            {t('about.text')}
-          </p>
-        </section>
-
-        {/* ============================================================
-            CONTACT
-            ============================================================ */}
-
-        <section
-          className="section container home-section"
-          id="contact"
-          style={{
-            maxWidth: 950,
-            margin: '0 auto',
-            borderTop: '1px solid #1f2b35',
-          }}
-        >
-          <p className="section-label">
-            {t('contact.label')}
-          </p>
-
-          <h2 className="section-title">
-            {t('contact.title')}
-          </h2>
-
-          <p style={homeStyles.aboutText}>
-            {t('contact.text')}
-          </p>
-
-          <a
-            href="mailto:daniele@danielevillanova.com"
-            style={homeStyles.btnPrimary}
-          >
-            daniele@danielevillanova.com
-          </a>
-        </section>
-
-        {/* ============================================================
             FOOTER
             ============================================================ */}
 
         <footer style={homeStyles.footer}>
           <div className="container" style={{ maxWidth: 950, margin: '0 auto' }}>
-            © {new Date().getFullYear()} Daniele Villanova
+            Designed & Developed by Daniele Villanova © 2026
           </div>
         </footer>
 
@@ -813,6 +653,12 @@ const styles = {
     letterSpacing: '0.15em',
     marginBottom: '0.5rem',
     textAlign: 'left',
+  },
+
+  heroIdentity: {
+    color: '#b7c5cc',
+    fontSize: '0.85rem',
+    marginBottom: '0.4rem',
   },
 
   title: {
@@ -924,7 +770,7 @@ const styles = {
     marginTop: '1rem',
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     gap: '1rem',
     flexWrap: 'wrap',
   },
