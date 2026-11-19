@@ -55,7 +55,48 @@ function LangWrapper({ children }) {
   return children
 }
 
+const SITE_PREVIEW_KEY = 'dv_site_layout_preview';
+const SITE_PREVIEW_ADMINS = ['dannybydanny@hotmail.com', 'salatinodenise@gmail.com'];
+
+function applySitePreview() {
+  let allowed = false;
+  try {
+    const token = localStorage.getItem('dv_google_id_token');
+    const payload = token ? JSON.parse(decodeURIComponent(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')).split('').map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''))) : null;
+    allowed = SITE_PREVIEW_ADMINS.includes(String(payload?.email || '').toLowerCase()) && payload?.exp * 1000 > Date.now();
+  } catch {
+    allowed = false;
+  }
+
+  let mode = 'auto';
+  try {
+    mode = allowed ? sessionStorage.getItem(SITE_PREVIEW_KEY) || 'auto' : 'auto';
+    if (!allowed) sessionStorage.removeItem(SITE_PREVIEW_KEY);
+  } catch {
+    mode = 'auto';
+  }
+
+  const viewport = document.querySelector('meta[name="viewport"]');
+  if (viewport) {
+    viewport.setAttribute('content', mode === 'desktop'
+      ? 'width=1024, initial-scale=1.0, viewport-fit=cover'
+      : 'width=device-width, initial-scale=1.0, viewport-fit=cover');
+  }
+  document.documentElement.dataset.sitePreview = mode;
+}
+
 export default function App() {
+  useEffect(() => {
+    applySitePreview();
+    const refresh = () => applySitePreview();
+    window.addEventListener('dv-site-preview-change', refresh);
+    window.addEventListener('storage', refresh);
+    return () => {
+      window.removeEventListener('dv-site-preview-change', refresh);
+      window.removeEventListener('storage', refresh);
+    };
+  }, []);
+
   return (
     <BrowserRouter>
       <Routes>
