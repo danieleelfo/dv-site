@@ -260,6 +260,29 @@ export default function FumettiTab({ embedded = false } = {}) {
     return () => { cancelled = true; };
   }, [storyId, token]);
 
+  // Anteprime delle scene SW / NS della versione selezionata.
+  useEffect(() => {
+    if (!story || !token) { setStoryThumbs({}); return; }
+    let cancelled = false;
+    const urls = {};
+    const scenes = (story.scenes || []).filter(scene => (Number(scene.version) || 1) === Number(storyVersion || 1));
+    Promise.all(scenes.map(async (scene, index) => {
+      if (!scene.job_id) return;
+      try {
+        const response = await fetch(API + "/api/image/history/" + encodeURIComponent(scene.job_id) + "/image", {
+          headers: { Authorization: "Bearer " + token },
+        });
+        if (!response.ok) return;
+        const blob = await response.blob();
+        if (!cancelled) urls[index] = URL.createObjectURL(blob);
+      } catch {}
+    })).then(() => {
+      if (cancelled) Object.values(urls).forEach(url => URL.revokeObjectURL(url));
+      else setStoryThumbs(urls);
+    });
+    return () => { cancelled = true; Object.values(urls).forEach(url => URL.revokeObjectURL(url)); };
+  }, [story, storyVersion, token]);
+
   // Ripristina la bozza dopo refresh: gli originali GraDV vengono
   // scaricati nuovamente tramite ID; le foto locali arrivano da IndexedDB.
   useEffect(() => {
