@@ -770,7 +770,7 @@ const styles = {
     marginTop: '1rem',
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     gap: '1rem',
     flexWrap: 'wrap',
   },
