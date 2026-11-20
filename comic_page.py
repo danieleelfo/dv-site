@@ -63,14 +63,16 @@ DIAG_SLANT = 0.09  # dislivello del taglio rispetto alla larghezza (circa 5 grad
 DIAG_SS = 4        # supersampling dei bordi obliqui (antialias)
 
 
-def _apply_bubbles(panel, source, specs, index):
+def _apply_bubbles(panel, source, specs, index, cover=False):
     """Disegna i balloon sulla foto `panel` (coordinate relative all'immagine)."""
     if not isinstance(specs, list):
         raise HTTPException(status_code=400, detail=f"Balloon non validi nella vignetta {index + 1}.")
     if len(specs) > 20:
         raise HTTPException(status_code=400, detail=f"Massimo 20 balloon per vignetta {index + 1}.")
     draw = ImageDraw.Draw(panel)
-    scale = min(panel.width / source.width, panel.height / source.height)
+    scale_x = panel.width / source.width
+    scale_y = panel.height / source.height
+    scale = max(scale_x, scale_y) if cover else min(scale_x, scale_y)
     def _num(value, low, high, default):
         if value is None:
             return default
@@ -243,7 +245,7 @@ def _custom_crop(source, size, crop, specs, index):
         return min(1.0, max(0.0, value)) if key in ("x", "y") else min(2.5, max(1.0, value))
     cx, cy, zoom = number("x", 0.5), number("y", 0.5), number("zoom", 1.0)
     composited = source.copy()
-    _apply_bubbles(composited, source, specs, index)
+    _apply_bubbles(composited, source, specs, index, cover=True)
     fitted = ImageOps.fit(
         composited, size, method=Image.Resampling.LANCZOS, centering=(cx, cy)
     )
