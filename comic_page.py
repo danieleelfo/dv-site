@@ -63,14 +63,16 @@ DIAG_SLANT = 0.09  # dislivello del taglio rispetto alla larghezza (circa 5 grad
 DIAG_SS = 4        # supersampling dei bordi obliqui (antialias)
 
 
-def _apply_bubbles(panel, source, specs, index):
+def _apply_bubbles(panel, source, specs, index, cover=False):
     """Disegna i balloon sulla foto `panel` (coordinate relative all'immagine)."""
     if not isinstance(specs, list):
         raise HTTPException(status_code=400, detail=f"Balloon non validi nella vignetta {index + 1}.")
     if len(specs) > 20:
         raise HTTPException(status_code=400, detail=f"Massimo 20 balloon per vignetta {index + 1}.")
     draw = ImageDraw.Draw(panel)
-    scale = min(panel.width / source.width, panel.height / source.height)
+    scale_x = panel.width / source.width
+    scale_y = panel.height / source.height
+    scale = max(scale_x, scale_y) if cover else min(scale_x, scale_y)
     def _num(value, low, high, default):
         if value is None:
             return default
@@ -202,6 +204,142 @@ def _compose_diagonal(decoded, bubble_sets, caption_texts):
     return _fit_page(page)
 
 
+
+# Layout personalizzato: coordinate normalizzate provenienti da ComicPageEditor.
+CUSTOM_PAGE_WIDTH = 1600
+PAGE_FORMAT_RATIOS = {
+    "a4-portrait": 210 / 297,
+    "a4-landscape": 297 / 210,
+    "square": 1.0,
+    "comic-portrait": 2 / 3,
+    "comic-landscape": 3 / 2,
+}
+
+
+def _custom_geometry(value, index):
+    if not isinstance(value, dict):
+        raise HTTPException(status_code=400, detail=f"Geometria non valida nella vignetta {index + 1}.")
+    result = {}
+    for key, default in (("x", 0), ("y", 0), ("w", 0.5), ("h", 0.5)):
+        try:
+            number = float(value.get(key, default))
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail=f"Geometria non valida nella vignetta {index + 1}.")
+        if not math.isfinite(number):
+            raise HTTPException(status_code=400, detail=f"Geometria non valida nella vignetta {index + 1}.")
+        result[key] = min(1.0, max(0.0, number))
+    result["w"] = max(0.02, min(result["w"], 1.0 - result["x"]))
+    result["h"] = max(0.02, min(result["h"], 1.0 - result["y"]))
+    return result
+
+
+def _custom_crop(source, size, crop, specs, index):
+    """Disegna i balloon sull'originale, poi applica object-fit:cover + zoom."""
+    if not isinstance(crop, dict):
+        crop = {}
+    def number(key, default):
+        try:
+            value = float(crop.get(key, default))
+        except (TypeError, ValueError):
+            value = default
+        return min(1.0, max(0.0, value)) if key in ("x", "y") else min(2.5, max(1.0, value))
+    cx, cy, zoom = number("x", 0.5), number("y", 0.5), number("zoom", 1.0)
+    composited = source.copy()
+    _apply_bubbles(composited, source, specs, index, cover=True)
+    fitted = ImageOps.fit(
+        composited, size, method=Image.Resampling.LANCZOS, centering=(cx, cy)
+    )
+    if zoom > 1.001:
+        width = max(1, round(fitted.width / zoom))
+        height = max(1, round(fitted.height / zoom))
+        left = (fitted.width - width) // 2
+        top = (fitted.height - height) // 2
+        fitted = fitted.crop((left, top, left + width, top + height)).resize(
+            size, Image.Resampling.LANCZOS
+        )
+    return fitted
+
+
+def _shape_mask(size, shape):
+    width, height = size
+    mask = Image.new("L", size, 0)
+    draw = ImageDraw.Draw(mask)
+    if shape == "diamond":
+        points = [(width * .5, 0), (width, height * .5), (width * .5, height), (0, height * .5)]
+    elif shape == "trapezoid":
+        points = [(width * .18, 0), (width * .82, 0), (width, height), (0, height)]
+    elif shape == "diagonal":
+        points = [(0, 0), (width, height * .12), (width, height), (0, height * .88)]
+    else:
+        draw.rectangle((0, 0, width - 1, height - 1), fill=255)
+        return mask
+    draw.polygon(points, fill=255)
+    return mask
+
+
+def _compose_custom(decoded, bubble_sets, caption_texts, geometries, page_format):
+    ratio = PAGE_FORMAT_RATIOS.get(page_format)
+    if ratio is None:
+        raise HTTPException(status_code=400, detail="Formato pagina non valido.")
+    page_w = CUSTOM_PAGE_WIDTH
+    page_h = max(1, round(page_w / ratio))
+    scale = min(1.0, PAGE_MAX / max(page_w, page_h))
+    page_w, page_h = round(page_w * scale), round(page_h * scale)
+    # Il canvas dell’editor usa lo stesso fondo chiaro tra le vignette.
+    page = Image.new("RGB", (page_w, page_h), "#f3f0e8")
+
+    for index, (source, specs, caption, geometry) in enumerate(
+        zip(decoded, bubble_sets, caption_texts, geometries)
+    ):
+        g = _custom_geometry(geometry, index)
+        x, y = round(g["x"] * page_w), round(g["y"] * page_h)
+        panel_w = max(2, round(g["w"] * page_w))
+        panel_h = max(2, round(g["h"] * page_h))
+        x = min(x, page_w - 1)
+        y = min(y, page_h - 1)
+        panel_w = min(panel_w, page_w - x)
+        panel_h = min(panel_h, page_h - y)
+
+        caption_block = _caption_block(caption, panel_w) if caption else None
+        caption_h = min(caption_block["height"], max(0, panel_h // 2)) if caption_block else 0
+        photo_h = max(1, panel_h - caption_h)
+        photo = _custom_crop(
+            source, (panel_w, photo_h), geometry.get("crop", {}),
+            specs, index
+        )
+        panel = Image.new("RGB", (panel_w, panel_h), CAPTION_BG)
+        panel.paste(photo, (0, 0))
+        if caption_block and caption_h:
+            draw = ImageDraw.Draw(panel)
+            line_h = caption_block["line_h"]
+            lines = caption_block["lines"]
+            max_lines = max(1, (caption_h - CAPTION_PAD * 2) // max(1, line_h))
+            ty = photo_h + CAPTION_PAD
+            for line in lines[:max_lines]:
+                draw.text((CAPTION_PAD, ty), line, font=caption_block["font"], fill=CAPTION_FG)
+                ty += line_h
+
+        shape = str(geometry.get("shape", "rect")).lower()
+        mask = _shape_mask(panel.size, shape)
+        page.paste(panel, (x, y), mask)
+        border = ImageDraw.Draw(page)
+        if shape == "diamond":
+            points = [(x + panel_w * .5, y), (x + panel_w - 1, y + panel_h * .5),
+                      (x + panel_w * .5, y + panel_h - 1), (x, y + panel_h * .5)]
+            border.line(points + [points[0]], fill=BORDER, width=max(2, round(page_w / 320)))
+        elif shape == "trapezoid":
+            points = [(x + panel_w * .18, y), (x + panel_w * .82, y),
+                      (x + panel_w - 1, y + panel_h - 1), (x, y + panel_h - 1)]
+            border.line(points + [points[0]], fill=BORDER, width=max(2, round(page_w / 320)))
+        elif shape == "diagonal":
+            points = [(x, y), (x + panel_w - 1, y + panel_h * .12),
+                      (x + panel_w - 1, y + panel_h - 1), (x, y + panel_h * .88)]
+            border.line(points + [points[0]], fill=BORDER, width=max(2, round(page_w / 320)))
+        else:
+            border.rectangle((x, y, x + panel_w - 1, y + panel_h - 1),
+                             outline=BORDER, width=max(2, round(page_w / 320)))
+    return _fit_page(page)
+
 def build_comic_page_router(verify_admin_token):
     router = APIRouter()
 
@@ -213,6 +351,8 @@ def build_comic_page_router(verify_admin_token):
         layout: str = Form("grid"),
         format: str = Form("png"),
         captions: str = Form("[]"),
+        geometries: str = Form("[]"),
+        page_format: str = Form("a4-portrait"),
     ):
         verify_admin_token(authorization)
 
@@ -221,7 +361,7 @@ def build_comic_page_router(verify_admin_token):
         if len(images) > MAX_PANELS:
             raise HTTPException(status_code=400, detail=f"Massimo {MAX_PANELS} vignette.")
         layout = (layout or "grid").strip().lower()
-        if layout not in ("grid", "grid3", "vertical", "horizontal", "single", "diagonal"):
+        if layout not in ("grid", "grid3", "vertical", "horizontal", "single", "diagonal", "custom"):
             raise HTTPException(status_code=400, detail="Layout non valido.")
         if layout == "single" and len(images) != 1:
             raise HTTPException(
@@ -282,6 +422,17 @@ def build_comic_page_router(verify_admin_token):
             decoded.append(image)
 
         count = len(decoded)
+        if layout == "custom":
+            try:
+                geometry_list = json.loads(geometries or "[]")
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Geometria pagina non valida.")
+            if not isinstance(geometry_list, list) or len(geometry_list) != count:
+                raise HTTPException(status_code=400, detail="Geometrie non corrispondenti alle vignette.")
+            return _encode_page(
+                _compose_custom(decoded, bubble_sets, caption_texts, geometry_list, page_format),
+                fmt,
+            )
         if layout == "diagonal":
             return _encode_page(_compose_diagonal(decoded, bubble_sets, caption_texts), fmt)
         box = SINGLE_BOX if layout == "single" else PANEL_BOX

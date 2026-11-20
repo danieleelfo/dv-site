@@ -689,6 +689,30 @@ export default function FumettiTab({ embedded = false } = {}) {
     window.addEventListener("pointercancel", up);
   }
 
+
+  // Geometria effettiva mostrata da ComicPageEditor, inclusi i default non salvati.
+  function exportGeometry() {
+    const count = panels.length, gap = 0.018;
+    const cols = count <= 1 ? 1 : 2;
+    const rows = Math.ceil(count / cols);
+    const w = (1 - gap * (cols + 1)) / cols;
+    const h = (1 - gap * (rows + 1)) / rows;
+    return panels.map((panel, index) => ({
+      x: panel.geometry?.x ?? gap + (index % cols) * (w + gap),
+      y: panel.geometry?.y ?? gap + Math.floor(index / cols) * (h + gap),
+      w: panel.geometry?.w ?? w,
+      h: panel.geometry?.h ?? h,
+      shape: panel.shape || "rect",
+      crop: panel.crop || { x: 0.5, y: 0.5, zoom: 1 },
+    }));
+  }
+
+  function appendVisualPage(body) {
+    body.append("layout", "custom");
+    body.append("page_format", pageFormat);
+    body.append("geometries", JSON.stringify(exportGeometry()));
+  }
+
   async function generate(e) {
     e?.preventDefault();
     if (!panels.length || !token || status === "drawing") return;
@@ -699,7 +723,7 @@ export default function FumettiTab({ embedded = false } = {}) {
     try {
       const body = new FormData();
       panels.forEach(p => body.append("images", p.file, p.file.name));
-      body.append("layout", layout);
+      appendVisualPage(body);
       body.append("captions", captionsPayload());
       body.append("bubbles", JSON.stringify(panels.map(p =>
         p.bubbles.filter(b => (b.text || "").trim()).map(({ id, ...b }) => b)
@@ -730,7 +754,7 @@ export default function FumettiTab({ embedded = false } = {}) {
     try {
       const body = new FormData();
       panels.forEach(p => body.append("images", p.file, p.file.name));
-      body.append("layout", layout);
+      appendVisualPage(body);
       body.append("format", "pdf");
       body.append("captions", captionsPayload());
       body.append("bubbles", JSON.stringify(panels.map(p =>
@@ -1065,7 +1089,6 @@ export default function FumettiTab({ embedded = false } = {}) {
           </div>)}
         </div>}
         <ComicPageEditor panels={panels} onPanelsChange={setPanels} pageFormat={pageFormat} onPageFormatChange={setPageFormat} activeId={activeId} onActiveIdChange={id => { setActiveId(id); setSelectedBubbleId(null); setTailMode(false); }} />
-        <div className="fb-layouts"><label>{t("img.comics.layout")} <select className="fb-input" value={layout} onChange={e => setLayout(e.target.value)}><option value="grid">{t("img.comics.layoutGrid2")}</option><option value="vertical">{t("img.comics.layoutVertical")}</option><option value="horizontal">{t("img.comics.layoutHorizontal")}</option><option value="grid3">{t("img.comics.layoutGrid3")}</option><option value="diagonal">{t("img.comics.layoutDiagonal", "Strisce diagonali")}</option><option value="single" disabled={panels.length !== 1}>{t("img.comics.layoutCover")}</option></select></label></div>
         <button type="button" className="fb-btn fb-primary" disabled={!panels.length || status === "drawing" || pdfBusy} onClick={generate}>{status === "drawing" ? t("img.comics.composing") : t("img.comics.generate")}</button>{" "}<button type="button" className="fb-btn" disabled={!panels.length || status === "drawing" || pdfBusy} onClick={exportPdf}>{pdfBusy ? t("img.comics.exporting") : t("img.comics.exportPdf")}</button>
         {error && <div className="fb-error" role="alert">{error}</div>}
         {resultUrl && status === "done" && <div className="fb-result"><h3>{t("img.comics.preview")}</h3><img src={resultUrl} alt={t("img.comics.completedPageAlt")} /><button type="button" className="fb-btn fb-primary" onClick={download}>{t("img.comics.downloadPng")}</button></div>}
