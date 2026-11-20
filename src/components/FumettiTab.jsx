@@ -754,7 +754,7 @@ export default function FumettiTab({ embedded = false } = {}) {
     try {
       const body = new FormData();
       panels.forEach(p => body.append("images", p.file, p.file.name));
-      body.append("layout", layout);
+      appendVisualPage(body);
       body.append("format", "pdf");
       body.append("captions", captionsPayload());
       body.append("bubbles", JSON.stringify(panels.map(p =>
