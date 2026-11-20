@@ -7,7 +7,7 @@ import math
 
 from fastapi import APIRouter, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import Response
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageColor, ImageOps
 
 from image_bubbles import _draw_bubble, _font, _font_size, _wrap
 
@@ -29,6 +29,7 @@ CAPTION_BG = "#f3ecd6"
 CAPTION_FG = "#16130f"
 CAPTION_PAD = 22
 CAPTION_MAX_CHARS = 2000
+MAX_IMAGE_PIXELS = 50_000_000  # una foto da 50 megapixel in RGB occupa circa 150 MB in memoria
 
 
 def _caption_block(text, width):
@@ -44,6 +45,143 @@ def _caption_block(text, width):
         "line_h": line_h,
         "height": CAPTION_PAD * 2 + line_h * len(lines),
     }
+
+
+# Layout "diagonal": strisce a tutta larghezza, una sotto l'altra, separate da tagli
+# obliqui paralleli. Ogni foto resta intera (i balloon si disegnano sulla foto come
+# negli altri layout); gli angoli vengono tagliati dalla diagonale.
+DIAG_W = 900
+DIAG_MIN_W = 360
+DIAG_SLANT = 0.09  # dislivello del taglio rispetto alla larghezza (circa 5 gradi)
+DIAG_SS = 4        # supersampling dei bordi obliqui (antialias)
+
+
+def _apply_bubbles(panel, source, specs, index):
+    """Disegna i balloon sulla foto `panel` (coordinate relative all'immagine)."""
+    if not isinstance(specs, list):
+        raise HTTPException(status_code=400, detail=f"Balloon non validi nella vignetta {index + 1}.")
+    if len(specs) > 20:
+        raise HTTPException(status_code=400, detail=f"Massimo 20 balloon per vignetta {index + 1}.")
+    draw = ImageDraw.Draw(panel)
+    scale = min(panel.width / source.width, panel.height / source.height)
+    def _num(value, low, high, default):
+        if value is None:
+            return default
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail=f"Balloon non validi nella vignetta {index + 1}: valore non numerico.")
+        if not math.isfinite(number):
+            raise HTTPException(status_code=400, detail=f"Balloon non validi nella vignetta {index + 1}: valore non finito.")
+        return min(max(number, low), high)
+
+    def _valid_color(value):
+        try:
+            ImageColor.getrgb(str(value))
+            return True
+        except ValueError:
+            return False
+
+    mapped = []
+    for spec in specs:
+        if not isinstance(spec, dict):
+            continue
+        item = dict(spec)
+        item["x"] = _num(item.get("x", 0.5), 0.0, 1.0, 0.5)
+        item["y"] = _num(item.get("y", 0.5), 0.0, 1.0, 0.5)
+        # Il frontend React usa camelCase; _draw_bubble usa snake_case.
+        # Accettiamo entrambi per mantenere compatibilita' con eventuali client esistenti.
+        item["tail_x"] = _num(item.get("tail_x", item.get("tailX", 0.5)), 0.0, 1.0, 0.5)
+        item["tail_y"] = _num(item.get("tail_y", item.get("tailY", 0.5)), 0.0, 1.0, 0.5)
+        item["w"] = _num(item.get("w", 0.34), 0.05, 1.0, 0.34)
+        font_size = _num(item.get("font_size", item.get("fontSize", 44)), 8.0, 400.0, 44.0)
+        item["font_size"] = max(10, round(font_size * scale))
+        item["text"] = str(item.get("text", ""))[:500]
+        for key in ("color", "fill"):
+            if key in item and not _valid_color(item[key]):
+                del item[key]  # colore non valido: _draw_bubble usa il predefinito
+        mapped.append(item)
+    for item in mapped:
+        _draw_bubble(draw, panel.size, item)
+
+
+def _encode_page(page, fmt):
+    output = io.BytesIO()
+    if fmt == "pdf":
+        page.save(output, "PDF", resolution=150.0)
+        return Response(content=output.getvalue(), media_type="application/pdf")
+    page.save(output, "PNG", optimize=True)
+    return Response(content=output.getvalue(), media_type="image/png")
+
+
+def _compose_diagonal(decoded, bubble_sets, caption_texts):
+    n = len(decoded)
+    plan = None
+    for width in range(DIAG_W, DIAG_MIN_W - 1, -60):
+        slant = round(width * DIAG_SLANT)
+        photo_h = [max(1, round(width * src.height / src.width)) for src in decoded]
+        blocks = [_caption_block(caption_texts[i], width) for i in range(n)]
+        comp_h = []
+        for i in range(n):
+            if blocks[i]:
+                # Spazio extra sotto il testo: il taglio obliquo non deve mangiarlo.
+                extra = slant + GUTTER if i < n - 1 else 0
+                comp_h.append(photo_h[i] + blocks[i]["height"] + extra)
+            else:
+                comp_h.append(photo_h[i])
+        page_h = MARGIN * 2 + sum(comp_h) - slant * (n - 1)
+        if page_h <= PAGE_MAX:
+            plan = (width, slant, photo_h, blocks, comp_h, page_h)
+            break
+    if plan is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"La pagina a strisce diagonali supera il limite di {PAGE_MAX}px. Usa meno vignette, meno testo o un layout diverso.",
+        )
+    width, slant, photo_h, blocks, comp_h, page_h = plan
+
+    page = Image.new("RGB", (width + MARGIN * 2, page_h), PAGE_BG)
+    half_gap = GUTTER // 2
+    inset = 3  # il bordo di 5px sta tutto dentro l'immagine della striscia
+    top_y = MARGIN
+    for i, source in enumerate(decoded):
+        photo = source.resize((width, photo_h[i]), Image.Resampling.LANCZOS)
+        _apply_bubbles(photo, source, bubble_sets[i], i)
+
+        comp = Image.new("RGB", (width, comp_h[i]), CAPTION_BG)
+        comp.paste(photo, (0, 0))
+        block = blocks[i]
+        if block:
+            draw = ImageDraw.Draw(comp)
+            draw.line((0, photo_h[i], width, photo_h[i]), fill=BORDER, width=5)
+            ty = photo_h[i] + CAPTION_PAD
+            for line in block["lines"]:
+                draw.text((CAPTION_PAD, ty), line, font=block["font"], fill=CAPTION_FG)
+                ty += block["line_h"]
+
+        # Contorno: bordi alto/basso piatti ai margini della pagina, obliqui tra le strisce.
+        if i == 0:
+            top_left = top_right = inset
+        else:
+            top_left, top_right = half_gap, slant + half_gap
+        if i == n - 1:
+            bottom_left = bottom_right = comp_h[i] - inset
+        else:
+            bottom_right, bottom_left = comp_h[i] - half_gap, comp_h[i] - slant - half_gap
+        points = [(inset, top_left), (width - inset, top_right), (width - inset, bottom_right), (inset, bottom_left)]
+        closed = [(x * DIAG_SS, y * DIAG_SS) for x, y in points + [points[0]]]
+        big = (width * DIAG_SS, comp_h[i] * DIAG_SS)
+        full = Image.new("L", big, 0)
+        edge = Image.new("L", big, 0)
+        ImageDraw.Draw(full).polygon(closed, fill=255)
+        ImageDraw.Draw(full).line(closed, fill=255, width=5 * DIAG_SS, joint="curve")
+        ImageDraw.Draw(edge).line(closed, fill=255, width=5 * DIAG_SS, joint="curve")
+        full = full.resize(comp.size, Image.Resampling.LANCZOS)
+        edge = edge.resize(comp.size, Image.Resampling.LANCZOS)
+        comp.paste(Image.new("RGB", comp.size, BORDER), (0, 0), edge)
+        page.paste(comp, (MARGIN, top_y), full)
+        top_y += comp_h[i] - slant
+    return page
 
 
 def build_comic_page_router(verify_admin_token):
@@ -65,7 +203,7 @@ def build_comic_page_router(verify_admin_token):
         if len(images) > MAX_PANELS:
             raise HTTPException(status_code=400, detail=f"Massimo {MAX_PANELS} vignette.")
         layout = (layout or "grid").strip().lower()
-        if layout not in ("grid", "grid3", "vertical", "horizontal", "single"):
+        if layout not in ("grid", "grid3", "vertical", "horizontal", "single", "diagonal"):
             raise HTTPException(status_code=400, detail="Layout non valido.")
         if layout == "single" and len(images) != 1:
             raise HTTPException(
@@ -113,13 +251,21 @@ def build_comic_page_router(verify_admin_token):
             if total > MAX_TOTAL_BYTES:
                 raise HTTPException(status_code=400, detail="Dimensione totale delle foto superiore a 120 MB.")
             try:
-                image = Image.open(io.BytesIO(data)).convert("RGB")
+                image = Image.open(io.BytesIO(data))
+                if image.width * image.height > MAX_IMAGE_PIXELS:
+                    raise HTTPException(status_code=400, detail="Una foto è troppo grande (max 50 megapixel).")
+                # Le foto da smartphone possono avere la rotazione nei metadati EXIF.
+                image = ImageOps.exif_transpose(image).convert("RGB")
                 image.thumbnail((2048, 2048), Image.Resampling.LANCZOS)
+            except HTTPException:
+                raise
             except Exception:
                 raise HTTPException(status_code=400, detail="Una delle immagini non è leggibile.")
             decoded.append(image)
 
         count = len(decoded)
+        if layout == "diagonal":
+            return _encode_page(_compose_diagonal(decoded, bubble_sets, caption_texts), fmt)
         box = SINGLE_BOX if layout == "single" else PANEL_BOX
         fitted = []
         for source in decoded:
@@ -195,11 +341,6 @@ def build_comic_page_router(verify_admin_token):
         page_draw = ImageDraw.Draw(page)
 
         for index, (source, panel, specs) in enumerate(zip(decoded, fitted, bubble_sets)):
-            if not isinstance(specs, list):
-                raise HTTPException(status_code=400, detail=f"Balloon non validi nella vignetta {index + 1}.")
-            if len(specs) > 20:
-                raise HTTPException(status_code=400, detail=f"Massimo 20 balloon per vignetta {index + 1}.")
-
             row, col = divmod(index, cols)
             x = MARGIN + sum(cell_w[:col]) + col * GUTTER
             y = MARGIN + sum(cell_h[:row]) + row * GUTTER
@@ -207,29 +348,12 @@ def build_comic_page_router(verify_admin_token):
             # Vignetta = la foto stessa, proporzioni originali, zero letterbox
             # bianco: i balloon sono disegnati direttamente sulla foto e le
             # coordinate restano relative all'immagine (niente offset).
-            draw = ImageDraw.Draw(panel)
-            scale = min(panel.width / source.width, panel.height / source.height)
-            mapped = []
-            for spec in specs:
-                if not isinstance(spec, dict):
-                    continue
-                item = dict(spec)
-                item["x"] = float(item.get("x", 0.5))
-                item["y"] = float(item.get("y", 0.5))
-                # Il frontend React usa camelCase; _draw_bubble usa snake_case.
-                # Accettiamo entrambi per mantenere compatibilita' con eventuali client esistenti.
-                item["tail_x"] = float(item.get("tail_x", item.get("tailX", 0.5)))
-                item["tail_y"] = float(item.get("tail_y", item.get("tailY", 0.5)))
-                item["w"] = float(item.get("w", 0.34))
-                font_size = item.get("font_size", item.get("fontSize", 44))
-                item["font_size"] = max(10, round(float(font_size) * scale))
-                mapped.append(item)
-            for item in mapped:
-                _draw_bubble(draw, panel.size, item)
+            _apply_bubbles(panel, source, specs, index)
 
             # Foto centrata nella sua cella; il bordo segue la foto, non la cella.
+            block_h = panel.height + cap_h[index]
             px = x + (cell_w[col] - panel.width) // 2
-            py = y + (cell_h[row] - panel.height) // 2
+            py = y + (cell_h[row] - block_h) // 2
             page.paste(panel, (px, py))
             page_draw.rectangle(
                 (px, py, px + panel.width - 1, py + panel.height - 1),
@@ -250,11 +374,6 @@ def build_comic_page_router(verify_admin_token):
                     page_draw.text((px + CAPTION_PAD, ty), line, font=block["font"], fill=CAPTION_FG)
                     ty += block["line_h"]
 
-        output = io.BytesIO()
-        if fmt == "pdf":
-            page.save(output, "PDF", resolution=150.0)
-            return Response(content=output.getvalue(), media_type="application/pdf")
-        page.save(output, "PNG", optimize=True)
-        return Response(content=output.getvalue(), media_type="image/png")
+        return _encode_page(page, fmt)
 
     return router

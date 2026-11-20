@@ -114,6 +114,9 @@ export default function FumettiTab({ embedded = false } = {}) {
   const [status, setStatus] = useState("idle");
   const [error, setError] = useState("");
   const [resultUrl, setResultUrl] = useState("");
+  const [canvasAspect, setCanvasAspect] = useState(0);
+  const saveQueueRef = useRef(Promise.resolve());
+  const saveSeqRef = useRef(0);
   const [pdfBusy, setPdfBusy] = useState(false);
   // Archivio storie SW / NS: il PDF riutilizza l'endpoint già usato da StoriesTab.
   const [stories, setStories] = useState([]);
@@ -430,28 +433,35 @@ export default function FumettiTab({ embedded = false } = {}) {
   useEffect(() => {
     if (!draftReady) return;
     let cancelled = false;
+    // Fotografia dello stato adesso, scrittura in coda: un salvataggio lento
+    // non puo' sovrascrivere uno piu' recente.
+    const empty = !panels.length && !narrativeText.trim();
+    const snapshot = empty ? null : currentDraftData();
+    const seq = ++saveSeqRef.current;
 
     async function persistDraft() {
+      if (seq !== saveSeqRef.current) return;
       try {
-        if (!panels.length && !narrativeText.trim()) {
+        if (empty) {
           await clearComicsDraft(draftKey);
           if (!cancelled) setDraftMessage("");
           return;
         }
-        await saveComicsDraft(draftKey, currentDraftData());
+        await saveComicsDraft(draftKey, snapshot);
         if (!cancelled) setDraftMessage(t("img.comics.draftSaved"));
       } catch (err) {
         if (!cancelled) setDraftMessage(t("img.comics.draftSaveError", { error: err.message || String(err) }));
       }
     }
 
-    persistDraft();
+    saveQueueRef.current = saveQueueRef.current.then(persistDraft);
     return () => { cancelled = true; };
   }, [draftReady, draftKey, panels, activeId, layout, narrativeText, narrativeOriginal, narrativePosition, narrativeStoryId, storyId, storyVersion, storyScenes, storyPdfMode, storyPdfLayout, storyPdfFormat, t]);
 
   // Con [] la funzione di cleanup vedrebbe solo lo stato iniziale: uso ref sempre aggiornati.
   const latestUrlsRef = useRef({ panels: [], resultUrl: "" });
   latestUrlsRef.current = { panels, resultUrl };
+  useEffect(() => () => { if (resultUrl) URL.revokeObjectURL(resultUrl); }, [resultUrl]);
   useEffect(() => () => {
     const { panels: lastPanels, resultUrl: lastResult } = latestUrlsRef.current;
     lastPanels.forEach(p => { if (p.preview) URL.revokeObjectURL(p.preview); });
@@ -498,6 +508,7 @@ export default function FumettiTab({ embedded = false } = {}) {
   }
 
   function addBubble() {
+    if (bubbles.length >= 20) { setError("Massimo 20 balloon per vignetta."); return; }
     const b = makeBubble();
     updateActive(old => [...old, b]);
     setSelectedBubbleId(b.id);
@@ -948,8 +959,8 @@ export default function FumettiTab({ embedded = false } = {}) {
       {active && <div className="fb-grid">
         <section className="fb-panel">
           <h2>{t("img.comics.editPanel", { index: panels.findIndex(p => p.id === active.id) + 1 })}</h2>
-          <div className="fb-canvas" ref={canvasRef} onClick={onCanvasClick}>
-            <img src={active.preview} alt={t("img.comics.selectedPanelAlt")} draggable={false} />
+          <div className="fb-canvas" ref={canvasRef} onClick={onCanvasClick} style={canvasAspect ? { maxWidth: Math.round(650 * canvasAspect) + "px", margin: "0 auto" } : undefined}>
+            <img key={active.id} src={active.preview} alt={t("img.comics.selectedPanelAlt")} draggable={false} onLoad={e => setCanvasAspect(e.currentTarget.naturalWidth / e.currentTarget.naturalHeight || 0)} />
             <svg className="fb-tailsvg" aria-hidden="true">{bubbles.map(b => <line key={b.id}
               x1={(b.x * 100) + "%"} y1={(b.y * 100) + "%"} x2={(b.tailX * 100) + "%"} y2={(b.tailY * 100) + "%"}
               stroke={b.fill} strokeWidth="2.5" strokeLinecap="round" strokeDasharray={b.type === "thought" ? "0.1 8" : undefined} />)}</svg>
@@ -1020,7 +1031,7 @@ export default function FumettiTab({ embedded = false } = {}) {
           {panels.map((p, i) => <div className="fb-split-row" key={p.id}>
             <figure className="fb-split-thumb"><img src={p.preview} alt={"Vignetta " + (i + 1)} /><figcaption>Vignetta {i + 1}</figcaption></figure>
             <div className="fb-split-body">
-              <textarea className="fb-input fb-split-text" rows={4} value={p.caption || ""} onChange={e => setCaption(p.id, e.target.value)} placeholder="Testo di questa vignetta…" />
+              <textarea className="fb-input fb-split-text" rows={4} maxLength={2000} value={p.caption || ""} onChange={e => setCaption(p.id, e.target.value)} placeholder="Testo di questa vignetta…" />
               <div className="fb-split-actions">
                 <small>{(p.caption || "").length} caratteri</small>
                 <span className="fb-split-buttons">
@@ -1031,7 +1042,7 @@ export default function FumettiTab({ embedded = false } = {}) {
             </div>
           </div>)}
         </div>}
-        <div className="fb-layouts"><label>{t("img.comics.layout")} <select className="fb-input" value={layout} onChange={e => setLayout(e.target.value)}><option value="grid">{t("img.comics.layoutGrid2")}</option><option value="vertical">{t("img.comics.layoutVertical")}</option><option value="horizontal">{t("img.comics.layoutHorizontal")}</option><option value="grid3">{t("img.comics.layoutGrid3")}</option><option value="single">{t("img.comics.layoutCover")}</option></select></label></div>
+        <div className="fb-layouts"><label>{t("img.comics.layout")} <select className="fb-input" value={layout} onChange={e => setLayout(e.target.value)}><option value="grid">{t("img.comics.layoutGrid2")}</option><option value="vertical">{t("img.comics.layoutVertical")}</option><option value="horizontal">{t("img.comics.layoutHorizontal")}</option><option value="grid3">{t("img.comics.layoutGrid3")}</option><option value="diagonal">{t("img.comics.layoutDiagonal", "Strisce diagonali")}</option><option value="single" disabled={panels.length !== 1}>{t("img.comics.layoutCover")}</option></select></label></div>
         <button type="button" className="fb-btn fb-primary" disabled={!panels.length || status === "drawing" || pdfBusy} onClick={generate}>{status === "drawing" ? t("img.comics.composing") : t("img.comics.generate")}</button>{" "}<button type="button" className="fb-btn" disabled={!panels.length || status === "drawing" || pdfBusy} onClick={exportPdf}>{pdfBusy ? t("img.comics.exporting") : t("img.comics.exportPdf")}</button>
         {error && <div className="fb-error" role="alert">{error}</div>}
         {resultUrl && status === "done" && <div className="fb-result"><h3>{t("img.comics.preview")}</h3><img src={resultUrl} alt={t("img.comics.completedPageAlt")} /><button type="button" className="fb-btn fb-primary" onClick={download}>{t("img.comics.downloadPng")}</button></div>}
@@ -1077,7 +1088,7 @@ const STYLES = `
 .fb-order{justify-content:flex-end;margin:0}.fb-order>button:not(.fb-btn){width:34px;height:34px;border:1px solid var(--border,#33414c);border-radius:7px;background:transparent;color:inherit;font-size:1rem}.fb-order button:disabled{opacity:.3}
 .fb-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(260px,.8fr);gap:1rem;align-items:start}
 .fb-canvas{position:relative;display:block;width:100%;overflow:hidden;border:1px solid var(--border,#33414c);border-radius:9px;background:#080c10;cursor:crosshair}
-.fb-canvas>img{display:block;width:100%;max-height:650px;object-fit:contain;user-select:none;-webkit-user-drag:none}
+.fb-canvas>img{display:block;width:100%;height:auto;user-select:none;-webkit-user-drag:none}
 .fb-tailsvg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .fb-empty{opacity:.65;font-size:.8em}.fb-form{display:grid;gap:.55rem}
 .fb-label{display:block;margin-top:.4rem;color:var(--ink-dim,#9aabb5);font-size:.74rem}
