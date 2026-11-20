@@ -283,7 +283,8 @@ def _compose_custom(decoded, bubble_sets, caption_texts, geometries, page_format
     page_h = max(1, round(page_w / ratio))
     scale = min(1.0, PAGE_MAX / max(page_w, page_h))
     page_w, page_h = round(page_w * scale), round(page_h * scale)
-    page = Image.new("RGB", (page_w, page_h), PAGE_BG)
+    # Il canvas dell’editor usa lo stesso fondo chiaro tra le vignette.
+    page = Image.new("RGB", (page_w, page_h), "#f3f0e8")
 
     for index, (source, specs, caption, geometry) in enumerate(
         zip(decoded, bubble_sets, caption_texts, geometries)
