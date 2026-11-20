@@ -1,4 +1,5 @@
 // Comics Editor: pagina multi-vignetta, balloon per foto, riordino mobile.
+// Fusione: versione locale (tRef, CAPTION_MAX, nomi file puliti) + HEAD (ComicPageEditor, pageFormat, geometry/shape/crop).
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import ArchivePicker from "./ArchivePicker.jsx";
@@ -9,6 +10,8 @@ import { clearComicsDraft, listComicsDrafts, loadComicsDraft, saveComicsDraft } 
 const API = "https://api.danielevillanova.com";
 const TOKEN_KEY = "dv_google_id_token";
 const MAX_PANELS = 12;
+// Deve coincidere con CAPTION_MAX_CHARS di comic_page.py.
+const CAPTION_MAX = 2000;
 const TYPES = [
   ["speech", "speech"],
   ["rect", "rectangle"],
@@ -27,6 +30,21 @@ function decodeJwt(token) {
 function valid(token) { const p = token ? decodeJwt(token) : null; return !!p?.exp && p.exp * 1000 > Date.now() + 5000; }
 function readToken() { try { const t = localStorage.getItem(TOKEN_KEY); return valid(t) ? t : ""; } catch { return ""; } }
 function clamp(v) { return Math.max(0, Math.min(1, v)); }
+
+// Nome file per PNG/PDF scaricati: titolo della storia senza accenti, timestamp in coda.
+function fileTimestamp(now = new Date()) {
+  const pad = value => String(value).padStart(2, "0");
+  return [now.getFullYear(), pad(now.getMonth() + 1), pad(now.getDate())].join("") +
+    "_" + [pad(now.getHours()), pad(now.getMinutes()), pad(now.getSeconds())].join("");
+}
+function fileBaseName(story) {
+  return String(story?.title || story?.prompt || "fumetto")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60) || "fumetto";
+}
 
 // Divisione deterministica del testo in frasi e blocchi da rivedere manualmente.
 function splitSentences(text) {
@@ -97,6 +115,10 @@ function makeBubble() {
 
 export default function FumettiTab({ embedded = false } = {}) {
   const { t } = useTranslation();
+  // `t` cambia identità a ogni cambio lingua: negli effetti di bozza uso il ref,
+  // così cambiare lingua non fa ripartire il ripristino delle immagini.
+  const tRef = useRef(t);
+  tRef.current = t;
   const [token, setToken] = useState(readToken);
   const [panels, setPanels] = useState([]);
   const [activeId, setActiveId] = useState(null);
@@ -371,7 +393,7 @@ export default function FumettiTab({ embedded = false } = {}) {
         }
         if (saved.panels.some(item => item.archiveId) && !token) {
           preserveDraft = true;
-          setDraftMessage(t("img.comics.draftLogin"));
+          setDraftMessage(tRef.current("img.comics.draftLogin"));
           return;
         }
 
@@ -395,7 +417,7 @@ export default function FumettiTab({ embedded = false } = {}) {
           if (!blob) {
             restored.forEach(panel => URL.revokeObjectURL(panel.preview));
             preserveDraft = true;
-            setDraftMessage(t("img.comics.draftImageMissing"));
+            setDraftMessage(tRef.current("img.comics.draftImageMissing"));
             return;
           }
 
@@ -415,7 +437,7 @@ export default function FumettiTab({ embedded = false } = {}) {
         setPanels(restored);
         setActiveId(restored.some(p => p.id === saved.activeId) ? saved.activeId : (restored[0]?.id ?? null));
         setLayout(saved.layout || "grid");
-      setPageFormat(saved.pageFormat || "a4-portrait");
+        setPageFormat(saved.pageFormat || "a4-portrait");
         applyStorySettings(saved);
         setNarrativeText(saved.narrativeText || "");
         setNarrativeOriginal(saved.narrativeOriginal || "");
@@ -426,7 +448,7 @@ export default function FumettiTab({ embedded = false } = {}) {
         nextPanelId = Math.max(nextPanelId, ...panelIds, 0) + 1;
         nextBubbleId = Math.max(nextBubbleId, ...bubbleIds, 0) + 1;
       } catch (err) {
-        setDraftMessage(t("img.comics.draftRestoreError", { error: err.message || String(err) }));
+        setDraftMessage(tRef.current("img.comics.draftRestoreError", { error: err.message || String(err) }));
       } finally {
         if (!cancelled && !preserveDraft) setDraftReady(true);
       }
@@ -434,10 +456,12 @@ export default function FumettiTab({ embedded = false } = {}) {
 
     restoreDraft();
     return () => { cancelled = true; };
-  }, [draftKey, token, t]);
+  }, [draftKey, token]);
 
   // Autosalvataggio: Blob delle foto locali + ID delle immagini GraDV,
   // ordine, balloon e layout. Non vengono salvati URL temporanei o PNG finali.
+  // Debounce: durante il trascinamento di un balloon lo stato cambia a ogni
+  // pointermove, quindi si scrive solo quando le modifiche si fermano.
   useEffect(() => {
     if (!draftReady) return;
     let cancelled = false;
@@ -456,15 +480,17 @@ export default function FumettiTab({ embedded = false } = {}) {
           return;
         }
         await saveComicsDraft(draftKey, snapshot);
-        if (!cancelled) setDraftMessage(t("img.comics.draftSaved"));
+        if (!cancelled) setDraftMessage(tRef.current("img.comics.draftSaved"));
       } catch (err) {
-        if (!cancelled) setDraftMessage(t("img.comics.draftSaveError", { error: err.message || String(err) }));
+        if (!cancelled) setDraftMessage(tRef.current("img.comics.draftSaveError", { error: err.message || String(err) }));
       }
     }
 
-    saveQueueRef.current = saveQueueRef.current.then(persistDraft);
-    return () => { cancelled = true; };
-  }, [draftReady, draftKey, panels, activeId, layout, pageFormat, narrativeText, narrativeOriginal, narrativePosition, narrativeStoryId, storyId, storyVersion, storyScenes, storyPdfMode, storyPdfLayout, storyPdfFormat, t]);
+    const timer = setTimeout(() => {
+      saveQueueRef.current = saveQueueRef.current.then(persistDraft);
+    }, 500);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [draftReady, draftKey, panels, activeId, layout, pageFormat, narrativeText, narrativeOriginal, narrativePosition, narrativeStoryId, storyId, storyVersion, storyScenes, storyPdfMode, storyPdfLayout, storyPdfFormat]);
 
   // Con [] la funzione di cleanup vedrebbe solo lo stato iniziale: uso ref sempre aggiornati.
   const latestUrlsRef = useRef({ panels: [], resultUrl: "" });
@@ -533,6 +559,15 @@ export default function FumettiTab({ embedded = false } = {}) {
   function captionsPayload() {
     return JSON.stringify(panels.map(p => narrativePosition === "none" ? "" : (p.caption || "").trim()));
   }
+  // Indice della prima vignetta con testo oltre il limite del backend, oppure -1.
+  function longCaptionIndex() {
+    if (narrativePosition === "none") return -1;
+    return panels.findIndex(p => (p.caption || "").trim().length > CAPTION_MAX);
+  }
+  function longCaptionMessage(index) {
+    return "La vignetta " + (index + 1) + " ha " + (panels[index].caption || "").trim().length +
+      " caratteri (max " + CAPTION_MAX + "): aggiungi vignette o accorcia il testo.";
+  }
   function setCaption(id, text) {
     setPanels(old => old.map(panel => panel.id === id ? { ...panel, caption: text } : panel));
   }
@@ -542,6 +577,13 @@ export default function FumettiTab({ embedded = false } = {}) {
         !window.confirm("Dividere di nuovo il testo? I testi attuali delle vignette saranno sostituiti.")) return;
     const groups = splitNarrative(narrativeText, panels.length);
     setPanels(old => old.map((panel, index) => ({ ...panel, caption: groups[index] || "" })));
+    const tooLong = groups.findIndex(group => group.length > CAPTION_MAX);
+    if (tooLong >= 0) {
+      setError("La vignetta " + (tooLong + 1) + " ha " + groups[tooLong].length +
+        " caratteri (max " + CAPTION_MAX + "): aggiungi vignette o accorcia il testo.");
+    } else {
+      setError("");
+    }
   }
   function shiftSentence(index, direction) {
     setPanels(old => {
@@ -588,7 +630,9 @@ export default function FumettiTab({ embedded = false } = {}) {
     setPanels(old => old.map(p => {
       if (p.id !== id) return p;
       URL.revokeObjectURL(p.preview);
-      return { ...p, file, preview };
+      // archiveId a null: la nuova foto è locale, altrimenti la bozza
+      // ricaricherebbe l'immagine dell'archivio che hai appena sostituito.
+      return { ...p, file, preview, bubbles: [], archiveId: null };
     }));
     setActiveId(id);
     setSelectedBubbleId(null);
@@ -648,6 +692,8 @@ export default function FumettiTab({ embedded = false } = {}) {
   async function generate(e) {
     e?.preventDefault();
     if (!panels.length || !token || status === "drawing") return;
+    const longIndex = longCaptionIndex();
+    if (longIndex >= 0) { setError(longCaptionMessage(longIndex)); return; }
     setStatus("drawing");
     setError("");
     try {
@@ -677,6 +723,8 @@ export default function FumettiTab({ embedded = false } = {}) {
 
   async function exportPdf() {
     if (!panels.length || !token || status === "drawing" || pdfBusy) return;
+    const longIndex = longCaptionIndex();
+    if (longIndex >= 0) { setError(longCaptionMessage(longIndex)); return; }
     setPdfBusy(true);
     setError("");
     try {
@@ -698,26 +746,9 @@ export default function FumettiTab({ embedded = false } = {}) {
       }
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
-      const now = new Date();
-      const pad = value => String(value).padStart(2, "0");
-      const timestamp = [
-        now.getFullYear(),
-        pad(now.getMonth() + 1),
-        pad(now.getDate()),
-      ].join("") + "_" + [
-        pad(now.getHours()),
-        pad(now.getMinutes()),
-        pad(now.getSeconds()),
-      ].join("");
-      const baseName = String(story?.title || story?.prompt || "fumetto")
-        .normalize("NFKD")
-        .replace(/[\\u0300-\\u036f]/g, "")
-        .replace(/[^a-zA-Z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "")
-        .slice(0, 60) || "fumetto";
       const a = document.createElement("a");
       a.href = url;
-      a.download = baseName + "_" + timestamp + ".pdf";
+      a.download = fileBaseName(story) + "_" + fileTimestamp() + ".pdf";
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 10000);
     } catch (err) {
@@ -811,26 +842,9 @@ export default function FumettiTab({ embedded = false } = {}) {
 
   function download() {
     if (!resultUrl) return;
-    const now = new Date();
-    const pad = value => String(value).padStart(2, "0");
-    const timestamp = [
-      now.getFullYear(),
-      pad(now.getMonth() + 1),
-      pad(now.getDate()),
-    ].join("") + "_" + [
-      pad(now.getHours()),
-      pad(now.getMinutes()),
-      pad(now.getSeconds()),
-    ].join("");
-    const baseName = String(story?.title || story?.prompt || "fumetto")
-      .normalize("NFKD")
-      .replace(/[\\u0300-\\u036f]/g, "")
-      .replace(/[^a-zA-Z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 60) || "fumetto";
     const a = document.createElement("a");
     a.href = resultUrl;
-    a.download = baseName + "_" + timestamp + ".png";
+    a.download = fileBaseName(story) + "_" + fileTimestamp() + ".png";
     document.body.appendChild(a); a.click(); a.remove();
   }
 
@@ -1039,9 +1053,9 @@ export default function FumettiTab({ embedded = false } = {}) {
           {panels.map((p, i) => <div className="fb-split-row" key={p.id}>
             <figure className="fb-split-thumb"><img src={p.preview} alt={"Vignetta " + (i + 1)} /><figcaption>Vignetta {i + 1}</figcaption></figure>
             <div className="fb-split-body">
-              <textarea className="fb-input fb-split-text" rows={4} maxLength={2000} value={p.caption || ""} onChange={e => setCaption(p.id, e.target.value)} placeholder="Testo di questa vignetta…" />
+              <textarea className="fb-input fb-split-text" rows={4} maxLength={CAPTION_MAX} value={p.caption || ""} onChange={e => setCaption(p.id, e.target.value)} placeholder="Testo di questa vignetta…" />
               <div className="fb-split-actions">
-                <small>{(p.caption || "").length} caratteri</small>
+                <small>{(p.caption || "").length} / {CAPTION_MAX} caratteri</small>
                 <span className="fb-split-buttons">
                   <button type="button" className="fb-btn fb-mini" onClick={() => shiftSentence(i, -1)} disabled={i === 0 || !(p.caption || "").trim()}>↑ Prima frase</button>
                   <button type="button" className="fb-btn fb-mini" onClick={() => shiftSentence(i, 1)} disabled={i === panels.length - 1 || !(p.caption || "").trim()}>↓ Ultima frase</button>
@@ -1051,6 +1065,7 @@ export default function FumettiTab({ embedded = false } = {}) {
           </div>)}
         </div>}
         <ComicPageEditor panels={panels} onPanelsChange={setPanels} pageFormat={pageFormat} onPageFormatChange={setPageFormat} activeId={activeId} onActiveIdChange={id => { setActiveId(id); setSelectedBubbleId(null); setTailMode(false); }} />
+        <div className="fb-layouts"><label>{t("img.comics.layout")} <select className="fb-input" value={layout} onChange={e => setLayout(e.target.value)}><option value="grid">{t("img.comics.layoutGrid2")}</option><option value="vertical">{t("img.comics.layoutVertical")}</option><option value="horizontal">{t("img.comics.layoutHorizontal")}</option><option value="grid3">{t("img.comics.layoutGrid3")}</option><option value="diagonal">{t("img.comics.layoutDiagonal", "Strisce diagonali")}</option><option value="single" disabled={panels.length !== 1}>{t("img.comics.layoutCover")}</option></select></label></div>
         <button type="button" className="fb-btn fb-primary" disabled={!panels.length || status === "drawing" || pdfBusy} onClick={generate}>{status === "drawing" ? t("img.comics.composing") : t("img.comics.generate")}</button>{" "}<button type="button" className="fb-btn" disabled={!panels.length || status === "drawing" || pdfBusy} onClick={exportPdf}>{pdfBusy ? t("img.comics.exporting") : t("img.comics.exportPdf")}</button>
         {error && <div className="fb-error" role="alert">{error}</div>}
         {resultUrl && status === "done" && <div className="fb-result"><h3>{t("img.comics.preview")}</h3><img src={resultUrl} alt={t("img.comics.completedPageAlt")} /><button type="button" className="fb-btn fb-primary" onClick={download}>{t("img.comics.downloadPng")}</button></div>}
