@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import ArchivePicker from "./ArchivePicker.jsx";
 import UploadedPicker from "./UploadedPicker.jsx";
-import ComicLayoutPicker from "./ComicLayoutPicker.jsx";
+import ComicPageEditor from "./ComicPageEditor.jsx";
 import { clearComicsDraft, listComicsDrafts, loadComicsDraft, saveComicsDraft } from "../utils/comicsDraft.js";
 
 const API = "https://api.danielevillanova.com";
@@ -82,6 +82,9 @@ function makePanel(file, source = null, saved = null) {
     bubbles: saved?.bubbles || [],
     caption: saved?.caption || "",
     archiveId: source?.id ?? saved?.archiveId ?? null,
+    geometry: saved?.geometry || null,
+    shape: saved?.shape || "rect",
+    crop: saved?.crop || { x: 0.5, y: 0.5, zoom: 1 },
   };
 }
 function makeBubble() {
@@ -98,6 +101,7 @@ export default function FumettiTab({ embedded = false } = {}) {
   const [panels, setPanels] = useState([]);
   const [activeId, setActiveId] = useState(null);
   const [layout, setLayout] = useState("grid");
+  const [pageFormat, setPageFormat] = useState("a4-portrait");
   const [draftReady, setDraftReady] = useState(false);
   const [draftMessage, setDraftMessage] = useState("");
   const [namedDrafts, setNamedDrafts] = useState([]);
@@ -174,12 +178,13 @@ export default function FumettiTab({ embedded = false } = {}) {
 
   function currentDraftData() {
     return {
-      layout, activeId,
+      layout, pageFormat, activeId,
       panels: panels.map(panel => ({
         id: panel.id, name: panel.file.name, type: panel.file.type,
         lastModified: panel.file.lastModified,
         blob: panel.archiveId ? null : panel.file,
         archiveId: panel.archiveId || null, bubbles: panel.bubbles, caption: panel.caption || "",
+        geometry: panel.geometry || null, shape: panel.shape || "rect", crop: panel.crop || { x: 0.5, y: 0.5, zoom: 1 },
       })),
       storyId, storyVersion, storyScenes, storyPdfMode, storyPdfLayout, storyPdfFormat,
       narrativeText, narrativeOriginal, narrativePosition, narrativeStoryId,
@@ -226,6 +231,7 @@ export default function FumettiTab({ embedded = false } = {}) {
       setPanels(restored);
       setActiveId(restored.some(panel => panel.id === saved.activeId) ? saved.activeId : (restored[0]?.id ?? null));
       setLayout(saved.layout || "grid");
+      setPageFormat(saved.pageFormat || "a4-portrait");
       applyStorySettings(saved);
       setNarrativeText(saved.narrativeText || "");
       setNarrativeOriginal(saved.narrativeOriginal || "");
@@ -409,6 +415,7 @@ export default function FumettiTab({ embedded = false } = {}) {
         setPanels(restored);
         setActiveId(restored.some(p => p.id === saved.activeId) ? saved.activeId : (restored[0]?.id ?? null));
         setLayout(saved.layout || "grid");
+      setPageFormat(saved.pageFormat || "a4-portrait");
         applyStorySettings(saved);
         setNarrativeText(saved.narrativeText || "");
         setNarrativeOriginal(saved.narrativeOriginal || "");
@@ -457,7 +464,7 @@ export default function FumettiTab({ embedded = false } = {}) {
 
     saveQueueRef.current = saveQueueRef.current.then(persistDraft);
     return () => { cancelled = true; };
-  }, [draftReady, draftKey, panels, activeId, layout, narrativeText, narrativeOriginal, narrativePosition, narrativeStoryId, storyId, storyVersion, storyScenes, storyPdfMode, storyPdfLayout, storyPdfFormat, t]);
+  }, [draftReady, draftKey, panels, activeId, layout, pageFormat, narrativeText, narrativeOriginal, narrativePosition, narrativeStoryId, storyId, storyVersion, storyScenes, storyPdfMode, storyPdfLayout, storyPdfFormat, t]);
 
   // Con [] la funzione di cleanup vedrebbe solo lo stato iniziale: uso ref sempre aggiornati.
   const latestUrlsRef = useRef({ panels: [], resultUrl: "" });
@@ -581,7 +588,7 @@ export default function FumettiTab({ embedded = false } = {}) {
     setPanels(old => old.map(p => {
       if (p.id !== id) return p;
       URL.revokeObjectURL(p.preview);
-      return { ...p, file, preview, bubbles: [] };
+      return { ...p, file, preview };
     }));
     setActiveId(id);
     setSelectedBubbleId(null);
@@ -1043,7 +1050,7 @@ export default function FumettiTab({ embedded = false } = {}) {
             </div>
           </div>)}
         </div>}
-        <ComicLayoutPicker value={layout} onChange={setLayout} panelCount={panels.length} t={t} />
+        <ComicPageEditor panels={panels} onPanelsChange={setPanels} pageFormat={pageFormat} onPageFormatChange={setPageFormat} activeId={activeId} onActiveIdChange={id => { setActiveId(id); setSelectedBubbleId(null); setTailMode(false); }} />
         <button type="button" className="fb-btn fb-primary" disabled={!panels.length || status === "drawing" || pdfBusy} onClick={generate}>{status === "drawing" ? t("img.comics.composing") : t("img.comics.generate")}</button>{" "}<button type="button" className="fb-btn" disabled={!panels.length || status === "drawing" || pdfBusy} onClick={exportPdf}>{pdfBusy ? t("img.comics.exporting") : t("img.comics.exportPdf")}</button>
         {error && <div className="fb-error" role="alert">{error}</div>}
         {resultUrl && status === "done" && <div className="fb-result"><h3>{t("img.comics.preview")}</h3><img src={resultUrl} alt={t("img.comics.completedPageAlt")} /><button type="button" className="fb-btn fb-primary" onClick={download}>{t("img.comics.downloadPng")}</button></div>}
