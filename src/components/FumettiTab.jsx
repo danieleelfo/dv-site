@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import ArchivePicker from "./ArchivePicker.jsx";
 import UploadedPicker from "./UploadedPicker.jsx";
+import ComicLayoutPicker from "./ComicLayoutPicker.jsx";
 import { clearComicsDraft, listComicsDrafts, loadComicsDraft, saveComicsDraft } from "../utils/comicsDraft.js";
 
 const API = "https://api.danielevillanova.com";
@@ -1042,7 +1043,7 @@ export default function FumettiTab({ embedded = false } = {}) {
             </div>
           </div>)}
         </div>}
-        <div className="fb-layouts"><label>{t("img.comics.layout")} <select className="fb-input" value={layout} onChange={e => setLayout(e.target.value)}><option value="grid">{t("img.comics.layoutGrid2")}</option><option value="vertical">{t("img.comics.layoutVertical")}</option><option value="horizontal">{t("img.comics.layoutHorizontal")}</option><option value="grid3">{t("img.comics.layoutGrid3")}</option><option value="diagonal">{t("img.comics.layoutDiagonal", "Strisce diagonali")}</option><option value="single" disabled={panels.length !== 1}>{t("img.comics.layoutCover")}</option></select></label></div>
+        <ComicLayoutPicker value={layout} onChange={setLayout} panelCount={panels.length} t={t} />
         <button type="button" className="fb-btn fb-primary" disabled={!panels.length || status === "drawing" || pdfBusy} onClick={generate}>{status === "drawing" ? t("img.comics.composing") : t("img.comics.generate")}</button>{" "}<button type="button" className="fb-btn" disabled={!panels.length || status === "drawing" || pdfBusy} onClick={exportPdf}>{pdfBusy ? t("img.comics.exporting") : t("img.comics.exportPdf")}</button>
         {error && <div className="fb-error" role="alert">{error}</div>}
         {resultUrl && status === "done" && <div className="fb-result"><h3>{t("img.comics.preview")}</h3><img src={resultUrl} alt={t("img.comics.completedPageAlt")} /><button type="button" className="fb-btn fb-primary" onClick={download}>{t("img.comics.downloadPng")}</button></div>}
