@@ -32,6 +32,13 @@ CAPTION_MAX_CHARS = 2000
 MAX_IMAGE_PIXELS = 50_000_000  # una foto da 50 megapixel in RGB occupa circa 150 MB in memoria
 
 
+def _fit_page(page):
+    """Rete di sicurezza: riscala la pagina finita dentro PAGE_MAX, proporzioni intatte."""
+    if page.width > PAGE_MAX or page.height > PAGE_MAX:
+        page.thumbnail((PAGE_MAX, PAGE_MAX), Image.Resampling.LANCZOS)
+    return page
+
+
 def _caption_block(text, width):
     """Righe, font e altezza del riquadro testo sotto una foto."""
     if not text:
@@ -134,11 +141,22 @@ def _compose_diagonal(decoded, bubble_sets, caption_texts):
             plan = (width, slant, photo_h, blocks, comp_h, page_h)
             break
     if plan is None:
-        raise HTTPException(
-            status_code=400,
-            detail=f"La pagina a strisce diagonali supera il limite di {PAGE_MAX}px. Usa meno vignette, meno testo o un layout diverso.",
-        )
+        # Nessuna larghezza rientra nel budget: si compone comunque alla
+        # larghezza minima e _fit_page riscala il risultato finale. Cosi'
+        # un fumetto lungo con molte didascalie non blocca piu' con un 400.
+        plan = (DIAG_MIN_W, round(DIAG_MIN_W * DIAG_SLANT), None, None, None, None)
     width, slant, photo_h, blocks, comp_h, page_h = plan
+    if photo_h is None:
+        photo_h = [max(1, round(width * src.height / src.width)) for src in decoded]
+        blocks = [_caption_block(caption_texts[i], width) for i in range(n)]
+        comp_h = []
+        for i in range(n):
+            if blocks[i]:
+                extra = slant + GUTTER if i < n - 1 else 0
+                comp_h.append(photo_h[i] + blocks[i]["height"] + extra)
+            else:
+                comp_h.append(photo_h[i])
+        page_h = MARGIN * 2 + sum(comp_h) - slant * (n - 1)
 
     page = Image.new("RGB", (width + MARGIN * 2, page_h), PAGE_BG)
     half_gap = GUTTER // 2
@@ -181,7 +199,7 @@ def _compose_diagonal(decoded, bubble_sets, caption_texts):
         comp.paste(Image.new("RGB", comp.size, BORDER), (0, 0), edge)
         page.paste(comp, (MARGIN, top_y), full)
         top_y += comp_h[i] - slant
-    return page
+    return _fit_page(page)
 
 
 def build_comic_page_router(verify_admin_token):
@@ -331,11 +349,11 @@ def build_comic_page_router(verify_admin_token):
             page_w = MARGIN * 2 + sum(cell_w) + gutters_x
             page_h = MARGIN * 2 + sum(cell_h) + gutters_y
 
-        if page_w > PAGE_MAX or page_h > PAGE_MAX:
-            raise HTTPException(
-                status_code=400,
-                detail=f"La pagina con le didascalie supera il limite di {PAGE_MAX}px. Riduci il testo o usa un layout diverso.",
-            )
+        # Niente errore 400: se anche dopo i tentativi la pagina sfora
+        # PAGE_MAX, si compone comunque alle dimensioni calcolate e _fit_page
+        # riscala il risultato finito (didascalie incluse, proporzioni intatte).
+        page_w = min(page_w, PAGE_MAX * 2)
+        page_h = min(page_h, PAGE_MAX * 2)
 
         page = Image.new("RGB", (page_w, page_h), PAGE_BG)
         page_draw = ImageDraw.Draw(page)
@@ -374,6 +392,6 @@ def build_comic_page_router(verify_admin_token):
                     page_draw.text((px + CAPTION_PAD, ty), line, font=block["font"], fill=CAPTION_FG)
                     ty += block["line_h"]
 
-        return _encode_page(page, fmt)
+        return _encode_page(_fit_page(page), fmt)
 
     return router
