@@ -689,6 +689,30 @@ export default function FumettiTab({ embedded = false } = {}) {
     window.addEventListener("pointercancel", up);
   }
 
+
+  // Geometria effettiva mostrata da ComicPageEditor, inclusi i default non salvati.
+  function exportGeometry() {
+    const count = panels.length, gap = 0.018;
+    const cols = count <= 1 ? 1 : 2;
+    const rows = Math.ceil(count / cols);
+    const w = (1 - gap * (cols + 1)) / cols;
+    const h = (1 - gap * (rows + 1)) / rows;
+    return panels.map((panel, index) => ({
+      x: panel.geometry?.x ?? gap + (index % cols) * (w + gap),
+      y: panel.geometry?.y ?? gap + Math.floor(index / cols) * (h + gap),
+      w: panel.geometry?.w ?? w,
+      h: panel.geometry?.h ?? h,
+      shape: panel.shape || "rect",
+      crop: panel.crop || { x: 0.5, y: 0.5, zoom: 1 },
+    }));
+  }
+
+  function appendVisualPage(body) {
+    body.append("layout", "custom");
+    body.append("page_format", pageFormat);
+    body.append("geometries", JSON.stringify(exportGeometry()));
+  }
+
   async function generate(e) {
     e?.preventDefault();
     if (!panels.length || !token || status === "drawing") return;
@@ -699,7 +723,7 @@ export default function FumettiTab({ embedded = false } = {}) {
     try {
       const body = new FormData();
       panels.forEach(p => body.append("images", p.file, p.file.name));
-      body.append("layout", layout);
+      appendVisualPage(body);
       body.append("captions", captionsPayload());
       body.append("bubbles", JSON.stringify(panels.map(p =>
         p.bubbles.filter(b => (b.text || "").trim()).map(({ id, ...b }) => b)
