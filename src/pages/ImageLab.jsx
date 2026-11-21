@@ -158,10 +158,10 @@ export default function ImageLab({ initialTab = "genera" }) {
     }
     window.dispatchEvent(new Event("dv-site-preview-change"));
   }, []);
-  // Ruolo dal gateway (admin | demo | none): i demo vedono solo GENERA.
+  // Ruolo dal gateway: demo e super condividono le funzioni operative di ImageLab.
   const [role, setRole] = useState("loading");
-  // Super user: stessi tab degli admin in ImageLab (fumetti, multifoto, history).
-  const isAdmin = role === "admin" || role === "super";
+  const canUseAdvanced = role === "admin" || role === "super" || role === "demo";
+  const canSeeHistory = role === "admin" || role === "super";
 
   const [prompt, setPrompt] = useState("");
   const [size, setSize] = useState(512);
@@ -191,13 +191,12 @@ export default function ImageLab({ initialTab = "genera" }) {
     }
   }, [tab]);
 
-  // Utenti demo: GENERA + OCR + Fumetti. Super: anche Storie/Multifoto.
-  // Solo lo Storico resta esclusivo degli admin.
+  // Lo Storico immagini resta riservato a superuser e admin.
   useEffect(() => {
-    if (role !== "loading" && role !== "admin" && tab === "storico") {
+    if (role !== "loading" && !canSeeHistory && tab === "storico") {
       setTab("genera");
     }
-  }, [role, tab]);
+  }, [role, canSeeHistory, tab]);
   const [initFile, setInitFile] = useState(null);
   const [initPreview, setInitPreview] = useState("");
   const [strength, setStrength] = useState(0.65);
@@ -962,7 +961,7 @@ export default function ImageLab({ initialTab = "genera" }) {
           >
             {t("img.tabGenera")}
           </button>
-          {role === "admin" && (
+          {canSeeHistory && (
           <button
             type="button"
             className={"il-tab" + (tab === "storico" ? " il-tab-active" : "")}
@@ -978,7 +977,7 @@ export default function ImageLab({ initialTab = "genera" }) {
           >
             <span className="il-tab-ocr-text">📄 OCR · {t("img.ocrTabSubtitle", { defaultValue: "Extract text" })}</span>
           </button>
-          {isAdmin && (
+          {canUseAdvanced && (
           <>
           <button
             type="button"
