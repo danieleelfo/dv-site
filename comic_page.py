@@ -268,8 +268,10 @@ def _shape_mask(size, shape):
         points = [(width * .5, 0), (width, height * .5), (width * .5, height), (0, height * .5)]
     elif shape == "trapezoid":
         points = [(width * .18, 0), (width * .82, 0), (width, height), (0, height)]
-    elif shape == "diagonal":
+    elif shape in ("diagonal", "diagonal-right"):
         points = [(0, 0), (width, height * .12), (width, height), (0, height * .88)]
+    elif shape == "diagonal-left":
+        points = [(0, height * .12), (width, 0), (width, height * .88), (0, height)]
     else:
         draw.rectangle((0, 0, width - 1, height - 1), fill=255)
         return mask
@@ -286,7 +288,7 @@ def _compose_custom(decoded, bubble_sets, caption_texts, geometries, page_format
     scale = min(1.0, PAGE_MAX / max(page_w, page_h))
     page_w, page_h = round(page_w * scale), round(page_h * scale)
     # Il canvas dell’editor usa lo stesso fondo chiaro tra le vignette.
-    page = Image.new("RGB", (page_w, page_h), "#f3f0e8")
+    page = Image.new("RGB", (page_w, page_h), "#000000")
 
     for index, (source, specs, caption, geometry) in enumerate(
         zip(decoded, bubble_sets, caption_texts, geometries)
@@ -331,9 +333,13 @@ def _compose_custom(decoded, bubble_sets, caption_texts, geometries, page_format
             points = [(x + panel_w * .18, y), (x + panel_w * .82, y),
                       (x + panel_w - 1, y + panel_h - 1), (x, y + panel_h - 1)]
             border.line(points + [points[0]], fill=BORDER, width=max(2, round(page_w / 320)))
-        elif shape == "diagonal":
+        elif shape in ("diagonal", "diagonal-right"):
             points = [(x, y), (x + panel_w - 1, y + panel_h * .12),
                       (x + panel_w - 1, y + panel_h - 1), (x, y + panel_h * .88)]
+            border.line(points + [points[0]], fill=BORDER, width=max(2, round(page_w / 320)))
+        elif shape == "diagonal-left":
+            points = [(x, y + panel_h * .12), (x + panel_w - 1, y),
+                      (x + panel_w - 1, y + panel_h * .88), (x, y + panel_h - 1)]
             border.line(points + [points[0]], fill=BORDER, width=max(2, round(page_w / 320)))
         else:
             border.rectangle((x, y, x + panel_w - 1, y + panel_h - 1),
