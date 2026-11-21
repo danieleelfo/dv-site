@@ -64,7 +64,7 @@ DIAG_SS = 4        # supersampling dei bordi obliqui (antialias)
 
 
 def _apply_bubbles(panel, source, specs, index, cover=False):
-    """Disegna i balloon sulla foto `panel` (coordinate relative all'immagine)."""
+    """Disegna i balloon sulla foto `panel` (`coordinate relative all'immagine`)."""
     if not isinstance(specs, list):
         raise HTTPException(status_code=400, detail=f"Balloon non validi nella vignetta {index + 1}.")
     if len(specs) > 20:
@@ -317,7 +317,10 @@ def _compose_custom(decoded, bubble_sets, caption_texts, geometries, page_format
             lines = caption_block["lines"]
             max_lines = max(1, (caption_h - CAPTION_PAD * 2) // max(1, line_h))
             ty = photo_h + CAPTION_PAD
-            for line in lines[:max_lines]:
+            shown = lines[:max_lines]
+            if len(lines) > max_lines:
+                shown[-1] = shown[-1].rstrip(" .,;:!?") + "…"  # testo troncato: lo segnalo
+            for line in shown:
                 draw.text((CAPTION_PAD, ty), line, font=caption_block["font"], fill=CAPTION_FG)
                 ty += line_h
 
@@ -408,7 +411,7 @@ def build_comic_page_router(verify_admin_token):
         decoded = []
         total = 0
         for upload in images:
-            data = await upload.read()
+            data = await upload.read(MAX_IMAGE_BYTES + 1)  # il limite vale anche durante la lettura
             total += len(data)
             if len(data) > MAX_IMAGE_BYTES:
                 raise HTTPException(status_code=400, detail="Una foto supera 15 MB.")
