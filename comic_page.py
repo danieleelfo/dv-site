@@ -301,7 +301,16 @@ def _compose_custom(decoded, bubble_sets, caption_texts, geometries, page_format
         panel_h = min(panel_h, page_h - y)
 
         caption_block = _caption_block(caption, panel_w) if caption else None
-        caption_h = min(caption_block["height"], max(0, panel_h // 2)) if caption_block else 0
+        max_caption_h = max(0, panel_h // 2)
+        if caption_block and caption_block["height"] > max_caption_h:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Didascalia troppo lunga nella vignetta {index + 1} "
+                    "per lo spazio disponibile: aumenta l'altezza della vignetta o riduci il testo."
+                ),
+            )
+        caption_h = caption_block["height"] if caption_block else 0
         photo_h = max(1, panel_h - caption_h)
         photo = _custom_crop(
             source, (panel_w, photo_h), geometry.get("crop", {}),
