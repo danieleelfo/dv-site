@@ -7,8 +7,8 @@ const FORMATS = {
   "comic-portrait": { label: "Comic · Verticale", ratio: 2 / 3 },
   "comic-landscape": { label: "Comic · Orizzontale", ratio: 3 / 2 },
 };
-const SHAPES = [["rect","Rettangolo"],["diagonal","Diagonale"],["trapezoid","Trapezio"],["diamond","Rombo"]];
-function defaultGeometry(index,count){
+const SHAPES = [["rect","Rettangolo"],["diagonal-right","Diagonale ↘"],["diagonal-left","Diagonale ↙"],["trapezoid","Trapezio"],["diamond","Rombo"]];
+export function defaultGeometry(index,count){
   const cols=count<=1?1:2, rows=Math.ceil(count/cols), gap=.018;
   const w=(1-gap*(cols+1))/cols, h=(1-gap*(rows+1))/rows;
   return {x:gap+(index%cols)*(w+gap),y:gap+Math.floor(index/cols)*(h+gap),w,h};
@@ -16,7 +16,8 @@ function defaultGeometry(index,count){
 function shapeStyle(shape){
   if(shape==="diamond")return {clipPath:"polygon(50% 0,100% 50%,50% 100%,0 50%)"};
   if(shape==="trapezoid")return {clipPath:"polygon(18% 0,82% 0,100% 100%,0 100%)"};
-  if(shape==="diagonal")return {clipPath:"polygon(0 0,100% 12%,100% 100%,0 88%)"};
+  if(shape==="diagonal"||shape==="diagonal-right")return {clipPath:"polygon(0 0,100% 12%,100% 100%,0 88%)"};
+  if(shape==="diagonal-left")return {clipPath:"polygon(0 12%,100% 0,100% 88%,0 100%)"};
   return {};
 }
 export default function ComicPageEditor({panels,onPanelsChange,pageFormat,onPageFormatChange,activeId,onActiveIdChange}){
@@ -65,7 +66,7 @@ export default function ComicPageEditor({panels,onPanelsChange,pageFormat,onPage
       {!panels.length&&<p className="fb-page-empty">Aggiungi delle foto per iniziare a comporre la pagina.</p>}
     </div></div>
     {active&&<div className="fb-page-tools"><b>Vignetta {panels.findIndex(p=>p.id===active.id)+1}</b>
-      <label>Forma<select className="fb-input" value={active.shape||"rect"} onChange={e=>patchPanel(active.id,{shape:e.target.value})}>{SHAPES.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
+      <label>Forma<select className="fb-input" value={active.shape==="diagonal"?"diagonal-right":(active.shape||"rect")} onChange={e=>patchPanel(active.id,{shape:e.target.value})}>{SHAPES.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
       <label>Zoom immagine · {Number(active.crop?.zoom||1).toFixed(2)}×<input type="range" min="1" max="2.5" step=".05" value={active.crop?.zoom||1} onChange={e=>patchPanel(active.id,{crop:{...(active.crop||{x:.5,y:.5}),zoom:Number(e.target.value)}})}/></label>
       <button type="button" className="fb-btn fb-mini" onClick={()=>patchPanel(active.id,{geometry:null,shape:"rect",crop:{x:.5,y:.5,zoom:1}})}>Reset vignetta</button>
     </div>}
