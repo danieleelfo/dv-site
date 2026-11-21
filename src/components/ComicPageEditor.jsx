@@ -75,7 +75,7 @@ export default function ComicPageEditor({panels,onPanelsChange,pageFormat,onPage
       .fb-arrange-actions{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;color:var(--ink-dim,#9aabb5);font-size:.75rem}
       .fb-page-stage{display:flex;justify-content:center;align-items:flex-start;max-height:75vh;overflow:auto;padding:.6rem;background:var(--bg,#0b1015);border-radius:9px}
       .fb-page-canvas{position:relative;width:min(100%,680px);min-width:260px;max-height:70vh;background:#f3f0e8;border:1px solid #68717a;box-shadow:0 8px 26px #0005;overflow:hidden}
-      .fb-page-panel{position:absolute;box-sizing:border-box;overflow:hidden;background:#20252b;border:2px solid #111;cursor:move;touch-action:none;user-select:none}.fb-page-panel.is-selected{outline:3px solid #3fd0c9;outline-offset:1px;z-index:5}
+      .fb-page-panel{position:absolute;box-sizing:border-box;overflow:hidden;background:#20252b;border:2px solid #111;cursor:move;touch-action:none;user-select:none}.fb-page-panel.is-selected{outline:3px solid #3fd0c9;outline-offset:1px}
       .fb-page-panel img{display:block;width:100%;height:100%;object-fit:cover;pointer-events:none}.fb-page-panel-number{position:absolute;left:5px;top:5px;padding:2px 6px;border-radius:4px;background:#080c10bb;color:white;font-size:11px;pointer-events:none}
       .fb-page-resize{position:absolute;right:0;bottom:0;width:30px;height:30px;border:1px solid #fff;border-radius:7px 0 0 0;background:#3fd0c9;color:#071212;font-weight:bold;cursor:nwse-resize;touch-action:none}
       .fb-page-empty{position:absolute;inset:0;display:grid;place-items:center;color:#38434b;font-size:.85rem}.fb-page-tools{display:flex;align-items:end;gap:.8rem;flex-wrap:wrap}.fb-page-tools label{flex:1 1 160px}
