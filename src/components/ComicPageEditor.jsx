@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 const FORMATS = {
   "a4-portrait": { label: "A4 · Portrait", ratio: 210 / 297 },
@@ -21,8 +21,12 @@ function shapeStyle(shape){
   return {};
 }
 export default function ComicPageEditor({panels,onPanelsChange,pageFormat,onPageFormatChange,activeId,onActiveIdChange}){
+  const dragStopRef=useRef(null);
+  // Se il componente sparisce durante un trascinamento, rimuovo i listener sulla finestra.
+  useEffect(()=>()=>{dragStopRef.current?.();},[]);
   const pageRef=useRef(null), format=FORMATS[pageFormat]||FORMATS["a4-portrait"];
   const geometries=useMemo(()=>panels.map((p,i)=>p.geometry||defaultGeometry(i,panels.length)),[panels]);
+  const cropOf=p=>({x:.5,y:.5,zoom:1,...(p.crop||{})});
   function patchPanel(id,patch){onPanelsChange(old=>old.map(p=>p.id===id?{...p,...patch}:p));}
   function drag(event,panel,index,resize=false){
     if(event.button!==undefined&&event.button!==0)return;
@@ -37,7 +41,8 @@ export default function ComicPageEditor({panels,onPanelsChange,pageFormat,onPage
         patchPanel(panel.id,{geometry:{...initial,x:Math.max(0,Math.min(1-initial.w,initial.x+dx)),y:Math.max(0,Math.min(1-initial.h,initial.y+dy))}});
       }
     };
-    const stop=()=>{window.removeEventListener("pointermove",move);window.removeEventListener("pointerup",stop);window.removeEventListener("pointercancel",stop);};
+    const stop=()=>{window.removeEventListener("pointermove",move);window.removeEventListener("pointerup",stop);window.removeEventListener("pointercancel",stop);dragStopRef.current=null;};
+    dragStopRef.current=stop;
     window.addEventListener("pointermove",move);window.addEventListener("pointerup",stop);window.addEventListener("pointercancel",stop);
   }
   function autoArrange(mode){
@@ -67,7 +72,9 @@ export default function ComicPageEditor({panels,onPanelsChange,pageFormat,onPage
     </div></div>
     {active&&<div className="fb-page-tools"><b>Vignetta {panels.findIndex(p=>p.id===active.id)+1}</b>
       <label>Forma<select className="fb-input" value={active.shape==="diagonal"?"diagonal-right":(active.shape||"rect")} onChange={e=>patchPanel(active.id,{shape:e.target.value})}>{SHAPES.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select></label>
-      <label>Zoom immagine · {Number(active.crop?.zoom||1).toFixed(2)}×<input type="range" min="1" max="2.5" step=".05" value={active.crop?.zoom||1} onChange={e=>patchPanel(active.id,{crop:{...(active.crop||{x:.5,y:.5}),zoom:Number(e.target.value)}})}/></label>
+      <label>Zoom immagine · {Number(active.crop?.zoom||1).toFixed(2)}×<input type="range" min="1" max="2.5" step=".05" value={active.crop?.zoom||1} onChange={e=>patchPanel(active.id,{crop:{...cropOf(active),zoom:Number(e.target.value)}})}/></label>
+      <label>Inquadratura ↔ · {Math.round(cropOf(active).x*100)}%<input type="range" min="0" max="1" step=".01" value={cropOf(active).x} onChange={e=>patchPanel(active.id,{crop:{...cropOf(active),x:Number(e.target.value)}})}/></label>
+      <label>Inquadratura ↕ · {Math.round(cropOf(active).y*100)}%<input type="range" min="0" max="1" step=".01" value={cropOf(active).y} onChange={e=>patchPanel(active.id,{crop:{...cropOf(active),y:Number(e.target.value)}})}/></label>
       <button type="button" className="fb-btn fb-mini" onClick={()=>patchPanel(active.id,{geometry:null,shape:"rect",crop:{x:.5,y:.5,zoom:1}})}>Reset vignetta</button>
     </div>}
     <style>{`
@@ -75,7 +82,7 @@ export default function ComicPageEditor({panels,onPanelsChange,pageFormat,onPage
       .fb-format-control,.fb-page-tools label{display:grid;gap:.35rem;min-width:170px;color:var(--ink-dim,#9aabb5);font-size:.74rem}
       .fb-arrange-actions{display:flex;align-items:center;gap:.45rem;flex-wrap:wrap;color:var(--ink-dim,#9aabb5);font-size:.75rem}
       .fb-page-stage{display:flex;justify-content:center;align-items:flex-start;max-height:75vh;overflow:auto;padding:.6rem;background:var(--bg,#0b1015);border-radius:9px}
-      .fb-page-canvas{position:relative;width:min(100%,680px);min-width:260px;max-height:70vh;background:#f3f0e8;border:1px solid #68717a;box-shadow:0 8px 26px #0005;overflow:hidden}
+      .fb-page-canvas{position:relative;width:min(100%,680px);min-width:260px;max-height:70vh;background:#000;border:1px solid #68717a;box-shadow:0 8px 26px #0005;overflow:hidden}
       .fb-page-panel{position:absolute;box-sizing:border-box;overflow:hidden;background:#20252b;border:2px solid #111;cursor:move;touch-action:none;user-select:none}.fb-page-panel.is-selected{outline:3px solid #3fd0c9;outline-offset:1px;z-index:5}
       .fb-page-panel img{display:block;width:100%;height:100%;object-fit:cover;pointer-events:none}.fb-page-panel-number{position:absolute;left:5px;top:5px;padding:2px 6px;border-radius:4px;background:#080c10bb;color:white;font-size:11px;pointer-events:none}
       .fb-page-resize{position:absolute;right:0;bottom:0;width:30px;height:30px;border:1px solid #fff;border-radius:7px 0 0 0;background:#3fd0c9;color:#071212;font-weight:bold;cursor:nwse-resize;touch-action:none}
