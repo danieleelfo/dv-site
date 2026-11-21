@@ -282,7 +282,7 @@ app.include_router(
 
 # FUMETTI — tab Fumetti di ImageLab: 1 foto + fumetti disegnati con Pillow
 app.include_router(
-    build_bubbles_router(verify_super_token)
+    build_bubbles_router(verify_user_token)
 )
 app.include_router(
     build_comic_page_router(verify_user_token)
@@ -4625,7 +4625,7 @@ async def image_compose(
                 d.line([(0, y), (w, y)], fill=int(255 * (y / (fh - 1))))
         return mask
 
-    verify_super_token(authorization)
+    verify_user_token(authorization)
 
     if not images:
         raise HTTPException(status_code=400, detail="Nessuna immagine ricevuta.")
