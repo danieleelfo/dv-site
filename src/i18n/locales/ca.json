@@ -1390,6 +1390,10 @@
     "noUploadedImages": "No hi ha cap imatge carregada.",
     "delete": "Elimina",
     "deleteUploadedConfirm": "Vols eliminar aquesta imatge d'Uploaded? Els esborranys desats no es modifiquen: cadascun té la seva còpia.",
-    "uploadLimitError": "S'admeten imatges de fins a 15 MB cadascuna."
+    "uploadLimitError": "S'admeten imatges de fins a 15 MB cadascuna.",
+    "promptUnavailable": "Prompt no disponible",
+    "pageOf": "Pàgina {{page}} de {{pages}}",
+    "pagesRange": "Pàgines {{start}}–{{end}}",
+    "steps": "passos"
   }
 }
