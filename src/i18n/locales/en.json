@@ -1084,7 +1084,9 @@
       "distributeTextHint": "Use “Split into panels” to distribute the text, then edit each caption. Text is drawn below the photo in the image and PDF. To exclude it, choose “Do not include story”.",
       "panelCaptionPlaceholder": "Text for this panel…",
       "previousSentence": "Previous sentence",
-      "nextSentence": "Last sentence"
+      "nextSentence": "Last sentence",
+      "draftNamePrompt": "Draft name (e.g. comic1):",
+      "renameDraftPrompt": "New name for the draft (e.g. comic2):"
     },
     "archive": {
       "kicker": "GRADV · MAIN ARCHIVE",
