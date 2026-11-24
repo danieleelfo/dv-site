@@ -11,7 +11,7 @@ import { deleteUploadedImage, getUploadedImage, listUploadedImages, saveUploaded
 const API = "https://api.danielevillanova.com";
 const PAGE_SIZE = 24;
 
-async function readJson(response) {
+async function readJson(response, t) {
   const text = await response.text().catch(() => "");
   let data = null;
   try {
@@ -19,10 +19,7 @@ async function readJson(response) {
   } catch {
     // Mostra status + corpo: cosi' si vede se e' HTML del tunnel o altro.
     throw new Error(
-      "Risposta non JSON dal gateway (HTTP " +
-        response.status +
-        "): " +
-        (text.slice(0, 120) || "corpo vuoto")
+      t("imgHist.nonJsonResponse", { status: response.status, body: text.slice(0, 120) || t("imgHist.emptyBody") })
     );
   }
   if (!response.ok) {
@@ -151,7 +148,7 @@ export default function ImgHist({ idToken, owner = "", onReuse }) {
           headers: { Authorization: "Bearer " + idToken },
         });
 
-        const data = await readJson(response);
+        const data = await readJson(response, t);
         setItems(Array.isArray(data.items) ? data.items : []);
         setTotal(Number(data.total || 0));
         setPages(Math.max(1, Number(data.pages || 1)));
