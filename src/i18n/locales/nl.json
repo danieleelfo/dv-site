@@ -1390,6 +1390,10 @@
     "noUploadedImages": "Geen afbeeldingen geüpload.",
     "delete": "Verwijderen",
     "deleteUploadedConfirm": "Deze afbeelding uit Uploaded verwijderen? Bestaande concepten blijven behouden; elk concept heeft een eigen kopie.",
-    "uploadLimitError": "Afbeeldingen tot 15 MB per stuk zijn toegestaan."
+    "uploadLimitError": "Afbeeldingen tot 15 MB per stuk zijn toegestaan.",
+    "promptUnavailable": "Prompt niet beschikbaar",
+    "pageOf": "Pagina {{page}} van {{pages}}",
+    "pagesRange": "Pagina's {{start}}–{{end}}",
+    "steps": "stappen"
   }
 }
