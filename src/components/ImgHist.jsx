@@ -316,7 +316,7 @@ export default function ImgHist({ idToken, owner = "", onReuse }) {
               {thumbs[item.id] ? (
                 <img
                   src={thumbs[item.id]}
-                  alt={item.prompt || "GraDV #" + item.id}
+                  alt={item.prompt || t("imgHist.imageFallback", { id: item.id })}
                   loading="lazy"
                 />
               ) : (
@@ -330,9 +330,9 @@ export default function ImgHist({ idToken, owner = "", onReuse }) {
             <span className="ilh-card-prompt">
               {String(item.prompt || "").length > 140
                 ? String(item.prompt).slice(0, 140) + "…"
-                : item.prompt || "Prompt non disponibile"}
+                : item.prompt || t("imgHist.promptUnavailable")}
             </span>
-            <small>{formatDate(item.created_at)}</small>
+            <small>{formatDate(item.created_at, i18n.language)}</small>
           </button>
         ))}
       </div>
@@ -348,11 +348,11 @@ export default function ImgHist({ idToken, owner = "", onReuse }) {
               >
                 <span className="ilh-list-id">#{item.id}</span>
                 <span className="ilh-list-prompt">
-                  {item.prompt || "Prompt non disponibile"}
+                  {item.prompt || t("imgHist.promptUnavailable")}
                 </span>
                 <span className="ilh-list-meta">
                   {item.width} × {item.height} · seed {item.seed ?? "—"} ·{" "}
-                  {formatDate(item.created_at)}
+                  {formatDate(item.created_at, i18n.language)}
                 </span>
               </button>
             </li>
@@ -370,7 +370,7 @@ export default function ImgHist({ idToken, owner = "", onReuse }) {
             ←
           </button>
           <span className="il-page-info">
-            Pagina {page} di {pages}
+            {t("imgHist.pageOf", { page, pages })}
           </span>
           <select
             value={Math.floor((page - 1) / 10)}
@@ -393,7 +393,7 @@ export default function ImgHist({ idToken, owner = "", onReuse }) {
               const end = Math.min((g + 1) * 10, pages);
               return (
                 <option key={g} value={g}>
-                  Pagine {start}–{end}
+                  {t("imgHist.pagesRange", { start, end })}
                 </option>
               );
             })}
@@ -427,8 +427,8 @@ export default function ImgHist({ idToken, owner = "", onReuse }) {
               <span>#{selected.id}</span>
               <span>{selected.width} × {selected.height}</span>
               <span>Seed: {selected.seed ?? "—"}</span>
-              <span>{selected.steps ?? "—"} step</span>
-              <span>{formatDate(selected.created_at)}</span>
+              <span>{selected.steps ?? "—"} {t("imgHist.steps")}</span>
+              <span>{formatDate(selected.created_at, i18n.language)}</span>
             </div>
             <div className="il-actions">
               {fullImage && (
