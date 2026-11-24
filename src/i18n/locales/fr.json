@@ -1358,7 +1358,8 @@
     "comicFormatPortrait": "A4 portrait",
     "illustrationVersions": "Versions des illustrations :",
     "illustrationsLabel": "🖼 Illustrations",
-    "deleteStoryTitle": "Supprimer le récit"
+    "deleteStoryTitle": "Supprimer le récit",
+    "kidsPreset": "Dessin animé pour enfants (sw_kids)"
   },
   "imgHist": {
     "createdImages": "Images créées",
