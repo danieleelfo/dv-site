@@ -11,6 +11,7 @@
 // ============================================================
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 const API = "https://api.danielevillanova.com";
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -148,6 +149,7 @@ function flatten(obj, prefix = "", out = {}) {
 // ============================================================
 
 export default function I18nAdmin() {
+  const { t } = useTranslation();
   const { idToken, email, buttonRef, logout } = useGoogleAuth();
 
   const [locales, setLocales] = useState(null);
@@ -265,7 +267,7 @@ export default function I18nAdmin() {
     if (!nEdits) return;
     if (
       !window.confirm(
-        "Pubblicare " + nEdits + " modifica/i i18n?\nCommit + push su main di dv-site."
+        t("i18nAdmin.confirmPublish", { count: nEdits })
       )
     )
       return;
@@ -273,7 +275,7 @@ export default function I18nAdmin() {
     try {
       const d = await api("/api/admin/i18n/save", { changes: edits });
       setOkMsg(
-        "Pubblicato: " + d.sha + " (" + (d.langs || []).join("/").toUpperCase() + ")"
+        t("i18nAdmin.published", { sha: d.sha, langs: (d.langs || []).join("/").toUpperCase() })
       );
       setEdits({});
       const l = await api("/api/admin/i18n");
@@ -288,9 +290,9 @@ export default function I18nAdmin() {
   if (!idToken) {
     return (
       <div className="i18-page">
-        <h1>I18n Admin</h1>
+        <h1>{t("i18nAdmin.title")}</h1>
         <p className="i18-empty">
-          Accedi con Google per modificare i testi del sito.
+          {t("i18nAdmin.loginIntro")}
         </p>
         <div ref={buttonRef} />
       </div>
@@ -303,21 +305,19 @@ export default function I18nAdmin() {
         <div>
           <h1>I18n Admin</h1>
           <p className="i18-sub">
-            Testi del sito (src/i18n/locales). Seleziona una chiave, modifica le
-            lingue che vuoi (EN è il riferimento), poi pubblica: un solo commit
-            con tutte le modifiche.
+            {t("i18nAdmin.description")}
           </p>
         </div>
         <div className="i18-auth">
           <span>{email}</span>
-          <button className="i18-btn" onClick={logout}>Logout</button>
+          <button className="i18-btn" onClick={logout}>{t("i18nAdmin.logout")}</button>
         </div>
       </div>
 
       <div className="i18-toolbar">
         <input
           className="i18-search"
-          placeholder="cerca chiave (es. nav.home, ethics, qdb.err)…"
+          placeholder={t("i18nAdmin.searchPlaceholder")}
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
@@ -325,23 +325,23 @@ export default function I18nAdmin() {
           className="i18-btn i18-primary"
           disabled={busy === "publish" || !nEdits}
           onClick={publish}
-          title="Commit + push su main (git pull --ff-only, JSON indent 2)"
+          title={t("i18nAdmin.publishTitle")}
         >
           {busy === "publish"
-            ? "Pubblicazione…"
+            ? t("i18nAdmin.publishing")
             : nEdits
-            ? "Pubblica " + nEdits + " modifica" + (nEdits > 1 ? "i" : "")
-            : "Pubblica"}
+            ? t("i18nAdmin.publishCount", { count: nEdits })
+            : t("i18nAdmin.publish")}
         </button>
       </div>
 
       {!locales ? (
-        <p className="i18-empty">Caricamento…</p>
+        <p className="i18-empty">{t("i18nAdmin.loading")}</p>
       ) : (
         <div className="i18-cols">
           <div className="i18-list">
             {paths.length === 0 && (
-              <p className="i18-empty">Nessuna chiave trovata.</p>
+              <p className="i18-empty">{t("i18nAdmin.noKeys")}</p>
             )}
             {filter.trim()
               ? paths.map((p) => keyBtn(p, p))
@@ -407,7 +407,7 @@ export default function I18nAdmin() {
                     <div key={l} className="i18-row">
                       <label className="i18-lang">
                         {LANG_FLAGS[l]} {LANG_LABELS[l]}
-                        {l === "en" && <span className="i18-ref">riferimento</span>}
+                        {l === "en" && <span className="i18-ref">{t("i18nAdmin.reference")}</span>}
                       </label>
                       {long ? (
                         <textarea
@@ -421,16 +421,16 @@ export default function I18nAdmin() {
                           onChange={(e) => setEdit(l, sel, e.target.value)}
                         />
                       )}
-                      <div className="i18-refval" title="Valore EN di riferimento">
-                        {l !== "en" && "EN: " + (ref || "(vuoto)")}
+                      <div className="i18-refval" title={t("i18nAdmin.referenceValue")}>
+                        {l !== "en" && t("i18nAdmin.enValue", { value: ref || t("i18nAdmin.emptyValue") })}
                       </div>
-                      {dirty && <span className="i18-dirty-badge">modificato</span>}
+                      {dirty && <span className="i18-dirty-badge">{t("i18nAdmin.modified")}</span>}
                     </div>
                   );
                 })}
               </>
             ) : (
-              <p className="i18-empty">Seleziona una chiave a sinistra.</p>
+              <p className="i18-empty">{t("i18nAdmin.selectKey")}</p>
             )}
           </div>
         </div>
