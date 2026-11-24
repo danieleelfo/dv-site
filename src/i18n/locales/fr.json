@@ -1397,6 +1397,8 @@
     "promptUnavailable": "Prompt indisponible",
     "pageOf": "Page {{page}} sur {{pages}}",
     "pagesRange": "Pages {{start}}–{{end}}",
-    "steps": "étapes"
+    "steps": "étapes",
+    "nonJsonResponse": "Réponse non JSON de la passerelle (HTTP {{status}}) : {{body}}",
+    "emptyBody": "corps vide"
   }
 }
