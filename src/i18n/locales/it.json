@@ -1390,6 +1390,10 @@
     "noUploadedImages": "Nessuna immagine caricata.",
     "delete": "Elimina",
     "deleteUploadedConfirm": "Eliminare questa immagine da Uploaded? Le bozze già salvate non vengono toccate: hanno una propria copia.",
-    "uploadLimitError": "Sono ammesse immagini fino a 15 MB ciascuna."
+    "uploadLimitError": "Sono ammesse immagini fino a 15 MB ciascuna.",
+    "promptUnavailable": "Prompt non disponibile",
+    "pageOf": "Pagina {{page}} di {{pages}}",
+    "pagesRange": "Pagine {{start}}–{{end}}",
+    "steps": "step"
   }
 }
