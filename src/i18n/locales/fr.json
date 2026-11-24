@@ -1390,6 +1390,10 @@
     "noUploadedImages": "Aucune image importée.",
     "delete": "Supprimer",
     "deleteUploadedConfirm": "Supprimer cette image d'Uploaded ? Les brouillons existants ne sont pas modifiés : chacun possède sa propre copie.",
-    "uploadLimitError": "Les images de 15 Mo maximum sont autorisées."
+    "uploadLimitError": "Les images de 15 Mo maximum sont autorisées.",
+    "promptUnavailable": "Prompt indisponible",
+    "pageOf": "Page {{page}} sur {{pages}}",
+    "pagesRange": "Pages {{start}}–{{end}}",
+    "steps": "étapes"
   }
 }
