@@ -1433,7 +1433,7 @@ export default function StoriesTab({ idToken }) {
         <section className="il-panel" style={{ marginBottom: "1rem" }}>
           <div className="il-section-heading">
             <div>
-              <p className="il-eyebrow">RACCONTO</p>
+              <p className="il-eyebrow">{t("storiesTab.storytelling")}</p>
               <h2>{current.prompt}</h2>
             </div>
             <span className="il-history-meta">
@@ -1450,7 +1450,7 @@ export default function StoriesTab({ idToken }) {
 
           {current.story_id && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: ".6rem", alignItems: "center", marginTop: ".9rem" }}>
-              <span className="il-label" style={{ margin: 0 }}>🌍 Lingua racconto</span>
+              <span className="il-label" style={{ margin: 0 }}>{t("storiesTab.storyLanguageLabel")}</span>
               <select
                 className="il-input"
                 value={current.language || "it"}
@@ -1474,7 +1474,7 @@ export default function StoriesTab({ idToken }) {
 
           {current.audioUrl && (
             <div style={{ marginTop: ".9rem" }}>
-              <label className="il-label">🎧 Audio</label>
+              <label className="il-label">{t("storiesTab.audioLabel")}</label>
               <audio controls src={current.audioUrl} style={{ width: "100%" }} />
             </div>
           )}
@@ -1484,14 +1484,14 @@ export default function StoriesTab({ idToken }) {
               onSubmit={regenerateIllustrations}
               style={{ marginTop: "1rem", padding: ".9rem", border: "1px solid var(--border, #1f2b35)", borderRadius: "8px" }}
             >
-              <label className="il-label">🔁 Rigenera illustrazioni (nuova versione)</label>
+              <label className="il-label">{t("storiesTab.regenerateIllustrations")}</label>
               <div style={{ display: "flex", flexWrap: "wrap", gap: ".6rem", alignItems: "center" }}>
                 <select
                   className="il-input"
                   value={regModel}
                   onChange={(event) => setRegModel(event.target.value)}
                   style={{ flex: "0 0 auto", minWidth: "9rem" }}
-                  aria-label="Modello Ollama per la nuova versione"
+                  aria-label={t("storiesTab.newVersionModelAria")}
                   disabled={busy}
                 >
                   {["qwen2.5", "mistral", "llama3", "gemma4", "deepseek-r1"].map((m) => (
@@ -1503,19 +1503,19 @@ export default function StoriesTab({ idToken }) {
                   value={regPreset}
                   onChange={(event) => setRegPreset(event.target.value)}
                   style={{ flex: "0 0 auto", minWidth: "11rem" }}
-                  aria-label="Preset di stile base per la nuova versione"
+                  aria-label={t("storiesTab.baseStylePresetAria")}
                   disabled={busy}
                 >
                   <option value="">Come la storia ({autoPreset})</option>
                   <option value="sw_kids">Kids cartoon (sw_kids)</option>
-                  <option value="ns_free">Adulta (ns_free)</option>
+                  <option value="ns_free">{t("storiesTab.adultPreset")}</option>
                 </select>
                 <select
                   className="il-input"
                   value={regCount}
                   onChange={(event) => setRegCount(event.target.value ? Number(event.target.value) : "")}
                   style={{ flex: "0 0 auto", minWidth: "10rem" }}
-                  aria-label="Numero di illustrazioni per la nuova versione"
+                  aria-label={t("storiesTab.illustrationCountAria")}
                   disabled={busy}
                 >
                   <option value="">Come V{shownVersion} ({sceneCount})</option>
@@ -1528,7 +1528,7 @@ export default function StoriesTab({ idToken }) {
                   value={regFormat}
                   onChange={(event) => setRegFormat(event.target.value)}
                   style={{ flex: "0 0 auto", minWidth: "9rem" }}
-                  aria-label="Formato immagini per la nuova versione"
+                  aria-label={t("storiesTab.imageFormatAria")}
                   disabled={busy}
                 >
                   {[["512x512", "1:1 · 512"], ["768x768", "1:1 · 768"], ["1024x1024", "1:1 · 1024"], ["768x576", "4:3 · 768"], ["1024x768", "4:3 · 1024"], ["1280x720", "16:9 · 1280"], ["960x640", "3:2 · 960"]].map(([value, label]) => (
@@ -1540,7 +1540,7 @@ export default function StoriesTab({ idToken }) {
                   value={regSteps}
                   onChange={(event) => setRegSteps(Number(event.target.value))}
                   style={{ flex: "0 0 auto", minWidth: "7rem" }}
-                  aria-label="Step di generazione per la nuova versione"
+                  aria-label={t("storiesTab.generationStepsAria")}
                   disabled={busy}
                 >
                   {IMG_STEPS.map((s) => (
@@ -1585,9 +1585,9 @@ export default function StoriesTab({ idToken }) {
                   type="text"
                   value={regStyle}
                   onChange={(event) => setRegStyle(event.target.value)}
-                  placeholder="Es. acquerello soft, matita colorata, cartoon manga…"
+                  placeholder={t("storiesTab.extraStyleVersionPlaceholder")}
                   style={{ flex: "1 1 14rem" }}
-                  aria-label="Stile extra per la nuova versione"
+                  aria-label={t("storiesTab.extraStyleVersionAria")}
                   disabled={busy}
                 />
                 {REG_STYLE_PRESETS.map(([label, value]) => (
@@ -1597,7 +1597,7 @@ export default function StoriesTab({ idToken }) {
                     className={"il-page-btn" + (regStyle === value ? " il-page-btn-active" : "")}
                     onClick={() => setRegStyle(regStyle === value ? "" : value)}
                     style={{ padding: ".2rem .6rem" }}
-                    title={"Stile: " + value}
+                    title={t("storiesTab.styleTitle", { style: value })}
                     disabled={busy}
                   >
                     {label}
@@ -1624,23 +1624,23 @@ export default function StoriesTab({ idToken }) {
                   value={comicLayout}
                   onChange={(event) => setComicLayout(event.target.value)}
                   style={{ flex: "0 0 auto", minWidth: "11rem" }}
-                  aria-label="Layout del fumetto"
+                  aria-label={t("storiesTab.comicLayoutAria")}
                   disabled={comicBusy}
                 >
-                  <option value="pages">Pagine (1 scena per pagina)</option>
-                  <option value="collage">Collage (griglia 2×2)</option>
-                  <option value="strip">Striscia unica verticale</option>
+                  <option value="pages">{t("storiesTab.comicLayoutPages")}</option>
+                  <option value="collage">{t("storiesTab.comicLayoutCollage")}</option>
+                  <option value="strip">{t("storiesTab.comicLayoutStrip")}</option>
                 </select>
                 <select
                   className="il-input"
                   value={comicFormat}
                   onChange={(event) => setComicFormat(event.target.value)}
                   style={{ flex: "0 0 auto", minWidth: "10rem" }}
-                  aria-label="Formato pagina"
+                  aria-label={t("storiesTab.comicFormatAria")}
                   disabled={comicBusy}
                 >
-                  <option value="landscape">A4 orizzontale</option>
-                  <option value="portrait">A4 verticale</option>
+                  <option value="landscape">{t("storiesTab.comicFormatLandscape")}</option>
+                  <option value="portrait">{t("storiesTab.comicFormatPortrait")}</option>
                 </select>
                 <label style={{ display: "flex", alignItems: "center", gap: ".35rem", fontSize: ".8rem", color: "var(--ink-dim, #8fa1ac)" }}>
                   <input
@@ -1689,7 +1689,7 @@ export default function StoriesTab({ idToken }) {
 
           {versions.length > 1 && (
             <div style={{ marginTop: ".6rem", display: "flex", gap: ".4rem", alignItems: "center", flexWrap: "wrap" }}>
-              <span className="il-label" style={{ margin: 0 }}>Versioni illustrazioni:</span>
+              <span className="il-label" style={{ margin: 0 }}>{t("storiesTab.illustrationVersions")}</span>
               {versions.map((v) => {
                 const vScene = (current?.scenes || []).find((s) => sceneVersion(s) === v);
                 const vTitle = "V" + v +
@@ -1713,7 +1713,7 @@ export default function StoriesTab({ idToken }) {
 
           {sceneCount > 0 && (
             <div style={{ marginTop: "1rem" }}>
-              <label className="il-label">🖼 Illustrazioni</label>
+              <label className="il-label">{t("storiesTab.illustrationsLabel")}</label>
               <div className="il-history-grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
                 {visibleScenes.map((scene, i) => (
                   <figure key={i} style={{ margin: 0 }}>
@@ -1906,7 +1906,7 @@ export default function StoriesTab({ idToken }) {
               </p>
               <div className="il-history-meta">
                 <span>{new Date((item.created_at || 0) * 1000).toLocaleString("it-IT")}</span>
-                {item.has_audio && <span>🎧 audio</span>}
+                {item.has_audio && <span>{t("storiesTab.audioLabel")}</span>}
                 <span>{item.scene_count} {t("storiesTab.illustrationCount")}</span>
               </div>
               <div className="il-history-actions">
@@ -1914,7 +1914,7 @@ export default function StoriesTab({ idToken }) {
                 <button
                   className="il-button"
                   onClick={(event) => deleteStory(item, event)}
-                  title="Elimina la storia"
+                  title={t("storiesTab.deleteStoryTitle")}
                 >
                   ✕
                 </button>
