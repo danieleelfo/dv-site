@@ -916,7 +916,7 @@
     "jcsLabel": "🧾 Interpretació JCS",
     "ocrPromptLabel": "Prompt d'extracció (editable)",
     "ocrPromptPlaceholder": "Ex. Extreu només els totals d'aquesta factura",
-    "ocrPresetHint": "Presets:",
+    "ocrPresetHint": "Preajustos:",
     "ocrPresetAll": "Llegeix-ho tot",
     "ocrPresetTimesheet": "Timesheet 🧾",
     "ocrPresetDigits": "Només xifres",

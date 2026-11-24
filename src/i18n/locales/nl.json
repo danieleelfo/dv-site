@@ -32,6 +32,7 @@
     "home": "Home",
     "projects": "Projecten",
     "console": "Console",
+    "expertise": "Expertise",
     "trial": "Proef"
   },
   "home": {
@@ -427,7 +428,7 @@
     "recent": "Laatste activiteit",
     "noRecent": "Geen recente activiteit gemeld door de backend.",
     "waitingBackend": "Wachten op data van de backend.",
-    "previewEyebrow": "PREVIEW",
+    "previewEyebrow": "VOORBEELD",
     "page": "pagina {{n}}",
     "serverOrder": "Sortering op de server",
     "filterBy": "Filter {{col}} (bevat)",
@@ -790,7 +791,7 @@
     "totalMessages": "berichten totaal",
     "maxShort": "max",
     "starting": "STARTEN...",
-    "startExperiment": "▶️ START EXPERIMENT",
+    "startExperiment": "▶️ EXPERIMENT STARTEN",
     "signOut": "uitloggen",
     "authHint": "Log in met Google om een experiment te starten",
     "clientIdMissing": "GOOGLE_CLIENT_ID ontbreekt in Test4.jsx",
