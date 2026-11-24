@@ -1559,9 +1559,9 @@ export default function ImageLab({ initialTab = "genera" }) {
           <span>100% Local ⚓️</span>
         </footer>
 
-        <section className="il-site-preview" aria-label="Site layout preview">
-          <span>Site layout preview</span>
-          <div className="il-site-preview-options" role="group" aria-label="Modalità layout sito">
+        <section className="il-site-preview" aria-label={t("img.sitePreview.label")}>
+          <span>{t("img.sitePreview.label")}</span>
+          <div className="il-site-preview-options" role="group" aria-label={t("img.sitePreview.modeAria")}>
             {[
               ["auto", "Auto"],
               ["mobile", "Mobile"],
@@ -1579,7 +1579,7 @@ export default function ImageLab({ initialTab = "genera" }) {
             ))}
           </div>
           {sitePreview === "desktop" && (
-            <small>Ruota il telefono in orizzontale per controllare il layout desktop.</small>
+            <small>{t("img.sitePreview.rotateHint")}</small>
           )}
         </section>
       </div>
