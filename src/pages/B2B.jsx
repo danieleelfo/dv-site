@@ -1927,6 +1927,7 @@ function sleep(ms) {
 }
 
 function B2BImgTab({ setTab }) {
+  const { t } = useTranslation();
   const { idToken, email, buttonRef, logout } = useGoogleAuth();
 
   const [imgFile, setImgFile] = useState(null);
@@ -1955,11 +1956,11 @@ function B2BImgTab({ setTab }) {
       return;
     }
     if (!file.type.startsWith("image/")) {
-      setNotice("Il file non e' un'immagine.");
+      setNotice(t("b2bImg.notImage"));
       return;
     }
     if (file.size > 15 * 1024 * 1024) {
-      setNotice("Immagine troppo grande (max 15 MB).");
+      setNotice(t("b2bImg.tooLarge"));
       return;
     }
     setImgFile(file);
@@ -1997,10 +1998,10 @@ function B2BImgTab({ setTab }) {
           typeof data.detail === "string"
             ? data.detail            : data.detail
               ? JSON.stringify(data.detail)
-              : "HTTP " + res.status;
+              : t("b2bImg.httpError", { n: res.status });
         throw new Error(detail);
       }
-      if (!data.job_id) throw new Error("Nessun job_id dal gateway.");
+      if (!data.job_id) throw new Error(t("b2bImg.noJobId"));
 
       for (;;) {
         if (stopRef.current) throw new Error("__STOP__");
@@ -2012,7 +2013,7 @@ function B2BImgTab({ setTab }) {
         const s = String(st.status || "").toLowerCase();
         if (["completed", "complete", "succeeded", "success"].includes(s)) break;
         if (["failed", "error", "cancelled", "canceled"].includes(s)) {
-          throw new Error(st.error || "Generazione fallita.");
+          throw new Error(st.error || t("b2bImg.generationFailed"));
         }
       }
 
@@ -2020,7 +2021,7 @@ function B2BImgTab({ setTab }) {
         API + "/api/image/jobs/" + encodeURIComponent(data.job_id) + "/result",
         { headers }
       ).then((r) => r.json());
-      if (!result.image_base64) throw new Error("Risultato senza immagine.");
+      if (!result.image_base64) throw new Error(t("b2bImg.noImageResult"));
       const b64 = String(result.image_base64).replace(
         /^data:image\/png;base64,/i,
         ""
@@ -2040,12 +2041,12 @@ function B2BImgTab({ setTab }) {
 
   async function runAll() {
     if (!imgFile) {
-      setNotice("Carica prima un'immagine di partenza.");
+      setNotice(t("b2bImg.uploadFirst"));
       return;
     }
     const active = bots.filter((b) => b.on);
     if (!active.length) {
-      setNotice("Attiva almeno un bot.");
+      setNotice(t("b2bImg.enableBot"));
       return;
     }
     stopRef.current = false;
@@ -2066,7 +2067,7 @@ function B2BImgTab({ setTab }) {
         if (chainImages) {
           if (!outputImage) break;
           const blob = await fetch(outputImage).then((response) => {
-            if (!response.ok) throw new Error("Impossibile preparare l'immagine per il bot successivo.");
+            if (!response.ok) throw new Error(t("b2bImg.chainPrepareFailed"));
             return response.blob();
           });
           chainImage = new File(
@@ -2078,7 +2079,7 @@ function B2BImgTab({ setTab }) {
       } catch (e) {
         if (String(e.message) === "__STOP__") break;
         if (chainImages) {
-          setNotice("Catena interrotta: " + (e.message || String(e)));
+          setNotice(t("b2bImg.chainInterrupted", { message: e.message || String(e) }));
           break;
         }
       }
@@ -2117,11 +2118,11 @@ function B2BImgTab({ setTab }) {
             style={imgStyles.tabBtn}
             onClick={() => setTab && setTab("arena")}
           >
-            ← Bot to Bot
+            {t("b2bImg.back")}
           </button>
         </div>
         <p style={imgStyles.imgSub}>
-          Accedi con Google per modificare un'immagine con 12 bot img2img.
+          {t("b2bImg.loginIntro")}
         </p>
         <div style={{ marginTop: 20 }}>
           <div ref={buttonRef} style={{ display: "inline-block" }} />
@@ -2152,9 +2153,7 @@ function B2BImgTab({ setTab }) {
           </button>
         </div>
         <p style={imgStyles.imgSub}>
-          Un'immagine di partenza, 12 bot: ognuno produce la sua variante con il
-          proprio prompt di modifica, steps e forza modifica (strength). Il run è
-          sequenziale, un job per volta sul Mac. Risoluzione uguale per tutti.
+          {t("b2bImg.description")}
         </p>
       </div>
 
@@ -2162,9 +2161,9 @@ function B2BImgTab({ setTab }) {
         <div style={styles.sectionHeader}>
           <span style={styles.sectionIcon}>🖼️</span>
           <div>
-            <div style={styles.sectionTitle}>IMMAGINE + RISOLUZIONE (GLOBALI)</div>
+            <div style={styles.sectionTitle}>{t("b2bImg.globalImageResolution")}</div>
             <div style={styles.sectionSubtitle}>
-              La stessa immagine e la stessa risoluzione per tutti i bot.
+              {t("b2bImg.sameForAll")}
             </div>
           </div>
         </div>
@@ -2175,7 +2174,7 @@ function B2BImgTab({ setTab }) {
           onChange={(e) => pickFile(e.target.files && e.target.files[0])}
         />
         {imgPreview && (
-          <img style={imgStyles.preview} src={imgPreview} alt="immagine di partenza" />
+          <img style={imgStyles.preview} src={imgPreview} alt={t("b2bImg.sourceImageAlt")} />
         )}
         <div style={imgStyles.resRow}>
           <label style={{ display: "flex", gap: 7, alignItems: "center", fontSize: 12, color: "#b6c4ca" }}>
@@ -2185,10 +2184,10 @@ function B2BImgTab({ setTab }) {
               disabled={running}
               onChange={(e) => setChainImages(e.target.checked)}
             />
-            Rimpalla foto (output di ogni bot → input del successivo)
+            {t("b2bImg.chainImages")}
           </label>
           <label>
-            <div style={imgStyles.paramLabel}>RISOLUZIONE</div>
+            <div style={imgStyles.paramLabel}>{t("b2bImg.resolution")}</div>
             <select
               style={imgStyles.resSelect}
               value={size}
@@ -2204,7 +2203,7 @@ function B2BImgTab({ setTab }) {
             </select>
           </label>
           <label>
-            <div style={imgStyles.paramLabel}>FORMATO</div>
+            <div style={imgStyles.paramLabel}>{t("b2bImg.format")}</div>
             <select
               style={imgStyles.resSelect}
               value={formatIdx}
@@ -2223,7 +2222,7 @@ function B2BImgTab({ setTab }) {
                 onClick={runAll}
                 disabled={!imgFile}
               >
-                ▶ Genera ({bots.filter((b) => b.on).length} bot)
+                {t("b2bImg.generate", { count: bots.filter((b) => b.on).length })}
               </button>
             ) : (
               <button
@@ -2232,12 +2231,12 @@ function B2BImgTab({ setTab }) {
                   stopRef.current = true;
                 }}
               >
-                ■ Stop
+                {t("b2bImg.stop")}
               </button>
             )}
             <div style={styles.userRow}>
               <span>{email}</span>
-              <button style={styles.linkButton} onClick={logout}>Logout</button>
+              <button style={styles.linkButton} onClick={logout}>{t("b2bImg.logout")}</button>
             </div>
           </div>
         </div>
@@ -2257,12 +2256,12 @@ function B2BImgTab({ setTab }) {
                   disabled={running}
                   onChange={(e) => setBot(bot.id, { on: e.target.checked })}
                 />
-                on
+                {t("b2bImg.on")}
               </label>
             </div>
             <textarea
               style={imgStyles.botPrompt}
-              placeholder="prompt di modifica (es. rendilo notturno, pioggia)"
+              placeholder={t("b2bImg.promptPlaceholder")}
               value={bot.prompt}
               disabled={running}
               onChange={(e) => setBot(bot.id, { prompt: e.target.value })}
@@ -2270,9 +2269,9 @@ function B2BImgTab({ setTab }) {
             <div style={imgStyles.paramRow}>
               <span
                 style={imgStyles.paramLabel}
-                title="Forza modifica: basso = più fedele alla foto, alto = più trasformata"
+                title={t("b2bImg.strengthTitle")}
               >
-                MODIFICA
+                {t("b2bImg.strength")}
               </span>
               <input
                 type="range"
@@ -2289,7 +2288,7 @@ function B2BImgTab({ setTab }) {
               </span>
             </div>
             <div style={imgStyles.paramRow}>
-              <span style={imgStyles.paramLabel}>STEPS</span>
+              <span style={imgStyles.paramLabel}>{t("b2bImg.steps")}</span>
               <select
                 style={imgStyles.smallNum}
                 value={bot.steps}
@@ -2311,7 +2310,7 @@ function B2BImgTab({ setTab }) {
               <button
                 style={imgStyles.smallBtn}
                 disabled={running}
-                title="seed casuale"
+                title={t("b2bImg.randomSeed")}
                 onClick={() =>
                   setBot(bot.id, { seed: Math.floor(Math.random() * 2147483647) })
                 }
@@ -2332,9 +2331,9 @@ function B2BImgTab({ setTab }) {
               }}
             >
               {bot.status === "idle" && "—"}
-              {bot.status === "waiting" && "in coda…"}
-              {bot.status === "running" && "generando…"}
-              {bot.status === "done" && "fatto ✓"}
+              {bot.status === "waiting" && t("b2bImg.statusWaiting")}
+              {bot.status === "running" && t("b2bImg.statusRunning")}
+              {bot.status === "done" && t("b2bImg.statusDone")}
               {bot.status === "error" && bot.error}
             </div>
             {bot.img && (
@@ -2345,7 +2344,7 @@ function B2BImgTab({ setTab }) {
                   href={bot.img}
                   download={`b2b-bot-${bot.id + 1}.png`}
                 >
-                  ↓ Scarica PNG
+                  {t("b2bImg.downloadPng")}
                 </a>
               </>
             )}
@@ -2355,7 +2354,7 @@ function B2BImgTab({ setTab }) {
                 disabled={running || !imgFile}
                 onClick={() => runOne(bot)}
               >
-                ▶ solo questo
+                {t("b2bImg.runOnly")}
               </button>
             </div>
           </section>
