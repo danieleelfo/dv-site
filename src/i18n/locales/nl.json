@@ -1464,5 +1464,26 @@
     "statusDone": "klaar ✓",
     "downloadPng": "↓ PNG downloaden",
     "runOnly": "▶ alleen deze"
+  },
+  "i18nAdmin": {
+    "title": "I18n-beheer",
+    "loginIntro": "Log in met Google om de websiteteksten te bewerken.",
+    "description": "Websiteteksten (src/i18n/locales). Selecteer een sleutel, bewerk de gewenste talen (EN is de referentie) en publiceer alle wijzigingen in één commit.",
+    "logout": "Uitloggen",
+    "searchPlaceholder": "zoek sleutel (bijv. nav.home, ethics, qdb.err)…",
+    "publishTitle": "Commit + push naar main (git pull --ff-only, JSON indent 2)",
+    "publishing": "Publiceren…",
+    "publishCount": "{{count}} wijzigingen publiceren",
+    "publish": "Publiceren",
+    "loading": "Laden…",
+    "noKeys": "Geen sleutels gevonden.",
+    "reference": "referentie",
+    "referenceValue": "EN-referentiewaarde",
+    "enValue": "EN: {{value}}",
+    "emptyValue": "(leeg)",
+    "modified": "gewijzigd",
+    "selectKey": "Selecteer links een sleutel.",
+    "confirmPublish": "{{count}} i18n-wijzigingen publiceren?\nCommit + push naar dv-site main.",
+    "published": "Gepubliceerd: {{sha}} ({{langs}})"
   }
 }
