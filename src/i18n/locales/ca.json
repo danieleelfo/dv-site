@@ -1464,5 +1464,26 @@
     "statusDone": "fet ✓",
     "downloadPng": "↓ Baixa PNG",
     "runOnly": "▶ només aquest"
+  },
+  "i18nAdmin": {
+    "title": "Administració i18n",
+    "loginIntro": "Inicia sessió amb Google per modificar els textos del lloc web.",
+    "description": "Textos del lloc web (src/i18n/locales). Selecciona una clau, modifica els idiomes que calgui (EN és la referència) i publica tots els canvis en un sol commit.",
+    "logout": "Tanca la sessió",
+    "searchPlaceholder": "cerca una clau (p. ex. nav.home, ethics, qdb.err)…",
+    "publishTitle": "Commit + push a main (git pull --ff-only, JSON indent 2)",
+    "publishing": "Publicant…",
+    "publishCount": "Publica {{count}} canvis",
+    "publish": "Publica",
+    "loading": "Carregant…",
+    "noKeys": "No s'ha trobat cap clau.",
+    "reference": "referència",
+    "referenceValue": "Valor de referència EN",
+    "enValue": "EN: {{value}}",
+    "emptyValue": "(buit)",
+    "modified": "modificat",
+    "selectKey": "Selecciona una clau a l'esquerra.",
+    "confirmPublish": "Vols publicar {{count}} canvis d'i18n?\nCommit + push a main de dv-site.",
+    "published": "Publicat: {{sha}} ({{langs}})"
   }
 }
