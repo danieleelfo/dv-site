@@ -28,48 +28,6 @@ const AREAS = [
 
 const PAGE_SIZE = 50;
 
-// Pannello Memory Summary: aree con la tabella memory_summary (leles, NS, SW).
-// Testi locali (it/en, fallback en) per non toccare i 6 file locale i18n.
-const SUMMARY_AREA_IDS = ["leles", "lele_ns", "lele_sw"];
-const SUM_T = {
-  it: {
-    eyebrow: "MEMORY PIPELINE",
-    title: "Memory Summary",
-    sub: "Riassunto giornaliero della tabella memory, generato con Ollama. Controlla, modifica e salva: ogni salvataggio e' una nuova riga.",
-    generate: "✦ Genera summary",
-    save: "Salva in memory_summary",
-    saved: "Salvato in memory_summary (nuova riga).",
-    none: "Nessun summary salvato per questo giorno.",
-    msgs: "msg",
-    empty: "Genera il summary, rileggilo e salvalo se approvato.",
-    needGen: "Genera prima un summary.",
-    generating: "Ollama sta riassumendo...",
-    deep: "Analizza con Leles",
-    deepBusy: "Leles sta analizzando (KB + memoria)...",
-    history: "Summary salvati · giorno scelto",
-  },
-  en: {
-    eyebrow: "MEMORY PIPELINE",
-    title: "Memory Summary",
-    sub: "Daily digest of the memory table, generated with Ollama. Review, edit and save: every save is a new row.",
-    generate: "✦ Generate summary",
-    save: "Save to memory_summary",
-    saved: "Saved to memory_summary (new row).",
-    none: "No summaries saved for this day yet.",
-    msgs: "msgs",
-    empty: "Generate the summary, review it and save it if approved.",
-    needGen: "Generate a summary first.",
-    generating: "Ollama is summarizing...",
-    deep: "Analyze with Leles",
-    deepBusy: "Leles is analyzing (KB + memory)...",
-    history: "Saved summaries · selected day",
-  },
-};
-function sumT(key) {
-  const lang = (i18n.language || "en").slice(0, 2);
-  return (SUM_T[lang] && SUM_T[lang][key]) || SUM_T.en[key] || key;
-}
-
 // Gruppi del pannello UTENTI. Nelle tabelle leles la colonna "utente" e
 // "role" (valori generati dagli agenti: USER_ES, LELE_P_*_ES, IMP_*, ...):
 // prima valgono le regole role (regex, in ordine), poi il fallback storico
@@ -454,7 +412,7 @@ export default function QueryDb() {
 
   async function saveSummary() {
     if (!sumDraft.trim()) {
-      setSumMsg({ kind: "err", text: sumT("needGen") });
+      setSumMsg({ kind: "err", text: t("qdb.summary.needGen") });
       return;
     }
     setSumBusy("save");
@@ -469,7 +427,7 @@ export default function QueryDb() {
       });
       setSumDraft("");
       setSumMeta(null);
-      setSumMsg({ kind: "ok", text: sumT("saved") });
+      setSumMsg({ kind: "ok", text: t("qdb.summary.saved") });
       loadSummaries();
     } catch (e) {
       setSumMsg({ kind: "err", text: e.message || String(e) });
@@ -581,11 +539,11 @@ export default function QueryDb() {
       <section className="panel summary-panel">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">{sumT("eyebrow")}</p>
-            <h2>{sumT("title")}{sumMeta ? <span className="order-badge">{sumMeta.model} · {sumMeta.n_messages} {sumT("msgs")}</span> : null}</h2>
+            <p className="eyebrow">{t("qdb.summary.eyebrow")}</p>
+            <h2>{t("qdb.summary.title")}{sumMeta ? <span className="order-badge">{sumMeta.model} · {sumMeta.n_messages} {t("qdb.summary.msgs")}</span> : null}</h2>
           </div>
         </div>
-        <p className="muted small-copy">{sumT("sub")}</p>
+        <p className="muted small-copy">{t("qdb.summary.sub")}</p>
         <div className="summary-controls">
           <select className="text-input" value={sumArea} onChange={(e) => setSumArea(e.target.value)}>
             {AREAS.filter((a) => SUMMARY_AREA_IDS.includes(a.id)).map((a) => (
@@ -594,27 +552,27 @@ export default function QueryDb() {
           </select>
           <input className="text-input" type="date" value={sumDate} onChange={(e) => setSumDate(e.target.value)} />
           <button className="btn btn-primary" disabled={!!sumBusy} onClick={generateSummary}>
-            {sumBusy === "gen" ? sumT("generating") : sumT("generate")}
+            {sumBusy === "gen" ? t("qdb.summary.generating") : t("qdb.summary.generate")}
           </button>
           <button className="btn" disabled={!!sumBusy} onClick={deepSummary} title="Leles: KB + memoria, output da archivio">
-            {sumBusy === "deep" ? sumT("deepBusy") : "◆ " + sumT("deep")}
+            {sumBusy === "deep" ? t("qdb.summary.deepBusy") : "◆ " + t("qdb.summary.deep")}
           </button>
           <button className="btn" disabled={!!sumBusy || !sumDraft.trim()} onClick={saveSummary}>
-            {sumT("save")}
+            {t("qdb.summary.save")}
           </button>
         </div>
         {sumMsg && <p className={"small-copy " + (sumMsg.kind === "ok" ? "sum-ok" : "error-text")}>{sumMsg.text}</p>}
-        <textarea className="summary-text" value={sumDraft} onChange={(e) => setSumDraft(e.target.value)} placeholder={sumT("empty")} />
+        <textarea className="summary-text" value={sumDraft} onChange={(e) => setSumDraft(e.target.value)} placeholder={t("qdb.summary.empty")} />
         <div className="summary-history">
           <div className="section-heading" style={{ marginTop: 18, marginBottom: 10 }}>
-            <div><p className="eyebrow">{sumT("history")}</p></div>
+            <div><p className="eyebrow">{t("qdb.summary.history")}</p></div>
           </div>
           {(sumList || []).length === 0 ? (
-            <p className="muted small-copy">{sumT("none")}</p>
+            <p className="muted small-copy">{t("qdb.summary.none")}</p>
           ) : (
             (sumList || []).map((r) => (
               <div className="sum-row" key={r.id}>
-                <div className="sum-meta">#{r.id} · {r.model || "?"} · {r.n_messages} {sumT("msgs")} · {r.created_at || ""}</div>
+                <div className="sum-meta">#{r.id} · {r.model || "?"} · {r.n_messages} {t("qdb.summary.msgs")} · {r.created_at || ""}</div>
                 <div className="sum-body">{r.summary}</div>
               </div>
             ))
