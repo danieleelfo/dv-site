@@ -1358,7 +1358,8 @@
     "comicFormatPortrait": "A4 staand",
     "illustrationVersions": "Illustratieversies:",
     "illustrationsLabel": "🖼 Illustraties",
-    "deleteStoryTitle": "Verhaal verwijderen"
+    "deleteStoryTitle": "Verhaal verwijderen",
+    "kidsPreset": "Kindertekenfilm (sw_kids)"
   },
   "imgHist": {
     "createdImages": "Gemaakte afbeeldingen",
