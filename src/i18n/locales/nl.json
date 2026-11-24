@@ -1080,7 +1080,13 @@
       "emptyBody": "lege inhoud",
       "httpError": "HTTP {{status}}"
     },
-    "ocrTabSubtitle": "Tekst extraheren"
+    "ocrTabSubtitle": "Tekst extraheren",
+    "jobGone": "De taak staat niet meer op de gateway (herstart of verlopen).",
+    "sitePreview": {
+      "label": "Voorbeeld van de sitelay-out",
+      "modeAria": "Sitelay-outmodus",
+      "rotateHint": "Draai je telefoon horizontaal om de desktoplay-out te controleren."
+    }
   },
   "dga": {
     "unauthorized": "Toegang niet toegestaan voor dit Google-account.",

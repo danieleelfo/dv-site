@@ -1080,7 +1080,13 @@
       "emptyBody": "empty body",
       "httpError": "HTTP {{status}}"
     },
-    "ocrTabSubtitle": "Extract text"
+    "ocrTabSubtitle": "Extract text",
+    "jobGone": "The job is no longer on the gateway (restarted or expired).",
+    "sitePreview": {
+      "label": "Site layout preview",
+      "modeAria": "Site layout mode",
+      "rotateHint": "Rotate your phone to landscape to check the desktop layout."
+    }
   },
   "dga": {
     "unauthorized": "Access not authorized for this Google account.",

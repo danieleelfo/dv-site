@@ -1080,7 +1080,13 @@
       "emptyBody": "corps vide",
       "httpError": "HTTP {{status}}"
     },
-    "ocrTabSubtitle": "Extraire le texte"
+    "ocrTabSubtitle": "Extraire le texte",
+    "jobGone": "Le travail n’est plus présent sur la passerelle (redémarré ou expiré).",
+    "sitePreview": {
+      "label": "Aperçu du layout du site",
+      "modeAria": "Mode de layout du site",
+      "rotateHint": "Tourne le téléphone en horizontal pour vérifier le layout desktop."
+    }
   },
   "dga": {
     "unauthorized": "Accès non autorisé pour ce compte Google.",

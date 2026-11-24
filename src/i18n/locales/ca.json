@@ -1080,7 +1080,13 @@
       "emptyBody": "cos buit",
       "httpError": "HTTP {{status}}"
     },
-    "ocrTabSubtitle": "Extreu el text"
+    "ocrTabSubtitle": "Extreu el text",
+    "jobGone": "La feina ja no és al gateway (reiniciat o caducat).",
+    "sitePreview": {
+      "label": "Vista prèvia del disseny del lloc",
+      "modeAria": "Mode de disseny del lloc",
+      "rotateHint": "Gira el telèfon en horitzontal per comprovar el disseny d’escriptori."
+    }
   },
   "dga": {
     "unauthorized": "Accés no autoritzat per a aquest compte de Google.",

@@ -1080,7 +1080,13 @@
       "emptyBody": "cuerpo vacío",
       "httpError": "HTTP {{status}}"
     },
-    "ocrTabSubtitle": "Extraer texto"
+    "ocrTabSubtitle": "Extraer texto",
+    "jobGone": "El trabajo ya no está en el gateway (reiniciado o caducado).",
+    "sitePreview": {
+      "label": "Vista previa del diseño del sitio",
+      "modeAria": "Modo de diseño del sitio",
+      "rotateHint": "Gira el teléfono en horizontal para comprobar el diseño de escritorio."
+    }
   },
   "dga": {
     "unauthorized": "Acceso no autorizado para esta cuenta de Google.",
