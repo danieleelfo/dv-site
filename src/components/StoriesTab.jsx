@@ -1456,7 +1456,7 @@ export default function StoriesTab({ idToken }) {
                 value={current.language || "it"}
                 onChange={(event) => translateStory(event.target.value)}
                 style={{ flex: "0 0 auto", minWidth: "8.5rem" }}
-                aria-label="Traduci la storia in un'altra lingua (nuovo TTS)"
+                aria-label={t("storiesTab.translateStoryAria")}
                 disabled={busy || !current.text}
               >
                 {STORY_LANGS.map(([code, label]) => (
