@@ -1507,7 +1507,7 @@ export default function StoriesTab({ idToken }) {
                   disabled={busy}
                 >
                   <option value="">Come la storia ({autoPreset})</option>
-                  <option value="sw_kids">Kids cartoon (sw_kids)</option>
+                  <option value="sw_kids">{t("storiesTab.kidsPreset")}</option>
                   <option value="ns_free">{t("storiesTab.adultPreset")}</option>
                 </select>
                 <select
