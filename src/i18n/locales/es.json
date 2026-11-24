@@ -1084,7 +1084,9 @@
       "distributeTextHint": "Distribuye el texto con «Dividir en viñetas» y después corrige cada pie. El texto se dibuja debajo de la foto en la imagen y el PDF. Para excluirlo, elige «No incluir la historia».",
       "panelCaptionPlaceholder": "Texto de esta viñeta…",
       "previousSentence": "Frase anterior",
-      "nextSentence": "Última frase"
+      "nextSentence": "Última frase",
+      "draftNamePrompt": "Nombre del borrador (p. ej., comic1):",
+      "renameDraftPrompt": "Nuevo nombre para el borrador (p. ej., comic2):"
     },
     "archive": {
       "kicker": "GRADV · ARCHIVO PRINCIPAL",
