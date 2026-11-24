@@ -1390,6 +1390,10 @@
     "noUploadedImages": "No uploaded images.",
     "delete": "Delete",
     "deleteUploadedConfirm": "Delete this image from Uploaded? Existing drafts are not affected; each has its own copy.",
-    "uploadLimitError": "Images up to 15 MB each are allowed."
+    "uploadLimitError": "Images up to 15 MB each are allowed.",
+    "promptUnavailable": "Prompt unavailable",
+    "pageOf": "Page {{page}} of {{pages}}",
+    "pagesRange": "Pages {{start}}–{{end}}",
+    "steps": "steps"
   }
 }
