@@ -1084,7 +1084,9 @@
       "distributeTextHint": "Répartissez le texte avec « Diviser en cases », puis corrigez chaque légende. Le texte est dessiné sous la photo dans l'image et le PDF. Pour l'exclure, choisissez « Ne pas inclure le récit ». ",
       "panelCaptionPlaceholder": "Texte de cette case…",
       "previousSentence": "Phrase précédente",
-      "nextSentence": "Dernière phrase"
+      "nextSentence": "Dernière phrase",
+      "draftNamePrompt": "Nom du brouillon (ex. bd1) :",
+      "renameDraftPrompt": "Nouveau nom du brouillon (ex. bd2) :"
     },
     "archive": {
       "kicker": "GRADV · ARCHIVE PRINCIPALE",
