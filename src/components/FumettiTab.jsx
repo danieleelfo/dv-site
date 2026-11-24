@@ -214,7 +214,7 @@ export default function FumettiTab({ embedded = false } = {}) {
   }
 
   async function saveNamedDraft() {
-    const title = window.prompt("Nome della bozza (es. fum1):");
+    const title = window.prompt(t("img.comics.draftNamePrompt"));
     if (!title || !title.trim()) return;
     const key = namedDraftPrefix + title.trim().toLowerCase();
     if (namedDrafts.some(d => d.key === key) && !window.confirm(t("img.comics.overwriteDraftConfirm", { title: title.trim() }))) return;
