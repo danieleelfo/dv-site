@@ -4,9 +4,11 @@
 // pronti per essere aggiunti come pannelli. Non tocca il database.
 
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { getUploadedImage, listUploadedImages } from "../utils/comicsDraft.js";
 
 export default function UploadedPicker({ owner, maxSelect = 12, onSelect, onClose }) {
+  const { t } = useTranslation();
   const [items, setItems] = useState([]);
   const [urls, setUrls] = useState({});
   const [selected, setSelected] = useState([]);
@@ -45,7 +47,7 @@ export default function UploadedPicker({ owner, maxSelect = 12, onSelect, onClos
   function toggle(id) {
     setError("");
     if (selected.includes(id)) { setSelected(selected.filter(x => x !== id)); return; }
-    if (selected.length >= maxSelect) { setError("Puoi aggiungere al massimo " + maxSelect + " immagini."); return; }
+    if (selected.length >= maxSelect) { setError(t("uploadedPicker.maxSelect", { max: maxSelect })); return; }
     setSelected([...selected, id]);
   }
 
@@ -57,7 +59,7 @@ export default function UploadedPicker({ owner, maxSelect = 12, onSelect, onClos
       const files = [];
       for (const id of selected) {
         const record = await getUploadedImage(id, owner);
-        if (!record?.blob) throw new Error("Immagine non più disponibile: " + id);
+        if (!record?.blob) throw new Error(t("uploadedPicker.unavailable", { id }));
         files.push(record.blob instanceof File ? record.blob : new File([record.blob], record.name || "image", {
           type: record.type || record.blob.type || "image/png",
           lastModified: record.lastModified || Date.now(),
@@ -72,18 +74,18 @@ export default function UploadedPicker({ owner, maxSelect = 12, onSelect, onClos
 
   return (
     <div className="up-overlay" role="presentation" onClick={busy ? undefined : onClose}>
-      <section className="up-modal" role="dialog" aria-modal="true" aria-label="Scegli da Uploaded" onClick={e => e.stopPropagation()}>
+      <section className="up-modal" role="dialog" aria-modal="true" aria-label={t("uploadedPicker.dialogLabel")} onClick={e => e.stopPropagation()}>
         <header className="up-header">
           <div>
-            <p className="up-eyebrow">LOCAL · INDEXEDDB</p>
-            <h2>Da Uploaded</h2>
-            <p className="up-sub">Immagini salvate su questo dispositivo per l'account attivo.</p>
+            <p className="up-eyebrow">{t("uploadedPicker.eyebrow")}</p>
+            <h2>{t("uploadedPicker.title")}</h2>
+            <p className="up-sub">{t("uploadedPicker.subtitle")}</p>
           </div>
           <button type="button" className="up-btn" onClick={onClose} disabled={busy}>✕</button>
         </header>
         {error && <div className="up-error" role="alert">{error}</div>}
-        {loading && <p className="up-sub">Caricamento…</p>}
-        {!loading && !items.length && <p className="up-sub">Nessuna immagine in Uploaded. Caricale dalla cronologia immagini.</p>}
+        {loading && <p className="up-sub">{t("uploadedPicker.loading")}</p>}
+        {!loading && !items.length && <p className="up-sub">{t("uploadedPicker.empty")}</p>}
         <div className="up-grid">
           {items.map(item => {
             const order = selected.indexOf(item.id);
@@ -95,8 +97,8 @@ export default function UploadedPicker({ owner, maxSelect = 12, onSelect, onClos
           })}
         </div>
         <footer className="up-footer">
-          <span className="up-sub">{selected.length} / {maxSelect} selezionate</span>
-          <button type="button" className="up-btn up-primary" onClick={confirm} disabled={!selected.length || busy}>{busy ? "Aggiungo…" : "Aggiungi ai pannelli"}</button>
+          <span className="up-sub">{t("uploadedPicker.selected", { count: selected.length, max: maxSelect })}</span>
+          <button type="button" className="up-btn up-primary" onClick={confirm} disabled={!selected.length || busy}>{busy ? t("uploadedPicker.adding") : t("uploadedPicker.add")}</button>
         </footer>
       </section>
       <style>{STYLES}</style>
