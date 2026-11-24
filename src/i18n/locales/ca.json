@@ -1084,7 +1084,9 @@
       "distributeTextHint": "Distribueix el text amb «Divideix en vinyetes» i després corregeix cada peu. El text es dibuixa sota la foto a la imatge i al PDF. Per excloure'l, tria «No incloguis el relat».",
       "panelCaptionPlaceholder": "Text d'aquesta vinyeta…",
       "previousSentence": "Frase anterior",
-      "nextSentence": "Última frase"
+      "nextSentence": "Última frase",
+      "draftNamePrompt": "Nom de l'esborrany (p. ex., comic1):",
+      "renameDraftPrompt": "Nom nou de l'esborrany (p. ex., comic2):"
     },
     "archive": {
       "kicker": "GRADV · ARXIU PRINCIPAL",
