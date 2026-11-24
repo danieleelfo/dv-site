@@ -5,12 +5,13 @@
 // API protette: GET /api/gradv/archive e GET /api/gradv/archive/{id}/image.
 
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { deleteUploadedImage, getUploadedImage, listUploadedImages, saveUploadedImage } from "../utils/comicsDraft.js";
 
 const API = "https://api.danielevillanova.com";
 const PAGE_SIZE = 24;
 
-async function readJson(response) {
+async function readJson(response, t) {
   const text = await response.text().catch(() => "");
   let data = null;
   try {
@@ -18,10 +19,7 @@ async function readJson(response) {
   } catch {
     // Mostra status + corpo: cosi' si vede se e' HTML del tunnel o altro.
     throw new Error(
-      "Risposta non JSON dal gateway (HTTP " +
-        response.status +
-        "): " +
-        (text.slice(0, 120) || "corpo vuoto")
+      t("imgHist.nonJsonResponse", { status: response.status, body: text.slice(0, 120) || t("imgHist.emptyBody") })
     );
   }
   if (!response.ok) {
@@ -34,14 +32,15 @@ async function readJson(response) {
   return data;
 }
 
-function formatDate(value) {
+function formatDate(value, locale) {
   if (!value) return "—";
   const text = String(value);
   const date = new Date(text.includes("T") ? text : text.replace(" ", "T") + "Z");
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString(locale || undefined);
 }
 
 export default function ImgHist({ idToken, owner = "", onReuse }) {
+  const { t, i18n } = useTranslation();
   const [section, setSection] = useState("created");
   const [uploaded, setUploaded] = useState([]);
   const [uploadedUrls, setUploadedUrls] = useState({});
@@ -81,7 +80,7 @@ export default function ImgHist({ idToken, owner = "", onReuse }) {
     } catch (err) {
       setUploadError(err.message || String(err));
     }
-  }, [owner]);
+  }, [owner, t]);
 
   useEffect(() => {
     if (section === "uploaded") loadUploaded();
@@ -96,7 +95,7 @@ export default function ImgHist({ idToken, owner = "", onReuse }) {
     event.target.value = "";
     if (!files.length || !owner) return;
     const accepted = files.filter(file => file.type.startsWith("image/") && file.size <= 15 * 1024 * 1024);
-    if (accepted.length !== files.length) setUploadError("Sono ammesse immagini fino a 15 MB ciascuna.");
+    if (accepted.length !== files.length) setUploadError(t("imgHist.uploadLimitError"));
     setUploadBusy(true);
     try {
       for (const file of accepted) await saveUploadedImage(owner, file);
@@ -109,7 +108,7 @@ export default function ImgHist({ idToken, owner = "", onReuse }) {
   }
 
   async function removeUploaded(item) {
-    if (!window.confirm("Eliminare questa immagine da Uploaded? Le bozze già salvate non vengono toccate: hanno una propria copia.")) return;
+    if (!window.confirm(t("imgHist.deleteUploadedConfirm"))) return;
     try {
       await deleteUploadedImage(item.id, owner);
       await loadUploaded();
@@ -149,7 +148,7 @@ export default function ImgHist({ idToken, owner = "", onReuse }) {
           headers: { Authorization: "Bearer " + idToken },
         });
 
-        const data = await readJson(response);
+        const data = await readJson(response, t);
         setItems(Array.isArray(data.items) ? data.items : []);
         setTotal(Number(data.total || 0));
         setPages(Math.max(1, Number(data.pages || 1)));
@@ -227,21 +226,21 @@ export default function ImgHist({ idToken, owner = "", onReuse }) {
       <style>{IMGHIST_STYLES}</style>
 
       <div className="ilh-tabs">
-        <button type="button" className={"ilh-toggle-btn" + (section === "created" ? " ilh-on" : "")} onClick={() => setSection("created")}>Created images</button>
-        <button type="button" className={"ilh-toggle-btn" + (section === "uploaded" ? " ilh-on" : "")} onClick={() => setSection("uploaded")}>Uploaded ({uploaded.length})</button>
+        <button type="button" className={"ilh-toggle-btn" + (section === "created" ? " ilh-on" : "")} onClick={() => setSection("created")}>{t("imgHist.createdImages")}</button>
+        <button type="button" className={"ilh-toggle-btn" + (section === "uploaded" ? " ilh-on" : "")} onClick={() => setSection("uploaded")}>{t("imgHist.uploadedImages", { count: uploaded.length })}</button>
       </div>
       {section === "created" && <>
       <div className="il-section-heading">
         <div>
-          <p className="il-eyebrow">03 / ARCHIVIO</p>
-          <h2>Archivio immagini</h2>
+          <p className="il-eyebrow">{t("imgHist.archiveEyebrow")}</p>
+          <h2>{t("imgHist.archiveTitle")}</h2>
         </div>
         <button
           className="il-button"
           onClick={() => loadArchive(page, query)}
           disabled={loading}
         >
-          {loading ? "Carico…" : "Aggiorna"}
+          {loading ? t("imgHist.loading") : t("imgHist.refresh")}
         </button>
       </div>
 
@@ -250,11 +249,11 @@ export default function ImgHist({ idToken, owner = "", onReuse }) {
           className="il-input"
           value={searchInput}
           onChange={(event) => setSearchInput(event.target.value)}
-          placeholder="Cerca nel prompt…"
-          aria-label="Cerca nel prompt"
+          placeholder={t("imgHist.searchPlaceholder")}
+          aria-label={t("imgHist.searchAria")}
         />
         <button className="il-button il-primary" type="submit" disabled={loading}>
-          Cerca
+          {t("imgHist.search")}
         </button>
         {query && (
           <button
@@ -266,7 +265,7 @@ export default function ImgHist({ idToken, owner = "", onReuse }) {
               loadArchive(1, "");
             }}
           >
-            Reset
+            {t("imgHist.reset")}
           </button>
         )}
         <span className="ilh-toggle">
@@ -275,18 +274,18 @@ export default function ImgHist({ idToken, owner = "", onReuse }) {
             className={"ilh-toggle-btn" + (view === "thumbs" ? " ilh-on" : "")}
             onClick={() => setView("thumbs")}
           >
-            Anteprime
+            {t("imgHist.previews")}
           </button>
           <button
             type="button"
             className={"ilh-toggle-btn" + (view === "text" ? " ilh-on" : "")}
             onClick={() => setView("text")}
           >
-            Solo testo
+            {t("imgHist.textOnly")}
           </button>
         </span>
         <span className="il-page-info">
-          {total.toLocaleString()} immagini · {PAGE_SIZE} per pagina
+          {total.toLocaleString(i18n.language || undefined)} {t("imgHist.images")} · {PAGE_SIZE} {t("imgHist.perPage")}
         </span>
       </form>
 
@@ -297,7 +296,7 @@ export default function ImgHist({ idToken, owner = "", onReuse }) {
       )}
 
       {!loading && items.length === 0 && !error && (
-        <p className="il-hint">Nessuna immagine trovata.</p>
+        <p className="il-hint">{t("imgHist.noImagesFound")}</p>
       )}
 
       {view === "thumbs" ? (
@@ -308,13 +307,13 @@ export default function ImgHist({ idToken, owner = "", onReuse }) {
             type="button"
             className="ilh-card"
             onClick={() => openImage(item)}
-            title={item.prompt || "Immagine #" + item.id}
+            title={item.prompt || t("imgHist.imageFallback", { id: item.id })}
           >
             <span className="ilh-thumb">
               {thumbs[item.id] ? (
                 <img
                   src={thumbs[item.id]}
-                  alt={item.prompt || "GraDV #" + item.id}
+                  alt={item.prompt || t("imgHist.imageFallback", { id: item.id })}
                   loading="lazy"
                 />
               ) : (
@@ -328,9 +327,9 @@ export default function ImgHist({ idToken, owner = "", onReuse }) {
             <span className="ilh-card-prompt">
               {String(item.prompt || "").length > 140
                 ? String(item.prompt).slice(0, 140) + "…"
-                : item.prompt || "Prompt non disponibile"}
+                : item.prompt || t("imgHist.promptUnavailable")}
             </span>
-            <small>{formatDate(item.created_at)}</small>
+            <small>{formatDate(item.created_at, i18n.language)}</small>
           </button>
         ))}
       </div>
@@ -346,11 +345,11 @@ export default function ImgHist({ idToken, owner = "", onReuse }) {
               >
                 <span className="ilh-list-id">#{item.id}</span>
                 <span className="ilh-list-prompt">
-                  {item.prompt || "Prompt non disponibile"}
+                  {item.prompt || t("imgHist.promptUnavailable")}
                 </span>
                 <span className="ilh-list-meta">
                   {item.width} × {item.height} · seed {item.seed ?? "—"} ·{" "}
-                  {formatDate(item.created_at)}
+                  {formatDate(item.created_at, i18n.language)}
                 </span>
               </button>
             </li>
@@ -368,7 +367,7 @@ export default function ImgHist({ idToken, owner = "", onReuse }) {
             ←
           </button>
           <span className="il-page-info">
-            Pagina {page} di {pages}
+            {t("imgHist.pageOf", { page, pages })}
           </span>
           <select
             value={Math.floor((page - 1) / 10)}
@@ -376,7 +375,7 @@ export default function ImgHist({ idToken, owner = "", onReuse }) {
               loadArchive(Number(event.target.value) * 10 + 1, query)
             }
             disabled={loading || pages <= 10}
-            title="Vai a un blocco di pagine"
+            title={t("imgHist.jumpPageBlock")}
             style={{
               padding: ".35rem .5rem",
               border: "1px solid var(--border, #1f2b35)",
@@ -391,7 +390,7 @@ export default function ImgHist({ idToken, owner = "", onReuse }) {
               const end = Math.min((g + 1) * 10, pages);
               return (
                 <option key={g} value={g}>
-                  Pagine {start}–{end}
+                  {t("imgHist.pagesRange", { start, end })}
                 </option>
               );
             })}
@@ -419,14 +418,14 @@ export default function ImgHist({ idToken, owner = "", onReuse }) {
                 alt={selected.prompt}
               />
             ) : (
-              <p className="il-hint">Caricamento immagine originale…</p>
+              <p className="il-hint">{t("imgHist.loadingOriginal")}</p>
             )}
             <div className="il-history-modal-meta">
               <span>#{selected.id}</span>
               <span>{selected.width} × {selected.height}</span>
               <span>Seed: {selected.seed ?? "—"}</span>
-              <span>{selected.steps ?? "—"} step</span>
-              <span>{formatDate(selected.created_at)}</span>
+              <span>{selected.steps ?? "—"} {t("imgHist.steps")}</span>
+              <span>{formatDate(selected.created_at, i18n.language)}</span>
             </div>
             <div className="il-actions">
               {fullImage && (
@@ -452,18 +451,18 @@ export default function ImgHist({ idToken, owner = "", onReuse }) {
       {section === "uploaded" && (
         <>
           <div className="il-section-heading">
-            <div><p className="il-eyebrow">LOCAL · INDEXEDDB</p><h2>Uploaded images</h2></div>
-            <label className="il-button il-primary">{uploadBusy ? "Salvo…" : "＋ Carica immagini"}<input type="file" accept="image/*" multiple onChange={importUploads} disabled={uploadBusy} style={{display:"none"}} /></label>
+            <div><p className="il-eyebrow">{t("imgHist.uploadEyebrow")}</p><h2>{t("imgHist.uploadTitle")}</h2></div>
+            <label className="il-button il-primary">{uploadBusy ? t("imgHist.saving") : t("imgHist.uploadImages")}<input type="file" accept="image/*" multiple onChange={importUploads} disabled={uploadBusy} style={{display:"none"}} /></label>
           </div>
-          <p className="il-hint">Immagini conservate su questo dispositivo e associate all'account attivo. Non vengono caricate sul server.</p>
+          <p className="il-hint">{t("imgHist.uploadDescription")}</p>
           {uploadError && <div className="il-error" role="alert">{uploadError}</div>}
-          {!uploaded.length && !uploadBusy && <p className="il-hint">Nessuna immagine caricata.</p>}
+          {!uploaded.length && !uploadBusy && <p className="il-hint">{t("imgHist.noUploadedImages")}</p>}
           <div className="ilh-grid">
             {uploaded.map(item => <article className="ilh-card" key={item.id}>
               <span className="ilh-thumb">{uploadedUrls[item.id] ? <img src={uploadedUrls[item.id]} alt={item.name}/> : "…"}</span>
               <span className="ilh-card-meta"><strong>{item.name}</strong><span>{Math.round(item.size/1024)} KB</span></span>
-              <small>{new Date(item.createdAt).toLocaleString()}</small>
-              <div className="il-actions"><button type="button" className="il-button" onClick={() => removeUploaded(item)}>Elimina</button></div>
+              <small>{new Date(item.createdAt).toLocaleString(i18n.language || undefined)}</small>
+              <div className="il-actions"><button type="button" className="il-button" onClick={() => removeUploaded(item)}>{t("imgHist.delete")}</button></div>
             </article>)}
           </div>
         </>

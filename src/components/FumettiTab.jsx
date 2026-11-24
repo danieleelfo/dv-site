@@ -214,10 +214,10 @@ export default function FumettiTab({ embedded = false } = {}) {
   }
 
   async function saveNamedDraft() {
-    const title = window.prompt("Nome della bozza (es. fum1):");
+    const title = window.prompt(t("img.comics.draftNamePrompt"));
     if (!title || !title.trim()) return;
     const key = namedDraftPrefix + title.trim().toLowerCase();
-    if (namedDrafts.some(d => d.key === key) && !window.confirm("Esiste già una bozza “" + title.trim() + "”. Sovrascriverla?")) return;
+    if (namedDrafts.some(d => d.key === key) && !window.confirm(t("img.comics.overwriteDraftConfirm", { title: title.trim() }))) return;
     setNamedDraftBusy(true);
     try {
       await saveComicsDraft(key, { ...currentDraftData(), title: title.trim() });
@@ -278,7 +278,7 @@ export default function FumettiTab({ embedded = false } = {}) {
     if (!title) return;
     const key = namedDraftPrefix + title.toLowerCase();
     if (mode === "duplicate" && key === listed.key) { setDraftMessage("Scegli un nome diverso per la copia."); return; }
-    if (key !== listed.key && namedDrafts.some(d => d.key === key) && !window.confirm("Esiste già una bozza “" + title + "”. Sovrascriverla?")) return;
+    if (key !== listed.key && namedDrafts.some(d => d.key === key) && !window.confirm(t("img.comics.overwriteDraftConfirm", { title }))) return;
     setNamedDraftBusy(true);
     try {
       const full = await loadComicsDraft(listed.key);
@@ -293,7 +293,7 @@ export default function FumettiTab({ embedded = false } = {}) {
   }
 
   async function deleteNamedDraft(saved) {
-    if (!window.confirm("Eliminare la bozza “" + (saved.title || "senza nome") + "”?")) return;
+    if (!window.confirm(t("img.comics.deleteDraftConfirm", { title: saved.title || t("img.comics.unnamedDraft") }))) return;
     try { await clearComicsDraft(saved.key); await refreshNamedDrafts(); }
     catch (err) { setDraftMessage("Eliminazione bozza fallita: " + (err.message || String(err))); }
   }
@@ -574,7 +574,7 @@ export default function FumettiTab({ embedded = false } = {}) {
   function autoSplitNarrative() {
     if (!panels.length || !narrativeText.trim()) return;
     if (panels.some(panel => (panel.caption || "").trim()) &&
-        !window.confirm("Dividere di nuovo il testo? I testi attuali delle vignette saranno sostituiti.")) return;
+        !window.confirm(t("img.comics.splitAgainConfirm"))) return;
     const groups = splitNarrative(narrativeText, panels.length);
     setPanels(old => old.map((panel, index) => ({ ...panel, caption: groups[index] || "" })));
     const tooLong = groups.findIndex(group => group.length > CAPTION_MAX);
@@ -930,8 +930,8 @@ export default function FumettiTab({ embedded = false } = {}) {
             </label>
             <label className="fb-label">{t("img.comics.pageFormat", { defaultValue: "Formato pagina" })}
               <select className="fb-input" value={storyPdfFormat} onChange={e => setStoryPdfFormat(e.target.value)}>
-                <option value="landscape">A4 landscape</option>
-                <option value="portrait">A4 portrait</option>
+                <option value="landscape">{t("img.comics.a4Landscape")}</option>
+                <option value="portrait">{t("img.comics.a4Portrait")}</option>
               </select>
             </label>
           </div>
@@ -947,7 +947,7 @@ export default function FumettiTab({ embedded = false } = {}) {
             {(story.scenes || []).filter(scene => (Number(scene.version) || 1) === Number(storyVersion || 1)).map((scene, index) => (
               <label className="fb-scene-row" key={(scene.job_id || "scene") + "-" + index} style={{ alignItems: "center" }}>
                 <input type="checkbox" checked={storyScenes[index] !== false} onChange={e => setStoryScenes(old => ({ ...old, [index]: e.target.checked }))} />
-                {storyThumbs[index] ? <img src={storyThumbs[index]} alt={scene.title || "Scena " + (index + 1)} loading="lazy" style={{ width: 88, height: 66, objectFit: "cover", borderRadius: 6, border: "1px solid var(--border, #1f2b35)" }} /> : <span style={{ width: 88, height: 66, display: "grid", placeItems: "center", border: "1px dashed var(--border, #1f2b35)", borderRadius: 6, fontSize: ".7rem" }}>Anteprima…</span>}
+                {storyThumbs[index] ? <img src={storyThumbs[index]} alt={scene.title || t("img.comics.sceneNumber", { index: index + 1 })} loading="lazy" style={{ width: 88, height: 66, objectFit: "cover", borderRadius: 6, border: "1px solid var(--border, #1f2b35)" }} /> : <span style={{ width: 88, height: 66, display: "grid", placeItems: "center", border: "1px dashed var(--border, #1f2b35)", borderRadius: 6, fontSize: ".7rem" }}>{t("img.comics.previewLoading")}</span>}
                 <span><b>{index + 1}. {scene.title || "Scena " + (index + 1)}</b><small>{scene.job_id ? "job " + scene.job_id.slice(0, 8) : t("img.comics.noImage", { defaultValue: "Nessuna immagine associata" })}</small></span>
               </label>
             ))}
@@ -962,18 +962,18 @@ export default function FumettiTab({ embedded = false } = {}) {
       </section>
 
       <section className="fb-panel fb-drafts-panel">
-        <div className="fb-story-heading"><div><h2>Bozze salvate</h2><p className="fb-hint">Salva più versioni indipendenti e riaprile quando vuoi.</p></div>
-          <button type="button" className="fb-btn fb-primary" onClick={saveNamedDraft} disabled={namedDraftBusy}>＋ Salva draft</button>
+        <div className="fb-story-heading"><div><h2>{t("img.comics.savedDraftsTitle")}</h2><p className="fb-hint">{t("img.comics.savedDraftsHint")}</p></div>
+          <button type="button" className="fb-btn fb-primary" onClick={saveNamedDraft} disabled={namedDraftBusy}>{t("img.comics.saveDraft")}</button>
         </div>
         {namedDrafts.length > 0 ? <div className="fb-saved-drafts">{namedDrafts.map(item => <div className="fb-saved-draft" key={item.key}>
           <span><b>{item.title || item.key.split(":").pop()}</b><small>{new Date(item.savedAt || Date.now()).toLocaleString()} · {(item.panels || []).length} foto</small></span>
           <div className="fb-saved-actions">
-            <button type="button" className="fb-btn" disabled={namedDraftBusy} onClick={() => openNamedDraft(item)}>Apri</button>
-            <button type="button" className="fb-btn" disabled={namedDraftBusy} onClick={() => copyNamedDraft(item, "rename")}>Rinomina</button>
-            <button type="button" className="fb-btn" disabled={namedDraftBusy} onClick={() => copyNamedDraft(item, "duplicate")}>Duplica</button>
+            <button type="button" className="fb-btn" disabled={namedDraftBusy} onClick={() => openNamedDraft(item)}>{t("img.comics.openDraft")}</button>
+            <button type="button" className="fb-btn" disabled={namedDraftBusy} onClick={() => copyNamedDraft(item, "rename")}>{t("img.comics.renameDraft")}</button>
+            <button type="button" className="fb-btn" disabled={namedDraftBusy} onClick={() => copyNamedDraft(item, "duplicate")}>{t("img.comics.duplicateDraft")}</button>
             <button type="button" className="fb-btn fb-danger" disabled={namedDraftBusy} onClick={() => deleteNamedDraft(item)}>×</button>
           </div>
-        </div>)}</div> : <p className="fb-hint">Ancora nessuna bozza nominata.</p>}
+        </div>)}</div> : <p className="fb-hint">{t("img.comics.noNamedDrafts")}</p>}
       </section>
 
       <section className="fb-panel">
@@ -983,7 +983,7 @@ export default function FumettiTab({ embedded = false } = {}) {
           <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={e => addFiles(e.target.files)} />
           <button type="button" className="fb-btn" disabled={panels.length >= MAX_PANELS} onClick={() => fileInputRef.current?.click()}>{t("img.comics.addPhotos")}</button>
           <button type="button" className="fb-btn" disabled={panels.length >= MAX_PANELS} onClick={() => setShowArchive(true)}>{t("img.comics.fromArchive")}</button>
-          <button type="button" className="fb-btn" disabled={panels.length >= MAX_PANELS || !ownerEmail} title={ownerEmail ? "" : "Serve il login Google"} onClick={() => setShowUploaded(true)}>Da Uploaded</button>
+          <button type="button" className="fb-btn" disabled={panels.length >= MAX_PANELS || !ownerEmail} title={ownerEmail ? "" : t("img.comics.googleLoginRequired")} onClick={() => setShowUploaded(true)}>{t("img.comics.fromUploaded")}</button>
         </div>
         <p className="fb-hint">{t("img.comics.readingOrderHint")}</p>
         {panels.length > 0 && <div className="fb-panel-list">
@@ -1043,46 +1043,46 @@ export default function FumettiTab({ embedded = false } = {}) {
         <h2>{t("img.comics.finalPage")}</h2>
         {narrativeStoryId && <div className="fb-final-editor">
           <div className="fb-final-images">
-            <h3>Immagini della storia</h3>
+            <h3>{t("img.comics.storyImages")}</h3>
             {panels.length ? <div className="fb-final-image-list">
               {panels.map((panel, index) => <figure key={panel.id}>
-                <img src={panel.preview} alt={"Vignetta " + (index + 1)} />
-                <figcaption>Vignetta {index + 1}</figcaption>
+                <img src={panel.preview} alt={t("img.comics.panelNumber", { index: index + 1 })} />
+                <figcaption>{t("img.comics.panelNumber", { index: index + 1 })}</figcaption>
               </figure>)}
-            </div> : <p className="fb-hint">Importa le scene della storia per visualizzare qui le immagini.</p>}
+            </div> : <p className="fb-hint">{t("img.comics.importScenesHint")}</p>}
           </div>
           <div className="fb-final-story">
-            <h3>Final Story · Testo modificabile</h3>
-            <p className="fb-hint">Questa è una copia indipendente della storia originale. Puoi modificarla liberamente; le modifiche vengono salvate nella bozza Comics.</p>
-            <label className="fb-label" htmlFor="fb-narrative-text">Testo della storia</label>
-            <textarea id="fb-narrative-text" className="fb-input fb-narrative-text" rows={16} value={narrativeText} onChange={e => setNarrativeText(e.target.value)} placeholder="La copia modificabile della storia apparirà qui…" />
+            <h3>{t("img.comics.finalStoryEditable")}</h3>
+            <p className="fb-hint">{t("img.comics.independentCopyHint")}</p>
+            <label className="fb-label" htmlFor="fb-narrative-text">{t("img.comics.storyText")}</label>
+            <textarea id="fb-narrative-text" className="fb-input fb-narrative-text" rows={16} value={narrativeText} onChange={e => setNarrativeText(e.target.value)} placeholder={t("img.comics.editableStoryPlaceholder")} />
             <div className="fb-narrative-actions">
               <small>{narrativeText.length} caratteri · Originale conservato separatamente</small>
               <button type="button" className="fb-btn" onClick={() => {
-                if (window.confirm("Ripristinare il testo narrativo originale? Le correzioni attuali saranno sostituite.")) setNarrativeText(narrativeOriginal);
-              }} disabled={!narrativeOriginal || narrativeText === narrativeOriginal}>Ripristina originale</button>
-              <button type="button" className="fb-btn fb-primary" onClick={autoSplitNarrative} disabled={!panels.length || !narrativeText.trim()}>Dividi in vignette</button>
+                if (window.confirm(t("img.comics.restoreOriginalConfirm"))) setNarrativeText(narrativeOriginal);
+              }} disabled={!narrativeOriginal || narrativeText === narrativeOriginal}>{t("img.comics.restoreOriginal")}</button>
+              <button type="button" className="fb-btn fb-primary" onClick={autoSplitNarrative} disabled={!panels.length || !narrativeText.trim()}>{t("img.comics.splitIntoPanels")}</button>
             </div>
-            <label className="fb-label" htmlFor="fb-narrative-position">Posizione nel fumetto</label>
+            <label className="fb-label" htmlFor="fb-narrative-position">{t("img.comics.comicPosition")}</label>
             <select id="fb-narrative-position" className="fb-input" value={narrativePosition} onChange={e => setNarrativePosition(e.target.value)}>
-              <option value="start">All’inizio</option>
-              <option value="end">Alla fine</option>
-              <option value="none">Non inserire storia</option>
+              <option value="start">{t("img.comics.atBeginning")}</option>
+              <option value="end">{t("img.comics.atEnd")}</option>
+              <option value="none">{t("img.comics.doNotIncludeStory")}</option>
             </select>
           </div>
         </div>}
         {panels.length > 0 && (narrativeStoryId || panels.some(p => p.caption)) && <div className="fb-split-list">
-          <h3>Testo per vignetta</h3>
-          <p className="fb-hint">Distribuisci il testo con “Dividi in vignette”, poi correggi ogni didascalia. Il testo viene disegnato sotto la foto nell’immagine e nel PDF. Per escluderlo scegli “Non inserire storia”.</p>
+          <h3>{t("img.comics.textPerPanel")}</h3>
+          <p className="fb-hint">{t("img.comics.distributeTextHint")}</p>
           {panels.map((p, i) => <div className="fb-split-row" key={p.id}>
             <figure className="fb-split-thumb"><img src={p.preview} alt={"Vignetta " + (i + 1)} /><figcaption>Vignetta {i + 1}</figcaption></figure>
             <div className="fb-split-body">
-              <textarea className="fb-input fb-split-text" rows={4} maxLength={CAPTION_MAX} value={p.caption || ""} onChange={e => setCaption(p.id, e.target.value)} placeholder="Testo di questa vignetta…" />
+              <textarea className="fb-input fb-split-text" rows={4} maxLength={CAPTION_MAX} value={p.caption || ""} onChange={e => setCaption(p.id, e.target.value)} placeholder={t("img.comics.panelCaptionPlaceholder")} />
               <div className="fb-split-actions">
                 <small>{(p.caption || "").length} / {CAPTION_MAX} caratteri</small>
                 <span className="fb-split-buttons">
-                  <button type="button" className="fb-btn fb-mini" onClick={() => shiftSentence(i, -1)} disabled={i === 0 || !(p.caption || "").trim()}>↑ Prima frase</button>
-                  <button type="button" className="fb-btn fb-mini" onClick={() => shiftSentence(i, 1)} disabled={i === panels.length - 1 || !(p.caption || "").trim()}>↓ Ultima frase</button>
+                  <button type="button" className="fb-btn fb-mini" onClick={() => shiftSentence(i, -1)} disabled={i === 0 || !(p.caption || "").trim()}>↑ {t("img.comics.previousSentence")}</button>
+                  <button type="button" className="fb-btn fb-mini" onClick={() => shiftSentence(i, 1)} disabled={i === panels.length - 1 || !(p.caption || "").trim()}>↓ {t("img.comics.nextSentence")}</button>
                 </span>
               </div>
             </div>
