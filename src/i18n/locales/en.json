@@ -1464,5 +1464,26 @@
     "statusDone": "done ✓",
     "downloadPng": "↓ Download PNG",
     "runOnly": "▶ run this only"
+  },
+  "i18nAdmin": {
+    "title": "I18n Admin",
+    "loginIntro": "Sign in with Google to edit the website text.",
+    "description": "Website text (src/i18n/locales). Select a key, edit any languages you need (EN is the reference), then publish all changes in a single commit.",
+    "logout": "Log out",
+    "searchPlaceholder": "search key (e.g. nav.home, ethics, qdb.err)…",
+    "publishTitle": "Commit + push to main (git pull --ff-only, JSON indent 2)",
+    "publishing": "Publishing…",
+    "publishCount": "Publish {{count}} changes",
+    "publish": "Publish",
+    "loading": "Loading…",
+    "noKeys": "No keys found.",
+    "reference": "reference",
+    "referenceValue": "EN reference value",
+    "enValue": "EN: {{value}}",
+    "emptyValue": "(empty)",
+    "modified": "modified",
+    "selectKey": "Select a key on the left.",
+    "confirmPublish": "Publish {{count}} i18n change(s)?\nCommit + push to dv-site main.",
+    "published": "Published: {{sha}} ({{langs}})"
   }
 }
