@@ -1390,6 +1390,10 @@
     "noUploadedImages": "No hay imágenes cargadas.",
     "delete": "Eliminar",
     "deleteUploadedConfirm": "¿Eliminar esta imagen de Uploaded? Los borradores guardados no se modifican: cada uno tiene su propia copia.",
-    "uploadLimitError": "Se permiten imágenes de hasta 15 MB cada una."
+    "uploadLimitError": "Se permiten imágenes de hasta 15 MB cada una.",
+    "promptUnavailable": "Prompt no disponible",
+    "pageOf": "Página {{page}} de {{pages}}",
+    "pagesRange": "Páginas {{start}}–{{end}}",
+    "steps": "pasos"
   }
 }
