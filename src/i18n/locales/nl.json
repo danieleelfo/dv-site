@@ -1084,7 +1084,9 @@
       "distributeTextHint": "Verdeel de tekst met “Verdelen in panelen” en corrigeer daarna elk bijschrift. De tekst wordt onder de foto in de afbeelding en PDF geplaatst. Kies “Verhaal niet opnemen” om deze weg te laten.",
       "panelCaptionPlaceholder": "Tekst voor dit paneel…",
       "previousSentence": "Vorige zin",
-      "nextSentence": "Laatste zin"
+      "nextSentence": "Laatste zin",
+      "draftNamePrompt": "Naam van het concept (bijv. strip1):",
+      "renameDraftPrompt": "Nieuwe naam voor het concept (bijv. strip2):"
     },
     "archive": {
       "kicker": "GRADV · HOOFDARCHIEF",
