@@ -1397,6 +1397,8 @@
     "promptUnavailable": "Prompt unavailable",
     "pageOf": "Page {{page}} of {{pages}}",
     "pagesRange": "Pages {{start}}–{{end}}",
-    "steps": "steps"
+    "steps": "steps",
+    "nonJsonResponse": "Non-JSON response from gateway (HTTP {{status}}): {{body}}",
+    "emptyBody": "empty body"
   }
 }
