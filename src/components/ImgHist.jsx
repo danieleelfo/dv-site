@@ -256,7 +256,7 @@ export default function ImgHist({ idToken, owner = "", onReuse }) {
           aria-label={t("imgHist.searchAria")}
         />
         <button className="il-button il-primary" type="submit" disabled={loading}>
-          Cerca
+          {t("imgHist.search")}
         </button>
         {query && (
           <button
@@ -268,7 +268,7 @@ export default function ImgHist({ idToken, owner = "", onReuse }) {
               loadArchive(1, "");
             }}
           >
-            Reset
+            {t("imgHist.reset")}
           </button>
         )}
         <span className="ilh-toggle">
@@ -277,14 +277,14 @@ export default function ImgHist({ idToken, owner = "", onReuse }) {
             className={"ilh-toggle-btn" + (view === "thumbs" ? " ilh-on" : "")}
             onClick={() => setView("thumbs")}
           >
-            Anteprime
+            {t("imgHist.previews")}
           </button>
           <button
             type="button"
             className={"ilh-toggle-btn" + (view === "text" ? " ilh-on" : "")}
             onClick={() => setView("text")}
           >
-            Solo testo
+            {t("imgHist.textOnly")}
           </button>
         </span>
         <span className="il-page-info">
