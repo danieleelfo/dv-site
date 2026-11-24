@@ -1464,5 +1464,26 @@
     "statusDone": "terminé ✓",
     "downloadPng": "↓ Télécharger PNG",
     "runOnly": "▶ celui-ci uniquement"
+  },
+  "i18nAdmin": {
+    "title": "Administration i18n",
+    "loginIntro": "Connectez-vous avec Google pour modifier les textes du site.",
+    "description": "Textes du site (src/i18n/locales). Sélectionnez une clé, modifiez les langues souhaitées (EN est la référence), puis publiez tous les changements en un seul commit.",
+    "logout": "Déconnexion",
+    "searchPlaceholder": "rechercher une clé (ex. nav.home, ethics, qdb.err)…",
+    "publishTitle": "Commit + push vers main (git pull --ff-only, JSON indent 2)",
+    "publishing": "Publication…",
+    "publishCount": "Publier {{count}} modifications",
+    "publish": "Publier",
+    "loading": "Chargement…",
+    "noKeys": "Aucune clé trouvée.",
+    "reference": "référence",
+    "referenceValue": "Valeur de référence EN",
+    "enValue": "EN : {{value}}",
+    "emptyValue": "(vide)",
+    "modified": "modifié",
+    "selectKey": "Sélectionnez une clé à gauche.",
+    "confirmPublish": "Publier {{count}} modification(s) i18n ?\nCommit + push sur main de dv-site.",
+    "published": "Publié : {{sha}} ({{langs}})"
   }
 }
