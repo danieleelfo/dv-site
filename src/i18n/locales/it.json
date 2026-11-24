@@ -1084,7 +1084,9 @@
       "distributeTextHint": "Distribuisci il testo con “Dividi in vignette”, poi correggi ogni didascalia. Il testo viene disegnato sotto la foto nell’immagine e nel PDF. Per escluderlo scegli “Non inserire storia”.",
       "panelCaptionPlaceholder": "Testo di questa vignetta…",
       "previousSentence": "Prima frase",
-      "nextSentence": "Ultima frase"
+      "nextSentence": "Ultima frase",
+      "draftNamePrompt": "Nome della bozza (es. fum1):",
+      "renameDraftPrompt": "Nuovo nome per la bozza (es. fum2):"
     },
     "archive": {
       "kicker": "GRADV · ARCHIVIO PRINCIPALE",
