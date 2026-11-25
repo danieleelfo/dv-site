@@ -157,7 +157,7 @@ export default function Console() {
       }
     } catch (err) {
       console.error('Clipboard error:', err)
-      setError(t('Impossibile copiare negli appunti.'))
+      setError(t('console.clipboardError'))
     }
   }
 
@@ -219,7 +219,7 @@ export default function Console() {
             : JSON.stringify(data.detail, null, 2)
         )
       } else {
-        setResponse(t('Nessuna risposta ricevuta'))
+        setResponse(t('console.noReply'))
       }
 
       const filename =
@@ -233,14 +233,14 @@ export default function Console() {
       console.error('Lele Gateway error:', err)
 
       if (err.name === 'AbortError') {
-        setError(t('Timeout: il server non ha risposto in tempo.'))
+        setError(t('console.timeout'))
       } else {
         setError(err.message)
       }
 
       setResponse(
         t(
-          'Errore di connessione con Lele Gateway. AI agent deve essere attivo, avvisa Daniele!'
+          'console.gatewayError'
         )
       )
     } finally {
@@ -280,7 +280,7 @@ export default function Console() {
         .catch((err) => {
           console.error('Audio play error:', err)
           setIsSpeaking(false)
-          setError(t('Riproduzione audio bloccata dal browser.'))
+          setError(t('console.audioBlocked'))
         })
     }
   }
@@ -377,7 +377,7 @@ export default function Console() {
 
       setError(
         t(
-          'Impossibile accedere al microfono. Controlla i permessi del browser.'
+          'console.micError'
         )
       )
     }
@@ -395,7 +395,7 @@ export default function Console() {
     if (!AUDIO_CAPABLE_AGENTS.includes(selectedLele)) {
       setError(
         t(
-          `'${selectedLele}' non supporta ancora l'input audio. Prova con Story Whisper o Night Story.`
+          t('console.unsupportedAudio', { agent: selectedLele })
         )
       )
 
@@ -444,7 +444,7 @@ export default function Console() {
             : JSON.stringify(data.detail, null, 2)
         )
       } else {
-        setResponse(t('Nessuna risposta ricevuta'))
+        setResponse(t('console.noReply'))
       }
 
       const filename =
@@ -458,14 +458,14 @@ export default function Console() {
       console.error('Lele Gateway audio error:', err)
 
       if (err.name === 'AbortError') {
-        setError(t('Timeout: il server non ha risposto in tempo.'))
+        setError(t('console.timeout'))
       } else {
         setError(err.message)
       }
 
       setResponse(
         t(
-          'Errore di connessione con Lele Gateway. AI agent deve essere attivo e Lelé con il vento in poppa, avvisa Daniele!'
+          'console.gatewayError'
         )
       )
     } finally {
@@ -543,16 +543,16 @@ export default function Console() {
         onError={() => {
           setIsSpeaking(false)
           setError(
-            t("Impossibile riprodurre l'audio generato dal server.")
+            t('console.audioPlayError')
           )
         }}
       />
 
       <div style={styles.content}>
-        <p className="section-label">{t('Try Lele')}</p>
+        <p className="section-label">{t('console.title')}</p>
 
         <h2 className="section-title">
-          {t('Interact with Lele AI Models')}
+          {t('console.subtitle')}
         </h2>
 
         {error && (
@@ -560,7 +560,7 @@ export default function Console() {
             <p>
               ⚠️{' '}
               {t(
-                'Attenzione: AI agent deve essere attivo, avvisa Daniele!'
+                'console.warning'
               )}
             </p>
             <p>{error}</p>
@@ -617,7 +617,7 @@ export default function Console() {
               <span style={styles.langHint}>
                 {selectedLang
                   ? `${LANG_FLAGS[selectedLang]} ${LANG_NAMES[selectedLang]}`
-                  : '🌐 Auto (lingua sito)'}
+                  : t('console.autoLanguage')}
               </span>
             </div>
 
@@ -633,7 +633,7 @@ export default function Console() {
                   }
                   disabled={isRecording || isLoading}
                 />{' '}
-                {t('Send Audio (TTS)')}
+                {t('console.sendAudioTts')}
               </label>
             )}
 
@@ -644,7 +644,7 @@ export default function Console() {
                 onClick={() => copyToClipboard(prompt, 'prompt')}
                 disabled={!prompt.trim()}
                 title={
-                  copiedPrompt ? t('Copiato!') : t('Copia prompt')
+                  copiedPrompt ? t('console.copied') : t('console.copyPrompt')
                 }
                 style={styles.iconButton}
               >
@@ -658,7 +658,7 @@ export default function Console() {
                   setCopiedPrompt(false)
                 }}
                 disabled={!prompt.trim()}
-                title={t('Cancella')}
+                title={t('console.clear')}
                 style={styles.iconButtonDanger}
               >
                 🗑️
@@ -668,7 +668,7 @@ export default function Console() {
             <textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder={t('Enter your prompt here...')}
+              placeholder={t('console.promptPlaceholder')}
               style={styles.textarea}
               rows={4}
               disabled={isRecording}
@@ -682,7 +682,7 @@ export default function Console() {
                 }
                 style={styles.button}
               >
-                {isLoading ? t('Thinking...') : t('Send to Lele')}
+                {isLoading ? t('console.thinking') : t('console.send')}
               </button>
 
               <button
@@ -698,7 +698,7 @@ export default function Console() {
               >
                 {isRecording
                   ? `⏹ ${formatTime(recordingTime)}`
-                  : '🎤 Record'}
+                  : t('console.record')}
               </button>
             </div>
           </form>
@@ -707,7 +707,7 @@ export default function Console() {
             <div style={styles.audioPreview}>
               <div style={styles.audioHeader}>
                 <p style={styles.audioLabel}>
-                  🎤 {t('Recorded audio')}
+                  🎤 {t('console.recordedAudio')}
                 </p>
 
                 <button
@@ -720,8 +720,8 @@ export default function Console() {
                 >
                   🎤{' '}
                   {isSendingAudio
-                    ? t('Sending...')
-                    : t('Send Audio')}
+                    ? t('console.sending')
+                    : t('console.sendAudio')}
                 </button>
               </div>
 
@@ -737,7 +737,7 @@ export default function Console() {
             <div style={styles.response}>
               <div style={styles.responseHeader}>
                 <h3 style={styles.responseTitle}>
-                  {t('Response from')} {selectedLele}
+                  {t('console.responseFrom')} {selectedLele}
                 </h3>
 
                 {/* Copia risposta */}
@@ -748,8 +748,8 @@ export default function Console() {
                   }
                   title={
                     copiedResponse
-                      ? t('Copiato!')
-                      : t('Copia risposta')
+                      ? t('console.copied')
+                      : t('console.copyResponse')
                   }
                   style={styles.iconButton}
                 >
@@ -772,8 +772,8 @@ export default function Console() {
                       }}
                     >
                       {isSpeaking
-                        ? '⏸ Pausa'
-                        : '▶ Ascolta Audio'}
+                        ? t('console.pause')
+                        : t('console.listen')}
                     </button>
 
                     <span style={styles.timeLabel}>
@@ -794,7 +794,7 @@ export default function Console() {
 
                   <div style={styles.speedRow}>
                     <span style={styles.speedLabel}>
-                      Velocità:
+                      {t('console.speed')}
                     </span>
 
                     {[1, 1.25, 1.5, 1.75, 2].map((rate) => (
