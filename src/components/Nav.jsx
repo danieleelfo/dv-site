@@ -17,23 +17,16 @@ const groups = [
   {
     id: 'explore', label: 'Explore', key: 'nav.group.explore',
     links: [
-      ['Home', '', 'nav.home'], ['Projects', '/projects', 'nav.projects'], ['Games', '/games', 'nav.games'],
+      ['Home', '', 'nav.home'], ['Projects', '/projects', 'nav.projects'],
       ['About', '/about', 'about.label'], ['Contact', '/contact', 'contact.label'],
     ],
   },
   {
     id: 'trial', label: 'AI & Trial', key: 'nav.group.trial',
     links: [
-      ['AI Lab', '/ai-lab', 'nav.aiLab'], ['B2B', '/b2b', 'nav.b2b'], ['AI News', '/ai-ethics', 'nav.aiNews'],
-      ['Trial', '/console', 'nav.trial'], ['ImgLab', '/image-lab', 'nav.imgLab'],
-    ],
-  },
-  {
-    id: 'qa', label: 'QA', key: 'nav.group.qa',
-    links: [
-      ['Test', '/test', 'nav.test'], ['Test2', '/test2', 'nav.test2'], ['Test3', '/test3', 'nav.test3'], ['Test4', '/test4', 'nav.test4'],
-      ['Test5', '/test5', 'nav.test5'], ['Test6', '/test6', 'nav.test6'],
-      ['Test7', '/test7', 'nav.test7'], ['TestBarAI', '/testbarai', 'nav.testBarAI'],
+      ['AI Lab', '/ai-lab', 'nav.aiLab'], ['B2B', '/b2b', 'nav.b2b'],
+      ['Games', '/games', 'nav.games'], ['Trial', '/console', 'nav.trial'],
+      ['ImgLab', '/image-lab', 'nav.imgLab'],
     ],
   },
   {
@@ -46,6 +39,18 @@ const groups = [
       ['I18n Admin', '/i18n-admin', 'nav.i18nAdmin'],
     ],
   },
+  {
+    id: 'qa', label: 'QA', key: 'nav.group.qa',
+    links: [
+      ['Test', '/test', 'nav.test'], ['Test2', '/test2', 'nav.test2'], ['Test3', '/test3', 'nav.test3'], ['Test4', '/test4', 'nav.test4'],
+      ['Test5', '/test5', 'nav.test5'], ['Test6', '/test6', 'nav.test6'],
+      ['Test7', '/test7', 'nav.test7'], ['TestBarAI', '/testbarai', 'nav.testBarAI'],
+    ],
+  },
+]
+
+const directLinks = [
+  { label: 'AI News', path: '/ai-ethics', key: 'nav.aiNews' },
 ]
 
 export default function Nav() {
@@ -82,6 +87,20 @@ export default function Nav() {
     navigate('/' + parts.join('/') + location.search + location.hash)
   }
 
+  function renderDirectLink(item) {
+    return (
+      <div className="nav4-group nav4-direct" key={item.path}>
+        <Link
+          to={'/' + activeLang + item.path}
+          className={location.pathname === '/' + activeLang + item.path ? 'nav4-group-btn active' : 'nav4-group-btn'}
+          onClick={() => setOpenGroup(null)}
+        >
+          {t(item.key, item.label)}
+        </Link>
+      </div>
+    )
+  }
+
   return (
     <header className="nav4-header">
       <div className="nav4-main">
@@ -111,6 +130,7 @@ export default function Nav() {
               )}
             </div>
           ))}
+          {renderDirectLink(directLinks[0])}
         </nav>
 
         <div className="nav4-language-row" aria-label="Choose language">
