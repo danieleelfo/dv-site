@@ -17,7 +17,8 @@
       "chat_id": null,
       "note": "DeniseTest",
       "active": true,
-      "created_at": "2026-11-02T12:27:01"
+      "created_at": "2026-11-02T12:27:01",
+      "super": false
     },
     {
       "id": "74050d0f-9162-49ac-812d-e096c5533d90",

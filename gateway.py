@@ -12,6 +12,7 @@ import random
 import re
 
 from git_admin import build_git_admin_router
+from git_admin_branches import build_git_admin_branches_router
 from query_db import build_query_db_router
 from image_bubbles import build_bubbles_router
 from comic_page import build_comic_page_router
@@ -273,6 +274,11 @@ def _log_login(email: str, role: str):
 # --------------------------------------------------------------------------
 app.include_router(
     build_git_admin_router(verify_admin_token)
+)
+
+# Branches Admin:
+app.include_router(
+    build_git_admin_branches_router(verify_admin_token)
 )
 
 # QUERYDB — browse DB read-only per QueryDb.jsx
