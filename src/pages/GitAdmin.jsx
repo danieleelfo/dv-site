@@ -31,7 +31,10 @@ const DIFF_SCOPES = [
   { id: "incoming", label: "In arrivo", help: "Commit remoti non ancora locali" },
   { id: "outgoing", label: "In uscita", help: "Commit locali non ancora remoti" },
   { id: "branch", label: "Branch vs base", help: "Diff del tuo branch rispetto al branch base" },
+  { id: "ref", label: "Esamina", help: "Cosa aggiunge il branch o la PR selezionata rispetto a main" },
 ];
+
+const PR_STATE_LABEL = { open: "aperta", merged: "unita", closed: "chiusa", unknown: "non unita" };
 
 const BRANCH_ACTIONS = ["rebase", "promote"];
 
@@ -169,6 +172,8 @@ export default function Test2() {
 
   const [branches, setBranches] = useState(null);
   const [baseRef, setBaseRef] = useState("main");
+  const [prs, setPrs] = useState(null);
+  const [prBusy, setPrBusy] = useState(false);
 
   const [fdFiles, setFdFiles] = useState([]);
   const [fdFile, setFdFile] = useState("");
@@ -248,7 +253,10 @@ export default function Test2() {
     setNotice("");
 
     try {
-      const url = selectedScope === "branch"
+      const url = selectedScope === "ref"
+        ? "/api/git/admin/refdiff?project=" + encodeURIComponent(selectedProject) +
+          "&ref=" + encodeURIComponent(selectedBase)
+        : selectedScope === "branch"
         ? "/api/git/admin/branchdiff?project=" + encodeURIComponent(selectedProject) +
           "&base=" + encodeURIComponent(selectedBase)
         : "/api/git/admin/diff?project=" + encodeURIComponent(selectedProject) +
@@ -281,6 +289,30 @@ export default function Test2() {
       setBusy("");
     }
   }, [api, project]);
+
+  const loadPrs = useCallback(async (selectedProject = project) => {
+    setPrBusy(true);
+
+    try {
+      const data = await api(
+        "/api/git/admin/prs?project=" + encodeURIComponent(selectedProject)
+      );
+      setPrs(data);
+    } catch (e) {
+      setPrs(null);
+      setError(e.message || String(e));
+    } finally {
+      setPrBusy(false);
+    }
+  }, [api, project]);
+
+  // Seleziona un branch o una PR: mostra cosa aggiunge rispetto a main.
+  const inspectRef = useCallback((ref) => {
+    setBaseRef(ref);
+    setScope("ref");
+    loadDiff(project, "ref", ref);
+    document.getElementById("change-inspector")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [project, loadDiff]);
 
   const loadFdFiles = useCallback(async (selectedProject = project) => {
     setFdBusy("files");
@@ -361,8 +393,10 @@ export default function Test2() {
       setFdDiff(null);
       loadFdFiles(project);
       loadBranches(project);
+      setPrs(null);
+      loadPrs(project);
     }
-  }, [auth.token, auth.allowed, project, loadFdFiles, loadBranches]);
+  }, [auth.token, auth.allowed, project, loadFdFiles, loadBranches, loadPrs]);
 
   useEffect(() => {
     if (auth.token && auth.allowed) loadStatus(project);
@@ -634,10 +668,11 @@ export default function Test2() {
         <div className="section-heading">
           <div>
             <p className="eyebrow">BRANCHES</p>
-            <h2>Branch locali</h2>
+            <h2>Branch</h2>
             <p className="muted small-copy">
-              I branch del repository e la loro distanza dal remoto.
-              "Confronta" mostra cosa il tuo HEAD ha in più rispetto a quel branch.
+              Branch locali e branch presenti solo sul remoto (origin/…).
+              "Esamina" mostra cosa il branch aggiunge rispetto a main;
+              "Confronta" cosa il tuo HEAD ha in più rispetto a quel branch.
             </p>
           </div>
 
@@ -664,9 +699,24 @@ export default function Test2() {
                 <code>{br.name}</code>
                 <span className="branch-meta">
                   {br.current ? "• attuale · " : ""}
+                  {br.remote ? "solo remoto · " : ""}
                   {br.upstream ? br.upstream + " · " : ""}
-                  ahead {br.ahead ?? "—"} · behind {br.behind ?? "—"}
+                  {br.remote
+                    ? ""
+                    : "ahead " + (br.ahead ?? "—") + " · behind " + (br.behind ?? "—") + " · "}
+                  {br.ahead_main != null
+                    ? "vs main: +" + br.ahead_main + " / −" + br.behind_main
+                    : ""}
                 </span>
+                {!br.is_main && (
+                  <button
+                    className="btn btn-quiet"
+                    disabled={!!busy}
+                    onClick={() => inspectRef(br.name)}
+                  >
+                    Esamina
+                  </button>
+                )}
                 <button
                   className="btn btn-quiet"
                   disabled={!!busy || br.current}
@@ -686,6 +736,78 @@ export default function Test2() {
             {busy === "branches"
               ? "Carico i branch…"
               : "Nessun branch caricato (serve il nuovo endpoint /branches sul gateway)."}
+          </p>
+        )}
+        {branches?.fetch_error && (
+          <p className="muted small-copy">
+            Aggiornamento dal remoto non riuscito: {branches.fetch_error}
+          </p>
+        )}
+      </section>
+
+      <section className="panel branch-panel">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">PULL REQUEST</p>
+            <h2>Pull request</h2>
+            <p className="muted small-copy">
+              Tutte le PR del repository su GitHub, anche chiuse o già unite.
+              "Esamina" mostra cosa la PR aggiunge rispetto a main.
+            </p>
+          </div>
+
+          <button
+            className="btn btn-quiet"
+            disabled={prBusy}
+            onClick={() => loadPrs(project)}
+          >
+            Ricarica
+          </button>
+        </div>
+
+        {prs?.prs?.length ? (
+          <div className="branch-list">
+            {prs.prs.map((pr) => (
+              <div key={pr.number} className={"branch-row pr-" + pr.state}>
+                <code>#{pr.number}</code>
+                <span className="branch-meta">
+                  <span className={"pr-badge pr-badge-" + pr.state}>
+                    {PR_STATE_LABEL[pr.state] || pr.state}{pr.draft ? " · bozza" : ""}
+                  </span>{" "}
+                  {pr.title}
+                  <br />
+                  {pr.author}
+                  {pr.branch ? " · " + pr.branch : ""}
+                  {pr.date ? " · " + pr.date.slice(0, 10) : ""}
+                  {" · "}{pr.sha}
+                </span>
+                {pr.url && (
+                  <a className="btn btn-quiet" href={pr.url} target="_blank" rel="noreferrer">
+                    GitHub
+                  </a>
+                )}
+                <button
+                  className="btn btn-quiet"
+                  disabled={!!busy}
+                  onClick={() => inspectRef(pr.ref)}
+                >
+                  Esamina
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="muted small-copy">
+            {prBusy ? "Carico le PR…" : "Nessuna PR trovata."}
+          </p>
+        )}
+        {prs?.fetch_error && (
+          <p className="muted small-copy">Download delle PR non riuscito: {prs.fetch_error}</p>
+        )}
+        {prs && prs.source === "git" && (
+          <p className="muted small-copy">
+            Stato "non unita" = non risulta dentro main (aperta, chiusa o unita con squash).
+            {prs.api_error ? " " + prs.api_error + "." : ""}
           </p>
         )}
       </section>
@@ -886,7 +1008,7 @@ export default function Test2() {
         </div>
       </section>
 
-      <section className="panel diff-panel">
+      <section id="change-inspector" className="panel diff-panel">
         <div className="section-heading diff-heading">
           <div>
             <p className="eyebrow">CHANGE INSPECTOR</p>
@@ -1316,7 +1438,7 @@ function GitStyles() {
     .panel{background:linear-gradient(145deg,rgba(18,29,40,.97),rgba(12,20,29,.97));border:1px solid var(--line);border-radius:16px;box-shadow:0 12px 34px #00000012}.repo-strip{max-width:1500px;margin:0 auto 18px;padding:15px 18px;display:flex;justify-content:space-between;align-items:center;gap:18px}.repo-picker{display:grid;grid-template-columns:auto minmax(180px,260px);align-items:center;gap:5px 14px;flex:1}.repo-picker label,.field-label{font-size:11px;color:var(--muted);font-weight:700}.repo-picker select{background:#0a1119;color:var(--text);border:1px solid #304153;border-radius:8px;padding:10px 12px;outline:none}.repo-detail{grid-column:2;color:#77889b;font-size:11px}
     .btn{border:1px solid #344557;background:#172431;color:var(--text);border-radius:9px;padding:9px 13px;font-size:12px;font-weight:700;transition:.15s}.btn:hover:not(:disabled){border-color:#5a7c8d;background:#203242}.btn-primary{background:var(--teal);border-color:var(--teal);color:#08201e}.btn-primary:hover:not(:disabled){background:#8af3e2}.btn-quiet{background:transparent;border-color:#2a3948;color:#b5c2d0}.btn-danger{background:#b93d48;border-color:#db5d68;color:white}.alert{max-width:1500px;margin:0 auto 16px;border-radius:10px;padding:12px 14px;display:flex;gap:12px;align-items:flex-start;font-size:12px}.alert span{flex:1;white-space:pre-wrap}.alert button{background:transparent;color:inherit;border:0;font-size:18px}.alert-error{border:1px solid #71363d;background:#351c23;color:#ffc3c6}.alert-success{border:1px solid #24634e;background:#102c26;color:#a8f4d8}
     .stat-grid{max-width:1500px;margin:0 auto 18px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px}.stat-card{padding:16px 18px;min-width:0}.stat-top{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:11px}.stat-top i{font-style:normal;color:var(--teal);font-size:19px}.stat-card>strong{display:block;font-size:clamp(22px,2.5vw,30px);letter-spacing:-.04em;margin:10px 0 5px;overflow-wrap:anywhere}.stat-card>small{display:block;font-size:11px;color:#74869a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.stat-card .amber{color:var(--amber)}.stat-card .blue{color:var(--blue)}
-    .branch-panel{max-width:1500px;margin:0 auto 18px;padding:21px}.branch-panel .section-heading{margin-bottom:13px}.branch-list{border:1px solid #202e3a;border-radius:10px;overflow:hidden}.branch-row{display:flex;align-items:center;gap:12px;padding:10px 13px;border-bottom:1px solid #1c2a36;font-size:12px;background:#0b131b}.branch-row:last-child{border-bottom:0}.branch-row.active{background:#12302f;box-shadow:inset 0 0 0 1px #28685e}.branch-row.is-main code{color:var(--amber)}.branch-row code{color:var(--teal);flex:0 0 220px;overflow-wrap:anywhere;font-size:11px}.branch-meta{flex:1;color:#74869a;font-size:10px;min-width:0;overflow-wrap:anywhere}.branch-row .btn{flex-shrink:0;padding:6px 10px}
+    .branch-panel{max-width:1500px;margin:0 auto 18px;padding:21px}.branch-panel .section-heading{margin-bottom:13px}.branch-list{border:1px solid #202e3a;border-radius:10px;overflow:hidden}.branch-row{display:flex;align-items:center;gap:12px;padding:10px 13px;border-bottom:1px solid #1c2a36;font-size:12px;background:#0b131b}.branch-row:last-child{border-bottom:0}.branch-row.active{background:#12302f;box-shadow:inset 0 0 0 1px #28685e}.branch-row.is-main code{color:var(--amber)}.branch-row code{color:var(--teal);flex:0 0 220px;overflow-wrap:anywhere;font-size:11px}.branch-meta{flex:1;color:#74869a;font-size:10px;min-width:0;overflow-wrap:anywhere}.branch-row .btn{flex-shrink:0;padding:6px 10px}.pr-badge{display:inline-block;padding:1px 7px;border-radius:999px;font-size:9px;letter-spacing:.04em;text-transform:uppercase;border:1px solid #2b3b49;color:#9fb0c1}.pr-badge-open{color:#5fd39a;border-color:#2c6b4f}.pr-badge-merged{color:#a58bf0;border-color:#5a4a99}.pr-badge-closed{color:#e08a8a;border-color:#7a3d3d}.pr-badge-unknown{color:var(--amber);border-color:#7a5f22}.branch-row a.btn{text-decoration:none}
     .main-grid{max-width:1500px;margin:0 auto 18px;display:grid;grid-template-columns:1fr 1.1fr;gap:18px}.overview-panel,.actions-panel,.diff-panel,.bottom-grid>.panel{padding:21px}.section-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:19px}.section-heading h2{font-size:17px;margin:0;letter-spacing:-.025em}.section-heading .eyebrow{margin-bottom:6px}.muted{color:var(--muted)}.small-copy{font-size:12px;line-height:1.6}.status-pill{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;border:1px solid #314050;border-radius:99px;padding:6px 9px;font-size:10px;color:#9eacba}.status-pill i{width:6px;height:6px;background:#8a9aab;border-radius:50%}.status-pill.is-clean{border-color:#285e4c;color:#8ce4bd}.status-pill.is-clean i{background:#5cdda8}.status-pill.is-dirty{border-color:#73572d;color:#ffd18a}.status-pill.is-dirty i{background:#ffc56c}
     .status-lines{border-top:1px solid #263442}.status-line{display:flex;justify-content:space-between;gap:15px;padding:12px 0;border-bottom:1px solid #202e3b;font-size:11px}.status-line span{color:#8797a8;flex:0 0 110px}.status-line strong{text-align:right;font-weight:600;overflow-wrap:anywhere}.button-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}.actions-panel .section-heading{margin-bottom:7px}.lock-icon{font-size:23px;color:var(--teal)}.actions-panel .small-copy{margin:0 0 15px}.field-label{display:block;margin:14px 0 7px}.text-input{width:100%;background:#0a1119;color:var(--text);border:1px solid #304153;border-radius:8px;padding:11px 12px;outline:none;font-size:12px}.text-input:focus,.repo-picker select:focus{border-color:#5ddcc7;box-shadow:0 0 0 2px #5ddcc71c}.action-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}.action-btn{display:flex;align-items:center;gap:11px;text-align:left;border:1px solid #2c3e4f;background:#111e29;border-radius:10px;color:var(--text);padding:13px 12px;min-width:0}.action-btn:hover:not(:disabled){border-color:#4d827b;background:#152a32}.action-btn>b{font-size:22px;color:var(--teal);width:28px;text-align:center;font-weight:500}.action-btn span{display:flex;flex-direction:column;gap:4px;min-width:0}.action-btn strong{font-size:12px}.action-btn small{font-size:10px;color:#8a9bad;line-height:1.4}.action-btn.action-danger{border-color:#53363a}.action-btn.action-danger>b{color:#ff8c91}.action-btn.action-danger:hover:not(:disabled){border-color:#a74d56;background:#291d25}.action-btn.action-promote{border-color:#2b5d57}.action-btn.action-promote>b{color:#8af3e2}.action-btn.action-promote:hover:not(:disabled){border-color:#3f9b8d;background:#112b29}.safety-note{font-size:10px;color:#8fa4b4;margin:14px 0 0}.safety-note span{color:var(--teal);margin-right:7px}
     .diff-panel{max-width:1500px;margin:0 auto 18px}.diff-heading{align-items:center}.diff-heading .small-copy{margin:6px 0 0}.scope-tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.scope-tab{background:#0b141d;border:1px solid #273847;border-radius:9px;padding:10px;text-align:left;color:#9babb9;display:flex;flex-direction:column;gap:5px;min-width:0}.scope-tab strong{font-size:11px;color:#d8e1e9;overflow-wrap:anywhere}.scope-tab small{font-size:10px;line-height:1.4}.scope-tab.active{border-color:#3f9b8d;background:#12302f;box-shadow:inset 0 0 0 1px #28685e}.scope-tab.active strong{color:var(--teal)}.diff-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:17px;padding:11px 0;border-bottom:1px solid #273644;font-size:11px;color:#9eafbe}.diff-code{margin:0;max-height:380px;overflow:auto;background:#080e14;border:1px solid #202e3a;border-radius:0 0 10px 10px;padding:15px;color:#a8bdcc;font:11px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere}.diff-code.raw{max-height:520px}.file-list{border:1px solid #202e3a;border-bottom:0;background:#0b131b}.file-row{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid #1c2a36;font-size:11px}.file-symbol{display:grid;place-items:center;width:20px;height:20px;border-radius:5px;background:#1d3438;color:var(--teal);font-size:9px}.file-row code{flex:1;overflow-wrap:anywhere;color:#cbd7e1}.file-stats{display:flex;gap:8px;font:10px ui-monospace,monospace}.file-stats em{color:#65dba5;font-style:normal}.file-stats i{color:#ff8888;font-style:normal}

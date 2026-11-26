@@ -19,16 +19,21 @@ Per attivarlo: in gateway.py aggiungere
     app.include_router(build_git_admin_branches_router(verify_admin_token))
 """
 
+import asyncio
 import hashlib
+import json
+import os
 import re
 import secrets
 import time
+import urllib.error
+import urllib.request
 
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
 from git_admin import (
-    OUTPUT_MAX_CHARS,
+    FETCH_TIMEOUT, OUTPUT_MAX_CHARS,
     _audit, _branch, _cap, _files, _fetch, _flag, _head, _is_conflict,
     _lock, _ok, _phrase, _porcelain, _repo_path, _run, _scrub, _try, _upstream,
 )
@@ -56,7 +61,7 @@ def _kid(action: str) -> str:
 
 def _clean_ref(ref: str) -> str:
     r = (ref or "").strip().strip("/")
-    if not r or not _BRANCH_RE.match(r) or "\x00" in r or ".." in r:
+    if not r or r.startswith("-") or not _BRANCH_RE.match(r) or "\x00" in r or ".." in r:
         raise HTTPException(status_code=400, detail=f"Nome di branch non valido: {ref}")
     return r
 
@@ -109,7 +114,7 @@ async def _build_branch_preview(project: str, path: str, action: str) -> dict:
                 output = await _try(path, "log", "--format=%h %s (%an)", "HEAD..@{u}") or ""
                 files = await _files(path, ["HEAD...@{u}"])
                 summary = (
-                    f"Rebase di {branch} su {upstream}: i tuoi {behind} commit locali si riposizionano"
+                    f"Rebase di {branch} su {upstream}: i tuoi {behind} commit locali si riposizionano "
                     f"sopra i commit appena arrivati dal remoto."
                 )
                 warnings.append(
@@ -217,6 +222,128 @@ async def _exec_promote(path: str) -> str:
     return f"Promozione completata: {start} e dentro {main} ({', '.join(notes)})."
 
 
+# --------------------------------------------------------------------------
+# PULL REQUEST + BRANCH REMOTI (sola lettura)
+# --------------------------------------------------------------------------
+_GH_REMOTE_RE = re.compile(r"github\.com[:/]([A-Za-z0-9._-]+)/([A-Za-z0-9._-]+?)(?:\.git)?/?$")
+_PR_REF_RE = re.compile(r"^origin/pr/\d+$")
+PR_MAX = 100
+PR_API_TTL = 60
+_PR_API_CACHE: dict[str, tuple[float, dict | None, str | None]] = {}
+
+
+async def _base_ref(path: str) -> str | None:
+    """Branch principale di riferimento: preferisce quello remoto (aggiornato)."""
+    for cand in ("origin/main", "origin/master", "main", "master"):
+        if await _try(path, "rev-parse", "--verify", "--quiet", cand):
+            return cand
+    return None
+
+
+def _github_pulls(owner: str, repo: str) -> list[dict]:
+    """Elenco PR dall'API GitHub. Il token (opzionale) serve per i repo privati."""
+    url = (
+        f"https://api.github.com/repos/{owner}/{repo}/pulls"
+        f"?state=all&per_page={PR_MAX}&sort=updated&direction=desc"
+    )
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "dv-git-admin",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    token = (os.environ.get("GIT_ADMIN_GITHUB_TOKEN") or os.environ.get("GITHUB_TOKEN") or "").strip()
+    if token:
+        headers["Authorization"] = "Bearer " + token
+    with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=10) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+async def _api_prs(project: str, path: str) -> tuple[dict | None, str | None]:
+    """Ritorna ({numero: dati PR}, errore). In cache per PR_API_TTL secondi."""
+    cached = _PR_API_CACHE.get(project)
+    if cached and time.time() - cached[0] < PR_API_TTL:
+        return cached[1], cached[2]
+    remote = await _try(path, "remote", "get-url", "origin") or ""
+    m = _GH_REMOTE_RE.search(remote.strip())
+    data: dict | None = None
+    error: str | None = None
+    if not m:
+        error = "Remote origin non riconosciuto come repository GitHub."
+    else:
+        try:
+            raw = await asyncio.to_thread(_github_pulls, m.group(1), m.group(2))
+            data = {int(pr["number"]): pr for pr in raw}
+        except urllib.error.HTTPError as e:
+            error = f"API GitHub: HTTP {e.code}" + (
+                " (repo privato? imposta GIT_ADMIN_GITHUB_TOKEN in gateway.env)" if e.code in (401, 403, 404) else ""
+            )
+        except Exception as e:  # rete, timeout, JSON
+            error = "API GitHub non raggiungibile: " + type(e).__name__
+    _PR_API_CACHE[project] = (time.time(), data, error)
+    return data, error
+
+
+async def _list_prs(project: str, path: str) -> dict:
+    # Scarica le "teste" di tutte le PR (anche chiuse/unite) come origin/pr/<n>.
+    # Usa lo stesso accesso SSH del remote: non serve nessun token per questo.
+    fetch_error = None
+    try:
+        rc, out, err = await _run(
+            path, "fetch", "--quiet", "--prune", "origin",
+            "+refs/pull/*/head:refs/remotes/origin/pr/*", timeout=FETCH_TIMEOUT * 2,
+        )
+        if rc != 0:
+            fetch_error = _scrub((err or out).strip()) or "git fetch delle PR fallito."
+    except HTTPException as e:
+        fetch_error = str(e.detail)
+
+    raw = await _try(
+        path, "for-each-ref",
+        "--format=%(refname:lstrip=4)\x1f%(objectname:short)\x1f%(contents:subject)\x1f%(authorname)\x1f%(committerdate:iso-strict)",
+        "refs/remotes/origin/pr/",
+    ) or ""
+    base = await _base_ref(path)
+    api, api_error = await _api_prs(project, path)
+
+    prs = []
+    for line in raw.splitlines():
+        num, sha, subject, author, date = (line.split("\x1f") + [""] * 5)[:5]
+        if not num.isdigit():
+            continue
+        n = int(num)
+        info = (api or {}).get(n)
+        if info:
+            if info.get("merged_at"):
+                state = "merged"
+            else:
+                state = info.get("state") or "unknown"  # open | closed
+            title = info.get("title") or subject
+            author = (info.get("user") or {}).get("login") or author
+            branch = (info.get("head") or {}).get("ref")
+            url = info.get("html_url")
+            draft = bool(info.get("draft"))
+        else:
+            state, title, branch, url, draft = "unknown", subject, None, None, False
+            if base:
+                rc, _, _ = await _run(path, "merge-base", "--is-ancestor", sha, base)
+                if rc == 0:
+                    state = "merged"
+        prs.append({
+            "number": n, "title": title, "state": state, "draft": draft,
+            "author": author, "branch": branch, "sha": sha, "date": date,
+            "ref": f"origin/pr/{n}", "url": url,
+        })
+    prs.sort(key=lambda x: x["number"], reverse=True)
+    return {
+        "project": project,
+        "base": base,
+        "source": "github" if api else "git",
+        "prs": prs[:PR_MAX],
+        "fetch_error": fetch_error,
+        "api_error": None if api else api_error,
+    }
+
+
 def build_git_admin_branches_router(verify_admin_token) -> APIRouter:
     router = APIRouter(prefix="/api/git/admin", tags=["git-admin-branches"])
 
@@ -225,36 +352,63 @@ def build_git_admin_branches_router(verify_admin_token) -> APIRouter:
         verify_admin_token(authorization)
         path = _repo_path(project)
         async with _lock(project):
+            fetch_error = None
+            try:
+                rc, out, err = await _run(path, "fetch", "--quiet", "--prune", timeout=FETCH_TIMEOUT)
+                if rc != 0:
+                    fetch_error = _scrub((err or out).strip()) or "git fetch fallito."
+            except HTTPException as e:
+                fetch_error = str(e.detail)
             current = await _branch(path)
             raw = await _ok(
                 path,
                 "for-each-ref",
-                "--format=%(refname:short)\x1f%(objectname:short)\x1f%(upstream:short)\x1f%(upstream:track)",
-                "refs/heads",
+                "--format=%(refname)\x1f%(refname:short)\x1f%(objectname:short)\x1f%(upstream:short)\x1f%(upstream:track)",
+                "refs/heads", "refs/remotes/origin",
             )
             main = await _main_branch(path)
-        branches = []
-        for line in raw.splitlines():
-            if not line.strip():
-                continue
-            name, sha, upstream, track = (line.split("\x1f") + ["", "", "", ""])[:4]
-            ahead = behind = None
-            m = re.search(r"ahead (\d+)", track or "")
-            if m:
-                ahead = int(m.group(1))
-            m = re.search(r"behind (\d+)", track or "")
-            if m:
-                behind = int(m.group(1))
-            branches.append({
-                "name": name,
-                "sha": sha,
-                "upstream": upstream or None,
-                "ahead": ahead,
-                "behind": behind,
-                "current": name == current,
-                "is_main": name in _MAIN_CANDIDATES,
-            })
-        return {"project": project, "current": current, "main": main, "branches": branches}
+            base = await _base_ref(path)
+            rows = []
+            for line in raw.splitlines():
+                if not line.strip():
+                    continue
+                full, name, sha, upstream, track = (line.split("\x1f") + [""] * 5)[:5]
+                if full.endswith("/HEAD") or _PR_REF_RE.match(name):
+                    continue
+                rows.append((full.startswith("refs/remotes/"), name, sha, upstream, track))
+            local_names = {r[1] for r in rows if not r[0]}
+            branches = []
+            for remote, name, sha, upstream, track in rows:
+                if remote and name.split("/", 1)[-1] in local_names:
+                    continue  # già mostrato come branch locale (con upstream)
+                ahead = behind = None
+                m = re.search(r"ahead (\d+)", track or "")
+                if m:
+                    ahead = int(m.group(1))
+                m = re.search(r"behind (\d+)", track or "")
+                if m:
+                    behind = int(m.group(1))
+                ahead_main = behind_main = None
+                if base and len(branches) < 60 and name != base and name not in _MAIN_CANDIDATES:
+                    ahead_main = await _count(path, f"{base}..{name}")
+                    behind_main = await _count(path, f"{name}..{base}")
+                branches.append({
+                    "name": name,
+                    "sha": sha,
+                    "upstream": upstream or None,
+                    "ahead": ahead,
+                    "behind": behind,
+                    "ahead_main": ahead_main,
+                    "behind_main": behind_main,
+                    "current": (not remote) and name == current,
+                    "is_main": name in _MAIN_CANDIDATES or name == base,
+                    "remote": remote,
+                })
+        branches.sort(key=lambda b: (b["remote"], not b["is_main"], b["name"]))
+        return {
+            "project": project, "current": current, "main": main,
+            "branches": branches, "fetch_error": fetch_error,
+        }
 
     @router.get("/branchdiff")
     async def git_admin_branchdiff(
@@ -277,6 +431,44 @@ def build_git_admin_branches_router(verify_admin_token) -> APIRouter:
             "base": base,
             "commits": commits,
             "summary": f"{len(commits)} commit · {len(files)} file rispetto a {base}",
+            "files": files,
+            "diff": _cap(text, BRANCH_DIFF_MAX_CHARS),
+            "truncated": len(text) > BRANCH_DIFF_MAX_CHARS,
+        }
+
+    @router.get("/prs")
+    async def git_admin_prs(project: str, authorization: str | None = Header(None)):
+        verify_admin_token(authorization)
+        path = _repo_path(project)
+        async with _lock(project):
+            return await _list_prs(project, path)
+
+    @router.get("/refdiff")
+    async def git_admin_refdiff(
+        project: str, ref: str, base: str = "", authorization: str | None = Header(None)
+    ):
+        """Cosa aggiunge `ref` (branch o PR) rispetto a `base` (default: main remoto)."""
+        verify_admin_token(authorization)
+        ref = _clean_ref(ref)
+        path = _repo_path(project)
+        async with _lock(project):
+            base = _clean_ref(base) if base else await _base_ref(path)
+            if not base:
+                raise HTTPException(status_code=404, detail="Nessun branch main/master trovato.")
+            for r in (ref, base):
+                if not await _try(path, "rev-parse", "--verify", "--quiet", r + "^{commit}"):
+                    raise HTTPException(status_code=404, detail=f"Riferimento non trovato: {r}")
+            commits = (await _try(path, "log", "--format=%h %s (%an)", f"{base}..{ref}") or "").splitlines()
+            files = await _files(path, [f"{base}...{ref}"])
+            _, patch, _ = await _run(path, "diff", "--no-renames", f"{base}...{ref}")
+        header = f"# {ref} rispetto a {base}: {len(commits)} commit\n" + "\n".join(f"#   {c}" for c in commits) + "\n\n"
+        text = header + patch
+        return {
+            "project": project,
+            "ref": ref,
+            "base": base,
+            "commits": commits,
+            "summary": f"{len(commits)} commit · {len(files)} file in {ref} rispetto a {base}",
             "files": files,
             "diff": _cap(text, BRANCH_DIFF_MAX_CHARS),
             "truncated": len(text) > BRANCH_DIFF_MAX_CHARS,
