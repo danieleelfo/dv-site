@@ -43,16 +43,13 @@ _BRANCH_PREVIEWS: dict[str, dict] = {}
 
 
 def _kid(action: str) -> str:
-    """Spiegazione per bambini: matte e chiara, una per azione."""
+    """Spiegazione step by step."""
     return {
         "rebase": (
-            "Rebase = rimetti i tuoi mattoni in cima al muro: prima scendono i
-            commit degli altri, e i tuoi si pogliono sopra, in fila ordinata."
+            "Rebase = rimetti i tuoi cambi in cima a tutto: prima scendono le modifiche degli altri, e i tuoi si aggiungono sopra."
         ),
         "promote": (
-            "Promuovi = porta tutti i giocattoli del tuo branch dentro la
-            scatola principale (main): da quel momento il sito di tutti usa
-            anche i tuoi."
+            "Promuovi = porta tutte le modifiche del tuo branch dentro l'app principale (main): da quel momento il sito di tutti usa anche i tuoi cambi."
         ),
     }.get(action, "")
 
