@@ -113,8 +113,7 @@ async def _build_branch_preview(project: str, path: str, action: str) -> dict:
                     f"sopra i commit appena arrivati dal remoto."
                 )
                 warnings.append(
-                    "Se compaiono conflitti eseguiamo automaticamente git rebase --abort:
-                    il repo torna esattamente com'era."
+                    "Se compaiono conflitti eseguiamo automaticamente git rebase --abort: il repo torna esattamente com'era."
                 )
     else:  # promote
         if branch is None:
