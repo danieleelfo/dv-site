@@ -30,7 +30,10 @@ const DIFF_SCOPES = [
   { id: "staged", label: "Staged", help: "Pronte per il commit" },
   { id: "incoming", label: "In arrivo", help: "Commit remoti non ancora locali" },
   { id: "outgoing", label: "In uscita", help: "Commit locali non ancora remoti" },
+  { id: "branch", label: "Branch vs base", help: "Diff del tuo branch rispetto al branch base" },
 ];
+
+const BRANCH_ACTIONS = ["rebase", "promote"];
 
 function parseJwt(token) {
   try {
@@ -164,6 +167,9 @@ export default function Test2() {
   const [confirmText, setConfirmText] = useState("");
   const [showRaw, setShowRaw] = useState(false);
 
+  const [branches, setBranches] = useState(null);
+  const [baseRef, setBaseRef] = useState("main");
+
   const [fdFiles, setFdFiles] = useState([]);
   const [fdFile, setFdFile] = useState("");
   const [fdLimit, setFdLimit] = useState(10);
@@ -212,7 +218,7 @@ export default function Test2() {
 
     try {
       const data = await api(
-        `/api/git/admin/status?project=${encodeURIComponent(selectedProject)}`
+        "/api/git/admin/status?project=" + encodeURIComponent(selectedProject)
       );
 
       setStatus(data);
@@ -234,16 +240,21 @@ export default function Test2() {
 
   const loadDiff = useCallback(async (
     selectedProject = project,
-    selectedScope = scope
+    selectedScope = scope,
+    selectedBase = baseRef
   ) => {
     setBusy("diff");
     setError("");
     setNotice("");
 
     try {
-      const data = await api(
-        `/api/git/admin/diff?project=${encodeURIComponent(selectedProject)}&scope=${encodeURIComponent(selectedScope)}`
-      );
+      const url = selectedScope === "branch"
+        ? "/api/git/admin/branchdiff?project=" + encodeURIComponent(selectedProject) +
+          "&base=" + encodeURIComponent(selectedBase)
+        : "/api/git/admin/diff?project=" + encodeURIComponent(selectedProject) +
+          "&scope=" + encodeURIComponent(selectedScope);
+
+      const data = await api(url);
 
       setDiff(data);
     } catch (e) {
@@ -252,7 +263,24 @@ export default function Test2() {
     } finally {
       setBusy("");
     }
-  }, [api, project, scope]);
+  }, [api, project, scope, baseRef]);
+
+  const loadBranches = useCallback(async (selectedProject = project) => {
+    setBusy("branches");
+    setError("");
+
+    try {
+      const data = await api(
+        "/api/git/admin/branches?project=" + encodeURIComponent(selectedProject)
+      );
+      setBranches(data);
+    } catch (e) {
+      setBranches(null);
+      setError(e.message || String(e));
+    } finally {
+      setBusy("");
+    }
+  }, [api, project]);
 
   const loadFdFiles = useCallback(async (selectedProject = project) => {
     setFdBusy("files");
@@ -260,7 +288,7 @@ export default function Test2() {
 
     try {
       const data = await api(
-        `/api/git/admin/files?project=${encodeURIComponent(selectedProject)}`
+        "/api/git/admin/files?project=" + encodeURIComponent(selectedProject)
       );
 
       setFdFiles(Array.isArray(data.files) ? data.files : []);
@@ -279,7 +307,8 @@ export default function Test2() {
 
     try {
       const data = await api(
-        `/api/git/admin/filediff?project=${encodeURIComponent(project)}&file=${encodeURIComponent(file)}&sha=${encodeURIComponent(sha)}`
+        "/api/git/admin/filediff?project=" + encodeURIComponent(project) +
+        "&file=" + encodeURIComponent(file) + "&sha=" + encodeURIComponent(sha)
       );
 
       setFdDiff(data);
@@ -307,7 +336,8 @@ export default function Test2() {
 
     try {
       const data = await api(
-        `/api/git/admin/filelog?project=${encodeURIComponent(project)}&file=${encodeURIComponent(file)}&limit=${limit}`
+        "/api/git/admin/filelog?project=" + encodeURIComponent(project) +
+        "&file=" + encodeURIComponent(file) + "&limit=" + limit
       );
 
       const commits = Array.isArray(data.commits) ? data.commits : [];
@@ -330,8 +360,9 @@ export default function Test2() {
       setFdSha("");
       setFdDiff(null);
       loadFdFiles(project);
+      loadBranches(project);
     }
-  }, [auth.token, auth.allowed, project, loadFdFiles]);
+  }, [auth.token, auth.allowed, project, loadFdFiles, loadBranches]);
 
   useEffect(() => {
     if (auth.token && auth.allowed) loadStatus(project);
@@ -349,15 +380,20 @@ export default function Test2() {
     setAction(kind);
     setBusy("preview");
 
+    const isBranchAction = BRANCH_ACTIONS.includes(kind);
+
     try {
-      const data = await api("/api/git/admin/preview", {
-        method: "POST",
-        body: JSON.stringify({
-          project,
-          action: kind,
-          message: kind === "commit" ? commitMessage.trim() : undefined,
-        }),
-      });
+      const data = await api(
+        isBranchAction ? "/api/git/admin/branch-preview" : "/api/git/admin/preview",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            project,
+            action: kind,
+            message: kind === "commit" ? commitMessage.trim() : undefined,
+          }),
+        }
+      );
 
       setPreview(data);
 
@@ -381,28 +417,33 @@ export default function Test2() {
     if (!preview) return;
 
     const required =
-      preview.confirmation_phrase || `CONFERMA ${action.toUpperCase()}`;
+      preview.confirmation_phrase || "CONFERMA " + action.toUpperCase();
 
     if (confirmText.trim() !== required) {
       setError(t("git.typeExact", { phrase: required }));
       return;
     }
 
+    const isBranchAction = BRANCH_ACTIONS.includes(action);
+
     setBusy("execute");
     setError("");
     setNotice("");
 
     try {
-      const result = await api("/api/git/admin/execute", {
-        method: "POST",
-        body: JSON.stringify({
-          project,
-          action,
-          message: action === "commit" ? commitMessage.trim() : undefined,
-          confirmation_phrase: confirmText.trim(),
-          preview_id: preview.preview_id,
-        }),
-      });
+      const result = await api(
+        isBranchAction ? "/api/git/admin/branch-execute" : "/api/git/admin/execute",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            project,
+            action,
+            message: action === "commit" ? commitMessage.trim() : undefined,
+            confirmation_phrase: confirmText.trim(),
+            preview_id: preview.preview_id,
+          }),
+        }
+      );
 
       setNotice(result.message || t("git.actionDone", { action }));
 
@@ -424,6 +465,7 @@ export default function Test2() {
 
       await loadStatus(project);
       await loadDiff(project, scope);
+      await loadBranches(project);
     } catch (e) {
       setError(e.message || String(e));
     } finally {
@@ -506,6 +548,7 @@ export default function Test2() {
               setStatus(null);
               setDiff(null);
               setPreview(null);
+              setBranches(null);
             }}
           >
             {REPOS.map((r) => (
@@ -524,6 +567,7 @@ export default function Test2() {
           onClick={() => {
             loadStatus(project);
             loadDiff(project, scope);
+            loadBranches(project);
           }}
         >
           {busy ? t("git.wait") : t("git.refresh")}
@@ -586,6 +630,66 @@ export default function Test2() {
         />
       </section>
 
+      <section className="panel branch-panel">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">BRANCHES</p>
+            <h2>Branch locali</h2>
+            <p className="muted small-copy">
+              I branch del repository e la loro distanza dal remoto.
+              "Confronta" mostra cosa il tuo HEAD ha in più rispetto a quel branch.
+            </p>
+          </div>
+
+          <button
+            className="btn btn-quiet"
+            disabled={!!busy}
+            onClick={() => loadBranches(project)}
+          >
+            Ricarica
+          </button>
+        </div>
+
+        {branches?.branches?.length ? (
+          <div className="branch-list">
+            {branches.branches.map((br) => (
+              <div
+                key={br.name}
+                className={
+                  "branch-row" +
+                  (br.is_main ? " is-main" : "") +
+                  (br.current ? " active" : "")
+                }
+              >
+                <code>{br.name}</code>
+                <span className="branch-meta">
+                  {br.current ? "• attuale · " : ""}
+                  {br.upstream ? br.upstream + " · " : ""}
+                  ahead {br.ahead ?? "—"} · behind {br.behind ?? "—"}
+                </span>
+                <button
+                  className="btn btn-quiet"
+                  disabled={!!busy || br.current}
+                  onClick={() => {
+                    setBaseRef(br.name);
+                    setScope("branch");
+                    loadDiff(project, "branch", br.name);
+                  }}
+                >
+                  Confronta
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="muted small-copy">
+            {busy === "branches"
+              ? "Carico i branch…"
+              : "Nessun branch caricato (serve il nuovo endpoint /branches sul gateway)."}
+          </p>
+        )}
+      </section>
+
       <section className="main-grid">
         <div className="panel overview-panel">
           <div className="section-heading">
@@ -595,9 +699,10 @@ export default function Test2() {
             </div>
 
             <span
-              className={`status-pill ${
-                dirty === true ? "is-dirty" : dirty === false ? "is-clean" : ""
-              }`}
+              className={
+                "status-pill " +
+                (dirty === true ? "is-dirty" : dirty === false ? "is-clean" : "")
+              }
             >
               <i />
               {dirty === true
@@ -659,6 +764,14 @@ export default function Test2() {
               onClick={() => loadDiff(project, "staged")}
             >
               Diff staged
+            </button>
+
+            <button
+              className="btn"
+              disabled={!!busy}
+              onClick={() => loadDiff(project, "branch", baseRef)}
+            >
+              Diff vs {baseRef}
             </button>
           </div>
         </div>
@@ -725,6 +838,36 @@ export default function Test2() {
             </button>
 
             <button
+              className="action-btn"
+              disabled={!!busy}
+              onClick={() => prepareAction("rebase")}
+            >
+              <b>⇅</b>
+              <span>
+                <strong>Rebase</strong>
+                <small>
+                  Rimette i tuoi commit in cima a quelli appena arrivati.
+                  Se compaiono conflitti si annulla da solo, senza rompere niente.
+                </small>
+              </span>
+            </button>
+
+            <button
+              className="action-btn action-promote"
+              disabled={!!busy}
+              onClick={() => prepareAction("promote")}
+            >
+              <b>⇧</b>
+              <span>
+                <strong>Promuovi a main</strong>
+                <small>
+                  Porta i commit di questo branch dentro main e fa il push:
+                  da quel momento il sito di tutti usa anche le novità del tuo branch.
+                </small>
+              </span>
+            </button>
+
+            <button
               className="action-btn action-danger"
               disabled={!!busy}
               onClick={() => prepareAction("force_pull")}
@@ -766,8 +909,12 @@ export default function Test2() {
               className={scope === s.id ? "scope-tab active" : "scope-tab"}
               onClick={() => setScope(s.id)}
             >
-              <strong>{t("git.scope." + s.id)}</strong>
-              <small>{t("git.scopeHelp." + s.id)}</small>
+              <strong>
+                {t("git.scope." + s.id, { defaultValue: s.label })}
+              </strong>
+              <small>
+                {t("git.scopeHelp." + s.id, { defaultValue: s.help })}
+              </small>
             </button>
           ))}
         </div>
@@ -778,7 +925,7 @@ export default function Test2() {
               diff?.title ||
               t("git.scopeFallback", {
                 repo: repo.label,
-                scope: t("git.scope." + scope),
+                scope: t("git.scope." + scope, { defaultValue: scope }),
               })}
           </span>
 
@@ -808,7 +955,7 @@ export default function Test2() {
           </div>
         )}
 
-        <pre className={`diff-code ${showRaw ? "raw" : ""}`}>
+        <pre className={"diff-code " + (showRaw ? "raw" : "")}>
           {diffText || (
             busy === "diff" ? t("git.loadingDiff") : t("git.noDiff")
           )}
@@ -943,7 +1090,7 @@ export default function Test2() {
             <div className="activity-list">
               {activity.map((a, i) => (
                 <div className="activity-row" key={i}>
-                  <span className={`activity-dot ${a.kind}`} />
+                  <span className={"activity-dot " + a.kind} />
                   <span>{a.text}</span>
                   <time>{a.at}</time>
                 </div>
@@ -986,8 +1133,13 @@ export default function Test2() {
             aria-labelledby="confirm-title"
           >
             <div className="modal-top">
-              <span className={`modal-icon ${action === "force_pull" ? "danger" : ""}`}>
-                {action === "force_pull" ? "!" : "⌑"}
+              <span
+                className={
+                  "modal-icon " +
+                  (action === "force_pull" ? "danger" : action === "promote" ? "promote" : "")
+                }
+              >
+                {action === "force_pull" ? "!" : action === "promote" ? "⇧" : "⌑"}
               </span>
 
               <button
@@ -1017,6 +1169,12 @@ export default function Test2() {
             <p className="muted">
               {preview.summary || preview.message || t("git.checkPreview")}
             </p>
+
+            {preview.child_explainer && (
+              <p className="child-explainer">
+                🧒 {preview.child_explainer}
+              </p>
+            )}
 
             {preview.warnings?.length > 0 && (
               <div className="warning-list">
@@ -1053,7 +1211,7 @@ export default function Test2() {
             <label className="field-label" htmlFor="confirm-phrase">
               {t("git.typePhrase")}{" "}
               <code>
-                {preview.confirmation_phrase || `CONFERMA ${action.toUpperCase()}`}
+                {preview.confirmation_phrase || "CONFERMA " + action.toUpperCase()}
               </code>
             </label>
 
@@ -1079,12 +1237,15 @@ export default function Test2() {
               </button>
 
               <button
-                className={`btn ${action === "force_pull" ? "btn-danger" : "btn-primary"}`}
+                className={
+                  "btn " +
+                  (action === "force_pull" ? "btn-danger" : "btn-primary")
+                }
                 disabled={
                   busy === "execute" ||
                   preview.safe === false ||
                   confirmText.trim() !== (
-                    preview.confirmation_phrase || `CONFERMA ${action.toUpperCase()}`
+                    preview.confirmation_phrase || "CONFERMA " + action.toUpperCase()
                   )
                 }
                 onClick={executeAction}
@@ -1155,15 +1316,16 @@ function GitStyles() {
     .panel{background:linear-gradient(145deg,rgba(18,29,40,.97),rgba(12,20,29,.97));border:1px solid var(--line);border-radius:16px;box-shadow:0 12px 34px #00000012}.repo-strip{max-width:1500px;margin:0 auto 18px;padding:15px 18px;display:flex;justify-content:space-between;align-items:center;gap:18px}.repo-picker{display:grid;grid-template-columns:auto minmax(180px,260px);align-items:center;gap:5px 14px;flex:1}.repo-picker label,.field-label{font-size:11px;color:var(--muted);font-weight:700}.repo-picker select{background:#0a1119;color:var(--text);border:1px solid #304153;border-radius:8px;padding:10px 12px;outline:none}.repo-detail{grid-column:2;color:#77889b;font-size:11px}
     .btn{border:1px solid #344557;background:#172431;color:var(--text);border-radius:9px;padding:9px 13px;font-size:12px;font-weight:700;transition:.15s}.btn:hover:not(:disabled){border-color:#5a7c8d;background:#203242}.btn-primary{background:var(--teal);border-color:var(--teal);color:#08201e}.btn-primary:hover:not(:disabled){background:#8af3e2}.btn-quiet{background:transparent;border-color:#2a3948;color:#b5c2d0}.btn-danger{background:#b93d48;border-color:#db5d68;color:white}.alert{max-width:1500px;margin:0 auto 16px;border-radius:10px;padding:12px 14px;display:flex;gap:12px;align-items:flex-start;font-size:12px}.alert span{flex:1;white-space:pre-wrap}.alert button{background:transparent;color:inherit;border:0;font-size:18px}.alert-error{border:1px solid #71363d;background:#351c23;color:#ffc3c6}.alert-success{border:1px solid #24634e;background:#102c26;color:#a8f4d8}
     .stat-grid{max-width:1500px;margin:0 auto 18px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px}.stat-card{padding:16px 18px;min-width:0}.stat-top{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:11px}.stat-top i{font-style:normal;color:var(--teal);font-size:19px}.stat-card>strong{display:block;font-size:clamp(22px,2.5vw,30px);letter-spacing:-.04em;margin:10px 0 5px;overflow-wrap:anywhere}.stat-card>small{display:block;font-size:11px;color:#74869a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.stat-card .amber{color:var(--amber)}.stat-card .blue{color:var(--blue)}
+    .branch-panel{max-width:1500px;margin:0 auto 18px;padding:21px}.branch-panel .section-heading{margin-bottom:13px}.branch-list{border:1px solid #202e3a;border-radius:10px;overflow:hidden}.branch-row{display:flex;align-items:center;gap:12px;padding:10px 13px;border-bottom:1px solid #1c2a36;font-size:12px;background:#0b131b}.branch-row:last-child{border-bottom:0}.branch-row.active{background:#12302f;box-shadow:inset 0 0 0 1px #28685e}.branch-row.is-main code{color:var(--amber)}.branch-row code{color:var(--teal);flex:0 0 220px;overflow-wrap:anywhere;font-size:11px}.branch-meta{flex:1;color:#74869a;font-size:10px;min-width:0;overflow-wrap:anywhere}.branch-row .btn{flex-shrink:0;padding:6px 10px}
     .main-grid{max-width:1500px;margin:0 auto 18px;display:grid;grid-template-columns:1fr 1.1fr;gap:18px}.overview-panel,.actions-panel,.diff-panel,.bottom-grid>.panel{padding:21px}.section-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:19px}.section-heading h2{font-size:17px;margin:0;letter-spacing:-.025em}.section-heading .eyebrow{margin-bottom:6px}.muted{color:var(--muted)}.small-copy{font-size:12px;line-height:1.6}.status-pill{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;border:1px solid #314050;border-radius:99px;padding:6px 9px;font-size:10px;color:#9eacba}.status-pill i{width:6px;height:6px;background:#8a9aab;border-radius:50%}.status-pill.is-clean{border-color:#285e4c;color:#8ce4bd}.status-pill.is-clean i{background:#5cdda8}.status-pill.is-dirty{border-color:#73572d;color:#ffd18a}.status-pill.is-dirty i{background:#ffc56c}
-    .status-lines{border-top:1px solid #263442}.status-line{display:flex;justify-content:space-between;gap:15px;padding:12px 0;border-bottom:1px solid #202e3b;font-size:11px}.status-line span{color:#8797a8;flex:0 0 110px}.status-line strong{text-align:right;font-weight:600;overflow-wrap:anywhere}.button-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}.actions-panel .section-heading{margin-bottom:7px}.lock-icon{font-size:23px;color:var(--teal)}.actions-panel .small-copy{margin:0 0 15px}.field-label{display:block;margin:14px 0 7px}.text-input{width:100%;background:#0a1119;color:var(--text);border:1px solid #304153;border-radius:8px;padding:11px 12px;outline:none;font-size:12px}.text-input:focus,.repo-picker select:focus{border-color:#5ddcc7;box-shadow:0 0 0 2px #5ddcc71c}.action-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}.action-btn{display:flex;align-items:center;gap:11px;text-align:left;border:1px solid #2c3e4f;background:#111e29;border-radius:10px;color:var(--text);padding:13px 12px;min-width:0}.action-btn:hover:not(:disabled){border-color:#4d827b;background:#152a32}.action-btn>b{font-size:22px;color:var(--teal);width:28px;text-align:center;font-weight:500}.action-btn span{display:flex;flex-direction:column;gap:4px;min-width:0}.action-btn strong{font-size:12px}.action-btn small{font-size:10px;color:#8a9bad;line-height:1.4}.action-btn.action-danger{border-color:#53363a}.action-btn.action-danger>b{color:#ff8c91}.action-btn.action-danger:hover:not(:disabled){border-color:#a74d56;background:#291d25}.safety-note{font-size:10px;color:#8fa4b4;margin:14px 0 0}.safety-note span{color:var(--teal);margin-right:7px}
-    .diff-panel{max-width:1500px;margin:0 auto 18px}.diff-heading{align-items:center}.diff-heading .small-copy{margin:6px 0 0}.scope-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.scope-tab{background:#0b141d;border:1px solid #273847;border-radius:9px;padding:10px;text-align:left;color:#9babb9;display:flex;flex-direction:column;gap:5px}.scope-tab strong{font-size:11px;color:#d8e1e9}.scope-tab small{font-size:10px;line-height:1.4}.scope-tab.active{border-color:#3f9b8d;background:#12302f;box-shadow:inset 0 0 0 1px #28685e}.scope-tab.active strong{color:var(--teal)}.diff-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:17px;padding:11px 0;border-bottom:1px solid #273644;font-size:11px;color:#9eafbe}.diff-code{margin:0;max-height:380px;overflow:auto;background:#080e14;border:1px solid #202e3a;border-radius:0 0 10px 10px;padding:15px;color:#a8bdcc;font:11px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere}.diff-code.raw{max-height:520px}.file-list{border:1px solid #202e3a;border-bottom:0;background:#0b131b}.file-row{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid #1c2a36;font-size:11px}.file-symbol{display:grid;place-items:center;width:20px;height:20px;border-radius:5px;background:#1d3438;color:var(--teal);font-size:9px}.file-row code{flex:1;overflow-wrap:anywhere;color:#cbd7e1}.file-stats{display:flex;gap:8px;font:10px ui-monospace,monospace}.file-stats em{color:#65dba5;font-style:normal}.file-stats i{color:#ff8888;font-style:normal}
+    .status-lines{border-top:1px solid #263442}.status-line{display:flex;justify-content:space-between;gap:15px;padding:12px 0;border-bottom:1px solid #202e3b;font-size:11px}.status-line span{color:#8797a8;flex:0 0 110px}.status-line strong{text-align:right;font-weight:600;overflow-wrap:anywhere}.button-row{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}.actions-panel .section-heading{margin-bottom:7px}.lock-icon{font-size:23px;color:var(--teal)}.actions-panel .small-copy{margin:0 0 15px}.field-label{display:block;margin:14px 0 7px}.text-input{width:100%;background:#0a1119;color:var(--text);border:1px solid #304153;border-radius:8px;padding:11px 12px;outline:none;font-size:12px}.text-input:focus,.repo-picker select:focus{border-color:#5ddcc7;box-shadow:0 0 0 2px #5ddcc71c}.action-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}.action-btn{display:flex;align-items:center;gap:11px;text-align:left;border:1px solid #2c3e4f;background:#111e29;border-radius:10px;color:var(--text);padding:13px 12px;min-width:0}.action-btn:hover:not(:disabled){border-color:#4d827b;background:#152a32}.action-btn>b{font-size:22px;color:var(--teal);width:28px;text-align:center;font-weight:500}.action-btn span{display:flex;flex-direction:column;gap:4px;min-width:0}.action-btn strong{font-size:12px}.action-btn small{font-size:10px;color:#8a9bad;line-height:1.4}.action-btn.action-danger{border-color:#53363a}.action-btn.action-danger>b{color:#ff8c91}.action-btn.action-danger:hover:not(:disabled){border-color:#a74d56;background:#291d25}.action-btn.action-promote{border-color:#2b5d57}.action-btn.action-promote>b{color:#8af3e2}.action-btn.action-promote:hover:not(:disabled){border-color:#3f9b8d;background:#112b29}.safety-note{font-size:10px;color:#8fa4b4;margin:14px 0 0}.safety-note span{color:var(--teal);margin-right:7px}
+    .diff-panel{max-width:1500px;margin:0 auto 18px}.diff-heading{align-items:center}.diff-heading .small-copy{margin:6px 0 0}.scope-tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.scope-tab{background:#0b141d;border:1px solid #273847;border-radius:9px;padding:10px;text-align:left;color:#9babb9;display:flex;flex-direction:column;gap:5px;min-width:0}.scope-tab strong{font-size:11px;color:#d8e1e9;overflow-wrap:anywhere}.scope-tab small{font-size:10px;line-height:1.4}.scope-tab.active{border-color:#3f9b8d;background:#12302f;box-shadow:inset 0 0 0 1px #28685e}.scope-tab.active strong{color:var(--teal)}.diff-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:17px;padding:11px 0;border-bottom:1px solid #273644;font-size:11px;color:#9eafbe}.diff-code{margin:0;max-height:380px;overflow:auto;background:#080e14;border:1px solid #202e3a;border-radius:0 0 10px 10px;padding:15px;color:#a8bdcc;font:11px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere}.diff-code.raw{max-height:520px}.file-list{border:1px solid #202e3a;border-bottom:0;background:#0b131b}.file-row{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid #1c2a36;font-size:11px}.file-symbol{display:grid;place-items:center;width:20px;height:20px;border-radius:5px;background:#1d3438;color:var(--teal);font-size:9px}.file-row code{flex:1;overflow-wrap:anywhere;color:#cbd7e1}.file-stats{display:flex;gap:8px;font:10px ui-monospace,monospace}.file-stats em{color:#65dba5;font-style:normal}.file-stats i{color:#ff8888;font-style:normal}
     .fd-controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:13px}.fd-controls .text-input{flex:1;min-width:230px}.fd-controls .fd-limit{flex:0 0 130px}.fd-commit-list{border:1px solid #202e3a;border-bottom:0;border-radius:9px 9px 0 0;overflow:hidden}.fd-commit{width:100%;display:flex;gap:11px;align-items:center;background:#0b131b;border:0;border-bottom:1px solid #1c2a36;padding:10px 13px;color:var(--text);font-size:11px;text-align:left}.fd-commit:hover{background:#101d29}.fd-commit.active{background:#12302f;box-shadow:inset 0 0 0 1px #28685e}.fd-commit code{flex:0 0 62px;color:var(--teal)}.fd-commit .fd-msg{flex:1;min-width:0;overflow-wrap:anywhere;color:#cbd7e1}.fd-commit .fd-meta{color:#74869a;font-size:10px;white-space:nowrap}.fd-add{color:#65dba5;font-style:normal}.fd-del{color:#ff8888;font-style:normal}.filediff-panel .diff-code{margin-top:0;border-radius:10px}
     .bottom-grid{max-width:1500px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:18px}.bottom-grid .section-heading{margin-bottom:13px}.activity-list{display:flex;flex-direction:column}.activity-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #202e3b;font-size:11px}.activity-dot{width:7px;height:7px;border-radius:50%;background:#91a0b1;flex-shrink:0}.activity-dot.ok{background:#5cdda8}.activity-row span:nth-child(2){flex:1}.activity-row time{font-size:10px;color:#74869a}.guard-panel{display:flex;gap:15px;align-items:flex-start}.guard-icon{font-size:28px;color:var(--teal);border:1px solid #2b5d57;background:#15312f;border-radius:10px;padding:7px 12px}.guard-panel h3{margin:2px 0 10px;font-size:14px}.guard-panel ul{padding-left:17px;margin:0;color:#91a1b1;font-size:11px;line-height:1.9}
     .git-login{max-width:450px;margin:9vh auto;padding:36px;text-align:center}.git-login .brand-mark{margin:0 auto 20px}.git-login h1{font-size:32px;margin:0 0 12px}.git-login>p:not(.eyebrow){font-size:13px;line-height:1.7}.google-slot{display:flex;justify-content:center;margin:24px 0}.git-login .tiny{font-size:10px!important}.error-text{color:#ff9a9e}
-    .modal-backdrop{position:fixed;inset:0;background:#02060bd9;backdrop-filter:blur(8px);z-index:9999;display:grid;place-items:center;padding:16px;overflow:auto}.confirm-modal{width:min(650px,100%);max-height:92vh;overflow:auto;border:1px solid #3a4b5a;border-radius:18px;background:#101923;box-shadow:0 30px 100px #000b;padding:24px}.modal-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}.modal-icon{width:42px;height:42px;border:1px solid #316b60;background:#143330;color:var(--teal);border-radius:12px;display:grid;place-items:center;font-size:22px}.modal-icon.danger{border-color:#8c444a;background:#3b2027;color:#ff9ca0}.icon-button{border:0;background:transparent;color:#a6b4c2;font-size:25px}.confirm-modal h2{font-size:24px;margin:0 0 10px;text-transform:capitalize}.confirm-modal>p:not(.eyebrow){font-size:12px;line-height:1.65}.warning-list{padding:8px 12px;border:1px solid #6c502d;background:#30271b;border-radius:9px;color:#ffd38d;font-size:11px}.preview-files{margin:12px 0;border:1px solid #293948;border-radius:8px;overflow:hidden}.preview-files>div{display:flex;justify-content:space-between;gap:10px;padding:8px 10px;border-bottom:1px solid #24323e;font-size:11px}.preview-files code{overflow-wrap:anywhere}.preview-output{max-height:180px;overflow:auto;white-space:pre-wrap;background:#080e14;border:1px solid #24323e;border-radius:8px;padding:12px;color:#a8bdcc;font:10px/1.6 ui-monospace,monospace}.confirm-modal .field-label{line-height:1.8}.confirm-modal .field-label code{color:var(--amber);background:#30271b;padding:3px 5px;border-radius:4px}.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
-    @media(max-width:1000px){.main-grid{grid-template-columns:1fr}.stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.bottom-grid{grid-template-columns:1fr}}
-    @media(max-width:620px){.git-page{padding:16px 11px 34px}.git-topbar{align-items:flex-start}.git-brand{gap:9px}.brand-mark.small{width:37px;height:37px}.brand-mark.small svg{width:24px}.user-email{display:none}.repo-strip{align-items:stretch;flex-direction:column}.repo-picker{grid-template-columns:1fr}.repo-detail{grid-column:1}.stat-grid{gap:8px}.stat-card{padding:13px}.stat-card>small{white-space:normal}.scope-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}.action-grid{grid-template-columns:1fr}.overview-panel,.actions-panel,.diff-panel,.bottom-grid>.panel{padding:15px}.section-heading{flex-direction:column}.diff-heading{align-items:flex-start}.confirm-modal{padding:18px}.modal-actions{flex-direction:column-reverse}.modal-actions .btn{width:100%}}
+    .modal-backdrop{position:fixed;inset:0;background:#02060bd9;backdrop-filter:blur(8px);z-index:9999;display:grid;place-items:center;padding:16px;overflow:auto}.confirm-modal{width:min(650px,100%);max-height:92vh;overflow:auto;border:1px solid #3a4b5a;border-radius:18px;background:#101923;box-shadow:0 30px 100px #000b;padding:24px}.modal-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}.modal-icon{width:42px;height:42px;border:1px solid #316b60;background:#143330;color:var(--teal);border-radius:12px;display:grid;place-items:center;font-size:22px}.modal-icon.danger{border-color:#8c444a;background:#3b2027;color:#ff9ca0}.modal-icon.promote{border-color:#2b5d57;background:#112b29;color:#8af3e2}.icon-button{border:0;background:transparent;color:#a6b4c2;font-size:25px}.confirm-modal h2{font-size:24px;margin:0 0 10px;text-transform:capitalize}.confirm-modal>p:not(.eyebrow){font-size:12px;line-height:1.65}.child-explainer{border:1px dashed #2b5d57;border-radius:9px;padding:9px 11px;background:#102a28;color:#a8f4d8;font-size:11px;line-height:1.6;margin:10px 0 0}.warning-list{margin-top:12px;padding:8px 12px;border:1px solid #6c502d;background:#30271b;border-radius:9px;color:#ffd38d;font-size:11px}.preview-files{margin:12px 0;border:1px solid #293948;border-radius:8px;overflow:hidden}.preview-files>div{display:flex;justify-content:space-between;gap:10px;padding:8px 10px;border-bottom:1px solid #24323e;font-size:11px}.preview-files code{overflow-wrap:anywhere}.preview-output{max-height:180px;overflow:auto;white-space:pre-wrap;background:#080e14;border:1px solid #24323e;border-radius:8px;padding:12px;color:#a8bdcc;font:10px/1.6 ui-monospace,monospace}.confirm-modal .field-label{line-height:1.8}.confirm-modal .field-label code{color:var(--amber);background:#30271b;padding:3px 5px;border-radius:4px}.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px}
+    @media(max-width:1000px){.main-grid{grid-template-columns:1fr}.stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.bottom-grid{grid-template-columns:1fr}.branch-row,.fd-commit{flex-wrap:wrap}.branch-row code{flex:1 1 100%}}
+    @media(max-width:620px){.git-page{padding:16px 11px 34px}.git-topbar{align-items:flex-start}.git-brand{gap:9px}.brand-mark.small{width:37px;height:37px}.brand-mark.small svg{width:24px}.user-email{display:none}.repo-strip{align-items:stretch;flex-direction:column}.repo-picker{grid-template-columns:1fr}.repo-detail{grid-column:1}.stat-grid{gap:8px}.stat-card{padding:13px}.stat-card>small{white-space:normal}.scope-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}.action-grid{grid-template-columns:1fr}.branch-panel{padding:15px}.overview-panel,.actions-panel,.diff-panel,.bottom-grid>.panel{padding:15px}.section-heading{flex-direction:column}.diff-heading{align-items:flex-start}.confirm-modal{padding:18px}.modal-actions{flex-direction:column-reverse}.modal-actions .btn{width:100%}}
   `}</style>
   );
 }
