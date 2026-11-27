@@ -4,13 +4,11 @@
 import SectionPageNav from '../components/SectionPageNav.jsx'
 
 import React from 'react'
-import { Link, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import bgImage from '../assets/hero.png'
 
 export default function About() {
   const { t } = useTranslation()
-  const { lang } = useParams()
   const expertiseItems = t('expertise.items', { returnObjects: true }) || []
 
   return (
