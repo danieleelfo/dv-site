@@ -1337,6 +1337,7 @@
     "kidsTitle": "Geïllustreerde kinderboekstijl (preset sw_kids)",
     "genre": "Genre (Night Story)",
     "plannerModel": "Ollama-model voor scèneplanning",
+    "narratorModel": "Model dat het verhaal schrijft",
     "comicPanels": "Stripkaders per afbeelding",
     "characterSelect": "Personage van het verhaal",
     "noCharacter": "🎭 Geen personage",
