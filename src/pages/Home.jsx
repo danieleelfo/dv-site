@@ -6,6 +6,7 @@ import React, { useState, useEffect } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import bgImage from '../assets/hero.png'
+import SectionPageNav from '../components/SectionPageNav.jsx'
 
 export default function Home() {
   const { t } = useTranslation()
@@ -529,7 +530,7 @@ export default function Home() {
                     {nodes[activeNode].description}
                   </p>
 
-                  <div style={styles.linkGroup}>
+                  <div className="home-node-links" style={styles.linkGroup}>
                     {nodes[activeNode].links.map((link) => (
                       <Link
                         key={link.path}
@@ -545,32 +546,9 @@ export default function Home() {
               </div>
             </div>
 
-            {/* SIGNATURE + ACTIONS */}
+            {/* SECTION NAVIGATION */}
             <div style={styles.signatureRow}>
-
-              <div className="home-hero-actions" style={homeStyles.heroActions}>
-                <Link
-                  to={lang ? `/${lang}/projects` : '/projects'}
-                  style={homeStyles.btnPrimary}
-                >
-                  {t('hero.viewProjects')}
-                </Link>
-
-                <Link
-                  to={lang ? `/${lang}/about` : '/about'}
-                  style={homeStyles.btnGhost}
-                >
-                  {t('nav.expertise')}
-                </Link>
-
-                <Link
-                  to={lang ? `/${lang}/contact` : '/contact'}
-                  style={homeStyles.btnGhost}
-                >
-                  {t('hero.contact')}
-                </Link>
-              </div>
-
+              <SectionPageNav active="home" />
             </div>
 
           </div>
