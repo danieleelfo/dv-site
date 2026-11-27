@@ -3684,6 +3684,7 @@ class StorySaveRequest(BaseModel):
     audio_filename: str = ""
     language: str = "it"
     scenes: list[StoryScene] = []
+    narrator_model: str = ""
     # Story Bible per singola storia: personaggi, luoghi, oggetti e cronologia.
     # Nullable per mantenere compatibili e leggibili gli archivi precedenti.
     story_bible: dict | None = None
@@ -3817,6 +3818,7 @@ async def story_save(
         "agent": req.agent,
         "language": req.language,
         "has_audio": audio_saved,
+        "narrator_model": req.narrator_model,
         "story_bible": req.story_bible,
         "scenes": [
             {
@@ -3925,6 +3927,7 @@ async def story_update(
         "agent": req.agent,
         "language": req.language,
         "has_audio": bool(existing.get("has_audio")),
+        "narrator_model": req.narrator_model or existing.get("narrator_model", ""),
         "story_bible": (
             req.story_bible
             if req.story_bible is not None
