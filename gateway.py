@@ -457,7 +457,7 @@ AGENTS = {
 class ChatRequest(BaseModel):
     agent: str
     prompt: str
-    chat_id: int = 1010101010
+    chat_id: int | None = None
     language: str = "en"
     # Opzionali: entrambi gli agenti Story supportano il modello narratore;
     # character resta specifico di Night Story.
@@ -579,7 +579,7 @@ async def chat_router(req: ChatRequest, authorization: str | None = Header(None)
                 if resolved_chat_id is None:
                     raise HTTPException(status_code=403, detail=f"{req.agent} requires a unique numeric chat_id assigned to this account.")
         else:
-            if req.fresh_context:
+            if req.fresh_context or req.chat_id is None:
                 resolved_chat_id = random.randint(1_000_000_000, 9_999_999_999)
             else:
                 reserved_ids = {int(value) for value in ADMIN_USER_CHAT_IDS.values()}
@@ -593,7 +593,7 @@ async def chat_router(req: ChatRequest, authorization: str | None = Header(None)
                     raise HTTPException(status_code=403, detail="This story memory belongs to an authenticated account.")
                 resolved_chat_id = req.chat_id
     else:
-        resolved_chat_id = req.chat_id
+        resolved_chat_id = req.chat_id if req.chat_id is not None else 1010101010
 
     port = config["port"]
     path = config["path"]
@@ -665,7 +665,7 @@ async def chat_router(req: ChatRequest, authorization: str | None = Header(None)
 async def chat_router_audio(
     audio: UploadFile = File(...),
     agent: str = Form(...),
-    chat_id: int = Form(1010101010),
+    chat_id: int | None = Form(None),
     language: str = Form("en"),
     model: str | None = Form(None),
     fresh_context: bool = Form(False),
@@ -690,9 +690,9 @@ async def chat_router_audio(
     if model and agent in ("Story Whisper", "Night Story") and model not in CHAT_ALLOWED_MODELS:
         raise HTTPException(status_code=400, detail=f"Model '{model}' non valido.")
 
-    resolved_chat_id = chat_id
+    resolved_chat_id = chat_id if chat_id is not None else 1010101010
     if agent in ("Story Whisper", "Night Story"):
-        if chat_id <= 0 and not fresh_context:
+        if chat_id is not None and chat_id <= 0 and not fresh_context:
             raise HTTPException(status_code=400, detail="chat_id positivo obbligatorio per gli agenti Story.")
         if authorization and authorization.startswith("Bearer "):
             user_email = verify_user_token(authorization)
@@ -703,7 +703,7 @@ async def chat_router_audio(
                 if resolved_chat_id is None:
                     raise HTTPException(status_code=403, detail=f"{agent} requires a unique numeric chat_id assigned to this account.")
         else:
-            if fresh_context:
+            if fresh_context or chat_id is None:
                 resolved_chat_id = random.randint(1_000_000_000, 9_999_999_999)
             else:
                 reserved_ids = {int(value) for value in ADMIN_USER_CHAT_IDS.values()}
