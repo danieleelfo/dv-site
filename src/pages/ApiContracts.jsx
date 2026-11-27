@@ -110,11 +110,11 @@ const GROUPS = [
         notes: "Story Whisper e Night Story: con Bearer il chat_id è risolto server-side da users.json / ADMIN_USER_CHAT_IDS (_get_story_chat_id); se manca → 403. fresh_context=true genera un chat_id random monouso per entrambi. Senza Bearer si usa chat_id del body, ma gli ID riservati ad account attivi sono vietati (403). Le API Night Story richiedono un chat_id positivo. Altri agenti: chat_id del body inoltrato così com'è.",
       },
       {
-        method: "POST", path: "/api/chat/audio", auth: false,
+        method: "POST", path: "/api/chat/audio", auth: "optional",
         summary: "api.ep.chatAudio",
-        request: 'Content-Type: multipart/form-data\n\naudio:      <file webm/ogg>\nagent:      "Story Whisper" | "Night Story"\nchat_id:    1010101010\nlanguage:   "en"\nmodel:      "mistral" (opzionale)',
+        request: 'Content-Type: multipart/form-data\n\naudio:      <file webm/ogg>\nagent:      "Story Whisper" | "Night Story"\nchat_id:    1010101010\nlanguage:   "en"\nmodel:      "mistral" (opzionale)\nfresh_context: false (opzionale)',
         response: '{ ...trascrizione + risposta... }',
-        notes: "api.nt.chatAudio",
+        notes: "Per Story Whisper e Night Story, con Bearer il chat_id è risolto lato server; fresh_context=true crea un contesto monouso. Senza Bearer gli ID riservati agli account sono bloccati.",
       },
       {
         method: "GET", path: "/api/chat/tts/{agent}/{filename}", auth: false,
