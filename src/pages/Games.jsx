@@ -108,7 +108,7 @@ export default function Games() {
         .games-page {
           max-width: 1100px;
           margin: 0 auto;
-          padding: 32px 20px 48px;
+          padding: 20px 20px 48px;
           color: var(--text, inherit);
         }
 
