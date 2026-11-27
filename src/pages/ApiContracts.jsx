@@ -325,7 +325,7 @@ const GROUPS = [
       {
         method: "POST", path: "/api/admin/stories", auth: true,
         summary: "Salva una storia completata",
-        request: "JSON: prompt, text, agent, language, audio_filename (opzionale), story_bible (opzionale), scenes[]",
+        request: "JSON: prompt, text, agent, language, audio_filename (opzionale), narrator_model (opzionale), story_bible (opzionale), scenes[]",
         response: '{ "story_id": "...", "status": "ok", "has_audio": true|false }',
       },
       {
@@ -338,12 +338,12 @@ const GROUPS = [
         method: "GET", path: "/api/admin/stories/{story_id}", auth: true,
         summary: "Recupera il dettaglio completo di una storia",
         request: "—",
-        response: '{ "story_id", "created_at", "prompt", "text", "agent", "language", "has_audio", "story_bible", "scenes": [...] }',
+        response: '{ "story_id", "created_at", "prompt", "text", "agent", "language", "has_audio", "narrator_model", "story_bible", "scenes": [...] }',
       },
       {
         method: "PUT", path: "/api/admin/stories/{story_id}", auth: true,
         summary: "Aggiorna testo, metadati e scene di una storia",
-        request: "JSON: prompt, text, agent, language, story_bible (opzionale), scenes[]",
+        request: "JSON: prompt, text, agent, language, narrator_model (opzionale), story_bible (opzionale), scenes[]",
         response: '{ "story_id": "...", "status": "ok", "has_audio", "scene_count" }',
         notes: "Mantiene l’audio già salvato.",
       },
