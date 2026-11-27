@@ -1234,13 +1234,13 @@ export default function StoriesTab({ idToken }) {
 
             </select>
             <label style={{ display: "flex", alignItems: "center", gap: ".35rem", fontSize: ".8rem", color: "var(--ink-dim, #8fa1ac)" }}>
-              <span>🎙️ Narratore</span>
+              <span>🎙️ {t("storiesTab.narratorModel")}</span>
               <select
                 className="il-input"
                 value={storyModel}
                 onChange={(event) => setStoryModel(event.target.value)}
-                aria-label="Narrator model"
-                title="Model used to write the story"
+                aria-label={t("storiesTab.narratorModel")}
+                title={t("storiesTab.narratorModel")}
                 disabled={busy}
               >
                 {["mistral", "qwen2.5", "llama3", "gemma4", "deepseek-r1"].map((m) => (
