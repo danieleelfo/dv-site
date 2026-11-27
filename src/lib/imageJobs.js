@@ -108,7 +108,7 @@ export function normalizeStoryBible(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("Story Bible non valida.");
   }
-  return {
+  const bible = {
     summary: bibleText(value.summary, 1800),
     ending: bibleText(value.ending, 1000),
     characters: bibleList(value.characters, (item) => {
@@ -140,6 +140,14 @@ export function normalizeStoryBible(value) {
     }),
     facts: bibleList(value.facts, (item) => bibleText(item, 260)),
   };
+  if (
+    !bible.summary && !bible.ending && !bible.characters.length &&
+    !bible.locations.length && !bible.props.length &&
+    !bible.timeline.length && !bible.facts.length
+  ) {
+    throw new Error("Story Bible vuota: nessun elemento di continuità estratto.");
+  }
+  return bible;
 }
 
 export function buildStoryBiblePrompt(storyText) {
