@@ -4,9 +4,9 @@ import { useTranslation } from 'react-i18next'
 
 const items = [
   { id: 'home', path: '', label: 'nav.home' },
-  { id: 'contact', path: '/contact', label: 'hero.contact' },
-  { id: 'about', path: '/about', label: 'nav.expertise' },
   { id: 'projects', path: '/projects', label: 'hero.viewProjects' },
+  { id: 'about', path: '/about', label: 'nav.expertise' },
+  { id: 'contact', path: '/contact', label: 'hero.contact' },
 ]
 
 export default function SectionPageNav({ active }) {
