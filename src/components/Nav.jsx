@@ -109,7 +109,7 @@ export default function Nav() {
         </Link>
 
         <nav className="nav4-groups" aria-label="Main navigation" ref={groupsRef}>
-            {groups.map(group => (
+            {groups.slice(0, 1).map(group => (
                 <div className="nav4-group" key={group.id}>
                     <button
                         type="button"
@@ -131,6 +131,27 @@ export default function Nav() {
             </div>
           ))}
           {renderDirectLink(directLinks[0])}
+          {groups.slice(1).map(group => (
+                <div className="nav4-group" key={group.id}>
+                    <button
+                        type="button"
+                        className={openGroup === group.id ? 'nav4-group-btn active' : 'nav4-group-btn'}
+                        aria-expanded={openGroup === group.id}
+                        onClick={() => setOpenGroup(openGroup === group.id ? null : group.id)}
+          >
+            {t(group.key, group.label)}<span className="nav4-chevron">⌄</span>
+          </button>
+          {openGroup === group.id && (
+              <div className="nav4-panel">
+                {group.links.map(([label, path, key]) => (
+                    <Link key={path} to={'/' + activeLang + path} onClick={() => setOpenGroup(null)}>
+                      {t(key, label)}
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
         </nav>
 
         <div className="nav4-language-row" aria-label="Choose language">
