@@ -1337,6 +1337,7 @@
     "kidsTitle": "Stile cartoon storybook per bambini (preset sw_kids)",
     "genre": "Genere (Night Story)",
     "plannerModel": "Modello Ollama per la pianificazione delle scene",
+    "narratorModel": "Modello che scrive la storia",
     "comicPanels": "Pannelli fumetto per immagine",
     "characterSelect": "Personaggio della storia",
     "noCharacter": "🎭 Nessun personaggio",
