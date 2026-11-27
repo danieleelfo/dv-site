@@ -1337,6 +1337,7 @@
     "kidsTitle": "Estil de conte il·lustrat infantil (preset sw_kids)",
     "genre": "Gènere (Night Story)",
     "plannerModel": "Model Ollama per planificar escenes",
+    "narratorModel": "Model que escriu la història",
     "comicPanels": "Vinyetes per imatge",
     "characterSelect": "Personatge de la història",
     "noCharacter": "🎭 Cap personatge",
