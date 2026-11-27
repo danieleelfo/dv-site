@@ -224,6 +224,11 @@ a {
   text-align: center;
 }
 @media (max-width: 700px) {
+  .projects-content-section,
+  .expertise-content-section {
+    padding-bottom: 1rem !important;
+  }
+
   .section-page-nav {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
