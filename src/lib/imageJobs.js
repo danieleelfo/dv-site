@@ -452,8 +452,8 @@ export function resultToDataUrl(result) {
 }
 
 // Chiamata LLM stateless condivisa: il prompt va dritto a Ollama via gateway.
-// keepAlive=0 di default così il planner non lascia il modello in RAM quando
-// non serve più (il chiamante può passare keepAlive>0 per tenerlo caldo).
+// keepAlive=45s di default: mantiene caldo il modello tra batch e repair;
+// il flusso Stories lo scarica prima di avviare le immagini.
 async function callLlmStateless(idToken, prompt, model, timeoutMs = 310000, keepAlive = 45) {
   const data = await apiJson(idToken, "/api/admin/llm", {
     method: "POST",
@@ -499,6 +499,7 @@ export async function planStoryScenes({
         activeModel = m;
         break;
       } catch (err) {
+        // Prova il modello successivo della lista di fallback.
       }
     }
     if (!storyBible) {
