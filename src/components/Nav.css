@@ -167,7 +167,15 @@
       grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 3px;
   }
-  .nav4-group { min-width: 0; }
+  .nav4-group { min-width: 0; width: 100%; }
+  /* Il link diretto AI News occupa la stessa cella degli altri gruppi */
+  .nav4-group.nav4-direct { width: 100%; min-width: 0; }
+  .nav4-group.nav4-direct .nav4-group-btn {
+    display: flex;
+    width: 100%;
+    box-sizing: border-box;
+    justify-content: center;
+  }
   .nav4-group-btn {
     width: 100%;
     min-height: 38px;
