@@ -33,7 +33,8 @@
     "projects": "Projets",
     "console": "Console",
     "expertise": "Expertise",
-    "trial": "Essai"
+    "trial": "Essai",
+    "storiesTrial": "Stories Trial"
   },
   "home": {
     "humans": {
@@ -1515,5 +1516,36 @@
     "sendAudioTts": "Envoyer l’audio (TTS)",
     "sending": "Envoi...",
     "sendAudio": "Envoyer l’audio"
+  },
+  "storyTrial": {
+    "title": "Essai d’histoires",
+    "subtitle": "Créez une histoire avec Story Whisper",
+    "loginTitle": "Connectez-vous pour continuer",
+    "loginHint": "Utilisez le même compte Google que sur les autres pages Trial.",
+    "clientIdMissing": "La connexion Google n’est pas configurée.",
+    "notAuthorized": "Ce compte Google n’est pas autorisé à utiliser Story Trial.",
+    "chatIdMissing": "Votre compte ne possède pas encore de chat_id personnel Story Whisper. Demandez à l’administrateur d’attribuer un identifiant numérique unique.",
+    "logout": "Déconnexion",
+    "language": "Langue de l’histoire",
+    "ideas": "Idées rapides",
+    "idea1": "Un renard curieux découvre un jardin secret",
+    "idea2": "Un petit robot découvre le sens de l’amitié",
+    "idea3": "Le gardien d’un phare entend une mélodie mystérieuse",
+    "idea4": "Un voyage dans une ville au-dessus des nuages",
+    "promptLabel": "Quel sera le sujet de l’histoire ?",
+    "promptPlaceholder": "Décrivez votre idée…",
+    "withAudio": "Générer aussi l’audio en plus du texte",
+    "freshStory": "Nouveau contexte (sans utiliser la mémoire des histoires précédentes)",
+    "writing": "Votre histoire est en cours d’écriture…",
+    "waitHint": "Veuillez patienter… {{seconds}} s",
+    "noReply": "Story Whisper a renvoyé une réponse vide.",
+    "timeout": "La requête a expiré. Veuillez réessayer.",
+    "error": "Impossible de générer l’histoire : {{error}}",
+    "audioError": "Impossible de lire l’audio généré.",
+    "copied": "Copié",
+    "copy": "Copier",
+    "newStory": "Nouvelle histoire",
+    "tell": "Raconte-moi une histoire",
+    "yourStory": "Votre histoire"
   }
 }
