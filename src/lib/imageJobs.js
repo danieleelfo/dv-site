@@ -208,6 +208,10 @@ export function buildStoryboardBatchPrompt({
         (i + 1) + ". " + scene.title + ": " + String(scene.prompt || "").slice(0, 320)
       ).join("\n") + "\n"
     : "";
+  const bibleRules = storyBible
+    ? "Use the STORY BIBLE as the canonical source for character identity, appearance, clothing, relationships, locations, props and event order. "
+    : "No extracted Story Bible is available. Derive character and continuity facts only from explicit statements in the full story; do not invent missing details. ";
+  const bibleBlock = storyBible ? JSON.stringify(storyBible) : "Not available; use the full story as source of truth.";
   const schema = style
     ? '{"scenes":[{"title":"Short label","prompt":"Detailed English image prompt"}]}'
     : '{"style":"A shared art-direction and character appearance block","scenes":[{"title":"Short label","prompt":"Detailed English image prompt"}]}';
@@ -215,7 +219,7 @@ export function buildStoryboardBatchPrompt({
     "You are a precise storyboard director. Plan exactly " + count +
     " visually distinct scenes in chronological order. Do not summarize the whole story in every scene. " +
     coverage +
-    "Use the STORY BIBLE as the canonical source for character identity, appearance, clothing, relationships, locations, props and event order. " +
+    bibleRules +
     "Never change a character's appearance or clothes unless an explicit event in the story justifies the change. " +
     "Keep important objects with their established owner and do not move characters to a location before the story takes them there. " +
     "Each scene must depict one actual moment from the story, not an invented transition or an event from another part. " +
@@ -475,6 +479,7 @@ export async function planStoryScenes({
   const triedModels = [];
   let sharedStyle = "";
   let storyBible = suppliedBible ? normalizeStoryBible(suppliedBible) : null;
+  const bibleWarnings = [];
   let activeModel = models[0] || "mistral";
 
   if (buildBible && !storyBible) {
@@ -495,6 +500,7 @@ export async function planStoryScenes({
         summary: String(storyText || "").slice(0, 1800),
         facts: ["Story Bible automatica non disponibile: usare esclusivamente i fatti espliciti del testo integrale."],
       });
+      bibleWarnings.push("Story Bible automatica non generata; continuità ricavata dal testo originale.");
       onStatus({ kind: "warning", message: "Story Bible non generata; uso il testo originale come fonte." });
     }
   }
@@ -577,7 +583,7 @@ export async function planStoryScenes({
   }
 
   let scenes = plannedScenes.slice(0, imageCount);
-  let warnings = localSceneWarnings(scenes);
+  let warnings = [...bibleWarnings, ...localSceneWarnings(scenes)];
 
   if (consistencyCheck && scenes.length) {
     onStatus({ kind: "consistency", model: activeModel });
