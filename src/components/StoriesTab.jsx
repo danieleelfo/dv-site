@@ -156,7 +156,7 @@ export default function StoriesTab({ idToken }) {
   const [storyStrip, setStoryStrip] = useState("");
   // Nuovo contesto: se attivo, ogni storia parte con un chat_id nuovo
   // (l'agente non vede le storie precedenti e non ricicla i personaggi).
-  // Se spento, usa il chat_id fisso salvato: l'agente ricorda tutto.
+  // Se spento, usa l'ID persistente dell'account (risolto server-side per utenti autenticati).
   const [freshStory, setFreshStory] = useState(false);
   // Personaggio fisso della creazione (fase 2/3): nome+descrizione entrano
   // nel prompt dell'agente e del planner, la foto guida le scene via img2img.
@@ -458,7 +458,7 @@ export default function StoriesTab({ idToken }) {
 
     try {
       // ------------------------------------------------------
-      // 1. Storia + TTS da Story Whisper (via /api/chat).
+      // 1. Storia + TTS dall'agente selezionato (via /api/chat).
       // ------------------------------------------------------
       setStage("🌈 " + storyAgent + " scrive la storia" + (wantsTts ? " (testo + audio)" : "") + "…");
 
