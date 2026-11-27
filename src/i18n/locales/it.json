@@ -33,7 +33,8 @@
     "projects": "Progetti",
     "console": "Console",
     "expertise": "Competenze",
-    "trial": "Prova"
+    "trial": "Prova",
+    "storiesTrial": "Storie Trial"
   },
   "home": {
     "humans": {
@@ -1515,5 +1516,36 @@
     "sendAudioTts": "Invia audio (TTS)",
     "sending": "Invio...",
     "sendAudio": "Invia audio"
+  },
+  "storyTrial": {
+    "title": "Prova Storie",
+    "subtitle": "Crea una storia con Story Whisper",
+    "loginTitle": "Accedi per continuare",
+    "loginHint": "Usa lo stesso account Google delle altre pagine Trial.",
+    "clientIdMissing": "Accesso Google non configurato.",
+    "notAuthorized": "Questo account Google non è autorizzato a usare Story Trial.",
+    "chatIdMissing": "Il tuo account non ha ancora un chat_id personale per Story Whisper. Chiedi all'amministratore di assegnarne uno numerico e univoco.",
+    "logout": "Esci",
+    "language": "Lingua della storia",
+    "ideas": "Idee rapide",
+    "idea1": "Una volpe curiosa scopre un giardino segreto",
+    "idea2": "Un piccolo robot impara il significato dell'amicizia",
+    "idea3": "Il guardiano di un faro sente una melodia misteriosa",
+    "idea4": "Un viaggio in una città tra le nuvole",
+    "promptLabel": "Di cosa deve parlare la storia?",
+    "promptPlaceholder": "Descrivi la tua idea…",
+    "withAudio": "Genera anche l'audio oltre al testo",
+    "freshStory": "Nuovo contesto (senza usare la memoria delle storie precedenti)",
+    "writing": "Sto scrivendo la storia…",
+    "waitHint": "Attendi… {{seconds}} s",
+    "noReply": "Story Whisper ha restituito una risposta vuota.",
+    "timeout": "La richiesta è scaduta. Riprova.",
+    "error": "Impossibile generare la storia: {{error}}",
+    "audioError": "Non è stato possibile riprodurre l'audio generato.",
+    "copied": "Copiato",
+    "copy": "Copia",
+    "newStory": "Nuova storia",
+    "tell": "Raccontami una storia",
+    "yourStory": "La tua storia"
   }
 }
