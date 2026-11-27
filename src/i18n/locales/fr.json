@@ -1337,6 +1337,7 @@
     "kidsTitle": "Style de livre illustré pour enfants (preset sw_kids)",
     "genre": "Genre (Night Story)",
     "plannerModel": "Modèle Ollama pour planifier les scènes",
+    "narratorModel": "Modèle qui écrit l’histoire",
     "comicPanels": "Cases par image",
     "characterSelect": "Personnage de l’histoire",
     "noCharacter": "🎭 Aucun personnage",
