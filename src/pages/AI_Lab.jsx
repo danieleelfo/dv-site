@@ -1342,7 +1342,7 @@ const styles = {
   wrap: {
     position: 'relative',
     minHeight: '100vh',
-    paddingTop: '5.5rem',
+    paddingTop: '2rem',
     paddingBottom: '3rem',
   },
 
