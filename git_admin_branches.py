@@ -78,14 +78,134 @@ async def _main_branch(path: str) -> str | None:
     return None
 
 
-async def _fingerprint(path: str) -> str:
+async def _fingerprint(path: str, extra: str = "") -> str:
     head = await _head(path) or ""
     entries = await _porcelain(path)
     status = "|".join(f"{e['xy']}:{e['path']}" for e in entries)
-    return hashlib.sha256(f"{head}#{status}".encode()).hexdigest()
+    return hashlib.sha256(f"{head}#{status}#{extra}".encode()).hexdigest()
 
 
-async def _build_branch_preview(project: str, path: str, action: str) -> dict:
+def _target_label(target: str) -> str:
+    m = re.match(r"^origin/pr/(\d+)$", target)
+    if m:
+        return f"pull request #{m.group(1)}"
+    return f"branch '{target.removeprefix('origin/')}'"
+
+
+async def _refresh_target(path: str, target: str) -> str | None:
+    """Aggiorna dal remoto il riferimento scelto. Ritorna un avviso se fallisce."""
+    cmds = [("fetch", "--quiet", "origin")]
+    m = re.match(r"^origin/pr/(\d+)$", target)
+    if m:
+        n = m.group(1)
+        cmds.append(("fetch", "--quiet", "origin", f"+refs/pull/{n}/head:refs/remotes/origin/pr/{n}"))
+    for args in cmds:
+        try:
+            rc, out, err = await _run(path, *args, timeout=FETCH_TIMEOUT)
+        except HTTPException as e:
+            return str(e.detail)
+        if rc != 0:
+            return _scrub((err or out).strip()) or "git fetch fallito."
+    return None
+
+
+async def _build_target_promote_preview(project: str, path: str, target: str) -> dict:
+    """Anteprima di 'unisci <target> in main' senza spostarti dal tuo branch."""
+    reasons: list[str] = []
+    warnings: list[str] = []
+    files: list[dict] = []
+    output = ""
+    summary = ""
+    branch = await _branch(path)
+    entries = await _porcelain(path)
+    conflicts = [e["path"] for e in entries if _is_conflict(e["xy"])]
+    main = await _main_branch(path)
+
+    warn = await _refresh_target(path, target)
+    if warn:
+        warnings.append("Aggiornamento dal remoto non riuscito: " + warn)
+    target_sha = await _try(path, "rev-parse", "--verify", "--quiet", target + "^{commit}")
+
+    if branch is None:
+        reasons.append("HEAD e detached: passa prima su un branch.")
+    if not main:
+        reasons.append("Ne main ne master esistono nel repository.")
+    elif not target_sha:
+        reasons.append(f"Riferimento non trovato: {target}")
+    elif target in _MAIN_CANDIDATES or target.removeprefix("origin/") in _MAIN_CANDIDATES:
+        reasons.append("Non puoi unire main dentro se stesso.")
+    if entries:
+        reasons.append("Modifiche non committate: committale o mettile in stash prima della promozione.")
+    if conflicts:
+        reasons.append("Conflitti non risolti: " + ", ".join(conflicts[:10]))
+
+    if not reasons and main and target_sha:
+        base = "origin/" + main
+        if not await _try(path, "rev-parse", "--verify", "--quiet", base):
+            base = main
+        if base != main:
+            ahead = await _count(path, f"{base}..{main}") or 0
+            behind = await _count(path, f"{main}..{base}") or 0
+            if ahead and behind:
+                reasons.append(
+                    f"{main} locale e {base} sono divergenti ({ahead} commit locali, {behind} remoti): "
+                    "allineali prima di promuovere."
+                )
+            elif ahead:
+                warnings.append(f"{main} ha {ahead} commit non pushati: verranno pushati insieme al merge.")
+        commits = (await _try(path, "log", "--format=%h %s (%an)", f"{base}..{target}") or "").splitlines()
+        output = "\n".join(commits)
+        files = await _files(path, [f"{base}...{target}"])
+        if not commits:
+            reasons.append(f"{target} non ha commit nuovi rispetto a {base}: niente da unire.")
+        else:
+            rc, out, err = await _run(path, "merge-tree", "--write-tree", "--name-only", base, target)
+            if rc == 1:
+                names: list[str] = []
+                for line in out.splitlines()[1:]:
+                    if not line.strip():
+                        break
+                    names.append(line.strip())
+                reasons.append("Il merge andrebbe in conflitto su: " + (", ".join(names[:10]) or "(file non indicati)"))
+            elif rc != 0:
+                warnings.append(
+                    "Controllo preventivo dei conflitti non disponibile (git troppo vecchio): "
+                    "se il merge va in conflitto viene annullato."
+                )
+            summary = (
+                f"Verranno portati in {main} i {len(commits)} commit di {_target_label(target)} "
+                f"(merge --no-ff) e poi fatto push su origin. Resterai su {branch}."
+            )
+        if main and branch and branch != main:
+            warnings.append(f"In background: checkout {main}, merge, push, poi torni su {branch}.")
+
+    safe = not reasons
+    phrase = _phrase("promote", project)
+    return {
+        "summary": summary or f"Promozione di {target} in {main or 'main'}.",
+        "child_explainer": _kid("promote"),
+        "warnings": warnings,
+        "files": files[:500],
+        "output": _cap(output, OUTPUT_MAX_CHARS),
+        "safe": safe,
+        "block_reason": " ".join(reasons) or None,
+        "confirmation_phrase": phrase,
+        "expires_in": BRANCH_PREVIEW_TTL,
+        "target": target,
+        "_internal": {
+            "fingerprint": await _fingerprint(path, target_sha or ""),
+            "safe": safe,
+            "block_reason": " ".join(reasons) or None,
+            "phrase": phrase,
+            "target": target,
+            "target_sha": target_sha,
+        },
+    }
+
+
+async def _build_branch_preview(project: str, path: str, action: str, target: str | None = None) -> dict:
+    if action == "promote" and target:
+        return await _build_target_promote_preview(project, path, target)
     reasons: list[str] = []
     warnings: list[str] = []
     files: list[dict] = []
@@ -152,6 +272,7 @@ async def _build_branch_preview(project: str, path: str, action: str) -> dict:
                 warnings.append(f"Il branch {branch} non e pushato: il merge usera i commit presenti in locale.")
 
     safe = not reasons
+    phrase = _phrase(action, project)
     return {
         "summary": summary,
         "child_explainer": _kid(action),
@@ -160,12 +281,15 @@ async def _build_branch_preview(project: str, path: str, action: str) -> dict:
         "output": _cap(output, OUTPUT_MAX_CHARS),
         "safe": safe,
         "block_reason": " ".join(reasons) or None,
-        "confirmation_phrase": _phrase(action, project),
+        "confirmation_phrase": phrase,
         "expires_in": BRANCH_PREVIEW_TTL,
         "_internal": {
             "fingerprint": await _fingerprint(path),
             "safe": safe,
             "block_reason": " ".join(reasons) or None,
+            "phrase": phrase,
+            "target": None,
+            "target_sha": None,
         },
     }
 
@@ -187,39 +311,57 @@ async def _exec_rebase(path: str) -> str:
     return f"Rebase completato. HEAD: {(await _head(path) or '')[:8]}"
 
 
-async def _exec_promote(path: str) -> str:
+async def _exec_promote(path: str, target: str | None = None, target_sha: str | None = None) -> str:
     start = await _branch(path)
-    if not start or start in _MAIN_CANDIDATES:
-        raise HTTPException(status_code=409, detail="Branch di partenza non valido per la promozione.")
     main = await _main_branch(path)
     if not main:
         raise HTTPException(status_code=409, detail="Nessun branch main/master trovato.")
+    if target:
+        if not start:
+            raise HTTPException(status_code=409, detail="HEAD e detached: passa prima su un branch.")
+        current = await _try(path, "rev-parse", "--verify", "--quiet", target + "^{commit}")
+        if not current or (target_sha and current != target_sha):
+            raise HTTPException(status_code=409, detail=f"{target} e cambiato dopo l'anteprima: rigenerala.")
+        merge_ref, label = target, _target_label(target)
+    else:
+        if not start or start in _MAIN_CANDIDATES:
+            raise HTTPException(status_code=409, detail="Branch di partenza non valido per la promozione.")
+        merge_ref, label = start, f"branch '{start}'"
     notes: list[str] = []
+    before: str | None = None
     try:
-        await _ok(path, "checkout", main, timeout=60)
-        notes.append(f"checkout {main}")
+        if start != main:
+            await _ok(path, "checkout", main, timeout=60)
+            notes.append(f"checkout {main}")
         rc, out, err = await _run(path, "pull", "--ff-only", timeout=120)
         if rc != 0:
             raise HTTPException(status_code=409, detail=_scrub((err or out).strip()) or "Pull su main fallito.")
+        before = await _head(path)
         rc, out, err = await _run(
-            path, "merge", "--no-ff", "-m", f"Merge branch '{start}' into {main}", start, timeout=120
+            path, "merge", "--no-ff", "-m", f"Merge {label} into {main}", merge_ref, timeout=120
         )
         if rc != 0:
             raise HTTPException(status_code=409, detail=_scrub((err or out).strip()) or "Merge fallito.")
-        notes.append(f"merge {start}")
+        notes.append(f"merge {label}")
         rc, out, err = await _run(path, "push", "origin", main, timeout=120)
         if rc != 0:
-            raise HTTPException(status_code=409, detail=_scrub((err or out).strip()) or "Push di main fallito.")
+            if before:
+                await _run(path, "reset", "--hard", before, timeout=60)
+            raise HTTPException(
+                status_code=409,
+                detail=(_scrub((err or out).strip()) or "Push di main fallito.")
+                + "\nPush rifiutato: il merge locale e stato annullato.",
+            )
         notes.append("push origin " + main)
     except HTTPException:
-        # Torna com'era: se il merge e incompleto, abort; poi checkout iniziale.
         await _abort_merge_quietly(path)
-        if (await _branch(path)) != start:
+        if start and (await _branch(path)) != start:
             await _run(path, "checkout", start, timeout=60)
         raise
-    await _ok(path, "checkout", start, timeout=60)
-    notes.append(f"checkout {start}")
-    return f"Promozione completata: {start} e dentro {main} ({', '.join(notes)})."
+    if start and start != main:
+        await _ok(path, "checkout", start, timeout=60)
+        notes.append(f"checkout {start}")
+    return f"Promozione completata: {label} e dentro {main} ({', '.join(notes)})."
 
 
 # --------------------------------------------------------------------------
@@ -477,15 +619,21 @@ def build_git_admin_branches_router(verify_admin_token) -> APIRouter:
     class BranchPreviewRequest(BaseModel):
         project: str
         action: str
+        target: str | None = None  # solo per promote: branch/PR da unire in main
 
     @router.post("/branch-preview")
     async def git_admin_branch_preview(req: BranchPreviewRequest, authorization: str | None = Header(None)):
         email = verify_admin_token(authorization)
         if req.action not in BRANCH_ACTIONS:
             raise HTTPException(status_code=400, detail=f"Azione non valida: {req.action}")
+        target = None
+        if req.target:
+            if req.action != "promote":
+                raise HTTPException(status_code=400, detail="target e ammesso solo per promote.")
+            target = _clean_ref(req.target)
         path = _repo_path(req.project)
         async with _lock(req.project):
-            preview = await _build_branch_preview(req.project, path, req.action)
+            preview = await _build_branch_preview(req.project, path, req.action, target)
 
         now = time.time()
         for pid in [k for k, v in _BRANCH_PREVIEWS.items() if v["expires"] < now]:
@@ -506,6 +654,7 @@ def build_git_admin_branches_router(verify_admin_token) -> APIRouter:
         action: str
         confirmation_phrase: str
         preview_id: str
+        target: str | None = None
 
     @router.post("/branch-execute")
     async def git_admin_branch_execute(req: BranchExecuteRequest, authorization: str | None = Header(None)):
@@ -527,15 +676,23 @@ def build_git_admin_branches_router(verify_admin_token) -> APIRouter:
                 raise HTTPException(status_code=409, detail="Anteprima scaduta o inesistente: rigenerala.")
             if (pv["email"], pv["project"], pv["action"]) != (email, req.project, req.action):
                 raise HTTPException(status_code=409, detail="L'anteprima non corrisponde a questa richiesta.")
+            if (pv.get("target") or None) != (_clean_ref(req.target) if req.target else None):
+                raise HTTPException(status_code=409, detail="L'anteprima non corrisponde al branch/PR richiesto.")
             if not pv["safe"]:
                 raise HTTPException(status_code=409, detail=pv["block_reason"] or "Operazione bloccata.")
             if not secrets.compare_digest(req.confirmation_phrase.strip(), pv["phrase"]):
                 raise HTTPException(status_code=400, detail=f"Frase di conferma errata: scrivi {pv['phrase']}")
-            if await _fingerprint(path) != pv["fingerprint"]:
+            cur_sha = ""
+            if pv.get("target"):
+                cur_sha = await _try(path, "rev-parse", "--verify", "--quiet", pv["target"] + "^{commit}") or ""
+            if await _fingerprint(path, cur_sha) != pv["fingerprint"]:
                 raise HTTPException(status_code=409, detail="Il repository e cambiato dopo l'anteprima: rigenerala.")
             _BRANCH_PREVIEWS.pop(req.preview_id, None)
             try:
-                message = await _exec_rebase(path) if req.action == "rebase" else await _exec_promote(path)
+                message = (
+                    await _exec_rebase(path) if req.action == "rebase"
+                    else await _exec_promote(path, pv.get("target"), pv.get("target_sha"))
+                )
             except HTTPException as e:
                 _audit(email, req.project, req.action, False, str(e.detail))
                 raise
