@@ -78,7 +78,8 @@ export default function StoryTrial() {
       if(!window.google?.accounts?.id){if(++tries<80)timer=setTimeout(init,150);return}
       window.google.accounts.id.initialize({client_id:CLIENT_ID,callback:r=>{
         const value=r?.credential
-        if(!value||decodeToken(value)?.exp*1000<=Date.now()+5000)return
+        const claims=value?decodeToken(value):null
+        if(!claims?.exp||claims.exp*1000<=Date.now()+5000)return
         try{localStorage.setItem(TOKEN_KEY,value)}catch{}
         setToken(value)
       }})
