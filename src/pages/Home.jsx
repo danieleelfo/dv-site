@@ -58,21 +58,21 @@ export default function Home() {
             'home.humans.links.nightStories',
             'Night Stories'
           ),
-          path: '/night-stories',
+          path: '/console',
         },
         {
           label: t(
             'home.humans.links.storyTeller',
             'Story Teller'
           ),
-          path: '/story-teller',
+          path: '/story-trial',
         },
         {
           label: t(
             'home.humans.links.barAI',
             'Bar AI'
           ),
-          path: '/bar-ai',
+          path: '/bar-ai-admin',
         },
       ],
     },
@@ -93,7 +93,7 @@ export default function Home() {
             'home.ai.links.emergence',
             'Emergence Experiments'
           ),
-          path: '/emergence',
+          path: '/ai-lab',
         },
         {
           label: t(
@@ -101,6 +101,10 @@ export default function Home() {
             'Console Playground'
           ),
           path: '/console',
+        },
+        {
+          label: t('home.ai.links.b2b', 'B2B'),
+          path: '/b2b',
         },
       ],
     },
