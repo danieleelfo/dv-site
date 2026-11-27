@@ -1,6 +1,7 @@
 // ============================================================
 // Contact (spostato dalla Home)
 // ============================================================
+import SectionPageNav from '../components/SectionPageNav.jsx'
 
 import React from 'react'
 import { Link, useParams } from 'react-router-dom'
@@ -25,17 +26,7 @@ export default function Contact() {
         </section>
 
         <div className="container" style={homeStyles.signatureRow}>
-          <div style={homeStyles.heroActions}>
-          <Link to={lang ? `/${lang}` : '/'} style={homeStyles.btnGhost}>
-            {t('nav.home')}
-          </Link>
-          <Link to={lang ? `/${lang}/projects` : '/projects'} style={homeStyles.btnPrimary}>
-            {t('hero.viewProjects')}
-          </Link>
-          <Link to={lang ? `/${lang}/about` : '/about'} style={homeStyles.btnPrimary}>
-            {t('nav.expertise')}
-          </Link>
-          </div>
+          <SectionPageNav active="contact" />
         </div>
       </div>
     </div>
