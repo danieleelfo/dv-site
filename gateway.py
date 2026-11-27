@@ -667,6 +667,7 @@ async def chat_router_audio(
     agent: str = Form(...),
     chat_id: int = Form(1010101010),
     language: str = Form("en"),
+    model: str | None = Form(None),
 ):
     config = AGENTS.get(agent)
 
@@ -683,6 +684,9 @@ async def chat_router_audio(
             status_code=400,
             detail=f"'{agent}' non supporta l'input audio.",
         )
+
+    if model and agent in ("Story Whisper", "Night Story") and model not in CHAT_ALLOWED_MODELS:
+        raise HTTPException(status_code=400, detail=f"Model '{model}' non valido.")
 
     port = config["port"]
     target_url = f"http://127.0.0.1:{port}{audio_path}"
@@ -703,6 +707,8 @@ async def chat_router_audio(
                 "chat_id": str(chat_id),
                 "language": language,
             }
+            if model and agent in ("Story Whisper", "Night Story"):
+                data["model"] = model
 
             response = await client.post(
                 target_url,
