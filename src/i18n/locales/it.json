@@ -504,7 +504,7 @@
     "copyCurl": "copia curl",
     "copied": "✓ copiato",
     "portsEyebrow": "ARCHITETTURA · PORTE LOCALI (MAC)",
-    "footerSrc": "Fonte: gateway.py + git_admin.py + query_db.py · aggiornato 24 ottobre 2026",
+    "footerSrc": "Fonte: gateway.py + git_admin.py + query_db.py · aggiornato 27 novembre 2026 2026",
     "footerStatic": "Pagina statica: nessuna dipendenza dal backend",
     "note": {
       "stories": "Fumetto PDF delle storie, senza passare da Airflow/Telegram.",
@@ -515,7 +515,7 @@
       "image": "Generazione Z-Image-Turbo via coda job asincrona.",
       "vision": "OCR con agente JCS per i fogli di presenza.",
       "improve": "Editor file con revisione AI.",
-      "git": "Operazioni Git con preview + conferma (git_admin.py).",
+      "git": "Operazioni Git con preview + conferma (git_admin.py e git_admin_branches.py): storico file, branch e PR.",
       "querydb": "Browse read-only dei database PostgreSQL (query_db.py)."
     },
     "ep": {
@@ -552,7 +552,16 @@
       "dbTable": "Anteprima paginata di una tabella (50 righe per pagina) con filtri.",
       "dbUsers": "Valori distinti della colonna utente della tabella, con conteggio righe.",
       "llm": "LLM stateless: prompt inviato direttamente a Ollama (usato da Test2 per la pianificazione delle scene).",
-      "ollamaUnload": "Scarica dalla RAM i modelli Ollama caricati (keep_alive=0)."
+      "ollamaUnload": "Scarica dalla RAM i modelli Ollama caricati (keep_alive=0).",
+      "gitFiles": "Elenca i file tracciati del repository, con filtro opzionale.",
+      "gitFilelog": "Ultimi commit che hanno modificato un file (--follow).",
+      "gitFilediff": "Diff in sola lettura di un file in uno specifico commit.",
+      "gitBranches": "Branch locali e remoti, tracking e differenze rispetto a main.",
+      "gitBranchdiff": "Diff del branch corrente rispetto al branch base.",
+      "gitPrs": "Elenca le pull request del repository.",
+      "gitRefdiff": "Esamina cosa aggiunge un branch o una PR rispetto a main.",
+      "gitBranchPreview": "Anteprima monouso di un'operazione sul branch (rebase/promote).",
+      "gitBranchExecute": "Esegue l'operazione sul branch dopo la conferma esplicita."
     },
     "nt": {
       "imgCompose": "Layout griglia/fila/colonna/sfondo, dissolvenza 0-0.45. Il composito può poi andare all'img2img.",
@@ -572,7 +581,16 @@
       "dbTable": "Nome tabella validato contro information_schema (solo schema public): nessuna query libera. Filtri opzionali: user = testo sulla colonna utente; users = lista di valori da includere (checkbox del pannello UTENTI); date_from / date_to = intervallo date.",
       "dbUsers": "Alimenta il pannello UTENTI di QueryDb (raggruppato per categoria con on/off). Se la tabella non ha una colonna utente valida, il pannello non compare.",
       "llm": "Non passa dagli agenti: nessuna memoria di conversazione per chat_id. Modello dal selettore Leles (default qwen2.5), keep_alive=0 libera la RAM a fine chiamata.",
-      "ollamaUnload": "Chiamato da Test2 dopo la pianificazione delle scene, per lasciare RAM libera al modello di immagine."
+      "ollamaUnload": "Chiamato da Test2 dopo la pianificazione delle scene, per lasciare RAM libera al modello di immagine.",
+      "gitFiles": "Elenca solo file tracciati ed esclude quelli sensibili. I risultati sono limitati dal server.",
+      "gitFilelog": "Valori ammessi per limit: 5, 10, 20 o 50. Il file deve essere tracciato.",
+      "gitFilediff": "Richiede uno SHA esadecimale da 7 a 40 caratteri; il diff può essere troncato.",
+      "gitBranches": "Include branch locali e remoti; eventuali errori di fetch sono riportati nella risposta.",
+      "gitBranchdiff": "Mostra commit, file e patch di HEAD rispetto a base (main predefinito).",
+      "gitPrs": "Recupera le pull request GitHub associate al repository.",
+      "gitRefdiff": "ref può essere un branch o un riferimento PR; base predefinito è main/master remoto.",
+      "gitBranchPreview": "Preview monouso, TTL 5 minuti, legata all'utente e al fingerprint del repository.",
+      "gitBranchExecute": "Richiede GIT_ADMIN_ALLOW_WRITE=1, preview valida, frase esatta e repository invariato."
     },
     "port": {
       "gw": "API gateway pubblico (uvicorn)",

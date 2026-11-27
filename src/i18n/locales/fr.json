@@ -504,7 +504,7 @@
     "copyCurl": "copier curl",
     "copied": "✓ copié",
     "portsEyebrow": "ARCHITECTURE · PORTS LOCAUX (MAC)",
-    "footerSrc": "Source : gateway.py + git_admin.py + query_db.py · mis à jour le 24 octobre 2026",
+    "footerSrc": "Source : gateway.py + git_admin.py + query_db.py · mis à jour le 27 novembre 2026 2026",
     "footerStatic": "Page statique : aucune dépendance du backend",
     "note": {
       "stories": "PDF BD des histoires, sans passer par Airflow/Telegram.",
@@ -515,7 +515,7 @@
       "image": "Génération Z-Image-Turbo via une file de jobs asynchrone.",
       "vision": "OCR avec l'agent JCS pour les feuilles de présence.",
       "improve": "Éditeur de fichiers avec révision IA.",
-      "git": "Opérations Git avec preview + confirmation (git_admin.py).",
+      "git": "Opérations Git avec preview + confirmation (git_admin.py et git_admin_branches.py) : historique des fichiers, branches et PR.",
       "querydb": "Navigation read-only des bases PostgreSQL (query_db.py)."
     },
     "ep": {
@@ -552,7 +552,16 @@
       "dbTable": "Aperçu paginé d’une table (50 lignes par page) avec filtres.",
       "dbUsers": "Valeurs distinctes de la colonne utilisateur de la table, avec nombre de lignes.",
       "llm": "LLM sans état : le prompt va directement à Ollama (utilisé par Test2 pour planifier les scènes).",
-      "ollamaUnload": "Décharge de la RAM les modèles Ollama chargés (keep_alive=0)."
+      "ollamaUnload": "Décharge de la RAM les modèles Ollama chargés (keep_alive=0).",
+      "gitFiles": "Liste les fichiers suivis du dépôt, avec filtre facultatif.",
+      "gitFilelog": "Derniers commits ayant modifié un fichier (--follow).",
+      "gitFilediff": "Diff en lecture seule d'un fichier dans un commit précis.",
+      "gitBranches": "Branches locales et distantes, suivi et différences par rapport à main.",
+      "gitBranchdiff": "Diff de la branche actuelle par rapport à sa branche de base.",
+      "gitPrs": "Liste les pull requests du dépôt.",
+      "gitRefdiff": "Examine les changements apportés par une branche ou PR par rapport à main.",
+      "gitBranchPreview": "Aperçu à usage unique d'une opération de branche (rebase/promote).",
+      "gitBranchExecute": "Exécute l'opération de branche après confirmation explicite."
     },
     "nt": {
       "imgCompose": "Disposition grid/side/stack/bg, fondu 0-0,45. Le composite peut ensuite passer en img2img.",
@@ -572,7 +581,16 @@
       "dbTable": "Nom de table validé contre information_schema (schéma public uniquement) : aucune requête libre. Filtres optionnels : user = texte sur la colonne utilisateur ; users = liste de valeurs à inclure (cases du panneau UTILISATEURS) ; date_from / date_to = plage de dates.",
       "dbUsers": "Alimente le panneau UTILISATEURS de QueryDb (groupé par catégorie avec on/off). Si la table n'a pas de colonne utilisateur valide, le panneau n'apparaît pas.",
       "llm": "Ne passe pas par les agents : aucune mémoire de conversation par chat_id. Modèle du sélecteur Leles (par défaut qwen2.5), keep_alive=0 libère la RAM après l’appel.",
-      "ollamaUnload": "Appelé par Test2 après la planification des scènes, pour laisser de la RAM libre au modèle d’image."
+      "ollamaUnload": "Appelé par Test2 après la planification des scènes, pour laisser de la RAM libre au modèle d’image.",
+      "gitFiles": "Seuls les fichiers suivis sont listés ; les fichiers sensibles sont exclus. Les résultats sont limités côté serveur.",
+      "gitFilelog": "Valeurs autorisées pour limit : 5, 10, 20 ou 50. Le fichier doit être suivi.",
+      "gitFilediff": "Nécessite un SHA hexadécimal de 7 à 40 caractères ; le diff peut être tronqué.",
+      "gitBranches": "Inclut les branches locales et distantes ; les erreurs de fetch sont signalées sans bloquer la réponse.",
+      "gitBranchdiff": "Affiche les commits, fichiers et patch de HEAD par rapport à base (main par défaut).",
+      "gitPrs": "Récupère les pull requests GitHub associées au dépôt.",
+      "gitRefdiff": "ref peut être une branche ou une référence de PR ; base utilise main/master distant par défaut.",
+      "gitBranchPreview": "Aperçu à usage unique, TTL de 5 minutes, lié à l'utilisateur et à l'empreinte du dépôt.",
+      "gitBranchExecute": "Nécessite GIT_ADMIN_ALLOW_WRITE=1, un aperçu valide, la phrase exacte et un dépôt inchangé."
     },
     "port": {
       "gw": "gateway API public (uvicorn)",

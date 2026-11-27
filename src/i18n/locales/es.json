@@ -504,7 +504,7 @@
     "copyCurl": "copiar curl",
     "copied": "✓ copiado",
     "portsEyebrow": "ARQUITECTURA · PUERTOS LOCALES (MAC)",
-    "footerSrc": "Fuente: gateway.py + git_admin.py + query_db.py · actualizado 24 de octubre de 2026",
+    "footerSrc": "Fuente: gateway.py + git_admin.py + query_db.py · actualizado 27 de noviembre de 2026 de 2026",
     "footerStatic": "Página estática: sin dependencia del backend",
     "note": {
       "stories": "PDF cómic de las historias, sin pasar por Airflow/Telegram.",
@@ -515,7 +515,7 @@
       "image": "Generación Z-Image-Turbo vía cola de jobs asíncrona.",
       "vision": "OCR con el agente JCS para las hojas de presencia.",
       "improve": "Editor de archivos con revisión IA.",
-      "git": "Operaciones Git con preview + confirmación (git_admin.py).",
+      "git": "Operaciones Git con preview + confirmación (git_admin.py y git_admin_branches.py): historial de archivos, ramas y PR.",
       "querydb": "Navegación read-only de las bases PostgreSQL (query_db.py)."
     },
     "ep": {
@@ -552,7 +552,16 @@
       "dbTable": "Vista previa paginada de una tabla (50 filas por página) con filtros.",
       "dbUsers": "Valores distintos de la columna usuario de la tabla, con recuento de filas.",
       "llm": "LLM sin estado: el prompt va directo a Ollama (usado por Test2 para planificar las escenas).",
-      "ollamaUnload": "Descarga de la RAM los modelos Ollama cargados (keep_alive=0)."
+      "ollamaUnload": "Descarga de la RAM los modelos Ollama cargados (keep_alive=0).",
+      "gitFiles": "Lista los archivos versionados del repositorio, con filtro opcional.",
+      "gitFilelog": "Últimos commits que han modificado un archivo (--follow).",
+      "gitFilediff": "Diff de un archivo en un commit concreto (solo lectura).",
+      "gitBranches": "Ramas locales y remotas, seguimiento y diferencias respecto a main.",
+      "gitBranchdiff": "Diff de la rama actual respecto a la rama base.",
+      "gitPrs": "Lista las pull requests del repositorio.",
+      "gitRefdiff": "Examina qué aporta una rama o PR respecto a main.",
+      "gitBranchPreview": "Vista previa de un solo uso de una operación de rama (rebase/promote).",
+      "gitBranchExecute": "Ejecuta la operación de rama tras la confirmación explícita."
     },
     "nt": {
       "imgCompose": "Disposición grid/side/stack/bg, fundido 0-0.45. El compuesto puede pasar luego a img2img.",
@@ -572,7 +581,16 @@
       "dbTable": "Nombre de tabla validado contra information_schema (solo esquema public): ninguna consulta libre. Filtros opcionales: user = texto en la columna usuario; users = lista de valores a incluir (checkbox del panel USUARIOS); date_from / date_to = intervalo de fechas.",
       "dbUsers": "Alimenta el panel USUARIOS de QueryDb (agrupado por categoría con on/off). Si la tabla no tiene una columna usuario válida, el panel no aparece.",
       "llm": "No pasa por los agentes: sin memoria de conversación por chat_id. Modelo del selector Leles (por defecto qwen2.5), keep_alive=0 libera la RAM al terminar.",
-      "ollamaUnload": "Lo llama Test2 tras planificar las escenas, para dejar RAM libre al modelo de imagen."
+      "ollamaUnload": "Lo llama Test2 tras planificar las escenas, para dejar RAM libre al modelo de imagen.",
+      "gitFiles": "Solo se muestran archivos versionados; se excluyen archivos sensibles. El servidor limita los resultados.",
+      "gitFilelog": "Valores permitidos para limit: 5, 10, 20 o 50. El archivo debe estar versionado.",
+      "gitFilediff": "Requiere un SHA hexadecimal de 7 a 40 caracteres; el diff puede truncarse.",
+      "gitBranches": "Incluye ramas locales y remotas; los errores de fetch se notifican sin impedir la respuesta.",
+      "gitBranchdiff": "Muestra commits, archivos y patch de HEAD respecto a base (main por defecto).",
+      "gitPrs": "Consulta las pull requests de GitHub asociadas al repositorio.",
+      "gitRefdiff": "ref puede ser una rama o referencia de PR; base usa main/master remoto por defecto.",
+      "gitBranchPreview": "Vista previa de un solo uso, TTL de 5 minutos, vinculada al usuario y a la huella del repositorio.",
+      "gitBranchExecute": "Requiere GIT_ADMIN_ALLOW_WRITE=1, vista previa válida, frase exacta y repositorio sin cambios."
     },
     "port": {
       "gw": "gateway API público (uvicorn)",

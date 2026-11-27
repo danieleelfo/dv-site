@@ -2,7 +2,7 @@
 // API CONTRACTS (contratti API del gateway)
 // Pagina statica di documentazione: nessuna chiamata al backend
 // oltre alla verifica del login Google. Nessuna modifica backend.
-// Dati allineati a gateway.py / git_admin.py / query_db.py / admin_routes.py / news_draft.py / gradv_proc.py (12 novembre 2026: + Memory Summary).
+// Dati allineati a gateway.py / git_admin.py / git_admin_branches.py / query_db.py / admin_routes.py / news_draft.py / gradv_proc.py (27 novembre 2026).
 // ============================================================
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -580,7 +580,7 @@ const GROUPS = [
       {
         method: "GET", path: "/api/git/admin/status", auth: true,
         summary: "api.ep.gitStatus",
-        request: '?project=leles|bar_ai|lele|lele_story_whisper|lele_night_story|dv_site|gradv',
+        request: '?project=leles|bar_ai|lele|lele_story_whisper|lele_night_story|airflow|dv_site|gradv',
         response: '{ "branch", "ahead", "behind", "dirty", "last_commit", ... }',
       },
       {
@@ -588,6 +588,69 @@ const GROUPS = [
         summary: "api.ep.gitDiff",
         request: '?project=...&scope=working|staged|incoming|outgoing',
         response: '{ "summary", "files", "diff", "truncated" }',
+      },
+      {
+        method: "GET", path: "/api/git/admin/files", auth: true,
+        summary: "api.ep.gitFiles",
+        request: "?project=...&filter=testo (opzionale)",
+        response: '{ "project", "total", "files": ["percorso/file", ...] }',
+        notes: "api.nt.gitFiles",
+      },
+      {
+        method: "GET", path: "/api/git/admin/filelog", auth: true,
+        summary: "api.ep.gitFilelog",
+        request: "?project=...&file=percorso/file&limit=10 (valori ammessi: 5|10|20|50)",
+        response: '{ "project", "file", "commits": [{ "sha", "short_sha", "message", "author", "date" }, ...] }',
+        notes: "api.nt.gitFilelog",
+      },
+      {
+        method: "GET", path: "/api/git/admin/filediff", auth: true,
+        summary: "api.ep.gitFilediff",
+        request: "?project=...&file=percorso/file&sha=commit_sha",
+        response: '{ "project", "file", "sha", "additions", "deletions", "diff", "truncated" }',
+        notes: "api.nt.gitFilediff",
+      },
+      {
+        method: "GET", path: "/api/git/admin/branches", auth: true,
+        summary: "api.ep.gitBranches",
+        request: "?project=...",
+        response: '{ "project", "current", "main", "branches": [{ "name", "sha", "upstream", "ahead", "behind", "ahead_main", "behind_main", "current", "is_main", "remote" }, ...], "fetch_error" }',
+        notes: "api.nt.gitBranches",
+      },
+      {
+        method: "GET", path: "/api/git/admin/branchdiff", auth: true,
+        summary: "api.ep.gitBranchdiff",
+        request: "?project=...&base=main",
+        response: '{ "project", "base", "commits", "summary", "files", "diff", "truncated" }',
+        notes: "api.nt.gitBranchdiff",
+      },
+      {
+        method: "GET", path: "/api/git/admin/prs", auth: true,
+        summary: "api.ep.gitPrs",
+        request: "?project=...",
+        response: '{ "project", "base", "source", "prs": [{ "number", "title", "state", "draft", "author", "branch", "sha", "date", "ref", "url" }, ...], "fetch_error", "api_error" }',
+        notes: "api.nt.gitPrs",
+      },
+      {
+        method: "GET", path: "/api/git/admin/refdiff", auth: true,
+        summary: "api.ep.gitRefdiff",
+        request: "?project=...&ref=branch_o_pr&base=main (base opzionale)",
+        response: '{ "project", "ref", "base", "commits", "summary", "files", "diff", "truncated" }',
+        notes: "api.nt.gitRefdiff",
+      },
+      {
+        method: "POST", path: "/api/git/admin/branch-preview", auth: true,
+        summary: "api.ep.gitBranchPreview",
+        request: '{ "project", "action": "rebase|promote", "target"? }',
+        response: '{ "preview_id", "safe", "summary", "warnings", "confirmation_phrase", ... }',
+        notes: "api.nt.gitBranchPreview",
+      },
+      {
+        method: "POST", path: "/api/git/admin/branch-execute", auth: true,
+        summary: "api.ep.gitBranchExecute",
+        request: '{ "project", "action": "rebase|promote", "confirmation_phrase", "preview_id", "target"? }',
+        response: '{ "ok": true, "message" }',
+        notes: "api.nt.gitBranchExecute",
       },
       {
         method: "POST", path: "/api/git/admin/preview", auth: true,

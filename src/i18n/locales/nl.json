@@ -504,7 +504,7 @@
     "copyCurl": "kopieer curl",
     "copied": "✓ gekopieerd",
     "portsEyebrow": "ARCHITECTUUR · LOKALE POORTEN (MAC)",
-    "footerSrc": "Bron: gateway.py + git_admin.py + query_db.py · bijgewerkt 24 oktober 2026",
+    "footerSrc": "Bron: gateway.py + git_admin.py + query_db.py · bijgewerkt 27 november 2026 2026",
     "footerStatic": "Statische pagina: geen afhankelijkheid van de backend",
     "note": {
       "stories": "Strip-PDF's van verhalen, zonder Airflow/Telegram.",
@@ -515,7 +515,7 @@
       "image": "Z-Image-Turbo generatie via asynchrone job-wachtrij.",
       "vision": "OCR met de JCS-agent voor aanwezigheidsbladen.",
       "improve": "Bestandseditor met AI-review.",
-      "git": "Git-operaties met preview + bevestiging (git_admin.py).",
+      "git": "Git-bewerkingen met preview + bevestiging (git_admin.py en git_admin_branches.py): bestandsgeschiedenis, branches en PR's.",
       "querydb": "Read-only browse van de PostgreSQL-databases (query_db.py)."
     },
     "ep": {
@@ -552,7 +552,16 @@
       "dbTable": "Gepagineerde tabelpreview (50 rijen per pagina) met filters.",
       "dbUsers": "Verschillende waarden van de gebruikerskolom van de tabel, met rijentelling.",
       "llm": "Staatloze LLM-aanroep: de prompt gaat rechtstreeks naar Ollama (gebruikt door Test2 voor scèneplanning).",
-      "ollamaUnload": "Laadt de Ollama-modellen uit het RAM (keep_alive=0)."
+      "ollamaUnload": "Laadt de Ollama-modellen uit het RAM (keep_alive=0).",
+      "gitFiles": "Toont bijgehouden repositorybestanden, met optioneel filter.",
+      "gitFilelog": "Recente commits die een bestand hebben gewijzigd (--follow).",
+      "gitFilediff": "Alleen-lezen diff van een bestand in een specifieke commit.",
+      "gitBranches": "Lokale en externe branches, tracking en verschillen met main.",
+      "gitBranchdiff": "Diff van de huidige branch ten opzichte van de basisbranch.",
+      "gitPrs": "Toont de pull requests van de repository.",
+      "gitRefdiff": "Bekijk wat een branch of PR toevoegt ten opzichte van main.",
+      "gitBranchPreview": "Eenmalige preview van een branchbewerking (rebase/promote).",
+      "gitBranchExecute": "Voert de branchbewerking uit na expliciete bevestiging."
     },
     "nt": {
       "imgCompose": "Layouts grid/side/stack/bg, crossfade 0-0,45. Het composit kan daarna naar img2img.",
@@ -572,7 +581,16 @@
       "dbTable": "Tabelnaam gevalideerd tegen information_schema (alleen schema public): geen vrije queries. Optionele filters: user = tekst op de gebruikerskolom; users = lijst met op te nemen waarden (checkboxs van het GEBRUIKERS-paneel); date_from / date_to = datumbereik.",
       "dbUsers": "Voedt het GEBRUIKERS-paneel van QueryDb (gegroepeerd per categorie met on/off). Als de tabel geen geldige gebruikerskolom heeft, verschijnt het paneel niet.",
       "llm": "Gaat niet via de agents: geen conversatiegeheugen per chat_id. Model uit de Leles-selector (standaard qwen2.5), keep_alive=0 maakt het RAM direct na de aanroep vrij.",
-      "ollamaUnload": "Wordt door Test2 aangeroepen na de scèneplanning, om RAM vrij te laten voor het beeldmodel."
+      "ollamaUnload": "Wordt door Test2 aangeroepen na de scèneplanning, om RAM vrij te laten voor het beeldmodel.",
+      "gitFiles": "Alleen bijgehouden bestanden worden getoond; gevoelige bestanden zijn uitgesloten. Resultaten zijn server-beperkt.",
+      "gitFilelog": "Toegestane limit-waarden: 5, 10, 20 of 50. Het bestand moet bijgehouden zijn.",
+      "gitFilediff": "Vereist een hexadecimale SHA van 7–40 tekens; de diff kan worden afgekapt.",
+      "gitBranches": "Omvat lokale en externe branches; fetch-fouten worden gemeld zonder het antwoord te blokkeren.",
+      "gitBranchdiff": "Toont commits, bestanden en patch van HEAD ten opzichte van base (standaard main).",
+      "gitPrs": "Haalt GitHub-pull requests op die bij de repository horen.",
+      "gitRefdiff": "ref kan een branch of PR-referentie zijn; base is standaard remote main/master.",
+      "gitBranchPreview": "Eenmalige preview, TTL van 5 minuten, gekoppeld aan gebruiker en repository-fingerprint.",
+      "gitBranchExecute": "Vereist GIT_ADMIN_ALLOW_WRITE=1, geldige preview, exacte bevestigingszin en ongewijzigde repository."
     },
     "port": {
       "gw": "publieke API-gateway (uvicorn)",

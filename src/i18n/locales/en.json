@@ -504,7 +504,7 @@
     "copyCurl": "copy curl",
     "copied": "✓ copied",
     "portsEyebrow": "ARCHITECTURE · LOCAL PORTS (MAC)",
-    "footerSrc": "Source: gateway.py + git_admin.py + query_db.py · updated October 24, 2026",
+    "footerSrc": "Source: gateway.py + git_admin.py + query_db.py · updated November 27, 2026",
     "footerStatic": "Static page: no backend dependency",
     "note": {
       "stories": "Story comic PDFs, without going through Airflow/Telegram.",
@@ -515,7 +515,7 @@
       "image": "Z-Image-Turbo generation via async job queue.",
       "vision": "OCR with the JCS agent for timesheets.",
       "improve": "File editor with AI review.",
-      "git": "Git operations with preview + confirmation (git_admin.py).",
+      "git": "Git operations with preview + confirmation (git_admin.py and git_admin_branches.py): file history, branches and PRs.",
       "querydb": "Read-only browse of the PostgreSQL databases (query_db.py)."
     },
     "ep": {
@@ -552,7 +552,16 @@
       "dbTable": "Paginated table preview (50 rows per page) with filters.",
       "dbUsers": "Distinct values of the table's user column, with row count.",
       "llm": "Stateless LLM call: the prompt goes straight to Ollama (used by Test2 for scene planning).",
-      "ollamaUnload": "Unloads the Ollama models currently in RAM (keep_alive=0)."
+      "ollamaUnload": "Unloads the Ollama models currently in RAM (keep_alive=0).",
+      "gitFiles": "Lists tracked repository files, with an optional filter.",
+      "gitFilelog": "Recent commits that changed a file (--follow).",
+      "gitFilediff": "Read-only diff for a file in a specific commit.",
+      "gitBranches": "Local and remote branches, tracking status and differences from main.",
+      "gitBranchdiff": "Diff of the current branch against its base branch.",
+      "gitPrs": "Lists repository pull requests.",
+      "gitRefdiff": "Inspects what a branch or PR adds compared with main.",
+      "gitBranchPreview": "One-time preview of a branch operation (rebase/promote).",
+      "gitBranchExecute": "Executes a branch operation after explicit confirmation."
     },
     "nt": {
       "imgCompose": "grid/side/stack/bg layouts, 0-0.45 cross-fade. The composite can then go to img2img.",
@@ -572,7 +581,16 @@
       "dbTable": "Table name validated against information_schema (public schema only): no free queries. Optional filters: user = text on the user column; users = list of values to include (USERS panel checkboxes); date_from / date_to = date range.",
       "dbUsers": "Feeds the QueryDb USERS panel (grouped by category with on/off). If the table has no valid user column, the panel does not appear.",
       "llm": "Does not go through the agents: no per-chat_id conversation memory. Model from the Leles selector (default qwen2.5), keep_alive=0 frees RAM right after the call.",
-      "ollamaUnload": "Called by Test2 after scene planning, to leave free RAM for the image model."
+      "ollamaUnload": "Called by Test2 after scene planning, to leave free RAM for the image model.",
+      "gitFiles": "Only tracked files are listed; sensitive files are excluded. Results are server-limited.",
+      "gitFilelog": "Allowed limit values: 5, 10, 20 or 50. The file must be tracked.",
+      "gitFilediff": "Requires a 7–40 character hexadecimal SHA; the diff may be truncated.",
+      "gitBranches": "Includes local and remote branches; fetch errors are reported without suppressing the response.",
+      "gitBranchdiff": "Shows commits, files and patch for HEAD compared with base (main by default).",
+      "gitPrs": "Retrieves GitHub pull requests associated with the repository.",
+      "gitRefdiff": "ref can be a branch or PR reference; base defaults to remote main/master.",
+      "gitBranchPreview": "One-time preview, 5-minute TTL, bound to the user and repository fingerprint.",
+      "gitBranchExecute": "Requires GIT_ADMIN_ALLOW_WRITE=1, a valid preview, exact confirmation phrase and unchanged repository."
     },
     "port": {
       "gw": "public API gateway (uvicorn)",
