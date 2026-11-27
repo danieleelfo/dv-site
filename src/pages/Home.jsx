@@ -519,7 +519,7 @@ export default function Home() {
                 </div>
 
                 {/* CARD CONTENT */}
-                <div style={styles.cardBody}>
+                <div className="home-card-body" style={styles.cardBody}>
 
                   <h3 style={styles.cardTitle}>
                     {nodes[activeNode].title}
