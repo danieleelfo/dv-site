@@ -33,7 +33,8 @@
     "projects": "Projects",
     "console": "Console",
     "expertise": "Expertise",
-    "trial": "Trial"
+    "trial": "Trial",
+    "storiesTrial": "Stories Trial"
   },
   "home": {
     "humans": {
@@ -1515,5 +1516,36 @@
     "sendAudioTts": "Send Audio (TTS)",
     "sending": "Sending...",
     "sendAudio": "Send Audio"
+  },
+  "storyTrial": {
+    "title": "Story Trial",
+    "subtitle": "Create a story with Story Whisper",
+    "loginTitle": "Sign in to continue",
+    "loginHint": "Use the same Google account as the other trial pages.",
+    "clientIdMissing": "Google sign-in is not configured.",
+    "notAuthorized": "This Google account is not authorized for Story Trial.",
+    "chatIdMissing": "Your account has no personal Story Whisper chat_id yet. Ask the administrator to assign a unique numeric ID.",
+    "logout": "Logout",
+    "language": "Story language",
+    "ideas": "Quick ideas",
+    "idea1": "A curious fox discovers a hidden garden",
+    "idea2": "A little robot learns what friendship means",
+    "idea3": "A lighthouse keeper hears a mysterious melody",
+    "idea4": "A journey through a city in the clouds",
+    "promptLabel": "What should the story be about?",
+    "promptPlaceholder": "Describe your story idea…",
+    "withAudio": "Generate audio as well as text",
+    "freshStory": "New context (do not use previous stories memory)",
+    "writing": "Writing your story…",
+    "waitHint": "Please wait… {{seconds}} s",
+    "noReply": "Story Whisper returned an empty response.",
+    "timeout": "The request timed out. Please try again.",
+    "error": "Could not generate the story: {{error}}",
+    "audioError": "The generated audio could not be played.",
+    "copied": "Copied",
+    "copy": "Copy",
+    "newStory": "New story",
+    "tell": "Tell me a story",
+    "yourStory": "Your story"
   }
 }
