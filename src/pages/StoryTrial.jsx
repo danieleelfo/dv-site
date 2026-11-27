@@ -125,7 +125,7 @@ export default function StoryTrial() {
     wrap:{position:'relative',minHeight:'70vh',display:'flex',flexDirection:'column',justifyContent:'center',overflow:'hidden'},
     bg:{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover',opacity:.6},
     overlay:{position:'absolute',inset:0,background:'linear-gradient(180deg,rgba(11,16,21,.25),rgba(11,16,21,.88))'},
-    content:{position:'relative,width:'100%',maxWidth:760,margin:'0 auto'},
+    content:{position:'relative',width:'100%',maxWidth:760,margin:'0 auto'},
     card:{background:'rgba(255,255,255,.1)',border:'1px solid rgba(255,255,255,.2)',borderRadius:12,padding:22,backdropFilter:'blur(10px)',marginTop:20},
     label:{display:'block',color:'#e2e8f0',fontWeight:600,marginBottom:8},
     hint:{color:'#94a3b8',fontSize:13,margin:0},
