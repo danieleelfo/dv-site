@@ -73,8 +73,11 @@ for pair in os.environ.get("ADMIN_USER_CHAT_IDS", "").split(","):
         _mail = _mail.strip().lower()
         _cid = _cid.strip()
 
-        if _mail and _cid.isdigit():
+        if _mail and _cid.isdigit() and int(_cid) > 0:
             ADMIN_USER_CHAT_IDS[_mail] = int(_cid)
+
+if len(set(ADMIN_USER_CHAT_IDS.values())) != len(ADMIN_USER_CHAT_IDS):
+    raise RuntimeError("ADMIN_USER_CHAT_IDS contiene chat_id duplicati.")
 
 
 def _verified_email_or_raise(authorization: str | None) -> str:
