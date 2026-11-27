@@ -59,28 +59,35 @@ AREAS = {
     "dbt": "leles_dbt_dev_bronze",
 }
 
-# Per queste aree la connessione punta a un database Postgres diverso da
-# quello del gateway: credenziali riusate dall'env del gateway (PGHOST/
-# PGPORT/PGUSER/PGPASSWORD), nome db overridabile via env dedicata.
+# Per NS/SW si possono usare credenziali dedicate nel gateway.env.
+# Se non presenti, resta compatibile con il ruolo condiviso PGUSER/PGPASSWORD.
 AREA_DB_ENV = {
-    "lele_ns": "QDB_DB_LELE_NS",
-    "lele_sw": "QDB_DB_LELE_SW",
+    "lele_ns": ("QDB_DB_LELE_NS", "LELE_NS"),
+    "lele_sw": ("QDB_DB_LELE_SW", "LELE_SW"),
 }
 
 
 def _connect_area(area: str, get_connection: Callable):
-    """Connessione per area: default = db del gateway, altrimenti db dedicato."""
-    env_name = AREA_DB_ENV.get(area)
-    if not env_name:
+    """Connessione per area con override credenziali per database."""
+    env_config = AREA_DB_ENV.get(area)
+    if not env_config:
         return get_connection()
-    dbname = os.environ.get(env_name) or area
-    return psycopg2.connect(
-        host=os.environ.get("PGHOST", "localhost"),
-        port=os.environ.get("PGPORT", "5432"),
-        dbname=dbname,
-        user=os.environ.get("PGUSER"),
-        password=os.environ.get("PGPASSWORD"),
-    )
+
+    db_env, prefix = env_config
+    config = {
+        "host": os.getenv(f"{prefix}_PGHOST") or os.getenv("PGHOST", "localhost"),
+        "port": os.getenv(f"{prefix}_PGPORT") or os.getenv("PGPORT", "5432"),
+        "dbname": os.getenv(db_env) or area,
+        "user": os.getenv(f"{prefix}_PGUSER") or os.getenv("PGUSER"),
+        "password": os.getenv(f"{prefix}_PGPASSWORD") or os.getenv("PGPASSWORD"),
+    }
+    missing = [key for key in ("user", "password") if not config[key]]
+    if missing:
+        raise RuntimeError(
+            f"Credenziali PostgreSQL mancanti per {area}: "
+            + ", ".join(f"{prefix}_PGUSER/PGUSER" if k == "user" else f"{prefix}_PGPASSWORD/PGPASSWORD" for k in missing)
+        )
+    return psycopg2.connect(**config)
 
 # Colonne "temporal" per ordinamento, attivita' recente e filtro date
 # (match sul suffisso).
