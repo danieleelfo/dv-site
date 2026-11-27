@@ -49,7 +49,6 @@
     justify-content: center;
     gap: 10px;
     min-width: 0;
-    transform: translateX(-120px);
 }
 .nav4-group { position: relative; }
 .nav4-group-btn {
@@ -244,9 +243,4 @@
   .nav4-group-btn { letter-spacing: -.03em; }
   .nav4-language-row { gap: 2px; }
   .nav4-language { padding: 4px 3px; }
-}
-@media (max-width: 768px) {
-  .nav4-groups {
-    transform: translateX(-5px);
-  }
 }
