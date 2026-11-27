@@ -168,6 +168,7 @@ export default function Test2() {
   const [preview, setPreview] = useState(null);
   const [commitMessage, setCommitMessage] = useState("");
   const [confirmText, setConfirmText] = useState("");
+  const [actionTarget, setActionTarget] = useState("");
   const [showRaw, setShowRaw] = useState(false);
 
   const [branches, setBranches] = useState(null);
@@ -406,11 +407,12 @@ export default function Test2() {
     if (auth.token && auth.allowed) loadDiff(project, scope);
   }, [auth.token, auth.allowed, project, scope, loadDiff]);
 
-  async function prepareAction(kind) {
+  async function prepareAction(kind, target = "") {
     setError("");
     setNotice("");
     setPreview(null);
     setConfirmText("");
+    setActionTarget(target);
     setAction(kind);
     setBusy("preview");
 
@@ -424,6 +426,7 @@ export default function Test2() {
           body: JSON.stringify({
             project,
             action: kind,
+            target: isBranchAction && target ? target : undefined,
             message: kind === "commit" ? commitMessage.trim() : undefined,
           }),
         }
@@ -475,6 +478,7 @@ export default function Test2() {
             message: action === "commit" ? commitMessage.trim() : undefined,
             confirmation_phrase: confirmText.trim(),
             preview_id: preview.preview_id,
+            target: isBranchAction && actionTarget ? actionTarget : undefined,
           }),
         }
       );
@@ -496,6 +500,7 @@ export default function Test2() {
       setPreview(null);
       setAction("");
       setConfirmText("");
+      setActionTarget("");
 
       await loadStatus(project);
       await loadDiff(project, scope);
@@ -1058,6 +1063,16 @@ export default function Test2() {
           >
             {t("git.refreshDiff")}
           </button>
+
+          {scope === "ref" && diff?.ref && !/^(origin\/)?(main|master)$/.test(diff.ref) && (
+            <button
+              className="btn"
+              disabled={!!busy}
+              onClick={() => prepareAction("promote", diff.ref)}
+            >
+              ⇧ {t("git.promoteRef", { ref: diff.ref, defaultValue: "Promuovi {{ref}} a main" })}
+            </button>
+          )}
         </div>
 
         {diff?.files?.length > 0 && !showRaw && (
