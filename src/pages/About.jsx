@@ -1,6 +1,7 @@
 // ============================================================
 // About: About me + Expertise (spostati dalla Home)
 // ============================================================
+import SectionPageNav from '../components/SectionPageNav.jsx'
 
 import React from 'react'
 import { Link, useParams } from 'react-router-dom'
@@ -38,17 +39,7 @@ export default function About() {
         </section>
 
         <div className="container" style={homeStyles.signatureRow}>
-          <div style={homeStyles.heroActions}>
-          <Link to={lang ? `/${lang}` : '/'} style={homeStyles.btnGhost}>
-            {t('nav.home')}
-          </Link>
-          <Link to={lang ? `/${lang}/projects` : '/projects'} style={homeStyles.btnPrimary}>
-            {t('hero.viewProjects')}
-          </Link>
-          <Link to={lang ? `/${lang}/contact` : '/contact'} style={homeStyles.btnPrimary}>
-            {t('hero.contact')}
-          </Link>
-          </div>
+          <SectionPageNav active="about" />
         </div>
       </div>
     </div>
