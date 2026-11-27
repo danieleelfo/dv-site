@@ -33,7 +33,8 @@
     "projects": "Projecten",
     "console": "Console",
     "expertise": "Expertise",
-    "trial": "Proef"
+    "trial": "Proef",
+    "storiesTrial": "Stories Trial"
   },
   "home": {
     "humans": {
@@ -1515,5 +1516,36 @@
     "sendAudioTts": "Audio versturen (TTS)",
     "sending": "Versturen...",
     "sendAudio": "Audio versturen"
+  },
+  "storyTrial": {
+    "title": "Verhalenproef",
+    "subtitle": "Maak een verhaal met Story Whisper",
+    "loginTitle": "Log in om door te gaan",
+    "loginHint": "Gebruik hetzelfde Google-account als op de andere Trial-pagina's.",
+    "clientIdMissing": "Google-aanmelding is niet ingesteld.",
+    "notAuthorized": "Dit Google-account heeft geen toegang tot Story Trial.",
+    "chatIdMissing": "Je account heeft nog geen persoonlijke Story Whisper-chat_id. Vraag de beheerder om een uniek numeriek ID toe te wijzen.",
+    "logout": "Uitloggen",
+    "language": "Taal van het verhaal",
+    "ideas": "Snelle ideeën",
+    "idea1": "Een nieuwsgierige vos ontdekt een verborgen tuin",
+    "idea2": "Een kleine robot ontdekt wat vriendschap betekent",
+    "idea3": "Een vuurtorenwachter hoort een mysterieuze melodie",
+    "idea4": "Een reis door een stad tussen de wolken",
+    "promptLabel": "Waar moet het verhaal over gaan?",
+    "promptPlaceholder": "Beschrijf je verhaalidee…",
+    "withAudio": "Genereer naast tekst ook audio",
+    "freshStory": "Nieuwe context (gebruik het geheugen van eerdere verhalen niet)",
+    "writing": "Je verhaal wordt geschreven…",
+    "waitHint": "Even geduld… {{seconds}} s",
+    "noReply": "Story Whisper heeft een leeg antwoord gegeven.",
+    "timeout": "Het verzoek duurde te lang. Probeer het opnieuw.",
+    "error": "Het verhaal kon niet worden gemaakt: {{error}}",
+    "audioError": "De gegenereerde audio kan niet worden afgespeeld.",
+    "copied": "Gekopieerd",
+    "copy": "Kopiëren",
+    "newStory": "Nieuw verhaal",
+    "tell": "Vertel me een verhaal",
+    "yourStory": "Jouw verhaal"
   }
 }
