@@ -237,10 +237,18 @@ a {
   .home-node-links {
     gap: 0.35rem !important;
   }
+  .home-card-body {
+    padding: 0.9rem 0.65rem 1rem !important;
+  }
   .home-node-links .home-button {
-    padding: 0.45rem 0.35rem;
-    font-size: 0.68rem;
-    overflow-wrap: anywhere;
+    padding: 0.45rem 0.2rem;
+    font-size: clamp(0.6rem, 2.2vw, 0.68rem);
+    line-height: 1.2;
+    overflow-wrap: normal;
+    word-break: normal;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 }
 
