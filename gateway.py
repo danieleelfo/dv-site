@@ -197,13 +197,20 @@ def verify_super_token(authorization: str | None) -> str:
 
 
 def get_connection():
-    return psycopg2.connect(
-        host=os.environ.get("PGHOST", "localhost"),
-        port=os.environ.get("PGPORT", "5432"),
-        dbname=os.environ.get("PGDATABASE"),
-        user=os.environ.get("PGUSER"),
-        password=os.environ.get("PGPASSWORD"),
-    )
+    config = {
+        "host": os.environ.get("PGHOST", "localhost"),
+        "port": os.environ.get("PGPORT", "5432"),
+        "dbname": os.environ.get("PGDATABASE"),
+        "user": os.environ.get("PGUSER"),
+        "password": os.environ.get("PGPASSWORD"),
+    }
+    missing = [key for key in ("dbname", "user", "password") if not config[key]]
+    if missing:
+        raise RuntimeError(
+            "Configurazione PostgreSQL mancante in gateway.env: "
+            + ", ".join(missing)
+        )
+    return psycopg2.connect(**config)
 
 
 # --------------------------------------------------------------------------
