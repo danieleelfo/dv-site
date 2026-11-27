@@ -224,7 +224,7 @@ export function buildStoryboardBatchPrompt({
     "Keep important objects with their established owner and do not move characters to a location before the story takes them there. " +
     "Each scene must depict one actual moment from the story, not an invented transition or an event from another part. " +
     previous +
-    "STORY BIBLE:\n" + JSON.stringify(storyBible || {}) + "\n" +
+    "STORY BIBLE:\n" + bibleBlock + "\n" +
     (style
       ? "FIXED VISUAL STYLE — reproduce this exact block at the start of every prompt, without changing it: " + style + "\n"
       : "Create one concise shared style block defining recurring character appearance and visual direction.\n") +
