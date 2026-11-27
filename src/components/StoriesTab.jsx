@@ -468,13 +468,17 @@ export default function StoriesTab({ idToken }) {
       try {
         const res = await fetch(`${API}/api/chat`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: "Bearer " + idToken,
+          },
           signal: controller.signal,
           body: JSON.stringify({
             agent: storyAgent,
             prompt: (wantsTts ? "audio e testo " : "") + langClause + persClause + prompt.trim(),
             chat_id: chatId,
             language: storyLang,
+            fresh_context: storyAgent === STORY_AGENT && freshStory,
           }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
