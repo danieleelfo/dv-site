@@ -105,14 +105,14 @@ const GROUPS = [
       {
         method: "POST", path: "/api/chat", auth: "optional",
         summary: "Chat testuale verso un agente (Lele, Bar AI, Story Whisper, Night Story)",
-        request: 'Content-Type: application/json\nAuthorization: Bearer <google_id_token>   // per memoria personale dei due agenti Story\n\n{\n  "agent": "Lele I | Bar_AI demo | Story Whisper | Night Story",\n  "prompt": "...",\n  "chat_id": 1010101010,          // ignorato per gli agenti Story se c\'è Bearer (risolto server-side)\n  "language": "en",\n  "fresh_context": false,         // Story Whisper e Night Story: true = nuovo chat_id monouso\n  "model": "gemma4",              // opzionale (Night Story)\n  "character": "random"           // opzionale (Night Story)\n}',
+        request: 'Content-Type: application/json\nAuthorization: Bearer <google_id_token>   // per memoria personale dei due agenti Story\n\n{\n  "agent": "Lele I | Bar_AI demo | Story Whisper | Night Story",\n  "prompt": "...",\n  "chat_id": 1010101010,          // ignorato per gli agenti Story se c\'è Bearer (risolto server-side)\n  "language": "en",\n  "fresh_context": false,         // Story Whisper e Night Story: true = nuovo chat_id monouso\n  "model": "mistral",             // modello narratore (Story Whisper e Night Story)\n  "character": "random"           // opzionale (Night Story)\n}',
         response: "{ ...risposta JSON dell'agente... }",
         notes: "Story Whisper e Night Story: con Bearer il chat_id è risolto server-side da users.json / ADMIN_USER_CHAT_IDS (_get_story_chat_id); se manca → 403. fresh_context=true genera un chat_id random monouso per entrambi. Senza Bearer si usa chat_id del body, ma gli ID riservati ad account attivi sono vietati (403). Le API Night Story richiedono un chat_id positivo. Altri agenti: chat_id del body inoltrato così com'è.",
       },
       {
         method: "POST", path: "/api/chat/audio", auth: false,
         summary: "api.ep.chatAudio",
-        request: 'Content-Type: multipart/form-data\n\naudio:      <file webm/ogg>\nagent:      "Story Whisper" | "Night Story"\nchat_id:    1010101010\nlanguage:   "en"',
+        request: 'Content-Type: multipart/form-data\n\naudio:      <file webm/ogg>\nagent:      "Story Whisper" | "Night Story"\nchat_id:    1010101010\nlanguage:   "en"\nmodel:      "mistral" (opzionale)',
         response: '{ ...trascrizione + risposta... }',
         notes: "api.nt.chatAudio",
       },
@@ -171,9 +171,9 @@ const GROUPS = [
       {
         method: "POST", path: "/api/admin/llm", auth: true,
         summary: "api.ep.llm",
-        request: '{\n  "prompt": "...",\n  "model": "qwen2.5",   // opzionale, default qwen2.5:latest\n  "keep_alive": 0\n}',
+        request: '{\n  "prompt": "...",\n  "model": "mistral",\n  "keep_alive": 45,\n  "format": "json"  // opzionale: JSON mode Ollama\n}',
         response: '{ "answer": "...", "model": "qwen2.5:latest" }',
-        notes: "api.nt.llm",
+        notes: "Ollama mantiene il modello caldo per keep_alive secondi; format=json abilita l’output JSON strutturato. Usato da Story Bible, planner e consistency checker.",
       },
       {
         method: "POST", path: "/api/admin/ollama/unload", auth: true,
