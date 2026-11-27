@@ -38,7 +38,7 @@ export default function Projects() {
       </section>
 
       {/* Cards section below image */}
-      <section className="section container" style={{ paddingTop: '2rem' }}>
+      <section className="section container projects-content-section" style={{ paddingTop: '2rem' }}>
         <div className="projects-list">
           {projectSlugs.map((slug) => {
             const href = projectLinks[slug]
