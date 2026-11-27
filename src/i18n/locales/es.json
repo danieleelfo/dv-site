@@ -1337,6 +1337,7 @@
     "kidsTitle": "Estilo de cuento ilustrado infantil (preset sw_kids)",
     "genre": "Género (Night Story)",
     "plannerModel": "Modelo Ollama para planificar escenas",
+    "narratorModel": "Modelo que escribe la historia",
     "comicPanels": "Viñetas por imagen",
     "characterSelect": "Personaje de la historia",
     "noCharacter": "🎭 Ningún personaje",
