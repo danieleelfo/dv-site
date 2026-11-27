@@ -23,7 +23,7 @@ export default function About() {
           <p style={homeStyles.aboutText}>{t('about.text')}</p>
         </section>
 
-        <section className="section container home-section" id="expertise" style={{ maxWidth: 950, margin: '0 auto', borderTop: '1px solid #1f2b35' }}>
+        <section className="section container home-section expertise-content-section" id="expertise" style={{ maxWidth: 950, margin: '0 auto', borderTop: '1px solid #1f2b35' }}>
           <p className="section-label">{t('expertise.label')}</p>
           <h2 className="section-title">{t('expertise.title')}</h2>
           <div className="home-expertise-grid" style={homeStyles.expertiseGrid}>
