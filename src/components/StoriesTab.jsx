@@ -511,6 +511,7 @@ export default function StoriesTab({ idToken }) {
         text: storyText,
         agent: storyAgent,
         audioUrl,
+        story_bible: null,
         scenes: [],
         createdAt: Date.now() / 1000,
       });
@@ -757,7 +758,7 @@ export default function StoriesTab({ idToken }) {
                 job_id: s.job_id,
                 seconds: s.seconds,
                 version: 1,
-                planner: storyModel,
+                planner: plannerModel,
                 style_prompt: "",
               })),
             }),
@@ -769,7 +770,9 @@ export default function StoriesTab({ idToken }) {
         }
       }
 
-      setStage("✅ Storia completata.");
+      setStage(consistencyWarnings.length
+        ? "⚠️ Storia completata. Controllo coerenza: " + consistencyWarnings.join(" · ")
+        : "✅ Storia completata.");
     } catch (err) {
       setError(err.message || String(err));
     } finally {
@@ -826,6 +829,12 @@ export default function StoriesTab({ idToken }) {
             setStage("🔁 V" + nextVersion + " — Ollama (" + s.model + ") seleziona le scene " + s.from + "-" + s.to + " di " + s.total + "…");
           } else if (s.kind === "repair") {
             setStage("🔁 V" + nextVersion + " — Correzione del formato JSON… (" + s.model + ")");
+          } else if (s.kind === "bible") {
+            setStage("📘 V" + nextVersion + " — Creo la Story Bible… (" + s.model + ")");
+          } else if (s.kind === "consistency") {
+            setStage("🔎 V" + nextVersion + " — Controllo continuità e fedeltà…");
+          } else if (s.kind === "warning") {
+            setStage("⚠️ " + s.message);
           }
         },
       });
@@ -992,7 +1001,9 @@ export default function StoriesTab({ idToken }) {
         );
         setActiveVersion(nextVersion);
         await loadStories();
-        const doneMsg = "✅ Versione V" + nextVersion + " pronta (" + doneScenes.length + " illustrazioni con " + regModel + ", preset " + preset + ").";
+        const doneMsg = consistencyWarnings.length
+          ? "⚠️ Versione V" + nextVersion + " pronta. " + consistencyWarnings.join(" · ")
+          : "✅ Versione V" + nextVersion + " pronta (" + doneScenes.length + " illustrazioni con " + regModel + ", preset " + preset + ").";
         setStage(doneMsg);
         setRegDone(doneMsg);
       } else {
