@@ -557,15 +557,32 @@ async def chat_router(req: ChatRequest, authorization: str | None = Header(None)
             detail=f"Agente '{req.agent}' non configurato.",
         )
 
-    # Story Whisper requires a verified account and a server-resolved memory ID.
+    # Story Whisper: personal IDs are only ever selected by the server.
+    # Legacy anonymous Console sessions keep working, but cannot target a
+    # chat_id reserved for an active user or configured admin.
     if req.agent == "Story Whisper":
-        user_email = verify_user_token(authorization)
-        if req.fresh_context:
-            resolved_chat_id = random.randint(1_000_000_000, 9_999_999_999)
+        if authorization and authorization.startswith("Bearer "):
+            user_email = verify_user_token(authorization)
+            if req.fresh_context:
+                resolved_chat_id = random.randint(1_000_000_000, 9_999_999_999)
+            else:
+                resolved_chat_id = _get_story_chat_id(user_email)
+                if resolved_chat_id is None:
+                    raise HTTPException(status_code=403, detail="Story Whisper requires a unique numeric chat_id assigned to this account.")
         else:
-            resolved_chat_id = _get_story_chat_id(user_email)
-            if resolved_chat_id is None:
-                raise HTTPException(status_code=403, detail="Story Whisper requires a unique numeric chat_id assigned to this account.")
+            if req.fresh_context:
+                resolved_chat_id = random.randint(1_000_000_000, 9_999_999_999)
+            else:
+                reserved_ids = {int(value) for value in ADMIN_USER_CHAT_IDS.values()}
+                for user in _load_demo_users():
+                    if user.get("active") and user.get("chat_id") is not None:
+                        try:
+                            reserved_ids.add(int(user["chat_id"]))
+                        except (TypeError, ValueError):
+                            pass
+                if req.chat_id in reserved_ids:
+                    raise HTTPException(status_code=403, detail="This Story Whisper memory belongs to an authenticated account.")
+                resolved_chat_id = req.chat_id
     else:
         resolved_chat_id = req.chat_id
 
