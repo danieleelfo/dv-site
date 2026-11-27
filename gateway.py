@@ -3651,6 +3651,9 @@ class StorySaveRequest(BaseModel):
     audio_filename: str = ""
     language: str = "it"
     scenes: list[StoryScene] = []
+    # Story Bible per singola storia: personaggi, luoghi, oggetti e cronologia.
+    # Nullable per mantenere compatibili e leggibili gli archivi precedenti.
+    story_bible: dict | None = None
 
 
 def _story_cleanup() -> None:
@@ -3781,6 +3784,7 @@ async def story_save(
         "agent": req.agent,
         "language": req.language,
         "has_audio": audio_saved,
+        "story_bible": req.story_bible,
         "scenes": [
             {
                 "title": s.title,
@@ -3888,6 +3892,11 @@ async def story_update(
         "agent": req.agent,
         "language": req.language,
         "has_audio": bool(existing.get("has_audio")),
+        "story_bible": (
+            req.story_bible
+            if req.story_bible is not None
+            else existing.get("story_bible")
+        ),
         "scenes": [
             {
                 "title": scene.title,
@@ -4347,7 +4356,10 @@ async def _jcs_interpret(text: str) -> str:
 class AdminLlmRequest(BaseModel):
     prompt: str
     model: str = ""
-    keep_alive: int = 0
+    # Ollama accetta secondi interi; 45s mantiene caldo il modello tra batch.
+    keep_alive: int = 45
+    # "json" abilita la modalità JSON nativa di Ollama per planner/checker.
+    format: str | None = None
 
 
 @app.post("/api/admin/llm")
@@ -4380,6 +4392,7 @@ async def admin_llm(
                     "prompt": req.prompt,
                     "stream": False,
                     "keep_alive": req.keep_alive,
+                    **({"format": "json"} if req.format == "json" else {}),
                 },
             )
             response.raise_for_status()
