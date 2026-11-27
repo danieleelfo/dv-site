@@ -187,6 +187,13 @@ a {
 .lc-panel h3.lc-stat-name.is-warn { color: #f59e0b; }
 .lc-panel h3.lc-stat-name.is-bad  { color: #f87171; }
 
+/* Riduce lo spazio tra la nav mobile (logo/lingue + pulsanti) e tutte le pagine. */
+@media (max-width: 700px) {
+  #root > .nav4-header + * {
+    padding-top: 8px !important;
+  }
+}
+
 /* ===== Navigation Bar: Sposta il logo a filo sinistro anche su mobile ===== */
 header .container {
   max-width: 100% !important;
