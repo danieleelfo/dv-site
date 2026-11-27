@@ -16,6 +16,7 @@ import DagAdmin from './pages/DagAdmin.jsx'
 import GitAdmin from './pages/GitAdmin.jsx'
 import B2B from './pages/B2B.jsx'
 import ImageLab from './pages/ImageLab.jsx'
+import StoryTrial from './pages/StoryTrial.jsx'
 import QueryDb from './pages/QueryDb.jsx'
 import DagForge from './pages/DagForge.jsx'
 import { AIEthicsIndex, AIEthicsArticle } from './pages/AIEthics.jsx'
@@ -161,6 +162,9 @@ export default function App() {
         <Route path="/:lang/dagforge" element={<><Nav /><LangWrapper><DagForge /></LangWrapper></>} />
         <Route path="/git-admin" element={<><Nav /><GitAdmin /></>} />
         <Route path="/:lang/git-admin" element={<><Nav /><LangWrapper><GitAdmin /></LangWrapper></>} />
+
+        <Route path="/story-trial" element={<><Nav /><StoryTrial /></>} />
+        <Route path="/:lang/story-trial" element={<><Nav /><LangWrapper><StoryTrial /></LangWrapper></>} />
 
         <Route path="/console" element={<><Nav /><Console /></>} />
         <Route path="/:lang/console" element={<><Nav /><LangWrapper><Console /></LangWrapper></>} />
