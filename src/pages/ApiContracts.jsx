@@ -548,14 +548,14 @@ const GROUPS = [
       {
         method: "POST", path: "/api/users", auth: true,
         summary: "Crea un utente demo",
-        request: '{\n  "name": "...",\n  "email": "...",\n  "chat_id": 123,        // consigliato: unico, per memoria Story Whisper\n  "note": "...",         // opzionale\n  "super": false         // opzionale, default false\n}',
+        request: '{\n  "name": "...",\n  "email": "...",\n  "chat_id": 123,        // obbligatorio, intero positivo e univoco\n  "note": "...",         // opzionale\n  "super": false         // opzionale, default false\n}',
         response: '{ "user": { ... } }',
         notes: "201 creato; 409 se l'email esiste gia.",
       },
       {
         method: "PATCH", path: "/api/users/{user_id}", auth: true,
-        summary: "Aggiorna attivo e/o super di un utente demo",
-        request: '{ "active": true, "super": true }   // entrambi i campi opzionali',
+        summary: "Aggiorna chat_id, attivo e/o super di un utente demo",
+        request: '{ "chat_id": 123, "active": true, "super": true }   // tutti opzionali; chat_id positivo e univoco',
         response: '{ "user": { ... } }',
       },
       {
