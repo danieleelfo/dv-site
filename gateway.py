@@ -567,10 +567,10 @@ async def chat_router(req: ChatRequest, authorization: str | None = Header(None)
             detail=f"Agente '{req.agent}' non configurato.",
         )
 
-    # Story Whisper: personal IDs are only ever selected by the server.
-    # Legacy anonymous Console sessions keep working, but cannot target a
-    # chat_id reserved for an active user or configured admin.
-    if req.agent == "Story Whisper":
+    # Story agents use a server-resolved identity when authenticated.
+    # fresh_context creates a one-off conversation ID for BOTH agents.
+    # Legacy anonymous sessions keep working, but cannot target a reserved ID.
+    if req.agent in ("Story Whisper", "Night Story"):
         if authorization and authorization.startswith("Bearer "):
             user_email = verify_user_token(authorization)
             if req.fresh_context:
@@ -578,7 +578,7 @@ async def chat_router(req: ChatRequest, authorization: str | None = Header(None)
             else:
                 resolved_chat_id = _get_story_chat_id(user_email)
                 if resolved_chat_id is None:
-                    raise HTTPException(status_code=403, detail="Story Whisper requires a unique numeric chat_id assigned to this account.")
+                    raise HTTPException(status_code=403, detail=f"{req.agent} requires a unique numeric chat_id assigned to this account.")
         else:
             if req.fresh_context:
                 resolved_chat_id = random.randint(1_000_000_000, 9_999_999_999)
@@ -591,7 +591,7 @@ async def chat_router(req: ChatRequest, authorization: str | None = Header(None)
                         except (TypeError, ValueError):
                             pass
                 if req.chat_id in reserved_ids:
-                    raise HTTPException(status_code=403, detail="This Story Whisper memory belongs to an authenticated account.")
+                    raise HTTPException(status_code=403, detail="This story memory belongs to an authenticated account.")
                 resolved_chat_id = req.chat_id
     else:
         resolved_chat_id = req.chat_id
