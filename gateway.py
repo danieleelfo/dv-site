@@ -464,7 +464,7 @@ class ChatRequest(BaseModel):
     # li ignorano (pydantic scarta i campi extra).
     model: str | None = None
     character: str | None = None
-    # Story Whisper context is resolved server-side from the verified identity.
+    # Story-agent context is resolved server-side from the verified identity.
     fresh_context: bool = False
 
 
