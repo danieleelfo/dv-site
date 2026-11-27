@@ -247,7 +247,7 @@ export function normalizeScenes(parsedPlan, imageCount, sharedStyle = "") {
     !Array.isArray(parsedPlan) && typeof parsedPlan?.style === "string"
       ? parsedPlan.style.trim()
       : "";
-  const effectiveStyle = planStyle || sharedStyle || "";
+  const effectiveStyle = sharedStyle || planStyle || "";
   const fallbackTitles = ["Inizio", "Sviluppo", "Finale", "Epilogo"];
   const scenes = plannedScenes.map((item, index) => {
     if (!item || typeof item !== "object") {
@@ -271,10 +271,14 @@ export function normalizeScenes(parsedPlan, imageCount, sharedStyle = "") {
 function localSceneWarnings(scenes) {
   const warnings = [];
   const seen = new Map();
+  const seenPrompts = new Map();
   scenes.forEach((scene, index) => {
     const key = String(scene.title || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
     if (key && seen.has(key)) warnings.push("Titolo duplicato nelle scene " + (seen.get(key) + 1) + " e " + (index + 1) + ".");
     else if (key) seen.set(key, index);
+    const promptKey = String(scene.prompt || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    if (promptKey && seenPrompts.has(promptKey)) warnings.push("Prompt quasi identico nelle scene " + (seenPrompts.get(promptKey) + 1) + " e " + (index + 1) + ".");
+    else if (promptKey) seenPrompts.set(promptKey, index);
   });
   return warnings;
 }
@@ -295,7 +299,7 @@ export function buildConsistencyPrompt(storyText, storyBible, scenes) {
   );
 }
 
-export function applyConsistencyResult(scenes, result) {
+export function applyConsistencyResult(scenes, result, sharedStyle = "") {
   if (!result || typeof result !== "object" || !Array.isArray(result.corrections)) {
     throw new Error("Risposta consistency checker non valida.");
   }
@@ -306,7 +310,8 @@ export function applyConsistencyResult(scenes, result) {
     const prompt = String(item?.prompt || "").trim();
     if (!Number.isInteger(index) || index < 0 || index >= corrected.length || used.has(index)) continue;
     if (prompt.length < 50 || prompt.length > 2400) continue;
-    corrected[index] = { ...corrected[index], prompt };
+    const finalPrompt = sharedStyle && !prompt.startsWith(sharedStyle) ? sharedStyle + " " + prompt : prompt;
+    corrected[index] = { ...corrected[index], prompt: finalPrompt };
     used.add(index);
   }
   return {
@@ -473,7 +478,6 @@ export async function planStoryScenes({
   let activeModel = models[0] || "mistral";
 
   if (buildBible && !storyBible) {
-    let bibleError = null;
     for (const m of models) {
       onStatus({ kind: "bible", model: m });
       try {
@@ -482,7 +486,6 @@ export async function planStoryScenes({
         activeModel = m;
         break;
       } catch (err) {
-        bibleError = err;
       }
     }
     if (!storyBible) {
@@ -584,7 +587,7 @@ export async function planStoryScenes({
         timeoutMs,
         45
       );
-      const checked = applyConsistencyResult(scenes, parsePlan(raw));
+      const checked = applyConsistencyResult(scenes, parsePlan(raw), sharedStyle);
       scenes = checked.scenes;
       warnings = [...warnings, ...checked.warnings];
       onStatus({
