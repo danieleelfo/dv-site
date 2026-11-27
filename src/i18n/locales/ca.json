@@ -33,7 +33,8 @@
     "projects": "Projectes",
     "console": "Consola",
     "trial": "Prova",
-    "expertise": "Experiència"
+    "expertise": "Experiència",
+    "storiesTrial": "Stories Trial"
   },
   "home": {
     "humans": {
@@ -1515,5 +1516,36 @@
     "sendAudioTts": "Envia àudio (TTS)",
     "sending": "Enviant...",
     "sendAudio": "Envia àudio"
+  },
+  "storyTrial": {
+    "title": "Prova d'històries",
+    "subtitle": "Crea una història amb Story Whisper",
+    "loginTitle": "Inicia sessió per continuar",
+    "loginHint": "Fes servir el mateix compte de Google que a les altres pàgines Trial.",
+    "clientIdMissing": "L'accés amb Google no està configurat.",
+    "notAuthorized": "Aquest compte de Google no està autoritzat per a Story Trial.",
+    "chatIdMissing": "El teu compte encara no té un chat_id personal de Story Whisper. Demana a l'administrador que assigni un ID numèric únic.",
+    "logout": "Tanca la sessió",
+    "language": "Llengua de la història",
+    "ideas": "Idees ràpides",
+    "idea1": "Una guineu curiosa descobreix un jardí secret",
+    "idea2": "Un petit robot aprèn què vol dir l'amistat",
+    "idea3": "El faroner sent una melodia misteriosa",
+    "idea4": "Un viatge per una ciutat entre els núvols",
+    "promptLabel": "De què ha de tractar la història?",
+    "promptPlaceholder": "Descriu la teva idea…",
+    "withAudio": "Genera també l'àudio a més del text",
+    "freshStory": "Context nou (sense fer servir la memòria de les històries anteriors)",
+    "writing": "Escrivint la història…",
+    "waitHint": "Espera… {{seconds}} s",
+    "noReply": "Story Whisper ha retornat una resposta buida.",
+    "timeout": "La sol·licitud ha superat el temps límit. Torna-ho a provar.",
+    "error": "No s'ha pogut generar la història: {{error}}",
+    "audioError": "No s'ha pogut reproduir l'àudio generat.",
+    "copied": "Copiat",
+    "copy": "Copia",
+    "newStory": "Història nova",
+    "tell": "Explica'm una història",
+    "yourStory": "La teva història"
   }
 }
