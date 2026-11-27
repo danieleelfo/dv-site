@@ -103,11 +103,11 @@ const GROUPS = [
     note: "api.note.chat",
     endpoints: [
       {
-        method: "POST", path: "/api/chat", auth: false,
-        summary: "api.ep.chat",
-        request: 'Content-Type: application/json\n\n{\n  "agent": "Lele I | Bar_AI demo | Story Whisper | Night Story",\n  "prompt": "...",\n  "chat_id": 1010101010,\n  "language": "en"\n}',
+        method: "POST", path: "/api/chat", auth: "optional",
+        summary: "Chat testuale verso un agente (Lele, Bar AI, Story Whisper, Night Story)",
+        request: 'Content-Type: application/json\nAuthorization: Bearer <google_id_token>   // obbligatorio per Story Whisper con memoria utente\n\n{\n  "agent": "Lele I | Bar_AI demo | Story Whisper | Night Story",\n  "prompt": "...",\n  "chat_id": 1010101010,          // ignorato per Story Whisper se c\'è Bearer (risolto server-side)\n  "language": "en",\n  "fresh_context": false,         // solo Story Whisper: true = nuovo chat_id monouso\n  "model": "gemma4",              // opzionale (Night Story)\n  "character": "random"           // opzionale (Night Story)\n}',
         response: "{ ...risposta JSON dell'agente... }",
-        notes: "api.nt.chat",
+        notes: "Story Whisper: con Bearer il chat_id è risolto server-side da users.json / ADMIN_USER_CHAT_IDS (_get_story_chat_id); se manca → 403. fresh_context=true genera un chat_id random monouso. Senza Bearer si usa chat_id del body, ma gli id riservati ad account attivi sono vietati (403). Altri agenti: chat_id del body inoltrato così com'è.",
       },
       {
         method: "POST", path: "/api/chat/audio", auth: false,
@@ -699,7 +699,7 @@ export default function ApiContracts() {
 
   async function copyCurl(ep) {
     const curl = "curl -X " + ep.method + " https://api.danielevillanova.com" + ep.path +
-      (ep.auth ? " \\\n  -H 'Authorization: Bearer <google_id_token>'" : "");
+      (ep.auth === true ? " \\\n  -H 'Authorization: Bearer <google_id_token>'" : ep.auth === "optional" ? " \\\n  # Add Bearer token when calling Story Whisper with user memory" : "");
     try {
       await navigator.clipboard.writeText(curl);
       setCopied(ep.method + " " + ep.path);
@@ -776,9 +776,11 @@ export default function ApiContracts() {
               <div className="endpoint-head">
                 <span className={"method m-" + methodClass(ep.method)}>{ep.method}</span>
                 <code className="endpoint-path">{ep.path}</code>
-                {ep.auth
+                {ep.auth === true
                   ? <span className="auth-pill" title="Authorization: Bearer <google_id_token>">🔒 Bearer</span>
-                  : <span className="auth-pill open">{t("api.public")}</span>}
+                  : ep.auth === "optional"
+                    ? <span className="auth-pill optional" title="Bearer richiesto per Story Whisper con memoria">◐ Bearer opzionale</span>
+                    : <span className="auth-pill open">{t("api.public")}</span>}
                 <button className="btn btn-quiet btn-copy" onClick={() => copyCurl(ep)}>
                   {copied === ep.method + " " + ep.path ? t("api.copied") : t("api.copyCurl")}
                 </button>
@@ -839,6 +841,7 @@ function ApiStyles() {
     .endpoint-path{font:12px ui-monospace,monospace;color:#dbe6ef;overflow-wrap:anywhere}
     .auth-pill{font-size:9px;letter-spacing:.08em;border:1px solid #34455a;border-radius:99px;padding:4px 8px;color:#9eacba}
     .auth-pill.open{border-color:#285e4c;color:#8ce4bd}
+    .auth-pill.optional{border-color:#80633a;color:#ffca75}
     .btn-copy{margin-left:auto;font-size:10px;padding:5px 9px}
     .endpoint-summary{font-size:12px;margin:9px 0 0;color:#c3cdd8}
     .endpoint-detail{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:11px}
