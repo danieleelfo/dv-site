@@ -26,6 +26,7 @@ const groups = [
     links: [
       ['AI Lab', '/ai-lab', 'nav.aiLab'], ['B2B', '/b2b', 'nav.b2b'],
       ['Games', '/games', 'nav.games'], ['Trial', '/console', 'nav.trial'],
+      ['Stories Trial', '/story-trial', 'nav.storiesTrial'],
       ['ImgLab', '/image-lab', 'nav.imgLab'],
     ],
   },
