@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { Link, useParams } from 'react-router-dom'
 import bgImage from '../assets/Project.jpg'
 import { projectSlugs, projectNames } from '../data/projects.js'
+import SectionPageNav from '../components/SectionPageNav.jsx'
 
 // In sviluppo punta alla demo locale (Vite su :5180).
 // In produzione usa VITE_BAR_AI_URL (es. https://bar.danielevillanova.com--> da verificare);
@@ -85,17 +86,7 @@ export default function Projects() {
       </section>
 
       <section className="container" style={styles.signatureRow}>
-        <div style={styles.heroActions}>
-        <Link to={lang ? `/${lang}` : '/'} style={styles.btnGhost}>
-          {t('nav.home')}
-        </Link>
-        <Link to={lang ? `/${lang}/about` : '/about'} style={styles.btnGhost}>
-          {t('nav.expertise')}
-        </Link>
-        <Link to={lang ? `/${lang}/contact` : '/contact'} style={styles.btnGhost}>
-          {t('hero.contact')}
-        </Link>
-          </div>
+        <SectionPageNav active="projects" />
       </section>
     </div>
   )
