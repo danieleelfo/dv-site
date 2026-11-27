@@ -187,6 +187,24 @@ a {
 .lc-panel h3.lc-stat-name.is-warn { color: #f59e0b; }
 .lc-panel h3.lc-stat-name.is-bad  { color: #f87171; }
 
+/* Home: mantiene i tre pulsanti principali su un'unica riga sui telefoni. */
+@media (max-width: 700px) {
+  .home-hero-actions {
+    width: 100%;
+    justify-content: center !important;
+    flex-wrap: nowrap !important;
+    gap: 0.35rem !important;
+  }
+  .home-hero-actions a {
+    flex: 0 1 auto;
+    min-width: 0;
+    padding: 0.5rem 0.45rem !important;
+    font-size: 0.68rem !important;
+    white-space: nowrap;
+    text-align: center;
+  }
+}
+
 /* Riduce lo spazio tra la nav mobile (logo/lingue + pulsanti) e tutte le pagine. */
 @media (max-width: 700px) {
   #root > .nav4-header + * {
