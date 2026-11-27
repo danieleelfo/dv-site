@@ -537,7 +537,7 @@ const GROUPS = [
   },
   {
     id: "users", label: "Utenti demo", icon: "👤",
-    note: "Registro utenti demo (users.json sul Mac). Ruoli: admin (lista in gateway.env), super (demo attivo con super=true: sblocca fumetti, multifoto e history immagini in ImageLab), demo (generazione base, OCR, img2img/B2BImg).",
+    note: "Registro utenti demo (users.json sul Mac). Ruoli: admin (lista in gateway.env), super (demo attivo con super=true: sblocca fumetti, multifoto e history immagini in ImageLab), demo (generazione base, OCR, img2img/B2BImg). chat_id numerico unico obbligatorio per Story Whisper autenticato (memoria per utente su lele_story_whisper).",
     endpoints: [
       {
         method: "GET", path: "/api/users", auth: true,
@@ -548,7 +548,7 @@ const GROUPS = [
       {
         method: "POST", path: "/api/users", auth: true,
         summary: "Crea un utente demo",
-        request: '{\n  "name": "...",\n  "email": "...",\n  "chat_id": 123,        // opzionale\n  "note": "...",         // opzionale\n  "super": false         // opzionale, default false\n}',
+        request: '{\n  "name": "...",\n  "email": "...",\n  "chat_id": 123,        // consigliato: unico, per memoria Story Whisper\n  "note": "...",         // opzionale\n  "super": false         // opzionale, default false\n}',
         response: '{ "user": { ... } }',
         notes: "201 creato; 409 se l'email esiste gia.",
       },
@@ -566,9 +566,10 @@ const GROUPS = [
       },
       {
         method: "GET", path: "/api/users/me", auth: true,
-        summary: "Ruolo del chiamante, per il gating della UI",
+        summary: "Identità, ruolo e chat_id memoria storie del chiamante",
         request: "—",
-        response: '{ "email": "...", "role": "admin|super|demo" }',
+        response: '{ "email": "...", "role": "admin|super|demo", "chat_id": 1234567890 }',
+        notes: "chat_id da users.json (demo/super) o ADMIN_USER_CHAT_IDS (admin) via _get_story_chat_id. null se non assegnato. Usato da Story Trial / Story Whisper per memoria su lele_story_whisper.",
       },
     ],
   },
