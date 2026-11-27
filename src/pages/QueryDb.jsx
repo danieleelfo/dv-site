@@ -26,6 +26,9 @@ const AREAS = [
   { id: "dbt", label: "DBT (bronze)", detail: "qdb.areaDbt" },
 ];
 
+// Deve restare allineato a SUMMARY_AREAS in query_db.py.
+const SUMMARY_AREA_IDS = ["leles", "lele_ns", "lele_sw"];
+
 const PAGE_SIZE = 50;
 
 // Gruppi del pannello UTENTI. Nelle tabelle leles la colonna "utente" e
