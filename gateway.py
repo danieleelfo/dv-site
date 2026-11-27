@@ -454,6 +454,8 @@ class ChatRequest(BaseModel):
     # li ignorano (pydantic scarta i campi extra).
     model: str | None = None
     character: str | None = None
+    # Story Whisper context is resolved server-side from the verified identity.
+    fresh_context: bool = False
 
 
 # Whitelist per il selettore modello/character via /api/chat.
@@ -546,7 +548,7 @@ async def bar_ai_ask(req: BarAIRequest | None = None):
 # --------------------------------------------------------------------------
 @app.post("/api/chat")
 @app.post("/api/chat/")
-async def chat_router(req: ChatRequest):
+async def chat_router(req: ChatRequest, authorization: str | None = Header(None)):
     config = AGENTS.get(req.agent)
 
     if not config:
@@ -554,6 +556,18 @@ async def chat_router(req: ChatRequest):
             status_code=400,
             detail=f"Agente '{req.agent}' non configurato.",
         )
+
+    # Story Whisper requires a verified account and a server-resolved memory ID.
+    if req.agent == "Story Whisper":
+        user_email = verify_user_token(authorization)
+        if req.fresh_context:
+            resolved_chat_id = random.randint(1_000_000_000, 9_999_999_999)
+        else:
+            resolved_chat_id = _get_story_chat_id(user_email)
+            if resolved_chat_id is None:
+                raise HTTPException(status_code=403, detail="Story Whisper requires a unique numeric chat_id assigned to this account.")
+    else:
+        resolved_chat_id = req.chat_id
 
     port = config["port"]
     path = config["path"]
@@ -564,7 +578,7 @@ async def chat_router(req: ChatRequest):
     payload = {
         payload_field: req.prompt,
         "language": req.language,
-        "chat_id": req.chat_id,
+        "chat_id": resolved_chat_id,
     }
 
     # Selettore modello (es. Night Story): inoltrato solo se valido.
@@ -5007,22 +5021,32 @@ async def delete_demo_user(user_id: str, authorization: str | None = Header(None
     return {"deleted": user_id}
 
 
+def _get_story_chat_id(email: str) -> int | None:
+    """Return the configured personal Story Whisper chat ID, with no shared fallback."""
+    raw_chat_id = None
+    if email in ADMIN_ALLOWED_EMAILS:
+        raw_chat_id = ADMIN_USER_CHAT_IDS.get(email)
+    else:
+        user = next((u for u in _load_demo_users() if (u.get("email") or "").strip().lower() == email and u.get("active")), None)
+        if user is not None:
+            raw_chat_id = user.get("chat_id")
+    try:
+        chat_id = int(raw_chat_id)
+    except (TypeError, ValueError):
+        return None
+    return chat_id if chat_id > 0 else None
+
+
 @app.get("/api/users/me")
 async def who_am_i(authorization: str | None = Header(None)):
-    """Chi sono: admin (env) o utente demo. Per il gating della UI."""
+    """Return verified identity, role and configured personal memory ID."""
     email = verify_user_token(authorization)
     if email in ADMIN_ALLOWED_EMAILS:
         role = "admin"
     else:
-        role = (
-            "super"
-            if any(
-                (u.get("email") or "").strip().lower() == email and u.get("super")
-                for u in _load_demo_users()
-            )
-            else "demo"
-        )
-    return {"email": email, "role": role}
+        user = next((u for u in _load_demo_users() if (u.get("email") or "").strip().lower() == email and u.get("active")), None)
+        role = "super" if user and user.get("super") else "demo"
+    return {"email": email, "role": role, "chat_id": _get_story_chat_id(email)}
 
 
 # AVVIO DIRETTO
