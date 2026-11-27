@@ -668,6 +668,8 @@ async def chat_router_audio(
     chat_id: int = Form(1010101010),
     language: str = Form("en"),
     model: str | None = Form(None),
+    fresh_context: bool = Form(False),
+    authorization: str | None = Header(None),
 ):
     config = AGENTS.get(agent)
 
@@ -688,6 +690,32 @@ async def chat_router_audio(
     if model and agent in ("Story Whisper", "Night Story") and model not in CHAT_ALLOWED_MODELS:
         raise HTTPException(status_code=400, detail=f"Model '{model}' non valido.")
 
+    resolved_chat_id = chat_id
+    if agent in ("Story Whisper", "Night Story"):
+        if chat_id <= 0 and not fresh_context:
+            raise HTTPException(status_code=400, detail="chat_id positivo obbligatorio per gli agenti Story.")
+        if authorization and authorization.startswith("Bearer "):
+            user_email = verify_user_token(authorization)
+            if fresh_context:
+                resolved_chat_id = random.randint(1_000_000_000, 9_999_999_999)
+            else:
+                resolved_chat_id = _get_story_chat_id(user_email)
+                if resolved_chat_id is None:
+                    raise HTTPException(status_code=403, detail=f"{agent} requires a unique numeric chat_id assigned to this account.")
+        else:
+            if fresh_context:
+                resolved_chat_id = random.randint(1_000_000_000, 9_999_999_999)
+            else:
+                reserved_ids = {int(value) for value in ADMIN_USER_CHAT_IDS.values()}
+                for user in _load_demo_users():
+                    if user.get("active") and user.get("chat_id") is not None:
+                        try:
+                            reserved_ids.add(int(user["chat_id"]))
+                        except (TypeError, ValueError):
+                            pass
+                if chat_id in reserved_ids:
+                    raise HTTPException(status_code=403, detail="This story memory belongs to an authenticated account.")
+
     port = config["port"]
     target_url = f"http://127.0.0.1:{port}{audio_path}"
 
@@ -704,7 +732,7 @@ async def chat_router_audio(
             }
 
             data = {
-                "chat_id": str(chat_id),
+                "chat_id": str(resolved_chat_id),
                 "language": language,
             }
             if model and agent in ("Story Whisper", "Night Story"):
