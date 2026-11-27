@@ -1258,7 +1258,7 @@ const styles = {
     zIndex: 2,
     width: "min(960px, calc(100% - 32px))",
     margin: "0 auto",
-    padding: "48px 0 72px",
+    padding: "24px 0 72px",
   },
 
   header: {
