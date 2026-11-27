@@ -548,7 +548,7 @@ export default function Home() {
             {/* SIGNATURE + ACTIONS */}
             <div style={styles.signatureRow}>
 
-              <div style={homeStyles.heroActions}>
+              <div className="home-hero-actions" style={homeStyles.heroActions}>
                 <Link
                   to={lang ? `/${lang}/projects` : '/projects'}
                   style={homeStyles.btnPrimary}
