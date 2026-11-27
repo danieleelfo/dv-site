@@ -453,6 +453,7 @@ export default function Improve() {
   const [usersBusy, setUsersBusy] = useState(false);
   const [usersError, setUsersError] = useState("");
   const [userForm, setUserForm] = useState({ name: "", email: "", chat_id: "", note: "" });
+  const [userChatIdEdits, setUserChatIdEdits] = useState({});
   const leftUploadRef = useRef(null);
   const rightUploadRef = useRef(null);
 
@@ -865,7 +866,9 @@ export default function Improve() {
       });
       if (!r.ok) throw new Error("HTTP " + r.status);
       const d = await r.json();
-      setUsers(d.users || []);
+      const loadedUsers = d.users || [];
+      setUsers(loadedUsers);
+      setUserChatIdEdits(Object.fromEntries(loadedUsers.map((item) => [item.id, String(item.chat_id ?? "")])));
       setUsersLoaded(true);
     } catch (e) {
       setUsersError(e.message || String(e));
@@ -875,6 +878,10 @@ export default function Improve() {
   }
 
   async function addUser() {
+    if (!/^[1-9]\d*$/.test(userForm.chat_id.trim())) {
+      setUsersError("Inserisci un chat_id numerico positivo e univoco.");
+      return;
+    }
     setUsersBusy(true);
     setUsersError("");
     try {
@@ -884,13 +891,37 @@ export default function Improve() {
         body: JSON.stringify({
           name: userForm.name.trim(),
           email: userForm.email.trim(),
-          chat_id: userForm.chat_id ? parseInt(userForm.chat_id, 10) : null,
+          chat_id: parseInt(userForm.chat_id, 10),
           note: userForm.note.trim(),
         }),
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(typeof d.detail === "string" ? d.detail : "HTTP " + r.status);
       setUserForm({ name: "", email: "", chat_id: "", note: "" });
+      await loadUsers();
+    } catch (e) {
+      setUsersError(e.message || String(e));
+    } finally {
+      setUsersBusy(false);
+    }
+  }
+
+  async function updateUserChatId(u) {
+    const raw = String(userChatIdEdits[u.id] ?? "").trim();
+    if (!/^[1-9]\d*$/.test(raw)) {
+      setUsersError("chat_id deve essere un numero intero positivo.");
+      return;
+    }
+    setUsersBusy(true);
+    setUsersError("");
+    try {
+      const r = await fetch(API + "/api/users/" + u.id, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + idToken },
+        body: JSON.stringify({ chat_id: parseInt(raw, 10) }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(typeof d.detail === "string" ? d.detail : "HTTP " + r.status);
       await loadUsers();
     } catch (e) {
       setUsersError(e.message || String(e));
@@ -1273,10 +1304,10 @@ export default function Improve() {
             <label className="imp-label">Nuovo utente demo</label>
             <input className="imp-input" placeholder="Nome" value={userForm.name} onChange={(e) => setUserForm((f) => ({ ...f, name: e.target.value }))} />
             <input className="imp-input" placeholder="email@gmail.com" value={userForm.email} onChange={(e) => setUserForm((f) => ({ ...f, email: e.target.value }))} />
-            <input className="imp-input" placeholder="chat_id Telegram (opzionale)" value={userForm.chat_id} onChange={(e) => setUserForm((f) => ({ ...f, chat_id: e.target.value }))} />
+            <input className="imp-input" type="number" min="1" step="1" placeholder="chat_id Telegram (obbligatorio)" value={userForm.chat_id} onChange={(e) => setUserForm((f) => ({ ...f, chat_id: e.target.value }))} />
             <input className="imp-input" placeholder="Nota (opzionale)" value={userForm.note} onChange={(e) => setUserForm((f) => ({ ...f, note: e.target.value }))} />
             <div className="imp-actions">
-              <button className="imp-btn imp-primary" disabled={usersBusy || !userForm.name.trim() || !userForm.email.trim()} onClick={addUser}>Aggiungi</button>
+              <button className="imp-btn imp-primary" disabled={usersBusy || !userForm.name.trim() || !userForm.email.trim() || !/^[1-9]\d*$/.test(userForm.chat_id.trim())} onClick={addUser}>Aggiungi</button>
             </div>
           </section>
 
@@ -1290,10 +1321,29 @@ export default function Improve() {
                 <div key={u.id} className="imp-user-row">
                   <div className="imp-user-info">
                     <b>{u.name}</b> <span className="imp-dim">{u.email}</span>
-                    {u.chat_id && <span className="imp-dim"> · chat {u.chat_id}</span>}
                     {u.note && <span className="imp-dim"> · {u.note}</span>}
                   </div>
                   <div className="imp-user-actions">
+                    <label className="imp-check" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      chat_id
+                      <input
+                        className="imp-input"
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={userChatIdEdits[u.id] ?? ""}
+                        disabled={usersBusy}
+                        onChange={(e) => setUserChatIdEdits((prev) => ({ ...prev, [u.id]: e.target.value }))}
+                        style={{ width: 140, padding: "6px 8px" }}
+                      />
+                    </label>
+                    <button
+                      className="imp-btn"
+                      disabled={usersBusy || !/^[1-9]\d*$/.test(String(userChatIdEdits[u.id] ?? "").trim()) || String(userChatIdEdits[u.id] ?? "") === String(u.chat_id ?? "")}
+                      onClick={() => updateUserChatId(u)}
+                    >
+                      Salva ID
+                    </button>
                     <label className="imp-check">
                       <input type="checkbox" checked={!!u.active} disabled={usersBusy} onChange={() => toggleUser(u)} />
                       attivo

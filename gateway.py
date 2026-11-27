@@ -28,7 +28,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from google.auth.transport import requests as google_requests
 from google.oauth2 import id_token
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
 
@@ -4968,16 +4968,36 @@ def _save_demo_users(users):
     os.replace(tmp, USERS_FILE)
 
 
+def _validate_demo_chat_id(chat_id: int, users: list, exclude_user_id: str | None = None):
+    """Reject non-positive or already assigned Story Whisper IDs."""
+    if isinstance(chat_id, bool) or not isinstance(chat_id, int) or chat_id <= 0:
+        raise HTTPException(status_code=422, detail="chat_id deve essere un intero positivo.")
+
+    if chat_id in {int(value) for value in ADMIN_USER_CHAT_IDS.values()}:
+        raise HTTPException(status_code=409, detail="chat_id già assegnato a un account admin.")
+
+    for user in users:
+        if user.get("id") == exclude_user_id:
+            continue
+        try:
+            existing = int(user.get("chat_id"))
+        except (TypeError, ValueError):
+            continue
+        if existing == chat_id:
+            raise HTTPException(status_code=409, detail="chat_id già assegnato a un altro utente.")
+
+
 class DemoUserRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=80)
     email: str = Field(..., min_length=3, max_length=200)
-    chat_id: int | None = None
+    chat_id: int = Field(..., gt=0)
     note: str = Field(default="", max_length=500)
     allow_super: bool | None = Field(None, alias="super")
 
 
 class DemoUserPatch(BaseModel):
     active: bool | None = None
+    chat_id: int | None = Field(default=None, gt=0)
     allow_super: bool | None = Field(None, alias="super")
 
 
@@ -4997,6 +5017,7 @@ async def add_demo_user(req: DemoUserRequest, authorization: str | None = Header
             status_code=409,
             detail=f"Esiste gia un utente {email}.",
         )
+    _validate_demo_chat_id(req.chat_id, users)
     user = {
         "id": str(uuid.uuid4()),
         "name": req.name.strip(),
@@ -5020,6 +5041,12 @@ async def patch_demo_user(user_id: str, req: DemoUserPatch, authorization: str |
         if u.get("id") == user_id:
             if req.active is not None:
                 u["active"] = req.active
+            fields_set = getattr(req, "model_fields_set", getattr(req, "__fields_set__", set()))
+            if "chat_id" in fields_set:
+                if req.chat_id is None:
+                    raise HTTPException(status_code=422, detail="chat_id non può essere vuoto.")
+                _validate_demo_chat_id(req.chat_id, users, exclude_user_id=user_id)
+                u["chat_id"] = req.chat_id
             if req.allow_super is not None:
                 u["super"] = req.allow_super
             _save_demo_users(users)
