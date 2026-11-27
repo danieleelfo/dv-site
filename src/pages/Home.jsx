@@ -562,7 +562,7 @@ export default function Home() {
             ============================================================ */}
 
         <footer style={homeStyles.footer}>
-          <div className="container" style={{ maxWidth: 950, margin: '0 auto' }}>
+          <div className="container home-footer-credit" style={{ maxWidth: 950, margin: '0 auto' }}>
             Designed & Developed by Daniele Villanova & AI © 2026
           </div>
         </footer>
