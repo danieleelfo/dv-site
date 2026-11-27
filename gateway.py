@@ -459,9 +459,8 @@ class ChatRequest(BaseModel):
     prompt: str
     chat_id: int = 1010101010
     language: str = "en"
-    # Opzionali (selettore modello in console): inoltrati solo se
-    # presenti e validati. Night Story li supporta; gli altri agenti
-    # li ignorano (pydantic scarta i campi extra).
+    # Opzionali: entrambi gli agenti Story supportano il modello narratore;
+    # character resta specifico di Night Story.
     model: str | None = None
     character: str | None = None
     # Story-agent context is resolved server-side from the verified identity.
