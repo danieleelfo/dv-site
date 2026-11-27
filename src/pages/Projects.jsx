@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next'
-import { Link, useParams } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import bgImage from '../assets/Project.jpg'
 import { projectSlugs, projectNames } from '../data/projects.js'
 import SectionPageNav from '../components/SectionPageNav.jsx'
@@ -24,7 +24,6 @@ const isExternal = (href) => /^https?:\/\//.test(href)
 
 export default function Projects() {
   const { t } = useTranslation()
-  const { lang } = useParams()
 
   return (
     <div>
