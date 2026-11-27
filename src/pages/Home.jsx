@@ -3,7 +3,7 @@
 // ============================================================
 
 import React, { useState, useEffect } from 'react'
-import { Link, useLocation, useParams } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import bgImage from '../assets/hero.png'
 import SectionPageNav from '../components/SectionPageNav.jsx'
@@ -11,7 +11,6 @@ import SectionPageNav from '../components/SectionPageNav.jsx'
 export default function Home() {
   const { t } = useTranslation()
   const location = useLocation()
-  const { lang } = useParams()
   const [activeNode, setActiveNode] = useState('ai')
   const [isHoveringCard, setIsHoveringCard] = useState(false)
 
