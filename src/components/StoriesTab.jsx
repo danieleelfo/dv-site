@@ -478,7 +478,7 @@ export default function StoriesTab({ idToken }) {
             prompt: (wantsTts ? "audio e testo " : "") + langClause + persClause + prompt.trim(),
             chat_id: chatId,
             language: storyLang,
-            fresh_context: storyAgent === STORY_AGENT && freshStory,
+            fresh_context: freshStory,
           }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
