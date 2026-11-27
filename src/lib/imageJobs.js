@@ -277,7 +277,7 @@ function localSceneWarnings(scenes) {
     if (key && seen.has(key)) warnings.push("Titolo duplicato nelle scene " + (seen.get(key) + 1) + " e " + (index + 1) + ".");
     else if (key) seen.set(key, index);
     const promptKey = String(scene.prompt || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-    if (promptKey && seenPrompts.has(promptKey)) warnings.push("Prompt quasi identico nelle scene " + (seenPrompts.get(promptKey) + 1) + " e " + (index + 1) + ".");
+    if (promptKey && seenPrompts.has(promptKey)) warnings.push("Prompt duplicato nelle scene " + (seenPrompts.get(promptKey) + 1) + " e " + (index + 1) + ".");
     else if (promptKey) seenPrompts.set(promptKey, index);
   });
   return warnings;
@@ -538,6 +538,8 @@ export async function planStoryScenes({
         } catch (err) {
           lastError = err;
         }
+
+        if (!raw.trim()) continue;
 
         // Una sola riparazione mirata per risposta non valida; JSON mode evita
         // la maggior parte dei casi e non sprechiamo chiamate su ogni batch.
