@@ -468,8 +468,8 @@ class ChatRequest(BaseModel):
 
 
 # Whitelist per il selettore modello/character via /api/chat.
-# NS: model = gemma4|llama3|mistral|qwen2.5|deepseek-r1
-#     character = horror|drammatica|comico|ose|ricerca|random|amore|culturale
+# Story Whisper + Night Story: model = gemma4|llama3|mistral|qwen2.5|deepseek-r1
+# Night Story only: character = horror|drammatica|comico|ose|ricerca|random|amore|culturale
 CHAT_ALLOWED_MODELS = {
     "gemma4", "llama3", "mistral", "qwen2.5", "deepseek-r1",
 }
