@@ -118,7 +118,9 @@ async def _build_target_promote_preview(project: str, path: str, target: str) ->
     summary = ""
     branch = await _branch(path)
     entries = await _porcelain(path)
-    conflicts = [e["path"] for e in entries if _is_conflict(e["xy"])]
+    tracked = [e for e in entries if e["xy"] != "??"]
+    untracked = [e["path"] for e in entries if e["xy"] == "??"]
+    conflicts = [e["path"] for e in tracked if _is_conflict(e["xy"])]
     main = await _main_branch(path)
 
     warn = await _refresh_target(path, target)
@@ -134,10 +136,15 @@ async def _build_target_promote_preview(project: str, path: str, target: str) ->
         reasons.append(f"Riferimento non trovato: {target}")
     elif target in _MAIN_CANDIDATES or target.removeprefix("origin/") in _MAIN_CANDIDATES:
         reasons.append("Non puoi unire main dentro se stesso.")
-    if entries:
+    if tracked:
         reasons.append("Modifiche non committate: committale o mettile in stash prima della promozione.")
     if conflicts:
         reasons.append("Conflitti non risolti: " + ", ".join(conflicts[:10]))
+    if untracked:
+        warnings.append(
+            f"{len(untracked)} file non tracciati ({', '.join(untracked[:5])}): non vengono toccati; "
+            "se il merge dovesse sovrascriverli, git annulla tutto."
+        )
 
     if not reasons and main and target_sha:
         base = "origin/" + main
