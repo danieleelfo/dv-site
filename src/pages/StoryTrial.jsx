@@ -40,6 +40,7 @@ export default function StoryTrial() {
   const [elapsed,setElapsed] = useState(0)
   const [story,setStory] = useState('')
   const [audioUrl,setAudioUrl] = useState('')
+  const [audioRequested,setAudioRequested] = useState(false)
   const [audioError,setAudioError] = useState(false)
   const [error,setError] = useState('')
   const [copied,setCopied] = useState(false)
@@ -99,7 +100,7 @@ export default function StoryTrial() {
   async function submit(e){
     e.preventDefault()
     if(!token||!canGenerate||!prompt.trim()||busy)return
-    setBusy(true);setError('');setStory('');setAudioUrl('');setAudioError(false)
+    setBusy(true);setError('');setStory('');setAudioUrl('');setAudioRequested(audio);setAudioError(false)
     const controller=new AbortController();abortRef.current=controller
     const timeout=setTimeout(()=>controller.abort('timeout'),310000)
     const selected=LANGS.find(x=>x[0]===lang)
@@ -110,9 +111,11 @@ export default function StoryTrial() {
       const data=await r.json(),answer=String(data.answer||'').trim()
       if(!answer)throw new Error(t('storyTrial.noReply'))
       setStory(answer)
-      const path=String(data.audio_path||data.audio||'').trim()
-      const filename=path.split(/[\\/]/).pop()
+      const rawAudio = [data.audio_filename,data.audio_path,data.audio].find(value => typeof value === 'string' && value.trim()) || ''
+      const path = rawAudio.trim()
+      const filename = path.split(/[\\/]/).pop().split(/[?#]/)[0]
       if(audio&&filename)setAudioUrl(API+'/api/chat/tts/Story%20Whisper/'+encodeURIComponent(filename))
+      else if(audio)setAudioError(true)
       setTimeout(()=>resultRef.current?.scrollIntoView({behavior:'smooth',block:'start'}),50)
     }catch(err){
       if(err.name==='AbortError'){if(controller.signal.reason==='timeout')setError(t('storyTrial.timeout'))}
@@ -152,6 +155,6 @@ export default function StoryTrial() {
       {busy&&<p style={styles.hint} aria-live="polite">{t('storyTrial.waitHint',{seconds:elapsed})}</p>}
     </form></div>
     {error&&<div style={styles.error} role="alert">{error}</div>}
-    {story&&<div ref={resultRef} style={styles.card}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:10,flexWrap:'wrap',marginBottom:12}}><strong style={styles.label}>{t('storyTrial.yourStory')}</strong><div style={styles.row}><button onClick={copy} style={styles.small}>{copied?t('storyTrial.copied'):t('storyTrial.copy')}</button><button onClick={()=>{setStory('');setAudioUrl('');setPrompt('');setError('')}} style={styles.small}>{t('storyTrial.newStory')}</button></div></div>{audioUrl&&!audioError&&<audio controls preload="auto" src={audioUrl} style={{width:'100%',marginBottom:14}} onError={()=>setAudioError(true)}/>}{audioError&&<p style={styles.hint}>{t('storyTrial.audioError')}</p>}<p style={styles.story}>{story}</p></div>}
+    {story&&<div ref={resultRef} style={styles.card}><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:10,flexWrap:'wrap',marginBottom:12}}><strong style={styles.label}>{t('storyTrial.yourStory')}</strong><div style={styles.row}><button onClick={copy} style={styles.small}>{copied?t('storyTrial.copied'):t('storyTrial.copy')}</button><button onClick={()=>{setStory('');setAudioUrl('');setAudioRequested(false);setAudioError(false);setPrompt('');setError('')}} style={styles.small}>{t('storyTrial.newStory')}</button></div></div>{audioRequested&&<audio controls preload="metadata" src={audioUrl||undefined} style={{width:'100%',marginBottom:14}} onError={()=>setAudioError(true)}/ >}{audioError&&<p style={styles.hint} role="alert">{t('storyTrial.audioError')}</p>}<p style={styles.story}>{story}</p></div>}
   </div></section>
 }
