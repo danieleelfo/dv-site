@@ -105,7 +105,7 @@ export default function StoryTrial() {
     const selected=LANGS.find(x=>x[0]===lang)
     try{
       const r=await fetch(API+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},signal:controller.signal,
-        body:JSON.stringify({agent:'Story Whisper',prompt:(audio?'audio and text. ':'')+'Write the story in '+selected[3]+'. '+prompt.trim(),language:lang,fresh_context:fresh})})
+        body:JSON.stringify({agent:'Story Whisper',prompt:(audio?'audio e testo ':'')+'Write the story in '+selected[3]+'. '+prompt.trim(),language:lang,fresh_context:fresh})})
       if(!r.ok)throw new Error('HTTP '+r.status)
       const data=await r.json(),answer=String(data.answer||'').trim()
       if(!answer)throw new Error(t('storyTrial.noReply'))
