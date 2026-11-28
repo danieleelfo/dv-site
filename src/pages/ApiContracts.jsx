@@ -114,7 +114,7 @@ const GROUPS = [
         summary: "api.ep.chatAudio",
         request: 'Content-Type: multipart/form-data\n\naudio:      <file webm/ogg>\nagent:      "Story Whisper" | "Night Story"\nchat_id:    1010101010\nlanguage:   "en"\nmodel:      "mistral" (opzionale)\nfresh_context: false (opzionale)',
         response: '{ ...trascrizione + risposta... }',
-        notes: "Per Story Whisper e Night Story, con Bearer il chat_id è risolto lato server; fresh_context=true crea un contesto monouso. Senza Bearer gli ID riservati agli account sono bloccati.",
+        notes: "api.nt.chatAudio",
       },
       {
         method: "GET", path: "/api/chat/tts/{agent}/{filename}", auth: false,
@@ -171,9 +171,9 @@ const GROUPS = [
       {
         method: "POST", path: "/api/admin/llm", auth: true,
         summary: "api.ep.llm",
-        request: '{\n  "prompt": "...",\n  "model": "mistral",\n  "keep_alive": 45,\n  "format": "json"  // opzionale: JSON mode Ollama\n}',
+        request: '{\n  "prompt": "...",\n  "model": "mistral",\n  "keep_alive": 45,\n  "format": "json",\n  "num_ctx": 12288  // opzionale: 2048-32768\n}',
         response: '{ "answer": "...", "model": "qwen2.5:latest" }',
-        notes: "Ollama mantiene il modello caldo per keep_alive secondi; format=json abilita l’output JSON strutturato. Usato da Story Bible, planner e consistency checker.",
+        notes: "api.nt.llm",
       },
       {
         method: "POST", path: "/api/admin/ollama/unload", auth: true,
