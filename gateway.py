@@ -812,15 +812,9 @@ async def tts_proxy(agent: str, filename: str):
                     ),
                 )
 
-            content_type = response.headers.get("content-type", "").strip()
-            if not content_type:
-                # Compatibilità con gli agenti TTS legacy che non inviano
-                # Content-Type: il formato storico è OGG.
-                content_type = "audio/ogg"
-
             return Response(
                 content=response.content,
-                headers={"Content-Type": content_type},
+                media_type="audio/ogg",
             )
 
         except HTTPException:
