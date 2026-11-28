@@ -210,7 +210,14 @@ function getAudioChatId() {
 
 const extractFilename = (value) => {
   if (!value || typeof value !== 'string') return null
-  return value.split(/[/\\]/).pop() || null
+  const raw = value.trim().split(/[?#]/)[0]
+  const filename = raw.split(/[/\\]/).pop() || ''
+  if (!filename) return null
+  try {
+    return decodeURIComponent(filename)
+  } catch {
+    return filename
+  }
 }
 
 const audioText = (data) => {
@@ -877,7 +884,9 @@ export default function LeleAdmin() {
 
   function applyAudioReply(data, agent) {
     const replyText = audioText(data)
-    const replyFile = extractFilename(data.audio_filename) || extractFilename(data.audio_path)
+    const replyFile = [data.audio_filename, data.audio_path, data.audio]
+      .map(extractFilename)
+      .find(Boolean) || null
     setAudioReply(replyText)
     setAudioReplyFile(replyFile)
     setAudioReplyAgent(agent)
@@ -1233,6 +1242,7 @@ export default function LeleAdmin() {
       if (player.src !== url) {
         player.src = url
         player.playbackRate = playbackRate
+        player.load()
       }
       await player.play()
       setIsSpeaking(true)
@@ -1241,7 +1251,9 @@ export default function LeleAdmin() {
       setAudioError(
         isLeles
           ? t('lele.err.lelesAudio', { msg: err.message })
-          : t('lele.err.audioBlocked')
+          : err?.name === 'NotAllowedError'
+            ? t('lele.err.audioBlocked')
+            : t('lele.err.audioPlay') + ': ' + (err?.message || String(err))
       )
     }
   }
