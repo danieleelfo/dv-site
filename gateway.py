@@ -34,6 +34,18 @@ from dotenv import load_dotenv
 
 load_dotenv("gateway.env")
 
+
+def _env_int(name: str, default: int, minimum: int, maximum: int) -> int:
+    """Legge un intero da env e lo mantiene entro limiti sicuri."""
+    try:
+        value = int(os.environ.get(name, str(default)))
+    except (TypeError, ValueError):
+        value = default
+    return max(minimum, min(maximum, value))
+
+
+ADMIN_LLM_NUM_CTX = _env_int("ADMIN_LLM_NUM_CTX", 12288, 2048, 32768)
+
 app = FastAPI(title="Lele AI Gateway")
 
 
@@ -4392,10 +4404,12 @@ async def _jcs_interpret(text: str) -> str:
 class AdminLlmRequest(BaseModel):
     prompt: str
     model: str = ""
-    # Ollama accetta secondi interi; 45s mantiene caldo il modello tra batch.
-    keep_alive: int = 45
+    # Default stateless: libera il modello al termine, salvo override esplicito.
+    keep_alive: int = 0
     # "json" abilita la modalità JSON nativa di Ollama per planner/checker.
     format: str | None = None
+    # Contesto configurabile; il valore effettivo viene limitato lato server.
+    num_ctx: int | None = None
 
 
 @app.post("/api/admin/llm")
@@ -4417,6 +4431,10 @@ async def admin_llm(
     model = req.model.strip() or os.environ.get(
         "ADMIN_LLM_DEFAULT_MODEL", "mistral:latest"
     )
+    num_ctx = max(
+        2048,
+        min(32768, req.num_ctx if req.num_ctx is not None else ADMIN_LLM_NUM_CTX),
+    )
 
     try:
         timeout = httpx.Timeout(timeout=300.0, connect=10.0)
@@ -4428,6 +4446,7 @@ async def admin_llm(
                     "prompt": req.prompt,
                     "stream": False,
                     "keep_alive": req.keep_alive,
+                    "options": {"num_ctx": num_ctx},
                     **({"format": "json"} if req.format == "json" else {}),
                 },
             )
