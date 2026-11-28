@@ -172,7 +172,7 @@ const GROUPS = [
         method: "POST", path: "/api/admin/llm", auth: true,
         summary: "api.ep.llm",
         request: '{\n  "prompt": "...",\n  "model": "mistral",\n  "keep_alive": 45,\n  "format": "json",\n  "num_ctx": 12288  // opzionale: 2048-32768\n}',
-        response: '{ "answer": "...", "model": "qwen2.5:latest" }',
+        response: '{ "answer": "...", "model": "mistral:latest" }',
         notes: "api.nt.llm",
       },
       {
