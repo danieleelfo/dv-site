@@ -100,13 +100,68 @@ export function parsePlan(text) {
   return JSON.parse(jsonText);
 }
 
-// ------------------------------------------------------------
-// Prompt di pianificazione scene (storyboard planner).
-//   artDirection: direzione artistica obbligatoria (kids/genre).
-//   styleExtra:   indicazioni di stile libere dell'utente.
-//   styleClause:  frase sullo stile nel testo base
-//                 (default generico; StoriesTab passa "family-friendly").
-// ------------------------------------------------------------
+const bibleText = (value, max = 900) => String(value || "").trim().slice(0, max);
+const bibleList = (value, mapper) =>
+  (Array.isArray(value) ? value : []).slice(0, 30).map(mapper).filter(Boolean);
+
+export function normalizeStoryBible(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Story Bible non valida.");
+  }
+  const bible = {
+    summary: bibleText(value.summary, 1800),
+    ending: bibleText(value.ending, 1000),
+    characters: bibleList(value.characters, (item) => {
+      if (!item || typeof item !== "object") return null;
+      const name = bibleText(item.name, 100);
+      if (!name) return null;
+      return {
+        name,
+        role: bibleText(item.role, 180),
+        appearance: bibleText(item.appearance, 500),
+        clothing: bibleText(item.clothing, 300),
+        traits: bibleText(item.traits, 240),
+      };
+    }),
+    locations: bibleList(value.locations, (item) => {
+      if (!item || typeof item !== "object") return null;
+      const name = bibleText(item.name, 120);
+      return name ? { name, description: bibleText(item.description, 300) } : null;
+    }),
+    props: bibleList(value.props, (item) => {
+      if (!item || typeof item !== "object") return null;
+      const name = bibleText(item.name, 120);
+      return name ? { name, description: bibleText(item.description, 300), owner: bibleText(item.owner, 100) } : null;
+    }),
+    timeline: bibleList(value.timeline, (item, index) => {
+      if (!item || typeof item !== "object") return null;
+      const event = bibleText(item.event, 350);
+      return event ? { order: Number(item.order) || index + 1, event, consequence: bibleText(item.consequence, 220) } : null;
+    }),
+    facts: bibleList(value.facts, (item) => bibleText(item, 260)),
+  };
+  if (
+    !bible.summary && !bible.ending && !bible.characters.length &&
+    !bible.locations.length && !bible.props.length &&
+    !bible.timeline.length && !bible.facts.length
+  ) {
+    throw new Error("Story Bible vuota: nessun elemento di continuità estratto.");
+  }
+  return bible;
+}
+
+export function buildStoryBiblePrompt(storyText) {
+  return (
+    "You are a continuity editor. Extract a factual STORY BIBLE from the supplied story. " +
+    "Do not invent facts, relationships, appearances, clothing, locations, objects or events. " +
+    "Use empty strings or empty arrays when the story does not specify something. " +
+    "Keep the exact chronology and ending; distinguish explicit facts from unknown details. " +
+    'Return only JSON: {"summary":"...","ending":"...","characters":[{"name":"...","role":"...","appearance":"...","clothing":"...","traits":"..."}],"locations":[{"name":"...","description":"..."}],"props":[{"name":"...","description":"...","owner":"..."}],"timeline":[{"order":1,"event":"...","consequence":"..."}],"facts":["..."]}. ' +
+    "Include every recurring named character, recurring location and plot-critical object. " +
+    "\n\nSTORY:\n" + String(storyText || "").slice(0, 20000)
+  );
+}
+
 export function buildStoryboardPrompt({
   count,
   storyText,
@@ -118,119 +173,167 @@ export function buildStoryboardPrompt({
     "You are a storyboard planner for an illustrated story. Select exactly " + count +
     " distinct scenes in chronological order, spread across the story from opening to ending. " +
     "Each scene must depict a real, visually distinct moment. " +
-    'Return ONLY a valid JSON object, no markdown, no prose, no code fences, in this exact schema: ' +
-    '{"style":"A shared art-direction block of 25-45 words pinning the recurring visual style and the physical appearance of every recurring character (age, look, hair, clothing), identical in all scenes","scenes":[{"title":"Short label","prompt":"Detailed English image prompt"}]}. ' +
-    "The scenes array must contain exactly " + count + " objects. " +
-    "Each prompt must be a complete standalone image prompt of 60-120 words: describe the recurring characters exactly as in the style block, then the setting (place, time of day, weather), the action of this moment, the mood, the lighting, and the camera framing (wide shot, medium shot, close-up). " +
-    "Repeat the full character descriptions in every prompt so each image can be generated independently and the characters stay identical across scenes. " +
-    "Keep character appearance, clothing, age, and art direction consistent across prompts. Each prompt must follow " +
-    styleClause + artDirection + styleExtra +
-    "No text or lettering in images. Do not invent events. " +
-    "Unless the art direction explicitly requires a multi-panel strip, each image must depict exactly ONE moment in ONE single frame: never a grid, a collage, a comic page, or a stack of multiple images. " +
+    'Return ONLY JSON: {"style":"shared character and art direction bible","scenes":[{"title":"Short label","prompt":"Detailed English image prompt"}]}. ' +
+    "Each prompt must be a complete standalone image prompt. Repeat exact recurring character descriptions and clothing. " +
+    "Do not invent events. " + styleClause + artDirection + styleExtra +
     "\n\nSTORY:\n" + String(storyText || "").slice(0, 12000)
   );
 }
 
-// Prompt di riparazione quando il primo piano non è JSON valido.
-export function buildRepairPrompt(count, rawPlan) {
+export function buildRepairPrompt(count, rawPlan, style = "", storyBible = null) {
+  const schema = '{"style":"shared style block or empty string","scenes":[{"title":"Short label","prompt":"Detailed English image prompt"}]}';
   return (
-    "Convert the text below into valid JSON only. Do not add or remove scenes. " +
-    'Use exactly this schema: {"scenes":[{"title":"Short label","prompt":"Detailed English image prompt"}]}. ' +
-    "There must be exactly " + count + " scenes. Preserve the intended scene details. No markdown or commentary.\n\nTEXT TO CONVERT:\n" +
-    String(rawPlan || "").slice(0, 14000)
+    "Repair the response into valid JSON only. Preserve all intended events and do not invent, remove, merge or reorder scenes. " +
+    "Return exactly " + count + " scenes using this schema: " + schema + ". " +
+    "Preserve the shared style block; if a fixed style is supplied, use it unchanged: " + String(style || "") + ". " +
+    "Keep every prompt standalone and preserve character appearance, clothing, objects and chronology. " +
+    "\nSTORY BIBLE:\n" + JSON.stringify(storyBible || {}) +
+    "\nTEXT TO REPAIR:\n" + String(rawPlan || "").slice(0, 14000)
   );
 }
 
-// Prompt di pianificazione A LOTTI: con 8 scene una sola chiamata qwen2.5
-// supera i ~100s di Cloudflare (errore "Failed to fetch"): ogni lotto deve
-// restare corto e il blocco di stile condiviso viene riportato dai lotti
-// successivi così i personaggi restano identici tra le scene.
 export function buildStoryboardBatchPrompt({
   total,
   from,
   to,
   storyText,
   style = "",
-  prevTitles = [],
+  storyBible = null,
+  prevScenes = [],
   artDirection = "",
   styleExtra = "",
   styleClause = "a consistent style. ",
 }) {
   const count = to - from + 1;
   const coverage =
-    "Focus on the part of the story between roughly " +
-    Math.round(((from - 1) / total) * 100) + "% and " +
-    Math.round((to / total) * 100) + "% of the text, from opening to ending. ";
-  const context = prevTitles.length
-    ? "Scenes already planned (do not repeat them, continue the story forward): " +
-      prevTitles.map((t, i) => i + 1 + ". " + t).join("; ") + ". "
+    "Focus only on the chronological story segment for scenes " + from + "-" + to +
+    " of " + total + " (roughly " +
+    Math.round(((from - 1) / total) * 100) + "% to " +
+    Math.round((to / total) * 100) + "% of the story). ";
+  const previous = prevScenes.length
+    ? "PREVIOUS SCENES — continue after these events; do not repeat or contradict them:\n" +
+      prevScenes.map((scene, i) =>
+        (i + 1) + ". " + scene.title + ": " + String(scene.prompt || "").slice(0, 320)
+      ).join("\n") + "\n"
     : "";
+  const bibleRules = storyBible
+    ? "Use the STORY BIBLE as the canonical source for character identity, appearance, clothing, relationships, locations, props and event order. "
+    : "No extracted Story Bible is available. Derive character and continuity facts only from explicit statements in the full story; do not invent missing details. ";
+  const bibleBlock = storyBible ? JSON.stringify(storyBible) : "Not available; use the full story as source of truth.";
   const schema = style
     ? '{"scenes":[{"title":"Short label","prompt":"Detailed English image prompt"}]}'
-    : '{"style":"A shared art-direction block of 25-45 words pinning the recurring visual style and the physical appearance of every recurring character (age, look, hair, clothing), identical in all scenes","scenes":[{"title":"Short label","prompt":"Detailed English image prompt"}]}';
-
+    : '{"style":"A shared art-direction and character appearance block","scenes":[{"title":"Short label","prompt":"Detailed English image prompt"}]}';
   return (
-    "You are a storyboard planner for an illustrated story. The full storyboard has " + total +
-    " scenes in chronological order. Plan ONLY scenes " + from + " to " + to +
-    " — exactly " + count + " scenes of the " + total + ", in order. " +
-    coverage + context +
+    "You are a precise storyboard director. Plan exactly " + count +
+    " visually distinct scenes in chronological order. Do not summarize the whole story in every scene. " +
+    coverage +
+    bibleRules +
+    "Never change a character's appearance or clothes unless an explicit event in the story justifies the change. " +
+    "Keep important objects with their established owner and do not move characters to a location before the story takes them there. " +
+    "Each scene must depict one actual moment from the story, not an invented transition or an event from another part. " +
+    previous +
+    "STORY BIBLE:\n" + bibleBlock + "\n" +
     (style
-      ? "The visual style is already fixed. Reuse EXACTLY this shared style block as the opening of every scene prompt, unchanged: \"" + style + "\". Return only the scenes array. "
-      : "You also define the shared art-direction style block. ") +
-    'Return ONLY a valid JSON object, no markdown, no prose, no code fences, in this exact schema: ' + schema + ". " +
+      ? "FIXED VISUAL STYLE — reproduce this exact block at the start of every prompt, without changing it: " + style + "\n"
+      : "Create one concise shared style block defining recurring character appearance and visual direction.\n") +
+    "Return only JSON in this schema: " + schema + ". " +
     "The scenes array must contain exactly " + count + " objects. " +
-    "Each prompt must be a complete standalone image prompt of 60-120 words: describe the recurring characters exactly as defined in the style block, then the setting (place, time of day, weather), the action of this moment, the mood, the lighting, and the camera framing (wide shot, medium shot, close-up). " +
-    "Repeat the full character descriptions in every prompt so each image can be generated independently and the characters stay identical across scenes. " +
-    "Keep character appearance, clothing, age, and art direction consistent across prompts. Each prompt must follow " +
-    styleClause + artDirection + styleExtra +
-    "No text or lettering in images. Do not invent events. " +
-    "Unless the art direction explicitly requires a multi-panel strip, each image must depict exactly ONE moment in ONE single frame: never a grid, a collage, a comic page, or a stack of multiple images. " +
-    "\n\nSTORY:\n" + String(storyText || "").slice(0, 12000)
+    "Every prompt must be a complete standalone English image prompt (60-120 words) and repeat the canonical descriptions of all characters visible in that scene, their exact clothing, setting, time/weather, action, mood, lighting and camera framing. " +
+    "Use names consistently. Avoid pronouns alone for visual identity. " +
+    "Style requirements: " + styleClause + artDirection + styleExtra +
+    "No text or lettering in images. Unless explicitly requested, exactly ONE moment in ONE frame, never a grid, collage or comic page. " +
+    "\n\nFULL STORY:\n" + String(storyText || "").slice(0, 20000)
   );
 }
 
-// Normalizza il piano in scene {title, prompt} validando il minimo
-// indispensabile. Usato da entrambi i flussi dopo parsePlan/repair.
-export function normalizeScenes(parsedPlan, imageCount) {
+export function normalizeScenes(parsedPlan, imageCount, sharedStyle = "") {
   const plannedScenes = Array.isArray(parsedPlan)
     ? parsedPlan
-    : parsedPlan.scenes || parsedPlan.illustrations || parsedPlan.images;
+    : parsedPlan?.scenes || parsedPlan?.illustrations || parsedPlan?.images;
 
-  if (!Array.isArray(plannedScenes) || plannedScenes.length < imageCount) {
-    throw new Error("L'LLM ha restituito meno di " + imageCount + " scene con prompt separati.");
+  if (!Array.isArray(plannedScenes) || plannedScenes.length !== imageCount) {
+    throw new Error("L'LLM deve restituire esattamente " + imageCount + " scene.");
   }
 
-  // Blocco di stile condiviso: se il planner lo restituisce, viene
-  // anteposto a ogni prompt di scena così tutte le immagini condividono
-  // mondo, personaggi e direzione artistica.
   const planStyle =
     !Array.isArray(parsedPlan) && typeof parsedPlan?.style === "string"
       ? parsedPlan.style.trim()
       : "";
-
+  const effectiveStyle = sharedStyle || planStyle || "";
   const fallbackTitles = ["Inizio", "Sviluppo", "Finale", "Epilogo"];
-  const scenes = plannedScenes.slice(0, imageCount).map((item, index) => ({
-    title: String(item.title || item.scene || fallbackTitles[index]).trim(),
-    prompt: (
-      (planStyle ? planStyle + " " : "") +
-      String(item.prompt || item.image_prompt || "").trim()
-    ).trim(),
-  }));
+  const scenes = plannedScenes.map((item, index) => {
+    if (!item || typeof item !== "object") {
+      throw new Error("Scena " + (index + 1) + " non valida.");
+    }
+    const title = String(item.title || item.scene || fallbackTitles[index] || ("Scena " + (index + 1))).trim();
+    let prompt = String(item.prompt || item.image_prompt || "").trim();
+    if (effectiveStyle && !prompt.startsWith(effectiveStyle)) prompt = effectiveStyle + " " + prompt;
+    return { title, prompt };
+  });
 
-  if (
-    scenes.some(
-      (s) => !s.prompt || /^error\b|^nessuna risposta ricevuta/i.test(s.prompt)
-    )
-  ) {
+  if (scenes.some((scene) =>
+    !scene.title || scene.prompt.length < 35 ||
+    /^error\b|^nessuna risposta ricevuta/i.test(scene.prompt)
+  )) {
     throw new Error("Uno o più prompt delle scene sono vuoti o non validi.");
   }
-
   return scenes;
 }
 
-// ------------------------------------------------------------
-// Job immagine sul gateway.
-// ------------------------------------------------------------
+function localSceneWarnings(scenes) {
+  const warnings = [];
+  const seen = new Map();
+  const seenPrompts = new Map();
+  scenes.forEach((scene, index) => {
+    const key = String(scene.title || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    if (key && seen.has(key)) warnings.push("Titolo duplicato nelle scene " + (seen.get(key) + 1) + " e " + (index + 1) + ".");
+    else if (key) seen.set(key, index);
+    const promptKey = String(scene.prompt || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    if (promptKey && seenPrompts.has(promptKey)) warnings.push("Prompt duplicato nelle scene " + (seenPrompts.get(promptKey) + 1) + " e " + (index + 1) + ".");
+    else if (promptKey) seenPrompts.set(promptKey, index);
+  });
+  return warnings;
+}
+
+export function buildConsistencyPrompt(storyText, storyBible, scenes) {
+  return (
+    "You are a strict story continuity and faithfulness editor. Compare every planned scene with the FULL STORY and STORY BIBLE. " +
+    "Find only material problems: invented events, wrong chronology, duplicate moments, inconsistent character appearance/clothing, wrong location, missing or misassigned plot-critical objects, or contradictions. " +
+    "Return JSON only: {\"corrections\":[{\"index\":1,\"prompt\":\"complete corrected standalone English image prompt\",\"reason\":\"short explanation\"}],\"warnings\":[\"...\" ]}. " +
+    "Indexes are 1-based. Include a correction only when a scene is materially wrong. " +
+    "A corrected prompt must remain a single-frame visual scene, be independently usable, retain the established visual style, and describe only an event that actually occurs. " +
+    "Do not rewrite correct scenes. Do not add events, characters or props. Do not alter the story ending. " +
+    "\nSTORY BIBLE:\n" + JSON.stringify(storyBible || {}) +
+    "\nFULL STORY:\n" + String(storyText || "").slice(0, 20000) +
+    "\nPLANNED SCENES:\n" + JSON.stringify(scenes.map((scene, i) => ({
+      index: i + 1, title: scene.title, prompt: scene.prompt,
+    })))
+  );
+}
+
+export function applyConsistencyResult(scenes, result, sharedStyle = "") {
+  if (!result || typeof result !== "object" || !Array.isArray(result.corrections)) {
+    throw new Error("Risposta consistency checker non valida.");
+  }
+  const corrected = scenes.map((scene) => ({ ...scene }));
+  const used = new Set();
+  for (const item of result.corrections) {
+    const index = Number(item?.index) - 1;
+    const prompt = String(item?.prompt || "").trim();
+    if (!Number.isInteger(index) || index < 0 || index >= corrected.length || used.has(index)) continue;
+    if (prompt.length < 50 || prompt.length > 2400) continue;
+    const finalPrompt = sharedStyle && !prompt.startsWith(sharedStyle) ? sharedStyle + " " + prompt : prompt;
+    corrected[index] = { ...corrected[index], prompt: finalPrompt };
+    used.add(index);
+  }
+  return {
+    scenes: corrected,
+    warnings: (Array.isArray(result.warnings) ? result.warnings : [])
+      .map((item) => String(item || "").trim()).filter(Boolean).slice(0, 12),
+    correctedCount: used.size,
+  };
+}
+
 // Crea un job img2img: stessa coda IMAGE_JOBS del txt2img, ma parte da
 // un'immagine di riferimento (es. la foto di un personaggio). Il polling
 // e' identico a createImageJob (waitForImageResult).
@@ -349,28 +452,20 @@ export function resultToDataUrl(result) {
 }
 
 // Chiamata LLM stateless condivisa: il prompt va dritto a Ollama via gateway.
-// keepAlive=0 di default così il planner non lascia il modello in RAM quando
-// non serve più (il chiamante può passare keepAlive>0 per tenerlo caldo).
-async function callLlmStateless(idToken, prompt, model, timeoutMs = 310000, keepAlive = 0) {
+// keepAlive=45s di default: mantiene caldo il modello tra batch e repair;
+// il flusso Stories lo scarica prima di avviare le immagini.
+async function callLlmStateless(idToken, prompt, model, timeoutMs = 310000, keepAlive = 45) {
   const data = await apiJson(idToken, "/api/admin/llm", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt, model, keep_alive: keepAlive }),
+    body: JSON.stringify({ prompt, model, keep_alive: keepAlive, format: "json" }),
   }, timeoutMs);
   return data.answer || "";
 }
 
-// Modelli usati come fallback quando il planner principale non produce un
-// JSON valido (es. gemma4 va in timeout sulle scene 7-12).
-export const PLANNER_FALLBACK_MODELS = ["mistral", "qwen2.5"];
+// Priorità: Mistral come default, Qwen e Llama come fallback leggeri e disponibili.
+export const PLANNER_FALLBACK_MODELS = ["qwen2.5", "llama3", "mistral"];
 
-// Pianificazione delle scene di una storia, condivisa da LeleAdmin e ImgLab.
-// - A lotti di 3 scene per chiamata (con 12 scene una chiamata unica supera
-//   i ~100s di Cloudflare e la run muore prima delle immagini).
-// - Per ogni lotto prova max 2 modelli (primario + fallback) e, per modello,
-//   fino a 2 chiamate con 2 repair JSON ciascuna.
-// - onStatus({kind: "batch"|"repair", from, to, total, model}) per la UI.
-// Ritorna l'array di scene normalizzate (slice a imageCount).
 export async function planStoryScenes({
   idToken,
   storyText,
@@ -382,20 +477,57 @@ export async function planStoryScenes({
   fallbackModels = PLANNER_FALLBACK_MODELS,
   onStatus = () => {},
   timeoutMs = 180000,
+  storyBible: suppliedBible = null,
+  buildBible = false,
+  consistencyCheck = false,
+  returnMetadata = false,
 }) {
-  const models = [...new Set([model, ...fallbackModels])].filter(Boolean);
-  const BATCH_SIZE = 3;
+  const models = [...new Set([model || "mistral", ...fallbackModels])].filter(Boolean);
   const plannedScenes = [];
   const triedModels = [];
   let sharedStyle = "";
+  let storyBible = suppliedBible ? normalizeStoryBible(suppliedBible) : null;
+  const bibleWarnings = [];
+  let activeModel = models[0] || "mistral";
+
+  if (buildBible && !storyBible) {
+    for (const m of models) {
+      onStatus({ kind: "bible", model: m });
+      try {
+        const raw = await callLlmStateless(idToken, buildStoryBiblePrompt(storyText), m, timeoutMs, 45);
+        storyBible = normalizeStoryBible(parsePlan(raw));
+        activeModel = m;
+        break;
+      } catch (err) {
+        // Prova il modello successivo della lista di fallback.
+      }
+    }
+    if (!storyBible) {
+      // Degradazione controllata: la storia continua a essere illustrabile,
+      // ma il warning rende esplicito che la Bible non è stata estratta.
+      storyBible = normalizeStoryBible({
+        summary: String(storyText || "").slice(0, 1800),
+        facts: ["Story Bible automatica non disponibile: usare esclusivamente i fatti espliciti del testo integrale."],
+      });
+      bibleWarnings.push("Story Bible automatica non generata; continuità ricavata dal testo originale.");
+      onStatus({ kind: "warning", message: "Story Bible non generata; uso il testo originale come fonte." });
+    }
+  }
+
+  const BATCH_SIZE = 3;
   for (let from = 0; from < imageCount; from += BATCH_SIZE) {
     const to = Math.min(from + BATCH_SIZE, imageCount);
     const batchCount = to - from;
-    const prevTitles = plannedScenes.map((s) => s.title);
-    let batchError = null;
+    const previousScenes = plannedScenes.slice(-6).map((scene) => ({
+      title: scene.title,
+      prompt: scene.prompt,
+    }));
+    let acceptedScenes = null;
+    let lastError = null;
+
     for (const m of models) {
       if (!triedModels.includes(m)) triedModels.push(m);
-      for (let attempt = 0; attempt < 2; attempt++) {
+      for (let attempt = 0; attempt < 2 && !acceptedScenes; attempt++) {
         onStatus({ kind: "batch", from: from + 1, to, total: imageCount, model: m, attempt });
         const prompt = buildStoryboardBatchPrompt({
           total: imageCount,
@@ -403,56 +535,99 @@ export async function planStoryScenes({
           to,
           storyText,
           style: sharedStyle,
-          prevTitles,
+          storyBible,
+          prevScenes: previousScenes,
           artDirection,
           styleExtra,
           styleClause,
         });
         let raw = "";
-        let parsedPlan = null;
         try {
-          raw = await callLlmStateless(idToken, prompt, m, timeoutMs);
-          parsedPlan = parsePlan(raw);
-        } catch (err) {
-          parsedPlan = null;
-        }
-        if (parsedPlan && Array.isArray(parsedPlan.scenes) && parsedPlan.scenes.length) {
-          const scenes = normalizeScenes(parsedPlan, batchCount);
-          if (!sharedStyle && parsedPlan.style) sharedStyle = parsedPlan.style;
-          plannedScenes.push(...scenes);
-          batchError = null;
+          raw = await callLlmStateless(idToken, prompt, m, timeoutMs, 45);
+          const parsed = parsePlan(raw);
+          const scenes = normalizeScenes(parsed, batchCount, sharedStyle);
+          if (!sharedStyle && parsed && typeof parsed.style === "string") sharedStyle = parsed.style.trim();
+          acceptedScenes = scenes;
+          activeModel = m;
           break;
+        } catch (err) {
+          lastError = err;
         }
-        // Repair JSON: max 2 tentativi per chiamata.
-        let repaired = false;
-        for (let r = 0; r < 2; r++) {
-          onStatus({ kind: "repair", from: from + 1, to, total: imageCount, model: m, attempt: r + 1 });
-          try {
-            const repairPrompt = buildRepairPrompt(batchCount, raw);
-            raw = await callLlmStateless(idToken, repairPrompt, m, timeoutMs);
-            const reparsed = parsePlan(raw);
-            if (reparsed && Array.isArray(reparsed.scenes) && reparsed.scenes.length) {
-              const scenes = normalizeScenes(reparsed, batchCount);
-              if (!sharedStyle && reparsed.style) sharedStyle = reparsed.style;
-              plannedScenes.push(...scenes);
-              repaired = true;
-              batchError = null;
-              break;
-            }
-          } catch (err) {
-            // passa al repair successivo / modello successivo
+
+        if (!raw.trim()) continue;
+
+        // Una sola riparazione mirata per risposta non valida; JSON mode evita
+        // la maggior parte dei casi e non sprechiamo chiamate su ogni batch.
+        onStatus({ kind: "repair", from: from + 1, to, total: imageCount, model: m, attempt: 1 });
+        try {
+          const repairedRaw = await callLlmStateless(
+            idToken,
+            buildRepairPrompt(batchCount, raw, sharedStyle, storyBible),
+            m,
+            timeoutMs,
+            45
+          );
+          const repairedPlan = parsePlan(repairedRaw);
+          const scenes = normalizeScenes(repairedPlan, batchCount, sharedStyle);
+          if (!sharedStyle && repairedPlan && typeof repairedPlan.style === "string") {
+            sharedStyle = repairedPlan.style.trim();
           }
+          acceptedScenes = scenes;
+          activeModel = m;
+        } catch (repairError) {
+          lastError = repairError;
         }
-        if (repaired) break;
-        batchError = new Error(`Ollama non ha prodotto un JSON valido per le scene ${from + 1}-${to} con il modello ${m}.`);
       }
-      if (!batchError) break;
+      if (acceptedScenes) break;
     }
-    if (batchError) {
-      throw new Error(`Ollama non ha prodotto un JSON valido per le scene ${from + 1}-${to} (modelli provati: ${triedModels.join(", ")}).`);
+
+    if (!acceptedScenes) {
+      throw new Error(
+        "Pianificazione scene " + (from + 1) + "-" + to +
+        " non riuscita. Modelli provati: " + triedModels.join(", ") +
+        ". " + (lastError?.message || "")
+      );
+    }
+    plannedScenes.push(...acceptedScenes);
+  }
+
+  let scenes = plannedScenes.slice(0, imageCount);
+  let warnings = [...bibleWarnings, ...localSceneWarnings(scenes)];
+
+  if (consistencyCheck && scenes.length) {
+    onStatus({ kind: "consistency", model: activeModel });
+    try {
+      const raw = await callLlmStateless(
+        idToken,
+        buildConsistencyPrompt(storyText, storyBible, scenes),
+        activeModel,
+        timeoutMs,
+        45
+      );
+      const checked = applyConsistencyResult(scenes, parsePlan(raw), sharedStyle);
+      scenes = checked.scenes;
+      warnings = [...warnings, ...checked.warnings];
+      onStatus({
+        kind: "consistency_done",
+        corrected: checked.correctedCount,
+        warnings: checked.warnings.length,
+      });
+    } catch (err) {
+      warnings.push("Controllo finale di coerenza non completato: " + String(err?.message || err).slice(0, 180));
+      onStatus({ kind: "warning", message: "Controllo finale non disponibile; scene mantenute senza modifiche." });
     }
   }
-  return plannedScenes.slice(0, imageCount);
+
+  if (returnMetadata) {
+    return {
+      scenes,
+      storyBible,
+      warnings,
+      plannerModel: activeModel,
+      sharedStyle,
+    };
+  }
+  return scenes;
 }
 
 // Libera la RAM di Ollama prima del loop immagini (keep_alive=0).

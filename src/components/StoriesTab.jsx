@@ -150,13 +150,14 @@ export default function StoriesTab({ idToken }) {
   const [storyKids, setStoryKids] = useState(false);
   const [storyGenre, setStoryGenre] = useState("Random");
   const [storyStyle, setStoryStyle] = useState("");
-  const [storyModel, setStoryModel] = useState("gemma4");
+  const [storyModel, setStoryModel] = useState("mistral");
+  const [plannerModel, setPlannerModel] = useState("mistral");
   // Fumettatura deliberata: 2 pannelli affiancati, 3 in colonna,
   // 4 in griglia 2x2 (nata dal "bug figo" di mistral).
   const [storyStrip, setStoryStrip] = useState("");
   // Nuovo contesto: se attivo, ogni storia parte con un chat_id nuovo
   // (l'agente non vede le storie precedenti e non ricicla i personaggi).
-  // Se spento, usa il chat_id fisso salvato: l'agente ricorda tutto.
+  // Se spento, usa l'ID persistente dell'account (risolto server-side per utenti autenticati).
   const [freshStory, setFreshStory] = useState(false);
   // Personaggio fisso della creazione (fase 2/3): nome+descrizione entrano
   // nel prompt dell'agente e del planner, la foto guida le scene via img2img.
@@ -384,10 +385,12 @@ export default function StoriesTab({ idToken }) {
         prompt: data.prompt || item.prompt,
         text: data.text || "",
         agent: data.agent || STORY_AGENT,
+        narrator_model: data.narrator_model || "",
         audioUrl,
         scenes,
         createdAt: data.created_at,
         language: data.language || "it",
+        story_bible: data.story_bible || null,
       });
 
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -453,12 +456,13 @@ export default function StoriesTab({ idToken }) {
       ? "Write the story in " + (LANG_NAMES[storyLang] || storyLang) + ". "
       : "";
     let storyText = "";
+    let storyBible = null;
     let audioFilename = "";
     let savedStoryId = "";
 
     try {
       // ------------------------------------------------------
-      // 1. Storia + TTS da Story Whisper (via /api/chat).
+      // 1. Storia + TTS dall'agente selezionato (via /api/chat).
       // ------------------------------------------------------
       setStage("🌈 " + storyAgent + " scrive la storia" + (wantsTts ? " (testo + audio)" : "") + "…");
 
@@ -478,7 +482,8 @@ export default function StoriesTab({ idToken }) {
             prompt: (wantsTts ? "audio e testo " : "") + langClause + persClause + prompt.trim(),
             chat_id: chatId,
             language: storyLang,
-            fresh_context: storyAgent === STORY_AGENT && freshStory,
+            model: storyModel,
+            fresh_context: freshStory,
           }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
@@ -488,7 +493,7 @@ export default function StoriesTab({ idToken }) {
       }
 
       storyText = String(storyData.answer || "").trim();
-      if (!storyText) throw new Error("Story Whisper non ha risposto.");
+      if (!storyText) throw new Error(storyAgent + " non ha risposto.");
       const audioPath = String(storyData.audio_path || storyData.audio || "").trim();
       audioFilename = audioPath.split(/[\\/]/).pop() || "";
 
@@ -506,7 +511,9 @@ export default function StoriesTab({ idToken }) {
         prompt: prompt.trim(),
         text: storyText,
         agent: storyAgent,
+        narrator_model: storyModel,
         audioUrl,
+        story_bible: null,
         scenes: [],
         createdAt: Date.now() / 1000,
       });
@@ -523,6 +530,8 @@ export default function StoriesTab({ idToken }) {
           agent: storyAgent,
           audio_filename: audioFilename,
           language: storyLang,
+          narrator_model: storyModel,
+          story_bible: null,
           scenes: [],
         }),
       });
@@ -547,7 +556,7 @@ export default function StoriesTab({ idToken }) {
       const styleExtra = storyStyle.trim()
         ? "Additional art direction from the user to apply to every scene: " + storyStyle.trim().slice(0, 500) + ". "
         : "";
-      const scenes = await planStoryScenes({
+      const planResult = await planStoryScenes({
         idToken,
         storyText,
         imageCount,
@@ -560,15 +569,31 @@ export default function StoriesTab({ idToken }) {
               " must appear consistently and recognizably in every scene, keeping the same look. "
             : ""),
         styleExtra,
-        model: storyModel,
+        model: plannerModel,
+        buildBible: true,
+        consistencyCheck: true,
+        returnMetadata: true,
         onStatus: (s) => {
           if (s.kind === "batch") {
             setStage("🧠 Ollama seleziona le scene 👨🏽‍🎨" + s.from + "-" + s.to + " di " + s.total + "… (" + s.model + ")");
           } else if (s.kind === "repair") {
             setStage("🧠 Correzione del formato JSON… ⏳ (" + s.model + ")");
+          } else if (s.kind === "bible") {
+            setStage("📘 Creo la Story Bible… (" + s.model + ")");
+          } else if (s.kind === "consistency") {
+            setStage("🔎 Controllo continuità e fedeltà alla storia…");
+          } else if (s.kind === "consistency_done") {
+            setStage("🔎 Controllo completato: " + s.corrected + " correzioni.");
+          } else if (s.kind === "warning") {
+            setStage("⚠️ " + s.message);
           }
         },
       });
+
+      storyBible = planResult.storyBible;
+      const scenes = planResult.scenes;
+      const consistencyWarnings = planResult.warnings || [];
+      setCurrent((c) => c ? { ...c, story_bible: storyBible, consistency_warnings: consistencyWarnings } : c);
 
       // ------------------------------------------------------
       // Tutte le scene in UI SUBITO dopo la pianificazione
@@ -580,7 +605,7 @@ export default function StoriesTab({ idToken }) {
       );
       setStage(
         "✍️ Piano pronto: " + scenes.length + " scene selezionate " +
-        "(planner: " + storyModel + " · " + Math.max(1, Math.min(15, Number(imageSteps) || 5)) + " step) — inizio illustrazioni…"
+        "(planner: " + plannerModel + " · " + Math.max(1, Math.min(15, Number(imageSteps) || 5)) + " step) — inizio illustrazioni…"
       );
 
       // ------------------------------------------------------
@@ -729,13 +754,15 @@ export default function StoriesTab({ idToken }) {
               agent: storyAgent,
               audio_filename: audioFilename,
               language: storyLang,
+              narrator_model: storyModel,
+              story_bible: storyBible,
               scenes: doneScenes.map((s) => ({
                 title: s.title,
                 prompt: s.prompt,
                 job_id: s.job_id,
                 seconds: s.seconds,
                 version: 1,
-                planner: storyModel,
+                planner: plannerModel,
                 style_prompt: "",
               })),
             }),
@@ -747,7 +774,9 @@ export default function StoriesTab({ idToken }) {
         }
       }
 
-      setStage("✅ Storia completata.");
+      setStage(consistencyWarnings.length
+        ? "⚠️ Storia completata. Controllo coerenza: " + consistencyWarnings.join(" · ")
+        : "✅ Storia completata.");
     } catch (err) {
       setError(err.message || String(err));
     } finally {
@@ -788,10 +817,14 @@ export default function StoriesTab({ idToken }) {
       const preset = regPreset || storyPreset(current.agent);
 
       // 1. Pianificazione scene con modello selezionabile.
-      const scenes = await planStoryScenes({
+      const planResult = await planStoryScenes({
         idToken,
         storyText,
         imageCount: imageN,
+        storyBible: current.story_bible || null,
+        buildBible: true,
+        consistencyCheck: true,
+        returnMetadata: true,
         styleExtra: regStyle ? "Additional style requirements: " + regStyle.trim() + ". " : "",
         styleClause: PRESET_CLAUSES[preset] || PRESET_CLAUSES.sw_kids,
         model: regModel,
@@ -800,9 +833,20 @@ export default function StoriesTab({ idToken }) {
             setStage("🔁 V" + nextVersion + " — Ollama (" + s.model + ") seleziona le scene " + s.from + "-" + s.to + " di " + s.total + "…");
           } else if (s.kind === "repair") {
             setStage("🔁 V" + nextVersion + " — Correzione del formato JSON… (" + s.model + ")");
+          } else if (s.kind === "bible") {
+            setStage("📘 V" + nextVersion + " — Creo la Story Bible… (" + s.model + ")");
+          } else if (s.kind === "consistency") {
+            setStage("🔎 V" + nextVersion + " — Controllo continuità e fedeltà…");
+          } else if (s.kind === "warning") {
+            setStage("⚠️ " + s.message);
           }
         },
       });
+
+      const scenes = planResult.scenes;
+      const storyBible = planResult.storyBible;
+      const consistencyWarnings = planResult.warnings || [];
+      setCurrent((c) => c ? { ...c, story_bible: storyBible, consistency_warnings: consistencyWarnings } : c);
 
       // ------------------------------------------------------
       // Tutte le scene della nuova versione in UI SUBITO
@@ -943,7 +987,9 @@ export default function StoriesTab({ idToken }) {
             text: storyText,
             agent: current.agent || STORY_AGENT,
             audio_filename: current.audio_filename || "",
-            language: "it",
+            language: current.language || "it",
+            narrator_model: current.narrator_model || "",
+            story_bible: storyBible,
             scenes: [...oldKept, ...doneScenes].map((s) => ({
               title: s.title,
               prompt: s.prompt,
@@ -960,7 +1006,9 @@ export default function StoriesTab({ idToken }) {
         );
         setActiveVersion(nextVersion);
         await loadStories();
-        const doneMsg = "✅ Versione V" + nextVersion + " pronta (" + doneScenes.length + " illustrazioni con " + regModel + ", preset " + preset + ").";
+        const doneMsg = consistencyWarnings.length
+          ? "⚠️ Versione V" + nextVersion + " pronta. " + consistencyWarnings.join(" · ")
+          : "✅ Versione V" + nextVersion + " pronta (" + doneScenes.length + " illustrazioni con " + regModel + ", preset " + preset + ").";
         setStage(doneMsg);
         setRegDone(doneMsg);
       } else {
@@ -1191,6 +1239,21 @@ export default function StoriesTab({ idToken }) {
 
             </select>
             <label style={{ display: "flex", alignItems: "center", gap: ".35rem", fontSize: ".8rem", color: "var(--ink-dim, #8fa1ac)" }}>
+              <span>🎙️ {t("storiesTab.narratorModel")}</span>
+              <select
+                className="il-input"
+                value={storyModel}
+                onChange={(event) => setStoryModel(event.target.value)}
+                aria-label={t("storiesTab.narratorModel")}
+                title={t("storiesTab.narratorModel")}
+                disabled={busy}
+              >
+                {["mistral", "qwen2.5", "llama3", "gemma4", "deepseek-r1"].map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: ".35rem", fontSize: ".8rem", color: "var(--ink-dim, #8fa1ac)" }}>
               <input
                 type="checkbox"
                 checked={wantsTts}
@@ -1252,8 +1315,8 @@ export default function StoriesTab({ idToken }) {
             )}
             <select
               className="il-input"
-              value={storyModel}
-              onChange={(event) => setStoryModel(event.target.value)}
+              value={plannerModel}
+              onChange={(event) => setPlannerModel(event.target.value)}
               style={{ flex: "0 0 auto", minWidth: "9rem" }}
               aria-label={t("storiesTab.plannerModel")}
               disabled={busy}

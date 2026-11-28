@@ -34,6 +34,18 @@ from dotenv import load_dotenv
 
 load_dotenv("gateway.env")
 
+
+def _env_int(name: str, default: int, minimum: int, maximum: int) -> int:
+    """Legge un intero da env e lo mantiene entro limiti sicuri."""
+    try:
+        value = int(os.environ.get(name, str(default)))
+    except (TypeError, ValueError):
+        value = default
+    return max(minimum, min(maximum, value))
+
+
+ADMIN_LLM_NUM_CTX = _env_int("ADMIN_LLM_NUM_CTX", 12288, 2048, 32768)
+
 app = FastAPI(title="Lele AI Gateway")
 
 
@@ -457,20 +469,19 @@ AGENTS = {
 class ChatRequest(BaseModel):
     agent: str
     prompt: str
-    chat_id: int = 1010101010
+    chat_id: int | None = None
     language: str = "en"
-    # Opzionali (selettore modello in console): inoltrati solo se
-    # presenti e validati. Night Story li supporta; gli altri agenti
-    # li ignorano (pydantic scarta i campi extra).
+    # Opzionali: entrambi gli agenti Story supportano il modello narratore;
+    # character resta specifico di Night Story.
     model: str | None = None
     character: str | None = None
-    # Story Whisper context is resolved server-side from the verified identity.
+    # Story-agent context is resolved server-side from the verified identity.
     fresh_context: bool = False
 
 
 # Whitelist per il selettore modello/character via /api/chat.
-# NS: model = gemma4|llama3|mistral|qwen2.5|deepseek-r1
-#     character = horror|drammatica|comico|ose|ricerca|random|amore|culturale
+# Story Whisper + Night Story: model = gemma4|llama3|mistral|qwen2.5|deepseek-r1
+# Night Story only: character = horror|drammatica|comico|ose|ricerca|random|amore|culturale
 CHAT_ALLOWED_MODELS = {
     "gemma4", "llama3", "mistral", "qwen2.5", "deepseek-r1",
 }
@@ -567,10 +578,10 @@ async def chat_router(req: ChatRequest, authorization: str | None = Header(None)
             detail=f"Agente '{req.agent}' non configurato.",
         )
 
-    # Story Whisper: personal IDs are only ever selected by the server.
-    # Legacy anonymous Console sessions keep working, but cannot target a
-    # chat_id reserved for an active user or configured admin.
-    if req.agent == "Story Whisper":
+    # Story agents use a server-resolved identity when authenticated.
+    # fresh_context creates a one-off conversation ID for BOTH agents.
+    # Legacy anonymous sessions keep working, but cannot target a reserved ID.
+    if req.agent in ("Story Whisper", "Night Story"):
         if authorization and authorization.startswith("Bearer "):
             user_email = verify_user_token(authorization)
             if req.fresh_context:
@@ -578,9 +589,9 @@ async def chat_router(req: ChatRequest, authorization: str | None = Header(None)
             else:
                 resolved_chat_id = _get_story_chat_id(user_email)
                 if resolved_chat_id is None:
-                    raise HTTPException(status_code=403, detail="Story Whisper requires a unique numeric chat_id assigned to this account.")
+                    raise HTTPException(status_code=403, detail=f"{req.agent} requires a unique numeric chat_id assigned to this account.")
         else:
-            if req.fresh_context:
+            if req.fresh_context or req.chat_id is None:
                 resolved_chat_id = random.randint(1_000_000_000, 9_999_999_999)
             else:
                 reserved_ids = {int(value) for value in ADMIN_USER_CHAT_IDS.values()}
@@ -591,10 +602,10 @@ async def chat_router(req: ChatRequest, authorization: str | None = Header(None)
                         except (TypeError, ValueError):
                             pass
                 if req.chat_id in reserved_ids:
-                    raise HTTPException(status_code=403, detail="This Story Whisper memory belongs to an authenticated account.")
+                    raise HTTPException(status_code=403, detail="This story memory belongs to an authenticated account.")
                 resolved_chat_id = req.chat_id
     else:
-        resolved_chat_id = req.chat_id
+        resolved_chat_id = req.chat_id if req.chat_id is not None else 1010101010
 
     port = config["port"]
     path = config["path"]
@@ -666,8 +677,11 @@ async def chat_router(req: ChatRequest, authorization: str | None = Header(None)
 async def chat_router_audio(
     audio: UploadFile = File(...),
     agent: str = Form(...),
-    chat_id: int = Form(1010101010),
+    chat_id: int | None = Form(None),
     language: str = Form("en"),
+    model: str | None = Form(None),
+    fresh_context: bool = Form(False),
+    authorization: str | None = Header(None),
 ):
     config = AGENTS.get(agent)
 
@@ -685,6 +699,35 @@ async def chat_router_audio(
             detail=f"'{agent}' non supporta l'input audio.",
         )
 
+    if model and agent in ("Story Whisper", "Night Story") and model not in CHAT_ALLOWED_MODELS:
+        raise HTTPException(status_code=400, detail=f"Model '{model}' non valido.")
+
+    resolved_chat_id = chat_id if chat_id is not None else 1010101010
+    if agent in ("Story Whisper", "Night Story"):
+        if chat_id is not None and chat_id <= 0 and not fresh_context:
+            raise HTTPException(status_code=400, detail="chat_id positivo obbligatorio per gli agenti Story.")
+        if authorization and authorization.startswith("Bearer "):
+            user_email = verify_user_token(authorization)
+            if fresh_context:
+                resolved_chat_id = random.randint(1_000_000_000, 9_999_999_999)
+            else:
+                resolved_chat_id = _get_story_chat_id(user_email)
+                if resolved_chat_id is None:
+                    raise HTTPException(status_code=403, detail=f"{agent} requires a unique numeric chat_id assigned to this account.")
+        else:
+            if fresh_context or chat_id is None:
+                resolved_chat_id = random.randint(1_000_000_000, 9_999_999_999)
+            else:
+                reserved_ids = {int(value) for value in ADMIN_USER_CHAT_IDS.values()}
+                for user in _load_demo_users():
+                    if user.get("active") and user.get("chat_id") is not None:
+                        try:
+                            reserved_ids.add(int(user["chat_id"]))
+                        except (TypeError, ValueError):
+                            pass
+                if chat_id in reserved_ids:
+                    raise HTTPException(status_code=403, detail="This story memory belongs to an authenticated account.")
+
     port = config["port"]
     target_url = f"http://127.0.0.1:{port}{audio_path}"
 
@@ -701,9 +744,11 @@ async def chat_router_audio(
             }
 
             data = {
-                "chat_id": str(chat_id),
+                "chat_id": str(resolved_chat_id),
                 "language": language,
             }
+            if model and agent in ("Story Whisper", "Night Story"):
+                data["model"] = model
 
             response = await client.post(
                 target_url,
@@ -3651,6 +3696,10 @@ class StorySaveRequest(BaseModel):
     audio_filename: str = ""
     language: str = "it"
     scenes: list[StoryScene] = []
+    narrator_model: str = ""
+    # Story Bible per singola storia: personaggi, luoghi, oggetti e cronologia.
+    # Nullable per mantenere compatibili e leggibili gli archivi precedenti.
+    story_bible: dict | None = None
 
 
 def _story_cleanup() -> None:
@@ -3781,6 +3830,8 @@ async def story_save(
         "agent": req.agent,
         "language": req.language,
         "has_audio": audio_saved,
+        "narrator_model": req.narrator_model,
+        "story_bible": req.story_bible,
         "scenes": [
             {
                 "title": s.title,
@@ -3888,6 +3939,12 @@ async def story_update(
         "agent": req.agent,
         "language": req.language,
         "has_audio": bool(existing.get("has_audio")),
+        "narrator_model": req.narrator_model or existing.get("narrator_model", ""),
+        "story_bible": (
+            req.story_bible
+            if req.story_bible is not None
+            else existing.get("story_bible")
+        ),
         "scenes": [
             {
                 "title": scene.title,
@@ -4347,7 +4404,12 @@ async def _jcs_interpret(text: str) -> str:
 class AdminLlmRequest(BaseModel):
     prompt: str
     model: str = ""
+    # Default stateless: libera il modello al termine, salvo override esplicito.
     keep_alive: int = 0
+    # "json" abilita la modalità JSON nativa di Ollama per planner/checker.
+    format: str | None = None
+    # Contesto configurabile; il valore effettivo viene limitato lato server.
+    num_ctx: int | None = None
 
 
 @app.post("/api/admin/llm")
@@ -4369,6 +4431,10 @@ async def admin_llm(
     model = req.model.strip() or os.environ.get(
         "ADMIN_LLM_DEFAULT_MODEL", "mistral:latest"
     )
+    num_ctx = max(
+        2048,
+        min(32768, req.num_ctx if req.num_ctx is not None else ADMIN_LLM_NUM_CTX),
+    )
 
     try:
         timeout = httpx.Timeout(timeout=300.0, connect=10.0)
@@ -4380,6 +4446,8 @@ async def admin_llm(
                     "prompt": req.prompt,
                     "stream": False,
                     "keep_alive": req.keep_alive,
+                    "options": {"num_ctx": num_ctx},
+                    **({"format": "json"} if req.format == "json" else {}),
                 },
             )
             response.raise_for_status()
